@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { InvoLogo } from "@/components/invo-logo"
 import { Loader2, CheckCircle2, XCircle, FileText, Shield } from "lucide-react"
-import { createClient } from "@/lib/supabase"
 import { toast } from "sonner"
 
 interface SignatureData {
@@ -41,11 +40,10 @@ export default function SigningPage() {
     const [agreedToTerms, setAgreedToTerms] = useState(false)
     const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
 
-    const supabase = createClient()
-
     useEffect(() => {
         async function loadSignature() {
             try {
+                // Fetch signature details via API (public endpoint if token provided)
                 const response = await fetch(`/api/signatures?token=${token}`)
                 const data = await response.json()
 
@@ -67,7 +65,12 @@ export default function SigningPage() {
             }
         }
 
-        loadSignature()
+        if (token) {
+            loadSignature()
+        } else {
+            setError("Invalid signing link")
+            setIsLoading(false)
+        }
     }, [token])
 
     const handleSubmitSignature = async () => {
@@ -79,66 +82,29 @@ export default function SigningPage() {
         setIsSubmitting(true)
 
         try {
-            // Upload signature image to storage
-            const signatureBlob = await fetch(signatureDataUrl).then((r) => r.blob())
-            const fileName = `signatures/${signature.id}_${Date.now()}.png`
+            // Submit to backend API
+            const response = await fetch("/api/signatures/sign", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    token,
+                    signatureDataUrl,
+                }),
+            })
 
-            const { error: uploadError } = await supabase.storage
-                .from("business-assets")
-                .upload(fileName, signatureBlob, {
-                    contentType: "image/png",
-                })
+            const data = await response.json()
 
-            if (uploadError) {
-                console.error("Upload error:", uploadError)
-                // Continue even if upload fails - we'll store the data URL
-            }
-
-            // Get public URL or use data URL
-            let signatureUrl = signatureDataUrl
-            if (!uploadError) {
-                const { data: urlData } = supabase.storage
-                    .from("business-assets")
-                    .getPublicUrl(fileName)
-                signatureUrl = urlData.publicUrl
-            }
-
-            // Update signature record
-            const { error: updateError } = await supabase
-                .from("signatures")
-                .update({
-                    status: "signed",
-                    signature_data: signatureUrl,
-                    signed_at: new Date().toISOString(),
-                    ip_address: null, // Would need server-side to capture
-                })
-                .eq("id", signature.id)
-
-            if (updateError) {
-                throw updateError
-            }
-
-            // Check if all signatures are complete
-            const { data: allSignatures } = await supabase
-                .from("signatures")
-                .select("signed_at")
-                .eq("document_id", signature.documents.id)
-
-            const allSigned = allSignatures?.every((s) => s.signed_at !== null)
-
-            if (allSigned) {
-                // Update document to completed
-                await supabase
-                    .from("documents")
-                    .update({ status: "completed" })
-                    .eq("id", signature.documents.id)
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to submit signature")
             }
 
             setIsComplete(true)
             toast.success("Document signed successfully!")
         } catch (err) {
             console.error("Signing error:", err)
-            toast.error("Failed to submit signature. Please try again.")
+            toast.error(err instanceof Error ? err.message : "Failed to submit signature. Please try again.")
         } finally {
             setIsSubmitting(false)
         }
@@ -274,3 +240,4 @@ export default function SigningPage() {
         </div>
     )
 }
+

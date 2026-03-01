@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { InvoLogo } from "@/components/invo-logo"
-import { OnboardingChat } from "@/components/onboarding-chat"
+import { OnboardingChat, type CollectedData } from "@/components/onboarding-chat"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { getTaxIdFieldName } from "@/lib/countries"
@@ -13,14 +13,32 @@ export default function OnboardingPage() {
     const router = useRouter()
     const { supabase, user, isLoading } = useAuth()
 
-    // Redirect if not logged in
+    // Redirect if not logged in, or if onboarding already complete
     useEffect(() => {
         if (!isLoading && !user) {
             router.push("/auth/login")
+            return
         }
-    }, [isLoading, user, router])
+        if (!isLoading && user) {
+            // Check if onboarding is already complete
+            supabase
+                .from("profiles")
+                .select("onboarding_complete")
+                .eq("id", user.id)
+                .single()
+                .then(({ data }) => {
+                    if (data?.onboarding_complete) {
+                        // Check if there's an active localStorage session (user is mid-redo)
+                        const hasActiveSession = localStorage.getItem("invo_onboarding_session")
+                        if (!hasActiveSession) {
+                            router.push("/")
+                        }
+                    }
+                })
+        }
+    }, [isLoading, user, router, supabase])
 
-    const handleComplete = async (data: Record<string, any>) => {
+    const handleComplete = async (data: CollectedData) => {
         if (!user) return
 
         try {
@@ -53,9 +71,11 @@ export default function OnboardingPage() {
                 default_currency: data.defaultCurrency || "",
                 default_payment_terms: data.paymentTerms || "net_30",
                 default_payment_instructions: data.paymentInstructions || "",
+                additional_notes: data.additionalNotes || "",
+                payment_methods: data.bankDetails ? { bank: data.bankDetails } : {},
                 logo_url: data.logoUrl || null,
                 signature_url: data.signatureUrl || null,
-            })
+            }, { onConflict: 'user_id' })
 
             if (businessError) {
                 throw businessError
@@ -91,9 +111,9 @@ export default function OnboardingPage() {
     return (
         <div className="min-h-screen flex flex-col bg-background">
             {/* Header */}
-            <header className="border-b py-4 px-6 flex items-center justify-between shrink-0">
+            <header className="border-b py-5 px-6 flex items-center justify-between shrink-0">
                 <InvoLogo />
-                <div className="text-sm text-muted-foreground">
+                <div className="text-base font-medium text-muted-foreground">
                     Business Setup
                 </div>
             </header>

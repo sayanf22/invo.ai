@@ -56,7 +56,7 @@ export function useDocument(options: UseDocumentOptions = {}) {
     // Create new document
     const createDocument = useCallback(
         async (
-            type: "invoice" | "contract" | "nda" | "agreement",
+            type: "invoice" | "contract" | "quotation" | "proposal",
             businessId: string,
             initialData: Json = {}
         ) => {
@@ -99,13 +99,13 @@ export function useDocument(options: UseDocumentOptions = {}) {
             setIsSaving(true)
 
             try {
-                const newVersion = createVersion ? (document.version || 1) + 1 : document.version
+                const newVersion = createVersion ? ((document.version as number) || 1) + 1 : document.version
 
                 // If creating version, save current state to versions table
                 if (createVersion) {
                     await supabase.from("document_versions").insert({
                         document_id: document.id,
-                        version: document.version || 1,
+                        version: (document.version as number) || 1,
                         data: document.data,
                         created_by: user.id,
                     })
@@ -245,6 +245,7 @@ export function useDocuments() {
     }, [supabase, user])
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- standard data-fetching pattern
         fetchDocuments()
     }, [fetchDocuments])
 

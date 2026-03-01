@@ -15,8 +15,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { authenticateRequest, validateBodySize } from "@/lib/api-auth"
-import { checkRateLimit } from "@/lib/rate-limiter"
+import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
+
+import { checkCostLimit, trackUsage } from "@/lib/cost-protection"
+import { sanitizeText, sanitizeEmail, sanitizePhone } from "@/lib/sanitize"
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
@@ -34,87 +36,151 @@ interface OnboardingAPIRequest {
 
 // ── System Prompt ──────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are **Invo AI**, a friendly onboarding assistant for Invo.ai — an AI-powered invoice & contract builder.
+const SYSTEM_PROMPT = `You are Invo AI — a warm, smart onboarding assistant for a document generation platform. Your job is to collect business profile data through a natural, friendly conversation.
 
-Your goal: collect business profile information through natural conversation. Ask ONE question at a time. Be warm, concise, and professional.
+## PERSONALITY
+- Friendly, professional, concise. Like a helpful colleague.
+- Ask ONE question at a time. Keep messages short (1-3 sentences max).
+- Use occasional emojis sparingly (👋 🎉 ✅).
 
-## Required Fields (collect all):
-1. **businessType** — MUST be exactly one of: freelancer, developer, agency, ecommerce, professional, other
-2. **country** — 2-letter ISO code. ONLY these are supported: IN, US, GB, DE, CA, AU, SG, AE, PH, FR, NL
-3. **businessName** — company or individual name
-4. **ownerName** — full legal name of the owner
-5. **email** — valid email address (must contain @ and a domain)
-6. **phone** — phone number WITH country code (e.g., +91-9876543210, +1-555-123-4567)
-7. **address** — object with: street, city, state, postalCode (all required)
-8. **taxId** — tax registration number (country-specific). Set to "" if user doesn't have one.
-9. **clientCountries** — array of 2-letter ISO codes where clients are located (only from supported list)
-10. **defaultCurrency** — 3-letter ISO currency code (INR, USD, GBP, EUR, CAD, AUD, SGD, AED, PHP, etc.)
-11. **paymentTerms** — MUST be exactly one of: immediate, net_15, net_30, net_60
+## MANDATORY CONFIRMATION PATTERN
+Every time the user gives you information, you MUST:
+1. REPEAT BACK the exact value you extracted so the user can confirm it's correct
+2. Then ask the next question
 
-## Optional Fields:
-- **paymentInstructions** — bank details, UPI, PayPal info, etc.
+Format your message like this:
+"Got it, [field] is [value]! ✅ [Next question]"
 
-## CRITICAL FOLLOW-UP RULES:
-You must be 100% sure about every piece of data before extracting it. Follow these rules strictly:
+Examples:
+- User says "freelancer" → "Got it, you're a freelancer! ✅ Which country is your business based in?"
+- User says "AddMenu" → "Got it, your business name is AddMenu! ✅ What's your full name?"
+- User says "Sayan Banik" → "Perfect, Sayan Banik! ✅ What's your email address?"
+- User says "india" → "Great, India (IN) it is! ✅ What's your business name?"
+- User says "no" (to tax) → "No worries, no tax registration noted! ✅ Which countries do your clients come from?"
+- User says "all" (for countries) → "Got it, all 11 countries! ✅ What's your preferred currency?"
+- User says "30 days" → "Perfect, Net 30 payment terms! ✅"
+- User says "kolkata" (for address) → "Got it, Kolkata! ✅ Are you registered for GST/VAT/Sales Tax?"
 
-1. **If the user's answer is vague, unclear, or could mean multiple things → DO NOT extract. Ask a specific follow-up question instead.**
-   - Example: User says "I work in tech" → DON'T extract businessType. Ask: "Great! Are you a freelance developer, part of an agency/studio, or running your own software business?"
-   
-2. **If the user gives a partial answer → extract what's clear, ask for what's missing.**
-   - Example: User says "My company is TechSoft in Mumbai" → Extract businessName="TechSoft", address.city="Mumbai". Ask for full address.
+ALWAYS include the actual value in your confirmation. Never just say "Got it!" without repeating what you understood.
 
-3. **If a country name is ambiguous or not in the supported list → ask for clarification.**
-   - Example: User says "I'm based in Europe" → Ask: "Which country specifically? We support UK, Germany, France, and Netherlands in Europe."
+## CRITICAL RULE: ALWAYS INTERPRET THE USER'S ANSWER AS THE ANSWER TO YOUR LAST QUESTION
+This is the MOST IMPORTANT rule. Whatever the user says, ALWAYS try to map it to the field you are currently asking about.
 
-4. **For email: MUST contain @ and a domain. If invalid format → ask again.**
+Examples when you asked "What's your business name?":
+- "AddMenu" → businessName: "AddMenu"
+- "my company" → businessName: "my company"
+- ANY text → treat it as the businessName
 
-5. **For phone: MUST include country code. If missing → ask: "Could you include your country code? For example, +91 for India or +1 for USA."**
+Examples when you asked "What's your full name?":
+- "Sayan Banik" → ownerName: "Sayan Banik"
+- "John" → ownerName: "John"
+- ANY name-like text → treat it as ownerName
 
-6. **For address: ALL four fields (street, city, state, postalCode) must be provided. If any are missing → ask specifically for the missing parts.**
+Examples when you asked about business type:
+- "freelancer" → businessType: "freelancer"
+- "I do freelance work" → businessType: "freelancer"
+- "agency" → businessType: "agency"
+- "dev" / "developer" / "software" → businessType: "developer"
+- "shop" / "store" / "selling" → businessType: "ecommerce"
 
-7. **For taxId: Ask clearly "Do you have a tax registration number (like GSTIN for India, EIN for USA, VAT for UK)?" Accept "" if they say no.**
+Examples when you asked about country:
+- "india" → country: "IN"
+- "usa" / "us" / "america" / "united states" → country: "US"
+- "uk" / "britain" / "england" → country: "GB"
+- "germany" → country: "DE"
+- "canada" → country: "CA"
+- "australia" → country: "AU"
+- "singapore" → country: "SG"
+- "uae" / "dubai" → country: "AE"
+- "philippines" → country: "PH"
+- "france" → country: "FR"
+- "netherlands" / "holland" → country: "NL"
 
-8. **For clientCountries: Only accept countries from the supported list. If user mentions unsupported countries, explain which countries are supported.**
+Examples for other fields:
+- "yes" / "yeah" / "yep" → affirmative to whatever you asked
+- "no" / "nah" / "nope" → negative to whatever you asked
+- "all" / "all countries" / "everywhere" → if asked about clientCountries, set ALL 11 countries: ["IN","US","GB","DE","CA","AU","SG","AE","PH","FR","NL"]
+- "rupees" / "inr" → defaultCurrency: "INR"
+- "dollars" / "usd" → defaultCurrency: "USD"
+- "euros" / "eur" → defaultCurrency: "EUR"
+- "pounds" / "gbp" → defaultCurrency: "GBP"
+- "30 days" / "net 30" → paymentTerms: "net_30"
+- "15 days" → paymentTerms: "net_15"
+- "60 days" → paymentTerms: "net_60"
+- "immediate" / "upfront" / "on receipt" → paymentTerms: "immediate"
 
-9. **Auto-suggest currency based on country** (India → INR, USA → USD, UK → GBP, Germany/France/Netherlands → EUR, etc.) but confirm with user.
+## NEVER SAY "I DIDN'T UNDERSTAND" OR "COULD YOU TELL ME MORE"
+- If the user types ANYTHING that could possibly be an answer to your current question, ACCEPT IT.
+- Only ask for clarification if the answer is completely empty or total gibberish (like "asdfghjkl").
+- A single word IS a valid answer. "AddMenu" is a business name. "Sayan" is a name. "Kolkata" is an address.
+- If multiple pieces of info are given in one message, extract ALL of them.
 
-10. **For paymentTerms: If user says something like "30 days" → map to "net_30". If unclear → show options.**
+## HANDLING QUESTIONS FROM THE USER
+If the user asks a question instead of giving an answer (e.g., "what does that mean?", "can you explain?", "I'm not sure"):
+- Answer their question briefly and helpfully
+- Then re-ask the same field question
+- Set extractedData to {} (nothing extracted)
+- Example: User asks "what does payment terms mean?" → message: "Payment terms define when your client should pay. Immediate means right away, Net 15 means within 15 days, Net 30 within 30 days, Net 60 within 60 days. Which one works for you?"
 
-## Response Format:
-Respond with valid JSON (no markdown, no code fences):
+## FIELDS TO COLLECT (in this order)
+1. businessType: "freelancer" | "developer" | "agency" | "ecommerce" | "professional" | "other"
+2. country: 2-letter ISO code from: IN, US, GB, DE, CA, AU, SG, AE, PH, FR, NL
+3. businessName: company/business name — ANY text is valid here
+4. ownerName: full name — ANY name text is valid here
+5. email: valid email address
+6. phone: phone number (any format)
+7. address: { street, city, state, postalCode } — partial is OK, just city is fine
+8. taxRegistered: boolean — "Are you registered for GST/VAT/Sales Tax?"
+9. taxId: ONLY if taxRegistered=true. If false → auto-set taxId="" and SKIP to next field.
+10. clientCountries: array of 2-letter codes. "all" = all 11 countries.
+11. defaultCurrency: ONE currency code only — INR, USD, GBP, EUR, CAD, AUD, SGD, AED, PHP. Pick the FIRST one if user says multiple.
+12. paymentTerms: "immediate" | "net_15" | "net_30" | "net_60"
+
+After collecting all 12 required fields above, ask about OPTIONAL bank details:
+13. bankDetails (OPTIONAL): Ask "Would you like to add your bank details for invoices? (You can skip this)"
+    - If yes → collect: bankName, accountName, accountNumber, and ifscCode (for India) or swiftCode or routingNumber
+    - If no/skip → set bankDetails to {} and move to the final question
+    - Accept partial info — any fields provided are fine
+
+## SPECIAL RULES
+- "no" to tax → set BOTH taxRegistered: false AND taxId: "" in extractedData, skip to next field.
+- If user provides country, suggest matching currency and ask to confirm.
+- Partial address is fine. Don't force all subfields.
+- If user volunteers info for a future field, extract it immediately.
+
+## FINAL QUESTION
+When ALL fields are collected (including bank details step), ask: "Is there anything else you'd like to add? Like pricing, product details, or a business description?"
+- "no" / "nothing" / "that's it" → set allFieldsComplete: true, extractedData: {}
+- If user provides info → set extractedData: { "additionalNotes": "<their exact answer>" } AND allFieldsComplete: true
+
+## RESPONSE FORMAT — ALWAYS VALID JSON, NO MARKDOWN
 {
-  "message": "Your conversational reply to the user",
-  "extractedData": { ... only NEWLY extracted fields with HIGH confidence ... },
+  "message": "Your friendly reply acknowledging their answer + next question",
+  "extractedData": { "fieldName": "value" },
   "needsClarification": false,
   "allFieldsComplete": false
 }
-
-### Rules for extractedData:
-- ONLY include fields you are 100% confident about from the current message
-- If you're NOT sure → set "needsClarification": true and ask in "message"
-- Don't repeat already-collected data
-- For address: {"address": {"street": "...", "city": "...", "state": "...", "postalCode": "..."}}
-- For clientCountries: {"clientCountries": ["IN", "US"]}
-- For taxId when user has none: {"taxId": ""}
-- Extract MULTIPLE fields from one message when possible (e.g., "I'm a freelancer from India called TechSoft" → businessType, country, businessName)
-
-### Rules for allFieldsComplete:
-- Set true ONLY when ALL 11 required fields have been collected (check the Already Collected Data section)
-- When all complete, summarize everything in your message and congratulate the user
-
-IMPORTANT: Return ONLY the JSON object. No markdown wrapping, no extra text outside the JSON.`
+- extractedData: only fields extracted THIS turn. Empty {} if nothing new.
+- needsClarification: true ONLY for complete gibberish. Almost never use this.
+- allFieldsComplete: true only after final question answered.`
 
 // ── Handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
     try {
+        // SECURITY: Validate request origin
+        const originError = validateOrigin(request)
+        if (originError) return originError
+
         // SECURITY: Authenticate user
         const auth = await authenticateRequest()
         if (auth.error) return auth.error
 
-        // SECURITY: Rate limit (10 req/min for AI routes)
-        const rateLimitError = await checkRateLimit(auth.user.id, "ai")
-        if (rateLimitError) return rateLimitError
+        // Rate limiting removed - handled by Supabase if needed
+
+        // SECURITY: Cost protection
+        const costError = await checkCostLimit(auth.supabase, auth.user.id, "onboarding")
+        if (costError) return costError
 
         const body: OnboardingAPIRequest = await request.json()
 
@@ -150,6 +216,10 @@ export async function POST(request: NextRequest) {
         }
 
         const result = await callDeepSeek(messages, collectedData, apiKey)
+
+        // Track usage
+        await trackUsage(auth.supabase, auth.user.id, "onboarding", 0)
+
         return NextResponse.json(result)
 
     } catch (error) {
@@ -171,27 +241,69 @@ async function callDeepSeek(
     // Build context of already collected data
     const collectedKeys = Object.keys(collectedData).filter(k => {
         const v = collectedData[k]
+        // taxRegistered=false and taxId="" are VALID collected values — don't skip them
+        if (k === "taxRegistered" && typeof v === "boolean") return true
+        if (k === "taxId" && typeof v === "string") return true  // even empty string means "collected as no tax"
+        // bankDetailsSkipped=true is a valid collected value
+        if (k === "bankDetailsSkipped" && v === true) return true
         if (v === null || v === undefined || v === "") return false
         if (Array.isArray(v)) return v.length > 0
         if (typeof v === "object") return Object.values(v as Record<string, unknown>).some(val => val && String(val).trim().length > 0)
         return String(v).trim().length > 0
     })
 
+    // These are the fields the AI needs to collect. taxRegistered/taxId are handled specially:
+    // - If taxRegistered is false, taxId is auto-set to "" and both are "done"
+    // - If taxRegistered is true, taxId must have a value
     const allRequiredFields = [
         "businessType", "country", "businessName", "ownerName",
-        "email", "phone", "address", "taxId",
+        "email", "phone", "address",
         "clientCountries", "defaultCurrency", "paymentTerms"
     ]
+    
+    // Tax fields: only consider taxId missing if taxRegistered=true and taxId is empty
+    const taxRegistered = collectedData.taxRegistered
+    const hasTaxFields = taxRegistered !== undefined && taxRegistered !== null
+    const needsTaxId = taxRegistered === true && (!collectedData.taxId || String(collectedData.taxId).trim() === "")
+    
     const missingFields = allRequiredFields.filter(f => !collectedKeys.includes(f))
+    
+    // Add tax fields to missing if not yet asked
+    if (!hasTaxFields) {
+        missingFields.push("taxRegistered")
+    } else if (needsTaxId) {
+        missingFields.push("taxId")
+    }
+
+    // Determine the current phase: required fields → optional bank details → final question
+    const bankDetailsCollected = collectedKeys.includes("bankDetails")
+    const bankDetailsSkipped = collectedData.bankDetailsSkipped === true
+    const bankDetailsAsked = bankDetailsCollected || bankDetailsSkipped
+    const additionalNotesCollected = collectedKeys.includes("additionalNotes")
+
+    let instruction = ""
+    if (missingFields.length > 0) {
+        instruction = `INSTRUCTION: The NEXT field to collect is "${missingFields[0]}". The user's LAST message is their answer to your LAST question. If your last question was about "${missingFields[0]}", then the user's reply IS the value for "${missingFields[0]}" — accept it and extract it. Do NOT say "could you tell me more" or "I didn't catch that". Accept whatever they typed as the answer.`
+    } else if (!bankDetailsAsked) {
+        instruction = `INSTRUCTION: All required fields are collected! Now ask about OPTIONAL bank details: "Would you like to add your bank details for invoices? You can skip this step." If user says no/skip/nah, set extractedData to { "bankDetailsSkipped": true } and ask the final question. If yes, collect bankName, accountName, accountNumber, and ifscCode (for India) or swiftCode or routingNumber.`
+    } else if (!additionalNotesCollected) {
+        instruction = `INSTRUCTION: All fields including bank details are done. If your LAST message already asked the final question ("anything else to add?"), then the user's LAST message IS their answer. If they said no/nothing/that's it, set allFieldsComplete=true with extractedData={}. If they provided actual content (pricing, description, etc.), save it as extractedData: { "additionalNotes": "<their answer>" } AND set allFieldsComplete=true. If you haven't asked the final question yet, ask it now: "Is there anything else you'd like to add? Like pricing, product details, or a business description?"`
+    } else {
+        instruction = "INSTRUCTION: User answered the final question. Set allFieldsComplete=true."
+    }
 
     const collectedSummary = collectedKeys.length > 0
-        ? `\n\n## Already Collected Data:\n${JSON.stringify(collectedData, null, 2)}\n\n## Still Missing Fields:\n${missingFields.join(", ")}\n\nDon't re-ask for fields that already have values. Focus on the NEXT missing required field: "${missingFields[0] || "NONE — all complete!"}".`
-        : "\n\nNo data collected yet. Start by greeting the user warmly and asking about their business type."
+        ? `\n\nDATA COLLECTED SO FAR:\n${JSON.stringify(collectedData, null, 2)}\n\nSTILL NEEDED: ${missingFields.length > 0 ? missingFields.join(", ") : "NONE — all required fields done!"}\n\n${instruction}`
+        : "\n\nNo data collected yet. Greet the user warmly and ask about their business type (freelancer, developer, agency, ecommerce, professional, or other)."
+
+    // Trim conversation history — only send last 12 messages to avoid token overflow
+    // The system prompt already contains all collected data, so older messages are redundant
+    const trimmedMessages = messages.length > 12 ? messages.slice(-12) : messages
 
     // Build OpenAI-compatible messages array
     const apiMessages = [
         { role: "system" as const, content: SYSTEM_PROMPT + collectedSummary },
-        ...messages.map(msg => ({
+        ...trimmedMessages.map(msg => ({
             role: msg.role as "user" | "assistant",
             content: msg.content,
         }))
@@ -207,8 +319,8 @@ async function callDeepSeek(
             body: JSON.stringify({
                 model: "deepseek-chat",
                 messages: apiMessages,
-                max_tokens: 1024,
-                temperature: 0.3,
+                max_tokens: 2048,
+                temperature: 0.1,  // Lower temperature for more consistent, predictable responses
                 response_format: { type: "json_object" },
             }),
         })
@@ -216,39 +328,118 @@ async function callDeepSeek(
         if (!response.ok) {
             const errText = await response.text()
             console.error("DeepSeek API error:", response.status, errText)
+
+            // Handle specific error codes
+            if (response.status === 429) {
+                return {
+                    message: "⏳ DeepSeek's API is experiencing high traffic. Please wait a minute and try again. This is a temporary rate limit from DeepSeek, not our application.",
+                    extractedData: {},
+                    needsClarification: false,
+                    allFieldsComplete: false,
+                }
+            }
+
             throw new Error(`DeepSeek API error: ${response.status}`)
         }
 
         const data = await response.json()
-        const text = data.choices?.[0]?.message?.content || ""
+        const text = (data.choices?.[0]?.message?.content || "").trim()
 
-        // Parse JSON response
-        const jsonMatch = text.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) {
+        // Parse JSON — try direct parse first (response_format: json_object should give clean JSON)
+        let parsed: Record<string, unknown> | null = null
+
+        // Attempt 1: Direct JSON.parse (most likely to work with json_object format)
+        try {
+            parsed = JSON.parse(text)
+        } catch {
+            // try regex extraction
+        }
+
+        // Attempt 2: Extract JSON from markdown code fences or surrounding text
+        if (!parsed) {
+            try {
+                // Remove markdown code fences if present
+                const cleaned = text.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim()
+                parsed = JSON.parse(cleaned)
+            } catch {
+                // regex also failed
+            }
+        }
+
+        // Attempt 3: Regex extraction as last resort
+        if (!parsed) {
+            const jsonMatch = text.match(/\{[\s\S]*\}/)
+            if (jsonMatch) {
+                try {
+                    parsed = JSON.parse(jsonMatch[0])
+                } catch {
+                    console.error("Regex JSON parse also failed")
+                }
+            }
+        }
+
+        // If all parsing fails, try to salvage what we can from the raw text
+        if (!parsed) {
+            console.error("All JSON parsing failed. Raw text:", text)
+            
+            // Try to extract just the message field from partial/broken JSON
+            const msgMatch = text.match(/"message"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/)
+            if (msgMatch) {
+                // Also try to extract extractedData
+                let extractedData = {}
+                const dataMatch = text.match(/"extractedData"\s*:\s*(\{[^}]*\})/)
+                if (dataMatch) {
+                    try { extractedData = JSON.parse(dataMatch[0].replace('"extractedData":', '').trim()) } catch { /* ignore */ }
+                }
+                return {
+                    message: msgMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n'),
+                    extractedData,
+                    needsClarification: false,
+                    allFieldsComplete: false,
+                }
+            }
+            
+            // If the raw text looks like a normal conversational message (not JSON), use it directly
+            if (text.length > 0 && !text.startsWith('{')) {
+                return {
+                    message: text,
+                    extractedData: {},
+                    needsClarification: false,
+                    allFieldsComplete: false,
+                }
+            }
+            
+            // SERVER-SIDE FALLBACK: Try to interpret the user's last message ourselves
+            const lastUserMsg = messages[messages.length - 1]?.content?.trim().toLowerCase() || ""
+            const bankDetailsAsked = collectedKeys.includes("bankDetails") || (collectedData.bankDetailsSkipped === true)
+            const additionalNotesCollected = collectedKeys.includes("additionalNotes")
+            const fallback = serverSideInterpret(lastUserMsg, missingFields, collectedData, bankDetailsAsked, additionalNotesCollected)
+            if (fallback) {
+                return fallback
+            }
+            
             return {
-                message: "I didn't quite catch that. Could you try rephrasing?",
+                message: "Sorry, I had a brief hiccup. Could you send that again?",
                 extractedData: {},
-                needsClarification: true,
+                needsClarification: false,
                 allFieldsComplete: false,
             }
         }
 
-        const parsed = JSON.parse(jsonMatch[0])
-
         // Validate extracted data before returning
-        const validatedData = validateExtractedData(parsed.extractedData || {})
+        const validatedData = validateExtractedData((parsed.extractedData || {}) as Record<string, unknown>)
 
         return {
-            message: parsed.message || "Could you tell me more?",
+            message: parsed.message || "Thanks! What's next on the list?",
             extractedData: validatedData,
             needsClarification: parsed.needsClarification || false,
             allFieldsComplete: parsed.allFieldsComplete || false,
         }
 
     } catch (error) {
-        console.error("DeepSeek call failed:", error)
+        console.error("DeepSeek call failed:", error instanceof Error ? error.message : error)
         return {
-            message: "I'm having a connection issue. Please try again in a moment.",
+            message: "I'm having a brief connection issue. Could you send that again?",
             extractedData: {},
             needsClarification: false,
             allFieldsComplete: false,
@@ -256,11 +447,307 @@ async function callDeepSeek(
     }
 }
 
+// ── Server-side Fallback Interpreter ────────────────────────────────────
+// When DeepSeek returns broken JSON, this function tries to interpret
+// the user's last message based on which field we're currently collecting.
+
+const CURRENCY_MAP: Record<string, string> = {
+    "inr": "INR", "rupee": "INR", "rupees": "INR", "indian": "INR",
+    "usd": "USD", "dollar": "USD", "dollars": "USD", "american": "USD",
+    "eur": "EUR", "euro": "EUR", "euros": "EUR",
+    "gbp": "GBP", "pound": "GBP", "pounds": "GBP", "british": "GBP",
+    "cad": "CAD", "canadian": "CAD",
+    "aud": "AUD", "australian": "AUD",
+    "sgd": "SGD", "singapore": "SGD",
+    "aed": "AED", "dirham": "AED", "dirhams": "AED",
+    "php": "PHP", "peso": "PHP", "pesos": "PHP",
+}
+
+const COUNTRY_MAP: Record<string, string> = {
+    "india": "IN", "in": "IN",
+    "usa": "US", "us": "US", "america": "US", "united states": "US",
+    "uk": "GB", "gb": "GB", "britain": "GB", "england": "GB", "united kingdom": "GB",
+    "germany": "DE", "de": "DE",
+    "canada": "CA", "ca": "CA",
+    "australia": "AU", "au": "AU",
+    "singapore": "SG", "sg": "SG",
+    "uae": "AE", "ae": "AE", "dubai": "AE", "emirates": "AE",
+    "philippines": "PH", "ph": "PH",
+    "france": "FR", "fr": "FR",
+    "netherlands": "NL", "nl": "NL", "holland": "NL",
+}
+
+const PAYMENT_MAP: Record<string, string> = {
+    "immediate": "immediate", "upfront": "immediate", "on receipt": "immediate", "now": "immediate",
+    "net 15": "net_15", "15 days": "net_15", "15": "net_15",
+    "net 30": "net_30", "30 days": "net_30", "30": "net_30",
+    "net 60": "net_60", "60 days": "net_60", "60": "net_60",
+}
+
+const FIELD_QUESTIONS: Record<string, string> = {
+    businessType: "What type of business do you run? (freelancer, developer, agency, ecommerce, professional, or other)",
+    country: "Which country is your business based in?",
+    businessName: "What's your business name?",
+    ownerName: "What's your full name?",
+    email: "What's your email address?",
+    phone: "What's your phone number?",
+    address: "What's your business address? (city is enough)",
+    taxRegistered: "Are you registered for GST/VAT/Sales Tax?",
+    taxId: "What's your tax registration number?",
+    clientCountries: "Which countries do your clients come from? (or say 'all')",
+    defaultCurrency: "What's your preferred currency? (e.g., INR, USD, EUR)",
+    paymentTerms: "What are your standard payment terms? (Immediate, Net 15, Net 30, or Net 60)",
+    bankDetails: "Would you like to add your bank details for invoices? (You can skip this)",
+}
+
+function serverSideInterpret(
+    userMsg: string,
+    missingFields: string[],
+    collectedData: Record<string, unknown>,
+    bankDetailsAsked: boolean,
+    additionalNotesCollected: boolean
+): { message: string; extractedData: Record<string, unknown>; needsClarification: boolean; allFieldsComplete: boolean } | null {
+    if (!userMsg) return null
+
+    // Phase 1: Still collecting required fields
+    if (missingFields.length > 0) {
+        return interpretRequiredField(userMsg, missingFields, collectedData)
+    }
+
+    // Phase 2: Bank details (optional)
+    if (!bankDetailsAsked) {
+        const no = ["no", "nah", "nope", "n", "skip", "no thanks", "not now", "later"]
+        const yes = ["yes", "yeah", "yep", "y", "sure", "ok", "okay"]
+        if (no.some(w => userMsg.toLowerCase().includes(w))) {
+            return {
+                message: "No problem, skipping bank details! ✅ Is there anything else you'd like to add? Like pricing, product details, or a business description?",
+                extractedData: { bankDetailsSkipped: true },
+                needsClarification: false,
+                allFieldsComplete: false,
+            }
+        }
+        if (yes.some(w => userMsg.toLowerCase().includes(w))) {
+            return {
+                message: "Great! What's your bank name?",
+                extractedData: {},
+                needsClarification: false,
+                allFieldsComplete: false,
+            }
+        }
+        return null
+    }
+
+    // Phase 3: Final question (additional notes)
+    if (!additionalNotesCollected) {
+        const no = ["no", "nah", "nope", "n", "nothing", "that's it", "thats it", "that is it", "nope", "all good", "done", "no thanks"]
+        if (no.some(w => userMsg.toLowerCase().includes(w))) {
+            return {
+                message: "You're all set! 🎉 Click 'Complete Setup' to save your profile.",
+                extractedData: {},
+                needsClarification: false,
+                allFieldsComplete: true,
+            }
+        }
+        // User provided additional notes
+        if (userMsg.length > 0) {
+            return {
+                message: "Got it, noted! 🎉 Click 'Complete Setup' to save your profile.",
+                extractedData: { additionalNotes: userMsg },
+                needsClarification: false,
+                allFieldsComplete: true,
+            }
+        }
+    }
+
+    return null
+}
+
+// Helper: interpret required field answers in the server-side fallback
+function interpretRequiredField(
+    userMsg: string,
+    missingFields: string[],
+    collectedData: Record<string, unknown>
+): { message: string; extractedData: Record<string, unknown>; needsClarification: boolean; allFieldsComplete: boolean } | null {
+    if (missingFields.length === 0) return null
+    
+    const currentField = missingFields[0]
+    const nextField = missingFields.length > 1 ? missingFields[1] : null
+    const nextQuestion = nextField ? FIELD_QUESTIONS[nextField] || "" : "Would you like to add your bank details for invoices? You can skip this step."
+    
+    let extractedData: Record<string, unknown> = {}
+    let confirmMsg = ""
+    
+    switch (currentField) {
+        case "defaultCurrency": {
+            // Try to match currency from user input
+            const words = userMsg.split(/[\s,&+]+/)
+            for (const word of words) {
+                const match = CURRENCY_MAP[word.toLowerCase()]
+                if (match) {
+                    extractedData = { defaultCurrency: match }
+                    confirmMsg = `Got it, ${match} it is! ✅`
+                    break
+                }
+            }
+            // Also try the raw input as a 3-letter code
+            if (!confirmMsg && userMsg.length === 3) {
+                extractedData = { defaultCurrency: userMsg.toUpperCase() }
+                confirmMsg = `Got it, ${userMsg.toUpperCase()} it is! ✅`
+            }
+            break
+        }
+        case "country": {
+            const match = COUNTRY_MAP[userMsg.toLowerCase()]
+            if (match) {
+                extractedData = { country: match }
+                confirmMsg = `Great, ${match} it is! ✅`
+            }
+            break
+        }
+        case "paymentTerms": {
+            const match = PAYMENT_MAP[userMsg.toLowerCase()]
+            if (match) {
+                extractedData = { paymentTerms: match }
+                const labels: Record<string, string> = { immediate: "Immediate", net_15: "Net 15", net_30: "Net 30", net_60: "Net 60" }
+                confirmMsg = `Perfect, ${labels[match]} payment terms! ✅`
+            }
+            break
+        }
+        case "businessType": {
+            const types: Record<string, string> = {
+                "freelancer": "freelancer", "freelance": "freelancer",
+                "developer": "developer", "dev": "developer", "software": "developer",
+                "agency": "agency",
+                "ecommerce": "ecommerce", "e-commerce": "ecommerce", "shop": "ecommerce", "store": "ecommerce",
+                "professional": "professional",
+            }
+            const match = types[userMsg.toLowerCase()]
+            if (match) {
+                extractedData = { businessType: match }
+                confirmMsg = `Got it, you're a ${match}! ✅`
+            } else {
+                extractedData = { businessType: "other" }
+                confirmMsg = `Got it, noted as "${userMsg}"! ✅`
+            }
+            break
+        }
+        case "taxRegistered": {
+            const yes = ["yes", "yeah", "yep", "y", "true", "registered"]
+            const no = ["no", "nah", "nope", "n", "false", "not", "not registered"]
+            if (yes.includes(userMsg.toLowerCase())) {
+                extractedData = { taxRegistered: true }
+                confirmMsg = "Got it, you're tax registered! ✅"
+            } else if (no.some(w => userMsg.toLowerCase().includes(w))) {
+                extractedData = { taxRegistered: false, taxId: "" }
+                confirmMsg = "No worries, no tax registration noted! ✅"
+            }
+            break
+        }
+        case "clientCountries": {
+            if (["all", "all countries", "all of them", "everywhere", "all the countries"].includes(userMsg.toLowerCase())) {
+                extractedData = { clientCountries: SUPPORTED_COUNTRIES }
+                confirmMsg = "Got it, all 11 countries! ✅"
+            }
+            break
+        }
+        case "businessName":
+        case "ownerName":
+        case "email":
+        case "phone": {
+            // Accept any text as the value for these fields
+            if (userMsg.length > 0) {
+                extractedData = { [currentField]: userMsg }
+                const labels: Record<string, string> = {
+                    businessName: "business name",
+                    ownerName: "name",
+                    email: "email",
+                    phone: "phone number",
+                }
+                confirmMsg = `Got it, ${labels[currentField]} is ${userMsg}! ✅`
+            }
+            break
+        }
+    }
+    
+    if (confirmMsg && Object.keys(extractedData).length > 0) {
+        return {
+            message: `${confirmMsg} ${nextQuestion}`,
+            extractedData,
+            needsClarification: false,
+            allFieldsComplete: false,
+        }
+    }
+    
+    // If we couldn't interpret it, check if user is asking a question
+    const questionWords = ["what", "how", "why", "can you", "tell me", "explain", "not sure", "don't know", "i'm not sure", "im not sure", "what does", "what is"]
+    if (questionWords.some(q => userMsg.toLowerCase().includes(q))) {
+        // User is asking a question — provide help for the current field
+        const helpTexts: Record<string, string> = {
+            paymentTerms: "Payment terms define when your client should pay after receiving the invoice. Immediate means right away, Net 15 means within 15 days, Net 30 within 30 days, Net 60 within 60 days. Most businesses use Net 30. Which one works for you?",
+            defaultCurrency: "This is the currency you'll use on your invoices and documents. For India it's INR (₹), for USA it's USD ($), for UK it's GBP (£), for Europe it's EUR (€). Which currency do you prefer?",
+            taxRegistered: "This means whether your business is registered for tax collection — like GST in India, VAT in Europe, or Sales Tax in the US. If you're not sure, you can say 'no' for now. Are you registered?",
+            clientCountries: "These are the countries where your clients are located. This helps me add the right compliance info to your documents. You can say 'all' for all 11 supported countries, or list specific ones.",
+            businessType: "This helps me understand your business better. Options are: freelancer, developer, agency, ecommerce, professional, or other. Which fits best?",
+        }
+        const help = helpTexts[currentField]
+        if (help) {
+            return {
+                message: help,
+                extractedData: {},
+                needsClarification: false,
+                allFieldsComplete: false,
+            }
+        }
+    }
+    
+    return null
+}
+
 // ── Server-side Validation ─────────────────────────────────────────────
 
 const SUPPORTED_COUNTRIES = ["IN", "US", "GB", "DE", "CA", "AU", "SG", "AE", "PH", "FR", "NL"]
 const VALID_BUSINESS_TYPES = ["freelancer", "developer", "agency", "ecommerce", "professional", "other"]
 const VALID_PAYMENT_TERMS = ["immediate", "net_15", "net_30", "net_60"]
+
+// Phone number country code patterns
+const PHONE_COUNTRY_CODES: Record<string, string> = {
+    "91": "IN",   // India
+    "1": "US",    // USA/Canada (will need length check)
+    "44": "GB",   // UK
+    "49": "DE",   // Germany
+    "61": "AU",   // Australia
+    "65": "SG",   // Singapore
+    "971": "AE",  // UAE
+    "63": "PH",   // Philippines
+    "33": "FR",   // France
+    "31": "NL",   // Netherlands
+}
+
+function detectCountryFromPhone(phone: string): string | null {
+    // Remove all non-digit characters
+    const digits = phone.replace(/\D/g, "")
+
+    // Try to match country codes (longest first)
+    const sortedCodes = Object.keys(PHONE_COUNTRY_CODES).sort((a, b) => b.length - a.length)
+
+    for (const code of sortedCodes) {
+        if (digits.startsWith(code)) {
+            const country = PHONE_COUNTRY_CODES[code]
+
+            // Special handling for US/Canada (both use +1)
+            if (code === "1") {
+                // US/Canada numbers are 11 digits total (1 + 10 digits)
+                if (digits.length === 11) {
+                    return "US" // Default to US, user can correct if Canada
+                }
+            } else {
+                return country
+            }
+        }
+    }
+
+    return null
+}
 
 function validateExtractedData(data: Record<string, unknown>): Record<string, unknown> {
     const validated: Record<string, unknown> = {}
@@ -280,14 +767,25 @@ function validateExtractedData(data: Record<string, unknown>): Record<string, un
                 break
 
             case "email":
-                if (typeof value === "string" && value.includes("@") && value.includes(".")) {
-                    validated.email = value.trim().toLowerCase()
+                if (typeof value === "string") {
+                    try {
+                        validated.email = sanitizeEmail(value)
+                    } catch {
+                        // Invalid email, skip
+                    }
                 }
                 break
 
             case "phone":
-                if (typeof value === "string" && value.trim().length >= 8) {
-                    validated.phone = value.trim()
+                if (typeof value === "string") {
+                    const sanitized = sanitizePhone(value)
+                    validated.phone = sanitized
+
+                    // Auto-detect country from phone number if not already set
+                    const detectedCountry = detectCountryFromPhone(sanitized)
+                    if (detectedCountry && !data.country) {
+                        validated.country = detectedCountry
+                    }
                 }
                 break
 
@@ -298,6 +796,18 @@ function validateExtractedData(data: Record<string, unknown>): Record<string, un
                         .filter(c => SUPPORTED_COUNTRIES.includes(c))
                     if (validCountries.length > 0) {
                         validated.clientCountries = validCountries
+                    }
+                } else if (typeof value === "string") {
+                    const str = value.toLowerCase().trim()
+                    // Check if user said "all" or "all countries"
+                    if (str === "all" || str === "all countries" || str === "everywhere" || str === "all of them") {
+                        validated.clientCountries = SUPPORTED_COUNTRIES
+                    } else {
+                        // Try to extract country codes from string
+                        const codes = str.match(/\b(IN|US|GB|DE|CA|AU|SG|AE|PH|FR|NL)\b/gi)
+                        if (codes) {
+                            validated.clientCountries = codes.map(c => c.toUpperCase())
+                        }
                     }
                 }
                 break
@@ -314,38 +824,114 @@ function validateExtractedData(data: Record<string, unknown>): Record<string, un
                     // Only include if at least city or street is provided
                     if (addr.city || addr.street) {
                         validated.address = {
-                            street: addr.street || "",
-                            city: addr.city || "",
-                            state: addr.state || "",
-                            postalCode: addr.postalCode || addr.postal_code || "",
+                            street: sanitizeText(addr.street || ""),
+                            city: sanitizeText(addr.city || ""),
+                            state: sanitizeText(addr.state || ""),
+                            postalCode: sanitizeText(addr.postalCode || addr.postal_code || ""),
                         }
                     }
                 }
                 break
 
             case "defaultCurrency":
-                if (typeof value === "string" && value.trim().length === 3) {
-                    validated.defaultCurrency = value.toUpperCase()
+                if (typeof value === "string") {
+                    const currencyStr = value.trim().toUpperCase()
+
+                    // Map common currency names to codes
+                    const currencyMap: Record<string, string> = {
+                        "INR": "INR", "RUPEE": "INR", "RUPEES": "INR", "INDIAN RUPEE": "INR", "INDIAN RUPEES": "INR",
+                        "USD": "USD", "DOLLAR": "USD", "DOLLARS": "USD", "US DOLLAR": "USD", "US DOLLARS": "USD",
+                        "EUR": "EUR", "EURO": "EUR", "EUROS": "EUR",
+                        "GBP": "GBP", "POUND": "GBP", "POUNDS": "GBP", "BRITISH POUND": "GBP",
+                        "CAD": "CAD", "CANADIAN DOLLAR": "CAD",
+                        "AUD": "AUD", "AUSTRALIAN DOLLAR": "AUD",
+                        "SGD": "SGD", "SINGAPORE DOLLAR": "SGD",
+                        "AED": "AED", "DIRHAM": "AED",
+                        "PHP": "PHP", "PESO": "PHP", "PHILIPPINE PESO": "PHP",
+                    }
+
+                    // Try direct match first
+                    if (currencyMap[currencyStr]) {
+                        validated.defaultCurrency = currencyMap[currencyStr]
+                    }
+                    // Try 3-letter code
+                    else if (currencyStr.length === 3) {
+                        validated.defaultCurrency = currencyStr
+                    }
+                    // Try to extract first currency code from string like "USD and INR" or "usd and inr"
+                    else {
+                        // Split by common separators and get first currency
+                        const parts = currencyStr.split(/[\s,&]+/).filter(p => p.length > 0)
+                        for (const part of parts) {
+                            const normalized = part.toUpperCase()
+                            if (currencyMap[normalized]) {
+                                validated.defaultCurrency = currencyMap[normalized]
+                                break
+                            }
+                            if (normalized.length === 3 && /^[A-Z]{3}$/.test(normalized)) {
+                                validated.defaultCurrency = normalized
+                                break
+                            }
+                        }
+                    }
                 }
                 break
 
             case "taxId":
                 // Accept empty string (user has no tax ID) or actual value
                 if (typeof value === "string") {
-                    validated.taxId = value.trim()
+                    validated.taxId = sanitizeText(value)
+                }
+                break
+
+            case "taxRegistered":
+                if (typeof value === "boolean") {
+                    validated.taxRegistered = value
+                } else if (typeof value === "string") {
+                    const lower = value.toLowerCase().trim()
+                    if (lower === "yes" || lower === "true") validated.taxRegistered = true
+                    else if (lower === "no" || lower === "false") validated.taxRegistered = false
                 }
                 break
 
             case "businessName":
             case "ownerName":
                 if (typeof value === "string" && value.trim().length > 0) {
-                    validated[key] = value.trim()
+                    validated[key] = sanitizeText(value)
                 }
                 break
 
             case "paymentInstructions":
                 if (typeof value === "string" && value.trim().length > 0) {
-                    validated.paymentInstructions = value.trim()
+                    validated.paymentInstructions = sanitizeText(value)
+                }
+                break
+
+            case "additionalNotes":
+                if (typeof value === "string" && value.trim().length > 0) {
+                    validated.additionalNotes = sanitizeText(value)
+                }
+                break
+
+            case "bankDetails":
+                if (typeof value === "object" && value !== null) {
+                    const bank = value as Record<string, string>
+                    const sanitizedBank: Record<string, string> = {}
+                    const bankFields = ["bankName", "accountName", "accountNumber", "ifscCode", "swiftCode", "routingNumber"]
+                    for (const f of bankFields) {
+                        if (bank[f] && typeof bank[f] === "string" && bank[f].trim().length > 0) {
+                            sanitizedBank[f] = sanitizeText(bank[f])
+                        }
+                    }
+                    if (Object.keys(sanitizedBank).length > 0) {
+                        validated.bankDetails = sanitizedBank
+                    }
+                }
+                break
+
+            case "bankDetailsSkipped":
+                if (value === true) {
+                    validated.bankDetailsSkipped = true
                 }
                 break
 

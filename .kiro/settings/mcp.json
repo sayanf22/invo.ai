@@ -9,7 +9,28 @@
         "sbp_21b80fb7e1fc7c260236ea1a707374e2b72a871a"
       ],
       "disabled": false,
-      "autoApprove": []
+      "autoApprove": [
+        "execute_sql",
+        "list_tables",
+        "apply_migration",
+        "get_advisors"
+      ]
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "click",
+        "wait_for",
+        "take_screenshot",
+        "fill",
+        "take_snapshot",
+        "list_pages"
+      ]
     }
   }
 }

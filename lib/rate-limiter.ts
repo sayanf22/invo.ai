@@ -27,7 +27,7 @@ import { cookies } from "next/headers"
 type RouteCategory = "ai" | "export" | "general"
 
 const RATE_LIMITS: Record<RouteCategory, { maxRequests: number; windowSeconds: number }> = {
-    ai: { maxRequests: 10, windowSeconds: 60 },       // 10 req/min for AI calls
+    ai: { maxRequests: 50, windowSeconds: 60 },       // 50 req/min for AI calls (increased for onboarding)
     export: { maxRequests: 20, windowSeconds: 60 },    // 20 req/min for exports
     general: { maxRequests: 30, windowSeconds: 60 },   // 30 req/min for other
 }
@@ -130,7 +130,7 @@ export async function getRateLimitRemaining(
 
     try {
         const cookieStore = await cookies()
-        const supabase = createServerClient(
+        const _supabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             {

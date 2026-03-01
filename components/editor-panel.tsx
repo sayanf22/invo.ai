@@ -4,8 +4,8 @@ import React, { useState, useRef } from "react"
 import {
   FileText,
   ScrollText,
-  ShieldCheck,
-  Handshake,
+  ClipboardList,
+  Lightbulb,
   Paperclip,
   Sparkles,
   Check,
@@ -16,6 +16,7 @@ import {
   ImageIcon,
   X,
 } from "lucide-react"
+import Image from "next/image"
 import type { InvoiceData, LineItem } from "@/lib/invoice-types"
 import {
   CURRENCIES,
@@ -29,8 +30,8 @@ import {
 const documentTypes = [
   { label: "Invoice", icon: FileText, description: "Bills & payment requests" },
   { label: "Contract", icon: ScrollText, description: "Legal agreements" },
-  { label: "NDA", icon: ShieldCheck, description: "Confidentiality" },
-  { label: "Agreement", icon: Handshake, description: "General terms" },
+  { label: "Quotation", icon: ClipboardList, description: "Price quotes & estimates" },
+  { label: "Proposal", icon: Lightbulb, description: "Business proposals" },
 ]
 
 interface EditorPanelProps {
@@ -62,11 +63,10 @@ function Step({
         className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-secondary/50 transition-colors"
       >
         <span
-          className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold shrink-0 transition-colors ${
-            isComplete
-              ? "bg-primary text-primary-foreground"
-              : "bg-secondary text-muted-foreground"
-          }`}
+          className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold shrink-0 transition-colors ${isComplete
+            ? "bg-primary text-primary-foreground"
+            : "bg-secondary text-muted-foreground"
+            }`}
         >
           {isComplete ? <Check className="w-3.5 h-3.5" /> : number}
         </span>
@@ -189,8 +189,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
     : data.description.trim().length > 0
   const step4Complete = isInvoice
     ? data.notes.trim().length > 0 ||
-      data.terms.trim().length > 0 ||
-      data.paymentInstructions.trim().length > 0
+    data.terms.trim().length > 0 ||
+    data.paymentInstructions.trim().length > 0
     : true
   const step5Complete =
     data.signatureName.trim().length > 0
@@ -274,11 +274,10 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                       onChange({ documentType: isActive ? null : type.label })
                       if (!isActive) setOpenStep(2)
                     }}
-                    className={`flex items-center gap-2.5 px-3 py-3 rounded-xl border text-left transition-all ${
-                      isActive
-                        ? "border-primary bg-primary/10 shadow-sm"
-                        : "border-border bg-background hover:border-primary/30"
-                    }`}
+                    className={`flex items-center gap-2.5 px-3 py-3 rounded-xl border text-left transition-all ${isActive
+                      ? "border-primary bg-primary/10 shadow-sm"
+                      : "border-border bg-background hover:border-primary/30"
+                      }`}
                   >
                     <type.icon
                       className={`w-4 h-4 shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`}
@@ -331,11 +330,12 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
               </label>
               {data.fromLogo ? (
                 <div className="flex items-center gap-3 p-2 rounded-xl border border-border bg-background">
-                  <img
+                  <Image
                     src={data.fromLogo || "/placeholder.svg"}
                     alt="Business logo"
+                    width={40}
+                    height={40}
                     className="w-10 h-10 rounded-lg object-contain bg-secondary"
-                    crossOrigin="anonymous"
                   />
                   <span className="text-xs text-muted-foreground flex-1 truncate">
                     Logo uploaded

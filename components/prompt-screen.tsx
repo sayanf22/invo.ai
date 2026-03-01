@@ -1,37 +1,41 @@
 ﻿"use client"
 
 import { useState, useCallback } from "react"
-import { ArrowLeft, Eye, PenLine } from "lucide-react"
+import { ArrowLeft, Eye, PenLine, MessageSquare, Edit3, History as HistoryIcon } from "lucide-react"
 import { EditorPanel } from "@/components/editor-panel"
 import { DocumentPreview } from "@/components/document-preview"
-import { BuilderPromptBar } from "@/components/builder-prompt-bar"
-import { UserProfileMenu } from "@/components/user-profile-menu"
+import { InvoiceChat } from "@/components/invoice-chat"
+import { HamburgerMenu } from "@/components/hamburger-menu"
+import { InvoLogo } from "@/components/invo-logo"
+import { SessionHistorySidebar } from "@/components/session-history-sidebar"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { getInitialInvoiceData } from "@/lib/invoice-types"
+import { cn } from "@/lib/utils"
 
 interface PromptScreenProps {
   onBack: () => void
   initialCategory?: string
   initialPrompt?: string
+  selectedSessionId?: string
 }
 
 export function PromptScreen({
   onBack,
   initialCategory,
   initialPrompt,
+  selectedSessionId: initialSessionId,
 }: PromptScreenProps) {
   const [data, setData] = useState<InvoiceData>(() => {
     const init = getInitialInvoiceData()
     if (initialCategory) {
       init.documentType = initialCategory
     }
-    if (initialPrompt) {
-      init.description = initialPrompt
-    }
     return init
   })
-  const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit")
-
+  const [mobileTab, setMobileTab] = useState<"chat" | "edit" | "preview">("chat")
+  const [showEditor, setShowEditor] = useState(false)
+  const [showHistory, setShowHistory] = useState(false) // Changed from true to false
+  const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(initialSessionId)
   const handleChange = useCallback(
     (updates: Partial<InvoiceData>) => {
       setData((prev) => ({ ...prev, ...updates }))
@@ -39,83 +43,165 @@ export function PromptScreen({
     []
   )
 
+  const handleSessionSelect = useCallback((sessionId: string) => {
+    setSelectedSessionId(sessionId)
+  }, [])
+
   return (
     <div className="h-screen flex flex-col bg-background">
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card shrink-0">
+      <header className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-card shadow-sm shrink-0">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
+          className="flex items-center justify-center w-10 h-10 rounded-xl bg-background border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 hover:shadow-md transition-all duration-200 active:scale-95"
+          aria-label="Go back"
         >
-          <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-background border border-border group-hover:border-primary/30 transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-          </span>
-          <span className="text-sm font-medium hidden sm:inline">Back</span>
+          <ArrowLeft className="w-5 h-5" />
         </button>
 
-        <span className="text-sm font-semibold text-foreground tracking-tight">
-          Invo.ai
+        <span className="text-base font-semibold text-foreground tracking-tight">
+          <InvoLogo size={32} />
         </span>
 
-        <div className="flex items-center gap-1 md:hidden">
+        <div className="flex items-center gap-1.5 md:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileTab("chat")}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 btn-press ${
+              mobileTab === "chat"
+                ? "bg-foreground text-background shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            Chat
+          </button>
           <button
             type="button"
             onClick={() => setMobileTab("edit")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${mobileTab === "edit"
-                ? "bg-foreground text-background"
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 btn-press ${
+              mobileTab === "edit"
+                ? "bg-foreground text-background shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
-              }`}
+            }`}
           >
-            <PenLine className="w-3.5 h-3.5" />
+            <PenLine className="w-4 h-4" />
             Edit
           </button>
           <button
             type="button"
             onClick={() => setMobileTab("preview")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${mobileTab === "preview"
-                ? "bg-foreground text-background"
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 btn-press ${
+              mobileTab === "preview"
+                ? "bg-foreground text-background shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
-              }`}
+            }`}
           >
-            <Eye className="w-3.5 h-3.5" />
+            <Eye className="w-4 h-4" />
             Preview
           </button>
         </div>
 
-        <div className="hidden md:block">
-          <UserProfileMenu />
+        <div className="hidden md:flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setShowHistory(!showHistory)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 btn-press ${
+              showHistory
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-secondary text-foreground hover:bg-secondary/80 hover:shadow-sm"
+            }`}
+          >
+            <HistoryIcon className="w-[18px] h-[18px]" />
+            {showHistory ? "Hide History" : "Show History"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowEditor(!showEditor)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 btn-press ${
+              showEditor
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-secondary text-foreground hover:bg-secondary/80 hover:shadow-sm"
+            }`}
+          >
+            <Edit3 className="w-[18px] h-[18px]" />
+            {showEditor ? "Hide Editor" : "Show Editor"}
+          </button>
+          <HamburgerMenu />
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
+        {/* History Sidebar with slide animation */}
         <div
-          className={`w-full md:w-[420px] lg:w-[460px] border-r border-border bg-card shrink-0 overflow-hidden flex flex-col ${mobileTab === "edit" ? "flex" : "hidden md:flex"
-            }`}
+          className={cn(
+            "hidden md:block transition-all duration-300 ease-in-out overflow-hidden shrink-0",
+            showHistory ? "w-[280px] opacity-100" : "w-0 opacity-0"
+          )}
         >
-          <EditorPanel data={data} onChange={handleChange} />
-          <BuilderPromptBar data={data} onChange={handleChange} />
+          {showHistory && (
+            <SessionHistorySidebar
+              currentSessionId={selectedSessionId}
+              onSessionSelect={handleSessionSelect}
+              documentType={data.documentType?.toLowerCase() || "invoice"}
+            />
+          )}
         </div>
 
+        {/* Chat/Editor Panel */}
         <div
-          className={`flex-1 bg-background overflow-hidden ${mobileTab === "preview" ? "flex" : "hidden md:flex"
-            }`}
+          className={`w-full md:w-[420px] lg:w-[460px] border-r border-border bg-card shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)] shrink-0 overflow-hidden flex flex-col ${
+            mobileTab === "chat" || mobileTab === "edit" ? "flex" : "hidden md:flex"
+          }`}
         >
-          <div className="flex-1 flex flex-col">
-            <div className="px-5 py-3 border-b border-border flex items-center gap-2 shrink-0">
-              <Eye className="w-4 h-4 text-muted-foreground" />
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Live Preview
-              </span>
-              {data.documentType && (
-                <span className="ml-auto text-xs text-primary font-medium">
-                  {data.documentType}
-                </span>
+          {/* Desktop: Show chat by default, editor when toggled */}
+          <div className="hidden md:flex flex-col h-full relative overflow-hidden">
+            <div
+              className={cn(
+                "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
+                showEditor ? "-translate-x-full opacity-0" : "translate-x-0 opacity-100"
               )}
+            >
+              <InvoiceChat 
+                data={data} 
+                onChange={handleChange}
+                selectedSessionId={selectedSessionId}
+                onSessionChange={setSelectedSessionId}
+                initialPrompt={initialPrompt}
+              />
             </div>
-            <div className="flex-1 overflow-auto">
-              <DocumentPreview data={data} />
+            <div
+              className={cn(
+                "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
+                showEditor ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
+              )}
+            >
+              <EditorPanel data={data} onChange={handleChange} />
             </div>
           </div>
+
+          {/* Mobile tabs */}
+          <div className="md:hidden flex flex-col h-full">
+            {mobileTab === "chat" && (
+              <InvoiceChat 
+                data={data} 
+                onChange={handleChange}
+                selectedSessionId={selectedSessionId}
+                onSessionChange={setSelectedSessionId}
+                initialPrompt={initialPrompt}
+              />
+            )}
+            {mobileTab === "edit" && <EditorPanel data={data} onChange={handleChange} />}
+          </div>
+        </div>
+
+        {/* Preview Panel */}
+        <div
+          className={`flex-1 bg-background overflow-hidden flex flex-col ${
+            mobileTab === "preview" ? "" : "hidden md:flex"
+          }`}
+        >
+          <DocumentPreview data={data} onChange={handleChange} onToggleEditor={() => setShowEditor(e => !e)} showEditor={showEditor} />
         </div>
       </div>
     </div>

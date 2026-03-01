@@ -59,10 +59,10 @@ export interface InvoiceData {
   // Design & Branding
   design?: {
     templateId: string
-    font: "Helvetica" | "Times-Roman" | "Courier"
+    font: "Helvetica" | "Times-Roman" | "Courier" | "Inter" | "Playfair" | "Roboto Mono" | "Lora"
     headerColor: string // hex code
     tableColor: string // hex code
-    layout: "classic" | "modern" | "bold" | "minimal"
+    layout: "classic" | "modern" | "bold" | "minimal" | "elegant" | "corporate" | "creative" | "warm" | "geometric"
   }
 }
 
@@ -149,7 +149,7 @@ export function getInitialInvoiceData(): InvoiceData {
     discountValue: 0,
     shippingFee: 0,
     paymentInstructions: "",
-    paymentMethod: "Bank Transfer",
+    paymentMethod: "",
     notes: "",
     terms: "",
     description: "",
@@ -164,7 +164,7 @@ export function getCurrencySymbol(code: string): string {
 
 export function formatCurrency(amount: number, currencyCode: string): string {
   const symbol = getCurrencySymbol(currencyCode)
-  return `${symbol}${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return `${symbol} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export function calculateSubtotal(items: LineItem[]): number {

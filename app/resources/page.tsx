@@ -1,0 +1,155 @@
+"use client"
+
+import { LandingLayout } from "@/components/landing/landing-layout"
+import { motion } from "framer-motion"
+import { FileText, Play, MessageCircle, HelpCircle, ArrowRight, BookOpen, Zap, Globe } from "lucide-react"
+import Link from "next/link"
+
+const resources = [
+    {
+        category: "Workflows",
+        title: "Automate invoice generation",
+        desc: "Step-by-step guide to setting up recurring invoices and automated billing workflows with Invo.",
+        icon: Zap,
+        color: "bg-orange-100 text-[var(--landing-amber)]",
+        href: "#"
+    },
+    {
+        category: "Video Tutorials",
+        title: "Getting started with Invo AI",
+        desc: "A 5-minute video guide to mastering AI-powered document creation — from first prompt to signed PDF.",
+        icon: Play,
+        color: "bg-red-100 text-red-600",
+        href: "#"
+    },
+    {
+        category: "API Documentation",
+        title: "Developer API reference",
+        desc: "Complete REST API documentation with code examples in JavaScript, Python, Go, and Ruby.",
+        icon: BookOpen,
+        color: "bg-blue-100 text-blue-600",
+        href: "/developers"
+    },
+    {
+        category: "Help Center",
+        title: "Guides & troubleshooting",
+        desc: "Comprehensive knowledge base covering templates, exports, billing, team management, and more.",
+        icon: HelpCircle,
+        color: "bg-green-100 text-green-600",
+        href: "#"
+    },
+    {
+        category: "Templates",
+        title: "Template gallery",
+        desc: "Browse 50+ professionally designed templates for invoices, contracts, quotations, proposals, and more.",
+        icon: FileText,
+        color: "bg-purple-100 text-purple-600",
+        href: "#"
+    },
+    {
+        category: "Community",
+        title: "Join the conversation",
+        desc: "Connect with thousands of Invo users, share workflows, and get tips from the community.",
+        icon: MessageCircle,
+        color: "bg-indigo-100 text-indigo-600",
+        href: "#"
+    },
+    {
+        category: "Integrations",
+        title: "Zapier & Make workflows",
+        desc: "Pre-built automation templates to connect Invo with your favorite tools — Slack, Stripe, QuickBooks, and more.",
+        icon: Globe,
+        color: "bg-teal-100 text-teal-600",
+        href: "#"
+    },
+    {
+        category: "Support",
+        title: "Talk to our team",
+        desc: "Reach out to our support team for personalized help with your account, billing, or technical questions.",
+        icon: MessageCircle,
+        color: "bg-rose-100 text-rose-600",
+        href: "#"
+    }
+]
+
+export default function ResourcesPage() {
+    return (
+        <LandingLayout>
+            <div className="min-h-screen">
+                {/* Hero */}
+                <section className="pt-32 pb-16 px-6 text-center">
+                    <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                        <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight text-[var(--landing-text-dark)] mb-6">
+                            Resources
+                        </h1>
+                        <p className="text-xl text-[var(--landing-text-muted)] max-w-2xl mx-auto">
+                            Everything you need to master Invo.ai and streamline your document workflow.
+                        </p>
+                    </motion.div>
+                </section>
+
+                {/* Resources Grid */}
+                <section className="pb-24 px-6 sm:px-10">
+                    <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {resources.map((res, i) => (
+                            <motion.div
+                                key={i}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.06, duration: 0.5 }}
+                            >
+                                <Link
+                                    href={res.href}
+                                    className="group flex items-start gap-6 p-8 rounded-[2rem] bg-white border border-stone-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 h-full"
+                                >
+                                    <div className={`w-14 h-14 rounded-2xl ${res.color} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
+                                        <res.icon size={28} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-2 block">{res.category}</span>
+                                        <h3 className="font-display text-xl font-bold mb-2 group-hover:text-[var(--landing-amber)] transition-colors">{res.title}</h3>
+                                        <p className="text-[var(--landing-text-muted)] leading-relaxed text-sm mb-3">
+                                            {res.desc}
+                                        </p>
+                                        <span className="inline-flex items-center text-[var(--landing-dark)] font-bold text-sm">
+                                            Explore <ArrowRight size={14} className="ml-1 transition-transform group-hover:translate-x-1" />
+                                        </span>
+                                    </div>
+                                </Link>
+                            </motion.div>
+                        ))}
+                    </div>
+                </section>
+
+                {/* CTA */}
+                <section className="py-24 px-6 sm:px-10">
+                    <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.7 }}
+                        className="max-w-4xl mx-auto bg-[var(--landing-dark)] rounded-[3rem] p-12 sm:p-20 text-center relative overflow-hidden"
+                    >
+                        <div className="absolute inset-0 bg-mesh-dark opacity-50" />
+                        <h2 className="font-display text-4xl sm:text-5xl text-[var(--landing-cream)] mb-4 relative z-10">
+                            Can&apos;t find what<br />you&apos;re <span className="text-[var(--landing-amber)] italic font-serif">looking for?</span>
+                        </h2>
+                        <p className="text-[var(--landing-text-dim)] text-lg mb-8 relative z-10">
+                            Our team is here to help. Reach out anytime.
+                        </p>
+                        <Link
+                            href="/contact-sales"
+                            className="group relative z-10 inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[var(--landing-cream)] text-[var(--landing-dark)] font-bold text-lg hover:scale-105 transition-transform"
+                        >
+                            Talk to Support <ArrowRight className="transition-transform group-hover:translate-x-1" size={20} />
+                        </Link>
+                    </motion.div>
+                </section>
+            </div>
+        </LandingLayout>
+    )
+}

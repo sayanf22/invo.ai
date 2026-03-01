@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useSupabase, useUser } from "@/components/auth-provider"
-import type { Business } from "@/lib/database.types"
+import type { Business, Database } from "@/lib/database.types"
 
 export function useBusiness() {
     const supabase = useSupabase()
@@ -45,7 +45,7 @@ export function useBusiness() {
     }, [fetchBusiness])
 
     const updateBusiness = useCallback(
-        async (updates: Partial<Business>) => {
+        async (updates: Database["public"]["Tables"]["businesses"]["Update"]) => {
             if (!user || !business) return
 
             const { error } = await supabase

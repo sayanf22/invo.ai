@@ -125,10 +125,78 @@ export function sanitizeError(error: unknown): string {
             "Rate limit exceeded",
             "Request body too large",
             "Invalid document type",
+            "Invalid email format",
+            "Invalid country code",
+            "Invalid currency code",
+            "CSRF token",
+            "Monthly AI usage limit exceeded",
         ]
         for (const safe of safeMessages) {
             if (error.message.includes(safe)) return error.message
         }
     }
     return "Internal server error"
+}
+
+/**
+ * Get client IP address from request
+ */
+export function getClientIP(request: Request): string {
+    const headers = request.headers
+    
+    // Check common proxy headers
+    const forwarded = headers.get("x-forwarded-for")
+    if (forwarded) {
+        return forwarded.split(",")[0].trim()
+    }
+    
+    const realIP = headers.get("x-real-ip")
+    if (realIP) {
+        return realIP
+    }
+    
+    const cfConnectingIP = headers.get("cf-connecting-ip") // Cloudflare
+    if (cfConnectingIP) {
+        return cfConnectingIP
+    }
+    
+    return "unknown"
+}
+
+/**
+ * Validate request origin against allowed origins
+ */
+export function validateOrigin(request: Request): NextResponse | null {
+    const origin = request.headers.get("origin")
+    const referer = request.headers.get("referer")
+    
+    // Allow same-origin requests (no origin header)
+    if (!origin && !referer) {
+        return null
+    }
+    
+    const allowedOrigins = [
+        process.env.NEXT_PUBLIC_APP_URL,
+        process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ].filter(Boolean) as string[]
+    
+    // Check origin
+    if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+        return NextResponse.json(
+            { error: "Invalid origin" },
+            { status: 403 }
+        )
+    }
+    
+    // Check referer as fallback
+    if (!origin && referer && !allowedOrigins.some(allowed => referer.startsWith(allowed))) {
+        return NextResponse.json(
+            { error: "Invalid referer" },
+            { status: 403 }
+        )
+    }
+    
+    return null
 }

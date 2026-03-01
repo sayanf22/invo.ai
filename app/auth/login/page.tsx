@@ -3,7 +3,7 @@
 import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase"
+import { createClient, clearAuthTokens } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,20 +27,32 @@ function LoginForm() {
         e.preventDefault()
         setIsLoading(true)
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        })
+        // Clear any stale auth tokens before attempting login
+        clearAuthTokens()
 
-        if (error) {
-            toast.error(error.message)
+        try {
+            const { error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            })
+
+            if (error) {
+                if (error.message.includes("Invalid login credentials")) {
+                    toast.error("Invalid email or password. Please try again or reset your password.")
+                } else {
+                    toast.error(error.message)
+                }
+                setIsLoading(false)
+                return
+            }
+
+            toast.success("Welcome back!")
+            router.push(redirectTo)
+            router.refresh()
+        } catch (err) {
+            toast.error("Unable to connect. Please check your internet connection.")
             setIsLoading(false)
-            return
         }
-
-        toast.success("Welcome back!")
-        router.push(redirectTo)
-        router.refresh()
     }
 
     const handleMagicLink = async () => {

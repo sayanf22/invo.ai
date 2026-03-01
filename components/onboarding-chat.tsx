@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Send, Sparkles, Loader2, RefreshCw, Check, Upload, X } from "lucide-react"
+import { Send, Sparkles, Loader2, RefreshCw, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -10,12 +10,12 @@ import { toast } from "sonner"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-interface ChatMessage {
+export interface ChatMessage {
     role: "user" | "assistant"
     content: string
 }
 
-interface CollectedData {
+export interface CollectedData {
     businessType?: string
     country?: string
     businessName?: string
@@ -33,8 +33,18 @@ interface CollectedData {
     defaultCurrency?: string
     paymentTerms?: string
     paymentInstructions?: string
+    bankDetails?: {
+        bankName?: string
+        accountName?: string
+        accountNumber?: string
+        ifscCode?: string
+        swiftCode?: string
+        routingNumber?: string
+    }
+    bankDetailsSkipped?: boolean
     logoUrl?: string | null
     signatureUrl?: string | null
+    additionalNotes?: string
 }
 
 interface OnboardingChatProps {
@@ -69,6 +79,8 @@ const COUNTRY_FLAGS: Record<string, string> = {
     AU: "🇦🇺", SG: "🇸🇬", AE: "🇦🇪", PH: "🇵🇭", FR: "🇫🇷", NL: "🇳🇱",
 }
 
+const SESSION_KEY = "invo_onboarding_session"
+
 // ── Component ──────────────────────────────────────────────────────────
 
 export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
@@ -83,13 +95,58 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
     const scrollRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
 
-    // Send initial greeting
+    // Load existing session on mount
     useEffect(() => {
-        if (messages.length === 0) {
-            sendInitialGreeting()
-        }
+        loadSession()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+
+    // Save session to localStorage whenever data changes
+    useEffect(() => {
+        if (messages.length > 0 || Object.keys(collectedData).length > 1) {
+            saveSession()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [messages, collectedData])
+
+    function loadSession() {
+        try {
+            const saved = localStorage.getItem(SESSION_KEY)
+            if (saved) {
+                const session = JSON.parse(saved)
+                if (session.messages?.length > 0) {
+                    setMessages(session.messages)
+                    setCollectedData(prev => ({ ...prev, ...(session.collectedData || {}) }))
+                    toast.success("Resumed your onboarding session", { duration: 3000 })
+                    return
+                }
+            }
+        } catch (error) {
+            console.error("Error loading session:", error)
+        }
+        // No valid session found, start fresh
+        sendInitialGreeting()
+    }
+
+    function saveSession() {
+        try {
+            localStorage.setItem(SESSION_KEY, JSON.stringify({
+                messages,
+                collectedData,
+                updatedAt: new Date().toISOString(),
+            }))
+        } catch (error) {
+            console.error("Error saving session:", error)
+        }
+    }
+
+    function deleteSession() {
+        try {
+            localStorage.removeItem(SESSION_KEY)
+        } catch (error) {
+            console.error("Error deleting session:", error)
+        }
+    }
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -166,6 +223,8 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                     for (const [key, value] of Object.entries(result.extractedData)) {
                         if (key === "address" && typeof value === "object" && value !== null) {
                             updated.address = { ...prev.address, ...(value as Record<string, string>) }
+                        } else if (key === "bankDetails" && typeof value === "object" && value !== null) {
+                            updated.bankDetails = { ...prev.bankDetails, ...(value as Record<string, string>) }
                         } else {
                             (updated as any)[key] = value
                         }
@@ -207,6 +266,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
     }, [inputValue, isLoading, messages, collectedData])
 
     const handleComplete = () => {
+        deleteSession()
         onComplete(collectedData)
     }
 
@@ -214,6 +274,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
         setMessages([])
         setCollectedData({ email: userEmail || "" })
         setAllComplete(false)
+        deleteSession()
         setTimeout(() => sendInitialGreeting(), 100)
     }
 
@@ -230,28 +291,28 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
     const progressPercent = Math.round((completedCount / REQUIRED_FIELDS.length) * 100)
 
     return (
-        <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-8rem)] max-w-6xl mx-auto w-full">
+        <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-5rem)] max-w-7xl mx-auto w-full">
             {/* ── Main Chat Panel ────────────────────────────────── */}
             <div className="flex-1 flex flex-col min-w-0 border rounded-2xl bg-card shadow-sm overflow-hidden">
                 {/* Chat Header */}
-                <div className="bg-gradient-to-r from-primary/5 to-primary/10 px-5 py-4 border-b flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/15 rounded-xl">
-                            <Sparkles className="w-5 h-5 text-primary" />
+                <div className="bg-gradient-to-r from-primary/5 to-primary/10 px-6 py-5 border-b flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3.5">
+                        <div className="p-2.5 bg-primary/15 rounded-xl">
+                            <Sparkles className="w-6 h-6 text-primary" />
                         </div>
                         <div>
-                            <h3 className="font-semibold text-base">Invo AI</h3>
-                            <p className="text-xs text-muted-foreground">Setting up your business profile</p>
+                            <h3 className="font-semibold text-lg">Invo AI</h3>
+                            <p className="text-sm text-muted-foreground">Setting up your business profile</p>
                         </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleReset} title="Start over">
-                        <RefreshCw className="w-4 h-4" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleReset} title="Start over">
+                        <RefreshCw className="w-5 h-5" />
                     </Button>
                 </div>
 
                 {/* Messages */}
-                <ScrollArea className="flex-1 p-5">
-                    <div className="space-y-4 pb-4 max-w-2xl mx-auto">
+                <ScrollArea className="flex-1 p-6">
+                    <div className="space-y-5 pb-4 max-w-3xl mx-auto">
                         {messages.map((msg, idx) => (
                             <div
                                 key={idx}
@@ -261,7 +322,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                                 )}
                             >
                                 <div className={cn(
-                                    "max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm whitespace-pre-wrap",
+                                    "max-w-[85%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm whitespace-pre-wrap",
                                     msg.role === "user"
                                         ? "bg-primary text-primary-foreground rounded-br-md"
                                         : "bg-muted text-foreground rounded-bl-md"
@@ -272,10 +333,10 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                         ))}
                         {isLoading && (
                             <div className="flex justify-start w-full animate-in fade-in duration-200">
-                                <div className="bg-muted rounded-2xl px-4 py-3 space-x-1.5 flex items-center rounded-bl-md">
-                                    <span className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                    <span className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                    <span className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce" />
+                                <div className="bg-muted rounded-2xl px-5 py-4 space-x-1.5 flex items-center rounded-bl-md">
+                                    <span className="w-2.5 h-2.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                    <span className="w-2.5 h-2.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                    <span className="w-2.5 h-2.5 bg-foreground/40 rounded-full animate-bounce" />
                                 </div>
                             </div>
                         )}
@@ -284,19 +345,19 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                 </ScrollArea>
 
                 {/* Input Area */}
-                <div className="p-4 bg-background border-t shrink-0">
+                <div className="p-5 bg-background border-t shrink-0">
                     {allComplete ? (
-                        <div className="flex items-center gap-3">
-                            <div className="flex-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-3 max-w-3xl mx-auto">
+                            <div className="flex-1 text-base text-muted-foreground">
                                 ✅ All information collected! Ready to complete setup.
                             </div>
-                            <Button onClick={handleComplete} className="gap-2">
-                                <Check className="w-4 h-4" />
+                            <Button onClick={handleComplete} className="gap-2 h-11 px-6 text-base">
+                                <Check className="w-5 h-5" />
                                 Complete Setup
                             </Button>
                         </div>
                     ) : (
-                        <div className="relative flex items-center gap-2 max-w-2xl mx-auto">
+                        <div className="relative flex items-center gap-2.5 max-w-3xl mx-auto">
                             <Input
                                 ref={inputRef}
                                 value={inputValue}
@@ -304,18 +365,18 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                                 onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
                                 placeholder="Tell me about your business..."
                                 disabled={isLoading}
-                                className="flex-1 rounded-xl h-11 px-4"
+                                className="flex-1 rounded-xl h-12 px-5 text-[15px]"
                                 autoFocus
                             />
                             <Button
                                 size="icon"
                                 onClick={handleSendMessage}
                                 disabled={!inputValue.trim() || isLoading}
-                                className="rounded-xl h-11 w-11 shrink-0"
+                                className="rounded-xl h-12 w-12 shrink-0"
                             >
                                 {isLoading
-                                    ? <Loader2 className="w-4 h-4 animate-spin" />
-                                    : <Send className="w-4 h-4" />
+                                    ? <Loader2 className="w-5 h-5 animate-spin" />
+                                    : <Send className="w-5 h-5" />
                                 }
                             </Button>
                         </div>
@@ -324,27 +385,27 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
             </div>
 
             {/* ── Collected Data Sidebar ─────────────────────────── */}
-            <div className="lg:w-72 shrink-0 space-y-4">
+            <div className="lg:w-80 shrink-0 space-y-4">
                 {/* Progress */}
-                <div className="border rounded-2xl bg-card shadow-sm p-4 space-y-3">
+                <div className="border rounded-2xl bg-card shadow-sm p-5 space-y-3">
                     <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">Profile Progress</span>
-                        <span className="text-muted-foreground">{progressPercent}%</span>
+                        <span className="font-semibold text-base">Profile Progress</span>
+                        <span className="text-muted-foreground text-base">{progressPercent}%</span>
                     </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                         <div
                             className="h-full bg-primary transition-all duration-500 ease-out rounded-full"
                             style={{ width: `${progressPercent}%` }}
                         />
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                         {completedCount} of {REQUIRED_FIELDS.length} required fields
                     </p>
                 </div>
 
                 {/* Fields */}
-                <div className="border rounded-2xl bg-card shadow-sm p-4 space-y-2">
-                    <h4 className="text-sm font-medium mb-3">Collected Info</h4>
+                <div className="border rounded-2xl bg-card shadow-sm p-5 space-y-2.5">
+                    <h4 className="text-base font-semibold mb-3">Collected Info</h4>
                     {REQUIRED_FIELDS.map((field) => {
                         const val = (collectedData as any)[field]
                         const hasValue = (() => {
@@ -374,24 +435,24 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                             <div
                                 key={field}
                                 className={cn(
-                                    "flex items-center gap-2 py-1.5 px-2 rounded-lg text-xs transition-colors",
+                                    "flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition-colors",
                                     hasValue ? "bg-primary/5" : "bg-transparent"
                                 )}
                             >
                                 <div className={cn(
-                                    "w-4 h-4 rounded-full flex items-center justify-center shrink-0",
+                                    "w-5 h-5 rounded-full flex items-center justify-center shrink-0",
                                     hasValue ? "bg-primary text-primary-foreground" : "border-2 border-muted-foreground/30"
                                 )}>
-                                    {hasValue && <Check className="w-2.5 h-2.5" />}
+                                    {hasValue && <Check className="w-3 h-3" />}
                                 </div>
                                 <span className={cn(
-                                    "font-medium",
+                                    "font-medium text-sm",
                                     hasValue ? "text-foreground" : "text-muted-foreground"
                                 )}>
                                     {FIELD_LABELS[field] || field}
                                 </span>
                                 {displayValue && (
-                                    <span className="ml-auto text-muted-foreground truncate max-w-[100px]" title={displayValue}>
+                                    <span className="ml-auto text-sm text-muted-foreground truncate max-w-[120px]" title={displayValue}>
                                         {displayValue}
                                     </span>
                                 )}

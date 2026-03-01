@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase"
+import { createClient, clearAuthTokens } from "@/lib/supabase"
 import type { User, Session, SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database.types"
 
@@ -21,23 +21,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
+        let mounted = true
+
         // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session)
-            setUser(session?.user ?? null)
-            setIsLoading(false)
-        })
+        async function initSession() {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession()
+
+                if (!mounted) return
+
+                if (error) {
+                    console.warn("Session load failed:", error.message)
+                    // If token refresh failed, clear the stale tokens and sign out cleanly
+                    clearAuthTokens()
+                    await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+                    setSession(null)
+                    setUser(null)
+                } else {
+                    setSession(session)
+                    setUser(session?.user ?? null)
+                }
+            } catch (err) {
+                if (!mounted) return
+                console.warn("Session init error:", err)
+                // Network error or other failure — clear stale tokens
+                clearAuthTokens()
+                await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+                setSession(null)
+                setUser(null)
+            } finally {
+                if (mounted) setIsLoading(false)
+            }
+        }
+
+        initSession()
 
         // Listen for auth changes
         const {
             data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session)
-            setUser(session?.user ?? null)
+        } = supabase.auth.onAuthStateChange((event, session) => {
+            if (!mounted) return
+
+            if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
+                setSession(session)
+                setUser(session?.user ?? null)
+            } else if (event === "SIGNED_OUT") {
+                clearAuthTokens()
+                setSession(null)
+                setUser(null)
+            } else {
+                setSession(session)
+                setUser(session?.user ?? null)
+            }
             setIsLoading(false)
         })
 
         return () => {
+            mounted = false
             subscription.unsubscribe()
         }
     }, [supabase])

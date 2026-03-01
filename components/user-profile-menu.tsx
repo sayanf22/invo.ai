@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { LogOut, User, Settings, ChevronDown } from "lucide-react"
+import Image from "next/image"
 
 export function UserProfileMenu() {
     const { user, supabase, isLoading } = useAuth()
@@ -51,7 +52,7 @@ export function UserProfileMenu() {
             <button
                 type="button"
                 onClick={() => router.push("/auth/login")}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-border bg-background hover:bg-accent text-foreground transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-border bg-background hover:bg-secondary/50 text-foreground transition-colors"
             >
                 <User className="w-4 h-4" />
                 Sign in
@@ -73,16 +74,18 @@ export function UserProfileMenu() {
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-accent transition-colors group"
+                className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-secondary/50 transition-colors group"
                 aria-expanded={isOpen}
                 aria-haspopup="true"
                 id="user-profile-menu-trigger"
             >
                 {/* Avatar */}
                 {avatarUrl ? (
-                    <img
+                    <Image
                         src={avatarUrl}
                         alt={fullName || email}
+                        width={32}
+                        height={32}
                         className="w-8 h-8 rounded-full object-cover border-2 border-border group-hover:border-primary/30 transition-colors"
                     />
                 ) : (
@@ -124,21 +127,21 @@ export function UserProfileMenu() {
                             type="button"
                             onClick={() => {
                                 setIsOpen(false)
-                                // Profile page (future)
+                                router.push("/profile")
                             }}
-                            className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors"
+                            className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-foreground hover:bg-secondary/50 transition-colors"
                             role="menuitem"
                         >
                             <User className="w-4 h-4 text-muted-foreground" />
-                            Profile
+                            Business Profile
                         </button>
                         <button
                             type="button"
                             onClick={() => {
                                 setIsOpen(false)
-                                // Settings page (future)
+                                router.push("/settings")
                             }}
-                            className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors"
+                            className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-foreground hover:bg-secondary/50 transition-colors"
                             role="menuitem"
                         >
                             <Settings className="w-4 h-4 text-muted-foreground" />
