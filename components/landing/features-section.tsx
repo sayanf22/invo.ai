@@ -42,45 +42,110 @@ const features = [
     }
 ]
 
+// Per-card directional offsets: [y, x]
+// Cards slide in from slightly different directions for a natural bento feel
+const cardOffsets: [number, number][] = [
+    [50, -20],  // 0: Text-to-Document — from bottom-left
+    [40,  20],  // 1: AI Formatting     — from bottom-right
+    [40, -20],  // 2: Save Hours        — from bottom-left
+    [50,  20],  // 3: Instant Sharing   — from bottom-right
+    [40, -20],  // 4: Custom Templates  — from bottom-left
+    [50,  20],  // 5: Lightning Fast    — from bottom-right
+]
+
+// Hoisted outside component so Framer Motion never sees new object references
+const gridVariants = {
+    hidden: {},
+    visible: {
+        transition: {
+            staggerChildren: 0.11,
+            delayChildren: 0.08,
+        },
+    },
+}
+
+// Uses `custom` prop (index) to pick directional offset
+const cardVariants = {
+    hidden: (i: number) => ({
+        opacity: 0,
+        y: cardOffsets[i][0],
+        x: cardOffsets[i][1],
+        scale: 0.95,
+    }),
+    visible: {
+        opacity: 1,
+        y: 0,
+        x: 0,
+        scale: 1,
+        transition: {
+            duration: 0.7,
+            ease: [0.22, 1, 0.36, 1],
+        },
+    },
+}
+
+const headingVariants = {
+    hidden: { opacity: 0, y: 28 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] },
+    },
+}
+
+const subVariants = {
+    hidden: { opacity: 0, y: 18 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.75, delay: 0.13, ease: [0.22, 1, 0.36, 1] },
+    },
+}
+
 export function FeaturesSection() {
     return (
         <section className="py-32 px-6 sm:px-10 bg-[var(--landing-cream)]">
             <div className="max-w-7xl mx-auto">
+                {/* Section heading */}
                 <div className="text-center mb-24">
                     <motion.h2
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 0.1 }}
+                        variants={headingVariants}
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, margin: "-60px" }}
                         className="font-display text-5xl sm:text-7xl font-bold mb-6 leading-[0.9]"
                     >
                         Everything you need to <br />
                         <span className="text-[var(--landing-amber)] italic font-serif">flow</span>
                     </motion.h2>
                     <motion.p
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 0.2 }}
+                        variants={subVariants}
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, margin: "-60px" }}
                         className="text-xl text-[var(--landing-text-muted)] max-w-2xl mx-auto"
                     >
                         Powerful tools wrapped in a simple, intuitive interface. No complex setup required.
                     </motion.p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Bento grid — parent triggers stagger, children inherit */}
+                <motion.div
+                    className="grid grid-cols-1 md:grid-cols-3 gap-6"
+                    variants={gridVariants}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-100px" }}
+                >
                     {features.map((feat, i) => (
                         <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 30 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: i * 0.1, duration: 0.5 }}
-                            className={`rounded-[2.5rem] p-10 flex flex-col justify-between hover:-translate-y-1 transition-all duration-300 ${feat.className}`}
+                            key={feat.title}
+                            custom={i}
+                            variants={cardVariants}
+                            className={`rounded-[2.5rem] p-10 flex flex-col justify-between hover:-translate-y-2 hover:shadow-2xl transition-[transform,box-shadow] duration-300 cursor-default ${feat.className}`}
                         >
                             <div className="mb-8">
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 
-                                    ${feat.className.includes('text-white') ? 'bg-white/10 text-white' : 'bg-[var(--landing-cream)] text-[var(--landing-amber)]'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${feat.className.includes('text-white') ? 'bg-white/10 text-white' : 'bg-[var(--landing-cream)] text-[var(--landing-amber)]'}`}>
                                     <feat.icon size={26} />
                                 </div>
                                 <h3 className="font-display text-3xl font-bold mb-4">{feat.title}</h3>
@@ -89,7 +154,6 @@ export function FeaturesSection() {
                                 </p>
                             </div>
 
-                            {/* Decorative element for Voice-to-Document */}
                             {i === 0 && (
                                 <div className="mt-4 flex gap-2">
                                     <div className="h-2 w-12 bg-white/20 rounded-full animate-pulse" />
@@ -97,7 +161,6 @@ export function FeaturesSection() {
                                     <div className="h-2 w-16 bg-white/20 rounded-full animate-pulse delay-150" />
                                 </div>
                             )}
-                            {/* Decorative element for Instant Sharing */}
                             {i === 3 && (
                                 <div className="mt-4 flex items-center gap-2 text-[var(--landing-amber)] font-bold text-sm">
                                     View Integration <ArrowRight size={14} />
@@ -105,7 +168,7 @@ export function FeaturesSection() {
                             )}
                         </motion.div>
                     ))}
-                </div>
+                </motion.div>
             </div>
         </section>
     )

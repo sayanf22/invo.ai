@@ -54,11 +54,11 @@ export default function DevelopersPage() {
                                 Generate invoices, contracts, and documents programmatically. Ship billing and legal workflows in minutes, not months.
                             </p>
                             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                                <Link href="/auth/register" className="group px-8 py-4 rounded-full bg-[var(--landing-dark)] text-white font-bold text-lg hover:scale-105 transition-all shadow-xl inline-flex items-center gap-2">
-                                    Get API Key <ArrowRight className="transition-transform group-hover:translate-x-1" size={18} />
+                                <Link href="/auth/signup" className="group px-8 py-4 rounded-full bg-[var(--landing-dark)] text-white font-bold text-lg hover:scale-105 transition-all shadow-xl inline-flex items-center gap-2">
+                                    Get Started Free <ArrowRight className="transition-transform group-hover:translate-x-1" size={18} />
                                 </Link>
-                                <Link href="/docs" className="px-8 py-4 rounded-full bg-white text-[var(--landing-text-dark)] font-bold text-lg border border-stone-200 hover:bg-stone-50 transition-all inline-flex items-center gap-2">
-                                    <BookOpen size={18} /> Read Docs
+                                <Link href="/resources" className="px-8 py-4 rounded-full bg-white text-[var(--landing-text-dark)] font-bold text-lg border border-stone-200 hover:bg-stone-50 transition-all inline-flex items-center gap-2">
+                                    <BookOpen size={18} /> Documentation
                                 </Link>
                             </div>
                         </motion.div>
@@ -121,7 +121,7 @@ export default function DevelopersPage() {
                                 { icon: Terminal, title: "RESTful API", desc: "Clean, versioned REST API with comprehensive OpenAPI specs and client libraries in JS, Python, Go, and Ruby." },
                                 { icon: Webhook, title: "Webhooks", desc: "Real-time event notifications when documents are created, viewed, signed, or paid." },
                                 { icon: FileJson, title: "JSON Schema", desc: "Strongly-typed document schemas with Zod validation. Catch errors at build time, not runtime." },
-                                { icon: Shield, title: "API key rotation", desc: "Rotate keys without downtime. Scoped permissions for fine-grained access control." },
+                                { icon: Shield, title: "Enterprise Security", desc: "SOC 2 compliant infrastructure. All documents encrypted at rest and in transit with full audit trails." },
                                 { icon: Globe, title: "SDKs & Libraries", desc: "Official SDKs for JavaScript, Python, Go, and Ruby. Plus community libraries for more." },
                                 { icon: Code2, title: "Sandbox mode", desc: "Test your integration with realistic mock data. No charges, no side effects." },
                             ].map((feat, i) => (
@@ -155,10 +155,10 @@ export default function DevelopersPage() {
                             Free tier includes 100 documents/month. No credit card required.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
-                            <Link href="/auth/register" className="group inline-flex items-center gap-2 px-8 py-4 rounded-full bg-white text-[#1E1E1E] font-bold text-lg hover:scale-105 transition-transform">
-                                Get API Key <ArrowRight className="transition-transform group-hover:translate-x-1" size={20} />
+                            <Link href="/auth/signup" className="group inline-flex items-center gap-2 px-8 py-4 rounded-full bg-white text-[#1E1E1E] font-bold text-lg hover:scale-105 transition-transform">
+                                Get Started Free <ArrowRight className="transition-transform group-hover:translate-x-1" size={20} />
                             </Link>
-                            <Link href="/docs" className="inline-flex items-center gap-2 px-8 py-4 rounded-full border border-gray-600 text-gray-300 font-bold text-lg hover:bg-white/5 transition-colors">
+                            <Link href="/resources" className="inline-flex items-center gap-2 px-8 py-4 rounded-full border border-gray-600 text-gray-300 font-bold text-lg hover:bg-white/5 transition-colors">
                                 <BookOpen size={18} /> Documentation
                             </Link>
                         </div>

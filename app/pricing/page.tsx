@@ -1,272 +1,678 @@
 "use client"
 
 import { LandingLayout } from "@/components/landing/landing-layout"
-import { motion } from "framer-motion"
-import { Check, ArrowRight, Minus, ChevronDown } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Check, Minus, ArrowRight, ChevronDown, Sparkles, Clock, Zap, Lock } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 
-const fadeUp = {
-    initial: { opacity: 0, y: 30 },
-    whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, margin: "-80px" },
-    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] }
-}
+// ─── Plan data ────────────────────────────────────────────────────────────────
 
 const plans = [
-    {
-        name: "Starter",
-        price: { monthly: "Free", yearly: "Free" },
-        priceNote: "forever",
-        desc: "The start of your document journey",
-        cta: "Get Started",
-        ctaStyle: "bg-white text-[var(--landing-dark)] border border-stone-200 hover:bg-stone-50",
-        features: [
-            "5 documents/month",
-            "Basic AI generation",
-            "PDF export",
-            "1 template",
-            "Email support",
-        ],
-        excluded: [
-            "Custom branding",
-            "E-signatures",
-            "API access",
-            "Team collaboration",
-            "Priority support",
-        ]
-    },
-    {
-        name: "Pro",
-        price: { monthly: "$15", yearly: "$12" },
-        priceNote: "/user/mo",
-        desc: "Everything in Starter, plus:",
-        cta: "Start Free Trial",
-        ctaStyle: "bg-[var(--landing-dark)] text-white hover:scale-105",
-        popular: true,
-        features: [
-            "Unlimited documents",
-            "Advanced AI generation",
-            "All export formats",
-            "Unlimited templates",
-            "Custom branding",
-            "E-signatures",
-            "Multi-currency",
-            "Tax auto-calculation",
-            "Priority email support",
-        ],
-        excluded: [
-            "API access",
-            "Team collaboration",
-        ]
-    },
-    {
-        name: "Enterprise",
-        price: { monthly: "Custom", yearly: "Custom" },
-        priceNote: "contact us",
-        desc: "Everything in Pro for your team, plus:",
-        cta: "Talk to Sales",
-        ctaStyle: "bg-white text-[var(--landing-dark)] border border-stone-200 hover:bg-stone-50",
-        features: [
-            "Unlimited everything",
-            "Full API access",
-            "Team collaboration",
-            "Shared templates & snippets",
-            "Usage dashboards",
-            "SSO & SCIM",
-            "Custom integrations",
-            "Dedicated account manager",
-            "SLA guarantee",
-            "SOC 2 Type II compliant",
-        ],
-        excluded: []
-    }
+  {
+    id: "free",
+    name: "Free",
+    badge: null,
+    monthly: 0,
+    yearly: 0,
+    desc: "Perfect for trying it out",
+    valueHint: "~$0 per document",
+    cta: "Get Started Free",
+    ctaNote: "No credit card required",
+    href: "/auth/signup",
+    featured: false,
+    comingSoon: false,
+    features: [
+      { text: "5 documents / month", tip: null },
+      { text: "Invoice + Contract only", tip: null },
+      { text: "3 templates", tip: "Modern, Classic, Minimal" },
+      { text: "3 countries", tip: "India, USA, UK" },
+      { text: "PDF export", tip: null },
+      { text: "7-day history", tip: null },
+    ],
+    missing: [
+      "Quotations & Proposals",
+      "All 9 templates",
+      "All 11 countries",
+      "DOCX & image export",
+      "Digital signatures",
+      "Custom branding",
+    ],
+  },
+  {
+    id: "starter",
+    name: "Starter",
+    badge: null,
+    monthly: 9,
+    yearly: 7,
+    desc: "For freelancers & solo pros",
+    valueHint: "~$0.18 per document",
+    cta: "Start Free Trial",
+    ctaNote: "14-day free trial",
+    href: "/auth/signup",
+    featured: false,
+    comingSoon: false,
+    features: [
+      { text: "50 documents / month", tip: null },
+      { text: "All 4 document types", tip: "Invoice, Contract, Quote, Proposal" },
+      { text: "All 9 templates", tip: null },
+      { text: "All 11 countries", tip: null },
+      { text: "PDF + DOCX export", tip: null },
+      { text: "30-day history", tip: null },
+    ],
+    missing: [
+      "Digital signatures",
+      "Custom branding & logo",
+      "Image export",
+      "Team members",
+    ],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    badge: "Most Popular",
+    monthly: 24,
+    yearly: 19,
+    desc: "For growing businesses",
+    valueHint: "~$0.16 per document",
+    cta: "Start Free Trial",
+    ctaNote: "14-day free trial",
+    href: "/auth/signup",
+    featured: true,
+    comingSoon: false,
+    features: [
+      { text: "150 documents / month", tip: null },
+      { text: "All 4 document types", tip: null },
+      { text: "All 9 templates", tip: null },
+      { text: "All 11 countries", tip: null },
+      { text: "PDF + DOCX + Image export", tip: null },
+      { text: "Digital signatures", tip: null },
+      { text: "Custom logo & branding", tip: null },
+      { text: "1-year history", tip: null },
+    ],
+    missing: [
+      "Team members",
+      "Priority support",
+    ],
+  },
+  {
+    id: "agency",
+    name: "Agency",
+    badge: "Coming Soon",
+    monthly: 59,
+    yearly: 47,
+    desc: "For teams & agencies",
+    valueHint: "Unlimited documents",
+    cta: "Join Waitlist",
+    ctaNote: "Be first when it launches",
+    href: "#",
+    featured: false,
+    comingSoon: true,
+    features: [
+      { text: "Unlimited documents", tip: null },
+      { text: "All 4 document types", tip: null },
+      { text: "All 9 templates", tip: null },
+      { text: "All 11 countries", tip: null },
+      { text: "All export formats", tip: null },
+      { text: "Digital signatures", tip: null },
+      { text: "Custom logo & branding", tip: null },
+      { text: "3 team members", tip: null },
+      { text: "Forever history", tip: null },
+      { text: "Priority support", tip: null },
+    ],
+    missing: [],
+  },
 ]
 
 const faqs = [
-    {
-        q: "Is there a free trial?",
-        a: "Yes! Start with our Starter plan for free, or try Pro with a 14-day free trial. No credit card required."
-    },
-    {
-        q: "Can I change or cancel anytime?",
-        a: "Absolutely. Upgrade, downgrade, or cancel your subscription at any time. No lock-in contracts."
-    },
-    {
-        q: "Do you offer discounts for startups?",
-        a: "Yes, we offer 50% off for startups with fewer than 10 employees. Contact our sales team for eligibility."
-    },
-    {
-        q: "What payment methods do you accept?",
-        a: "We accept all major credit cards, PayPal, and bank transfers for Enterprise plans."
-    },
-    {
-        q: "Can I use Invo for my whole team?",
-        a: "Yes! Our Enterprise plan includes team collaboration, shared templates, centralized billing, and admin controls."
-    }
+  {
+    q: "Is there a free trial?",
+    a: "Yes — the Free plan is free forever, no card needed. Starter and Pro include a 14-day free trial so you can explore everything before committing.",
+  },
+  {
+    q: "What counts as one document?",
+    a: "Each AI generation counts as one document — invoice, contract, quotation, or proposal. Editing an existing document doesn't use your quota.",
+  },
+  {
+    q: "Can I switch plans anytime?",
+    a: "Absolutely. Upgrade, downgrade, or cancel at any time. No lock-in, no cancellation fees. Unused quota doesn't roll over.",
+  },
+  {
+    q: "What's the difference between monthly and yearly?",
+    a: "Yearly billing saves you ~20% compared to monthly. You're billed once per year upfront. You can switch to yearly at any time.",
+  },
+  {
+    q: "When does Agency launch?",
+    a: "Agency is coming soon. Join the waitlist and you'll be the first to know — plus get an early-bird discount when it launches.",
+  },
 ]
 
+// ─── Animations ───────────────────────────────────────────────────────────────
+
+const gridVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.1, delayChildren: 0.1 } },
+}
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 40 },
+  visible: {
+    opacity: 1, y: 0,
+    transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] },
+  },
+}
+
+// ─── Feature row ─────────────────────────────────────────────────────────────
+
+function FeatureRow({ text, tip, featured }: { text: string; tip: string | null; featured: boolean }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className={`mt-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center shrink-0 ${featured ? "bg-amber-500" : "bg-stone-100"}`}>
+        <Check size={10} className={featured ? "text-white" : "text-stone-500"} strokeWidth={3} />
+      </div>
+      <span className={`text-sm leading-snug ${featured ? "text-white/80" : "text-stone-600"}`}>
+        {text}
+        {tip && <span className={`ml-1.5 text-xs ${featured ? "text-white/35" : "text-stone-400"}`}>({tip})</span>}
+      </span>
+    </div>
+  )
+}
+
+function MissingRow({ text, featured }: { text: string; featured: boolean }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className={`mt-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center shrink-0 ${featured ? "bg-white/8" : "bg-stone-50"}`}>
+        <Minus size={8} className={featured ? "text-white/25" : "text-stone-300"} strokeWidth={3} />
+      </div>
+      <span className={`text-sm leading-snug ${featured ? "text-white/25" : "text-stone-350"}`} style={{ color: featured ? undefined : "#c4bfba" }}>{text}</span>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function PricingPage() {
-    const [billing, setBilling] = useState<"monthly" | "yearly">("yearly")
-    const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [billing, setBilling] = useState<"monthly" | "yearly">("yearly")
+  const [openFaq, setOpenFaq] = useState<number | null>(null)
 
-    return (
-        <LandingLayout>
-            <div className="min-h-screen">
-                {/* Hero */}
-                <section className="pt-32 pb-16 px-6 text-center">
-                    <motion.div
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-                    >
-                        <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight text-[var(--landing-text-dark)] mb-6">
-                            Pricing
-                        </h1>
-                        <p className="text-xl text-[var(--landing-text-muted)] max-w-xl mx-auto mb-10">
-                            Start free. Upgrade when you need more power.
-                        </p>
+  return (
+    <LandingLayout>
+      <div className="min-h-screen" style={{ backgroundColor: "#faf8f5" }}>
 
-                        {/* Billing Toggle */}
-                        <div className="inline-flex items-center gap-3 p-1.5 rounded-full bg-white border border-stone-200 shadow-sm">
-                            <button
-                                onClick={() => setBilling("monthly")}
-                                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${billing === "monthly" ? 'bg-[var(--landing-dark)] text-white shadow-md' : 'text-[var(--landing-text-muted)]'}`}
-                            >
-                                Monthly
-                            </button>
-                            <button
-                                onClick={() => setBilling("yearly")}
-                                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${billing === "yearly" ? 'bg-[var(--landing-dark)] text-white shadow-md' : 'text-[var(--landing-text-muted)]'}`}
-                            >
-                                Yearly <span className="text-[var(--landing-amber)] ml-1">Save 20%</span>
-                            </button>
-                        </div>
-                    </motion.div>
-                </section>
-
-                {/* Pricing Cards */}
-                <section className="pb-24 px-6 sm:px-10">
-                    <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-                        {plans.map((plan, i) => (
-                            <motion.div
-                                key={plan.name}
-                                initial={{ opacity: 0, y: 30 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.1, duration: 0.6 }}
-                                className={`relative p-8 rounded-[2.5rem] border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${plan.popular
-                                    ? 'bg-[var(--landing-dark)] text-[var(--landing-cream)] border-[var(--landing-dark)] shadow-2xl scale-[1.02]'
-                                    : 'bg-white border-stone-200'
-                                    }`}
-                            >
-                                {plan.popular && (
-                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-[var(--landing-amber)] text-white text-xs font-bold uppercase tracking-wider">
-                                        Most Popular
-                                    </div>
-                                )}
-
-                                <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
-                                <div className="flex items-baseline gap-1 mb-1">
-                                    <span className="text-4xl font-display font-bold">
-                                        {plan.price[billing]}
-                                    </span>
-                                    <span className={`text-sm ${plan.popular ? 'text-[var(--landing-text-dim)]' : 'text-[var(--landing-text-muted)]'}`}>
-                                        {plan.priceNote}
-                                    </span>
-                                </div>
-                                <p className={`text-sm mb-8 ${plan.popular ? 'text-[var(--landing-text-dim)]' : 'text-[var(--landing-text-muted)]'}`}>
-                                    {plan.desc}
-                                </p>
-
-                                <Link
-                                    href={plan.name === "Enterprise" ? "/contact-sales" : "/auth/register"}
-                                    className={`block w-full text-center py-3.5 rounded-full font-bold text-sm transition-all duration-300 ${plan.ctaStyle}`}
-                                >
-                                    {plan.cta}
-                                </Link>
-
-                                <div className="mt-8 space-y-3">
-                                    {plan.features.map((f) => (
-                                        <div key={f} className="flex items-center gap-3">
-                                            <Check size={16} className="text-green-500 shrink-0" />
-                                            <span className="text-sm">{f}</span>
-                                        </div>
-                                    ))}
-                                    {plan.excluded.map((f) => (
-                                        <div key={f} className={`flex items-center gap-3 ${plan.popular ? 'text-[var(--landing-text-dim)]' : 'text-stone-300'}`}>
-                                            <Minus size={16} className="shrink-0" />
-                                            <span className="text-sm line-through">{f}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </section>
-
-                {/* FAQ */}
-                <section className="py-24 px-6 sm:px-10 bg-white">
-                    <div className="max-w-3xl mx-auto">
-                        <motion.div {...fadeUp} className="text-center mb-16">
-                            <h2 className="font-display text-4xl font-bold mb-4">Frequently asked questions</h2>
-                        </motion.div>
-
-                        <div className="space-y-3">
-                            {faqs.map((faq, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    whileInView={{ opacity: 1, y: 0 }}
-                                    viewport={{ once: true }}
-                                    transition={{ delay: i * 0.05 }}
-                                    className="border border-stone-200 rounded-2xl overflow-hidden"
-                                >
-                                    <button
-                                        onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                                        className="w-full flex items-center justify-between p-6 text-left font-semibold hover:bg-stone-50 transition-colors"
-                                    >
-                                        {faq.q}
-                                        <ChevronDown
-                                            size={20}
-                                            className={`transition-transform duration-300 shrink-0 ml-4 ${openFaq === i ? 'rotate-180' : ''}`}
-                                        />
-                                    </button>
-                                    <motion.div
-                                        initial={false}
-                                        animate={{ height: openFaq === i ? "auto" : 0, opacity: openFaq === i ? 1 : 0 }}
-                                        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                                        className="overflow-hidden"
-                                    >
-                                        <p className="px-6 pb-6 text-[var(--landing-text-muted)] leading-relaxed">
-                                            {faq.a}
-                                        </p>
-                                    </motion.div>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
-                {/* CTA */}
-                <section className="py-24 px-6 sm:px-10">
-                    <motion.div {...fadeUp} className="max-w-4xl mx-auto bg-[var(--landing-dark)] rounded-[3rem] p-12 sm:p-20 text-center relative overflow-hidden">
-                        <div className="absolute inset-0 bg-mesh-dark opacity-50" />
-                        <h2 className="font-display text-4xl sm:text-5xl text-[var(--landing-cream)] mb-4 relative z-10">
-                            Start <span className="text-[var(--landing-amber)] italic font-serif">generating</span>
-                        </h2>
-                        <p className="text-[var(--landing-text-dim)] text-lg mb-8 relative z-10 max-w-lg mx-auto">
-                            Professional documents in seconds. Try free, no credit card required.
-                        </p>
-                        <Link
-                            href="/auth/register"
-                            className="group relative z-10 inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[var(--landing-cream)] text-[var(--landing-dark)] font-bold text-lg hover:scale-105 transition-transform"
-                        >
-                            Get Started Free
-                            <ArrowRight className="transition-transform group-hover:translate-x-1" size={20} />
-                        </Link>
-                    </motion.div>
-                </section>
+        {/* ── Hero ── */}
+        <section className="pt-32 pb-16 px-6 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-7"
+          >
+            {/* Social proof pill */}
+            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white border border-stone-200/80 text-sm shadow-sm">
+              <span className="flex -space-x-1.5">
+                {["#f97316", "#3b82f6", "#10b981", "#8b5cf6"].map((c, i) => (
+                  <span key={i} className="w-5 h-5 rounded-full border-2 border-white" style={{ background: c }} />
+                ))}
+              </span>
+              <span className="text-stone-500 font-medium">2,400+ professionals save hours every week</span>
             </div>
-        </LandingLayout>
-    )
+
+            <h1 className="font-display text-5xl sm:text-6xl font-medium tracking-tight leading-[1.08]" style={{ color: "#1a1a1a" }}>
+              Simple pricing,<br />
+              <span className="font-serif italic" style={{ color: "#e07b39" }}>serious value</span>
+            </h1>
+
+            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-stone-400">
+              <span className="flex items-center gap-1.5"><Clock size={13} style={{ color: "#e07b39" }} /> Save 3–5 hrs per document</span>
+              <span className="flex items-center gap-1.5"><Zap size={13} style={{ color: "#e07b39" }} /> Ready in under 30 seconds</span>
+              <span className="flex items-center gap-1.5"><Lock size={13} style={{ color: "#e07b39" }} /> Cancel anytime</span>
+            </div>
+
+            {/* Billing toggle */}
+            <div className="inline-flex items-center gap-1 p-1.5 rounded-full bg-white border border-stone-200 shadow-sm">
+              <button
+                onClick={() => setBilling("monthly")}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${billing === "monthly" ? "text-white shadow-sm" : "text-stone-400 hover:text-stone-700"}`}
+                style={billing === "monthly" ? { backgroundColor: "#1a1a1a" } : {}}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBilling("yearly")}
+                className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${billing === "yearly" ? "text-white shadow-sm" : "text-stone-400 hover:text-stone-700"}`}
+                style={billing === "yearly" ? { backgroundColor: "#1a1a1a" } : {}}
+              >
+                Yearly
+                <span
+                  className="text-xs font-bold px-2 py-0.5 rounded-full transition-all"
+                  style={billing === "yearly"
+                    ? { backgroundColor: "#e07b39", color: "#fff" }
+                    : { backgroundColor: "#fde8d8", color: "#c2622a" }}
+                >
+                  Save ~20%
+                </span>
+              </button>
+            </div>
+          </motion.div>
+        </section>
+
+        {/* ── Cards ── */}
+        <section className="pb-20 px-4 sm:px-8">
+          <motion.div
+            className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
+            variants={gridVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {plans.map((plan) => (
+              <motion.div
+                key={plan.id}
+                variants={cardVariants}
+                className={`relative flex flex-col rounded-3xl transition-all duration-300 ${
+                  plan.comingSoon ? "opacity-70" : plan.featured ? "" : "hover:-translate-y-1"
+                }`}
+                style={plan.featured
+                  ? {
+                      background: "linear-gradient(145deg, #232323 0%, #1a1a1a 60%, #1f1c18 100%)",
+                      boxShadow: "0 0 0 1px rgba(224,123,57,0.35), 0 24px 48px -8px rgba(0,0,0,0.45), 0 0 80px -20px rgba(224,123,57,0.15)",
+                    }
+                  : plan.comingSoon
+                  ? { backgroundColor: "#f5f3f0", border: "1px solid #e8e4de" }
+                  : { backgroundColor: "#ffffff", border: "1px solid #ebe8e3", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }
+                }
+              >
+                {/* Featured glow ring */}
+                {plan.featured && (
+                  <div
+                    className="absolute inset-0 rounded-3xl pointer-events-none"
+                    style={{
+                      background: "linear-gradient(145deg, rgba(224,123,57,0.12) 0%, transparent 50%)",
+                    }}
+                  />
+                )}
+
+                {/* Badge */}
+                {plan.badge && (
+                  <div
+                    className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-md whitespace-nowrap text-white z-10"
+                    style={{ backgroundColor: plan.badge === "Most Popular" ? "#e07b39" : "#78716c" }}
+                  >
+                    {plan.badge === "Most Popular" && <Sparkles size={9} />}
+                    {plan.badge === "Coming Soon" && <Clock size={9} />}
+                    {plan.badge}
+                  </div>
+                )}
+
+                <div className="p-6 flex flex-col flex-1 relative z-10">
+                  {/* Plan name */}
+                  <div className={`text-[11px] font-bold uppercase tracking-widest mb-4 ${plan.featured ? "text-amber-400" : "text-stone-400"}`}>
+                    {plan.name}
+                  </div>
+
+                  {/* Price */}
+                  <div className="mb-4">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={`${plan.id}-${billing}`}
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex items-baseline gap-0.5"
+                      >
+                        {plan.monthly > 0 && !plan.comingSoon && (
+                          <span className={`font-display font-bold ${plan.featured ? "text-white/40" : "text-stone-400"}`} style={{ fontSize: "1.5rem", lineHeight: 1, paddingBottom: "0.35rem" }}>$</span>
+                        )}
+                        <span
+                          className={`font-display font-bold leading-none ${plan.featured ? "text-white" : plan.comingSoon ? "text-stone-300" : "text-stone-900"}`}
+                          style={{ fontSize: plan.comingSoon ? "1.5rem" : "2.75rem" }}
+                        >
+                          {plan.monthly === 0 ? "Free" : plan.comingSoon ? "Coming Soon" : billing === "yearly" ? plan.yearly : plan.monthly}
+                        </span>
+                        {plan.monthly > 0 && !plan.comingSoon && (
+                          <span className={`text-sm ml-0.5 ${plan.featured ? "text-white/35" : "text-stone-400"}`} style={{ paddingBottom: "0.2rem" }}>/mo</span>
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
+
+                    {plan.monthly > 0 && !plan.comingSoon && billing === "yearly" && (
+                      <p className={`text-xs mt-1.5 font-medium ${plan.featured ? "text-amber-400/80" : "text-emerald-600"}`}>
+                        Save ${(plan.monthly - plan.yearly) * 12}/yr vs monthly
+                      </p>
+                    )}
+                    {plan.monthly > 0 && !plan.comingSoon && billing === "monthly" && (
+                      <p className={`text-xs mt-1.5 ${plan.featured ? "text-white/30" : "text-stone-400"}`}>
+                        or ${plan.yearly}/mo billed yearly
+                      </p>
+                    )}
+                    {plan.monthly === 0 && (
+                      <p className="text-xs mt-1.5 text-stone-400">forever free</p>
+                    )}
+                    {plan.comingSoon && (
+                      <p className="text-xs mt-1.5 text-stone-400">price announced at launch</p>
+                    )}
+                  </div>
+
+                  {/* Value hint */}
+                  <div
+                    className="text-xs font-medium mb-3 px-2.5 py-1 rounded-full inline-block w-fit"
+                    style={plan.featured
+                      ? { backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" }
+                      : { backgroundColor: "#f5f3f0", color: "#a09890" }
+                    }
+                  >
+                    {plan.valueHint}
+                  </div>
+
+                  <p className={`text-sm mb-5 leading-snug ${plan.featured ? "text-white/55" : "text-stone-400"}`}>
+                    {plan.desc}
+                  </p>
+
+                  {/* CTA */}
+                  <div className="mb-6">
+                    <Link
+                      href={plan.href}
+                      className={`block w-full text-center py-3 rounded-2xl font-semibold text-sm transition-all duration-200 ${
+                        plan.comingSoon
+                          ? "cursor-default"
+                          : plan.featured
+                          ? "hover:opacity-90 active:scale-[0.98]"
+                          : "hover:opacity-90 active:scale-[0.98]"
+                      }`}
+                      style={plan.comingSoon
+                        ? { backgroundColor: "#ede9e4", color: "#b5afa8" }
+                        : plan.featured
+                        ? { backgroundColor: "#ffffff", color: "#1a1a1a" }
+                        : { backgroundColor: "#1a1a1a", color: "#ffffff" }
+                      }
+                    >
+                      {plan.cta}
+                    </Link>
+                    <p className={`text-center text-xs mt-2 ${plan.featured ? "text-white/25" : "text-stone-400"}`}>
+                      {plan.ctaNote}
+                    </p>
+                  </div>
+
+                  {/* Divider */}
+                  <div className={`h-px mb-5 ${plan.featured ? "bg-white/8" : "bg-stone-100"}`} />
+
+                  {/* Features */}
+                  <div className="space-y-2.5 flex-1">
+                    {plan.features.map((f) => (
+                      <FeatureRow key={f.text} text={f.text} tip={f.tip} featured={plan.featured} />
+                    ))}
+                    {plan.missing.map((f) => (
+                      <MissingRow key={f} text={f} featured={plan.featured} />
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* Trust strip */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.65, duration: 0.5 }}
+            className="max-w-xl mx-auto mt-10 flex flex-wrap items-center justify-center gap-6 text-xs text-stone-400"
+          >
+            <span className="flex items-center gap-1.5"><Lock size={11} /> SSL encrypted</span>
+            <span className="flex items-center gap-1.5"><Check size={11} /> No hidden fees</span>
+            <span className="flex items-center gap-1.5"><Zap size={11} /> Cancel anytime</span>
+            <span className="flex items-center gap-1.5"><Clock size={11} /> 14-day free trial</span>
+          </motion.div>
+        </section>
+
+        {/* ── Value comparison ── */}
+        <section className="py-24 px-6" style={{ backgroundColor: "#ffffff" }}>
+          <div className="max-w-4xl mx-auto">
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+              className="text-center mb-14"
+            >
+              <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "#e07b39" }}>The real cost</p>
+              <h2 className="font-display text-4xl sm:text-5xl font-medium leading-tight" style={{ color: "#1a1a1a" }}>
+                What are you actually<br />
+                <span className="font-serif italic" style={{ color: "#e07b39" }}>paying right now?</span>
+              </h2>
+              <p className="mt-4 text-stone-400 text-base max-w-md mx-auto">
+                A freelancer spending 3 hours drafting one invoice at $50/hr loses $150 in billable time. Every single time.
+              </p>
+            </motion.div>
+
+            {/* Comparison rows */}
+            <div className="space-y-3">
+
+              {/* Manual drafting */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-center gap-4 rounded-2xl px-6 py-5 bg-white"
+                style={{ border: "1px solid #ebe8e3" }}
+              >
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#fee2e2" }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="#ef4444" strokeWidth="2"/>
+                    <polyline points="12,6 12,12 16,14" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>Manual drafting</p>
+                  <p className="text-xs text-stone-400 mt-0.5">Word, Google Docs, or from scratch</p>
+                </div>
+                <div className="hidden sm:flex items-center gap-8 shrink-0">
+                  <div className="text-center">
+                    <p className="font-display text-lg font-bold text-red-500">2–4 hrs</p>
+                    <p className="text-xs text-stone-400">per doc</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-display text-lg font-bold text-red-500">$100–200</p>
+                    <p className="text-xs text-stone-400">lost time</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-stone-500">~$3,000+/mo</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full text-red-500" style={{ backgroundColor: "#fee2e2" }}>ouch</span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Hiring a VA */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-center gap-4 rounded-2xl px-6 py-5 bg-white"
+                style={{ border: "1px solid #ebe8e3" }}
+              >
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#ffedd5" }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#f97316" strokeWidth="2"/>
+                    <circle cx="9" cy="7" r="4" stroke="#f97316" strokeWidth="2"/>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>Hiring a VA</p>
+                  <p className="text-xs text-stone-400 mt-0.5">Virtual assistant at $15–25/hr</p>
+                </div>
+                <div className="hidden sm:flex items-center gap-8 shrink-0">
+                  <div className="text-center">
+                    <p className="font-display text-lg font-bold text-orange-500">1–2 hrs</p>
+                    <p className="text-xs text-stone-400">per doc</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-display text-lg font-bold text-orange-500">$15–25</p>
+                    <p className="text-xs text-stone-400">per doc</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-stone-500">$450–750/mo</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full text-orange-500" style={{ backgroundColor: "#ffedd5" }}>expensive</span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Invo.ai — featured row */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-center gap-4 rounded-2xl px-6 py-5 relative overflow-hidden"
+                style={{
+                  background: "linear-gradient(135deg, #232323 0%, #1a1a1a 100%)",
+                  boxShadow: "0 0 0 1px rgba(224,123,57,0.3), 0 8px 32px -8px rgba(0,0,0,0.3)",
+                }}
+              >
+                {/* Subtle glow */}
+                <div className="absolute top-0 left-0 w-32 h-full pointer-events-none" style={{ background: "linear-gradient(90deg, rgba(224,123,57,0.08) 0%, transparent 100%)" }} />
+
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 relative z-10" style={{ backgroundColor: "rgba(224,123,57,0.2)" }}>
+                  <motion.svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                    animate={{ scale: [1, 1.15, 1] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="#e07b39"/>
+                  </motion.svg>
+                </div>
+                <div className="flex-1 min-w-0 relative z-10">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-white">Invo.ai Pro</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "rgba(224,123,57,0.2)", color: "#e07b39" }}>recommended</span>
+                  </div>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>AI-generated, compliant, ready in seconds</p>
+                </div>
+                <div className="hidden sm:flex items-center gap-8 shrink-0 relative z-10">
+                  <div className="text-center">
+                    <motion.p
+                      className="font-display text-lg font-bold text-white"
+                      animate={{ opacity: [0.6, 1, 0.6] }}
+                      transition={{ duration: 2.5, repeat: Infinity }}
+                    >&lt; 30s</motion.p>
+                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>per doc</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-display text-lg font-bold" style={{ color: "#e07b39" }}>~$0.13</p>
+                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>per doc</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-white">$19/mo</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "rgba(224,123,57,0.15)", color: "#e07b39" }}>150 docs</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Stat strip */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.3, duration: 0.6 }}
+              className="mt-8 grid grid-cols-3 gap-3"
+            >
+              {[
+                { num: "99%", label: "faster than manual" },
+                { num: "$5,000+", label: "saved annually" },
+                { num: "30s", label: "avg generation time" },
+              ].map((stat, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.35 + i * 0.07 }}
+                  className="rounded-2xl px-5 py-4 text-center"
+                  style={{ backgroundColor: "#faf8f5", border: "1px solid #ebe8e3" }}
+                >
+                  <div className="font-display text-2xl font-bold mb-0.5" style={{ color: "#1a1a1a" }}>{stat.num}</div>
+                  <div className="text-xs text-stone-400">{stat.label}</div>
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ── FAQ ── */}
+        <section className="py-24 px-6" style={{ backgroundColor: "#faf8f5" }}>
+          <div className="max-w-2xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="font-display text-4xl font-medium mb-2" style={{ color: "#1a1a1a" }}>Common questions</h2>
+              <p className="text-stone-400 text-sm">Everything you need to know before signing up.</p>
+            </div>
+
+            <div className="space-y-2">
+              {faqs.map((faq, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 + i * 0.05, duration: 0.45 }}
+                  className="rounded-2xl overflow-hidden bg-white"
+                  style={{ border: "1px solid #ebe8e3" }}
+                >
+                  <button
+                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                    className="w-full flex items-center justify-between px-6 py-5 text-left font-semibold text-sm hover:bg-stone-50/80 transition-colors"
+                    style={{ color: "#1a1a1a" }}
+                  >
+                    <span>{faq.q}</span>
+                    <ChevronDown
+                      size={16}
+                      className={`transition-transform duration-300 shrink-0 ml-4 text-stone-400 ${openFaq === i ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  <motion.div
+                    initial={false}
+                    animate={{ height: openFaq === i ? "auto" : 0, opacity: openFaq === i ? 1 : 0 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <p className="px-6 pb-5 text-stone-500 text-sm leading-relaxed">{faq.a}</p>
+                  </motion.div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── CTA ── */}
+        <section className="py-24 px-6 bg-white">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+            className="max-w-3xl mx-auto rounded-[2.5rem] p-14 sm:p-20 text-center relative overflow-hidden"
+            style={{ backgroundColor: "#1a1a1a" }}
+          >
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 30% 0%, rgba(224,123,57,0.12) 0%, transparent 60%)" }} />
+            <p className="text-xs font-bold uppercase tracking-widest mb-4 relative z-10" style={{ color: "#e07b39" }}>Start today</p>
+            <h2 className="font-display text-4xl sm:text-5xl font-medium mb-4 relative z-10 leading-tight" style={{ color: "#faf8f5" }}>
+              Your first document<br />
+              <span className="font-serif italic" style={{ color: "#e07b39" }}>in 30 seconds</span>
+            </h2>
+            <p className="text-white/40 text-sm mb-8 relative z-10 max-w-sm mx-auto">
+              Free forever. No credit card. No setup. Just describe what you need.
+            </p>
+            <Link
+              href="/auth/signup"
+              className="group relative z-10 inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-semibold text-sm hover:scale-105 transition-transform"
+              style={{ backgroundColor: "#faf8f5", color: "#1a1a1a" }}
+            >
+              Get Started Free
+              <ArrowRight className="transition-transform group-hover:translate-x-1" size={16} />
+            </Link>
+          </motion.div>
+        </section>
+
+      </div>
+    </LandingLayout>
+  )
 }

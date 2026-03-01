@@ -29,7 +29,9 @@
         "take_screenshot",
         "fill",
         "take_snapshot",
-        "list_pages"
+        "list_pages",
+        "list_console_messages",
+        "navigate_page"
       ]
     }
   }
