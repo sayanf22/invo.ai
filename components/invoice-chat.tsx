@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Send, Sparkles, Loader2, RotateCcw } from "lucide-react"
+import { ArrowUp, Sparkles, RotateCcw, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -40,7 +39,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
 
     const scrollRef = useRef<HTMLDivElement>(null)
-    const inputRef = useRef<HTMLInputElement>(null)
+    const inputRef = useRef<HTMLTextAreaElement>(null)
     const initialPromptSentRef = useRef(false)
     const lastSyncedSessionRef = useRef<string | null>(null)
 
@@ -287,33 +286,62 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             </ScrollArea>
 
             {/* Input */}
-            <div className="p-4 bg-background border-t shrink-0">
-                <div className="relative flex items-center gap-2 max-w-2xl mx-auto">
-                    <Input
-                        ref={inputRef}
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
-                        placeholder={`Describe your ${docType}...`}
-                        disabled={isLoading || sessionLoading || !session}
-                        className="flex-1 rounded-xl h-12 px-5 text-[15px] transition-shadow duration-200 focus:shadow-md"
-                        autoFocus
-                    />
-                    <Button
-                        size="icon"
-                        onClick={handleSendMessage}
-                        disabled={!inputValue.trim() || isLoading || sessionLoading || !session}
-                        className={cn(
-                            "rounded-xl h-12 w-12 shrink-0 btn-press transition-all duration-200",
-                            inputValue.trim() && !isLoading && "send-ready"
-                        )}
-                    >
-                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    </Button>
+            <div className="px-4 py-3 bg-background border-t shrink-0">
+                <div className="max-w-2xl mx-auto">
+                    <div className={cn(
+                        "rounded-2xl border bg-card transition-all duration-200",
+                        isLoading
+                            ? "border-primary/30 shadow-[0_0_0_3px_hsl(var(--primary)/0.06)]"
+                            : "border-border focus-within:border-primary/40 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)]"
+                    )}>
+                        <textarea
+                            ref={inputRef}
+                            value={inputValue}
+                            onChange={(e) => {
+                                setInputValue(e.target.value)
+                                const el = e.target
+                                el.style.height = "auto"
+                                el.style.height = Math.min(el.scrollHeight, 160) + "px"
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault()
+                                    handleSendMessage()
+                                }
+                            }}
+                            placeholder={`Describe your ${docType}...`}
+                            disabled={isLoading || sessionLoading || !session}
+                            rows={2}
+                            className="w-full px-4 pt-4 pb-2 text-[15px] text-foreground placeholder:text-muted-foreground/40 bg-transparent outline-none resize-none leading-relaxed max-h-[160px] overflow-y-auto"
+                            style={{ scrollbarWidth: "thin" }}
+                            autoFocus
+                        />
+                        <div className="flex items-center justify-between px-3 pb-3 pt-0">
+                            <p className="text-[11px] text-muted-foreground/50 pl-1 select-none">
+                                {isSaving ? "Saving..." : "Shift+Enter for new line"}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleSendMessage}
+                                disabled={(!inputValue.trim() && !isLoading) || sessionLoading || !session}
+                                className={cn(
+                                    "flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200 shrink-0",
+                                    isLoading
+                                        ? "bg-destructive/10 text-destructive hover:bg-destructive/15 cursor-pointer"
+                                        : inputValue.trim()
+                                        ? "bg-foreground text-background hover:opacity-80 active:scale-90"
+                                        : "bg-muted/60 text-muted-foreground/30 cursor-not-allowed"
+                                )}
+                                aria-label={isLoading ? "Stop" : "Send"}
+                            >
+                                {isLoading
+                                    ? <Square className="w-3 h-3 fill-current" />
+                                    : <ArrowUp className="w-4 h-4" />
+                                }
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground text-center mt-2">
-                    {isSaving ? "Saving..." : `AI builds your ${docType} and refines it as you answer questions.`}
-                </p>
             </div>
         </div>
     )
