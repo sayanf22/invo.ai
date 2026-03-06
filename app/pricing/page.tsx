@@ -23,8 +23,9 @@ const plans = [
     featured: false,
     comingSoon: false,
     features: [
-      { text: "5 documents / month", tip: null },
+      { text: "3 documents / month", tip: null },
       { text: "Invoice + Contract only", tip: null },
+      { text: "10 messages per session", tip: null },
       { text: "3 templates", tip: "Modern, Classic, Minimal" },
       { text: "3 countries", tip: "India, USA, UK" },
       { text: "PDF export", tip: null },
@@ -55,6 +56,7 @@ const plans = [
     features: [
       { text: "50 documents / month", tip: null },
       { text: "All 4 document types", tip: "Invoice, Contract, Quote, Proposal" },
+      { text: "25 messages per session", tip: null },
       { text: "All 9 templates", tip: null },
       { text: "All 11 countries", tip: null },
       { text: "PDF + DOCX export", tip: null },
@@ -83,6 +85,7 @@ const plans = [
     features: [
       { text: "150 documents / month", tip: null },
       { text: "All 4 document types", tip: null },
+      { text: "30 messages per session", tip: null },
       { text: "All 9 templates", tip: null },
       { text: "All 11 countries", tip: null },
       { text: "PDF + DOCX + Image export", tip: null },
@@ -111,6 +114,7 @@ const plans = [
     features: [
       { text: "Unlimited documents", tip: null },
       { text: "All 4 document types", tip: null },
+      { text: "Unlimited messages per session", tip: null },
       { text: "All 9 templates", tip: null },
       { text: "All 11 countries", tip: null },
       { text: "All export formats", tip: null },
@@ -131,7 +135,7 @@ const faqs = [
   },
   {
     q: "What counts as one document?",
-    a: "Each AI generation counts as one document — invoice, contract, quotation, or proposal. Editing an existing document doesn't use your quota.",
+    a: "Each new document session counts as one document. All AI messages within that session (edits, refinements, follow-ups) are free up to your plan's message limit. Once you download a document, it's finalized and locked — you'll need a new session for changes.",
   },
   {
     q: "Can I switch plans anytime?",

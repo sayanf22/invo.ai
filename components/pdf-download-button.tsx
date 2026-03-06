@@ -5,6 +5,7 @@ import { pdf } from "@react-pdf/renderer"
 import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
 import type { InvoiceData } from "@/lib/invoice-types"
+import { cleanDataForExport } from "@/lib/invoice-types"
 import { toast } from "sonner"
 
 interface PDFDownloadButtonProps {
@@ -26,6 +27,9 @@ export function PDFDownloadButton({
         setIsGenerating(true)
 
         try {
+            // Clean placeholder text before generating PDF
+            const cleanedData = cleanDataForExport(data)
+
             // Dynamically import templates
             const templates = await import("@/lib/pdf-templates")
 
@@ -33,27 +37,27 @@ export function PDFDownloadButton({
             let PdfComponent: React.ComponentType<{ data: typeof data }>
             let filePrefix: string
 
-            switch ((data.documentType || "").toLowerCase()) {
+            switch ((cleanedData.documentType || "").toLowerCase()) {
                 case "contract":
                     PdfComponent = templates.ContractPDF
-                    filePrefix = data.referenceNumber || data.invoiceNumber || "contract"
+                    filePrefix = cleanedData.referenceNumber || cleanedData.invoiceNumber || "contract"
                     break
                 case "quotation":
                     PdfComponent = templates.QuotationPDF
-                    filePrefix = data.referenceNumber || data.invoiceNumber || "quotation"
+                    filePrefix = cleanedData.referenceNumber || cleanedData.invoiceNumber || "quotation"
                     break
                 case "proposal":
                     PdfComponent = templates.ProposalPDF
-                    filePrefix = data.referenceNumber || data.invoiceNumber || "proposal"
+                    filePrefix = cleanedData.referenceNumber || cleanedData.invoiceNumber || "proposal"
                     break
                 default:
                     PdfComponent = templates.InvoicePDF
-                    filePrefix = data.invoiceNumber || "invoice"
+                    filePrefix = cleanedData.invoiceNumber || "invoice"
                     break
             }
 
             // Generate the PDF blob
-            const blob = await pdf(<PdfComponent data={data} />).toBlob()
+            const blob = await pdf(<PdfComponent data={cleanedData} />).toBlob()
 
             // Create download link with timestamp to avoid caching
             const url = URL.createObjectURL(blob)

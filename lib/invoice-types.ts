@@ -3,6 +3,7 @@ export interface LineItem {
   description: string
   quantity: number
   rate: number
+  discount?: number // per-item discount percentage (0-100)
 }
 
 export interface InvoiceData {
@@ -171,21 +172,83 @@ export function calculateSubtotal(items: LineItem[]): number {
   return items.reduce((sum, item) => sum + item.quantity * item.rate, 0)
 }
 
+/** Calculate the total per-item discount amount across all items */
+export function calculateItemDiscounts(items: LineItem[]): number {
+  return items.reduce((sum, item) => {
+    const lineTotal = item.quantity * item.rate
+    const disc = item.discount ? lineTotal * (item.discount / 100) : 0
+    return sum + disc
+  }, 0)
+}
+
+/** Get the effective line total after per-item discount */
+export function getLineTotal(item: LineItem): number {
+  const raw = item.quantity * item.rate
+  return item.discount ? raw - raw * (item.discount / 100) : raw
+}
+
 export function calculateTotal(data: InvoiceData): {
   subtotal: number
+  itemDiscount: number
   tax: number
   discount: number
   shipping: number
   total: number
 } {
   const subtotal = calculateSubtotal(data.items)
+  const itemDiscount = calculateItemDiscounts(data.items)
+  const afterItemDiscount = subtotal - itemDiscount
+  // Global discount applies on top of per-item discounts
   const discount =
     data.discountType === "percent"
-      ? subtotal * (data.discountValue / 100)
+      ? afterItemDiscount * (data.discountValue / 100)
       : data.discountValue
-  const afterDiscount = subtotal - discount
+  const afterDiscount = afterItemDiscount - discount
   const tax = afterDiscount * (data.taxRate / 100)
   const shipping = data.shippingFee || 0
   const total = afterDiscount + tax + shipping
-  return { subtotal, tax, discount, shipping, total }
+  return { subtotal, itemDiscount, tax, discount, shipping, total }
+}
+
+// Placeholder patterns that should be treated as empty/missing
+const PLACEHOLDER_PATTERNS = [
+  /^\[.*\]$/,                          // [To be provided], [Client Name], etc.
+  /^to be (provided|shared|confirmed|updated|filled|added)$/i,
+  /^not (provided|available|specified|applicable)$/i,
+  /^n\/?a$/i,                          // N/A, n/a
+  /^tbd$/i,                            // TBD
+  /^pending$/i,
+  /^-+$/,                              // ---, ----
+  /^_+$/,                              // ___, ____
+  /^\.{3,}$/,                          // ...
+]
+
+function isPlaceholder(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  return PLACEHOLDER_PATTERNS.some(p => p.test(trimmed))
+}
+
+/** Strip placeholder text from all string fields in InvoiceData.
+ *  Returns a new object — does not mutate the original. */
+export function cleanDataForExport(data: InvoiceData): InvoiceData {
+  const cleaned = { ...data }
+
+  const stringFields: (keyof InvoiceData)[] = [
+    "fromName", "fromEmail", "fromAddress", "fromPhone", "fromTaxId", "fromWebsite",
+    "toName", "toEmail", "toAddress", "toPhone", "toTaxId",
+    "paymentInstructions", "paymentMethod",
+    "notes", "terms", "description",
+    "signatureName", "signatureTitle",
+    "invoiceNumber", "referenceNumber",
+  ]
+
+  for (const field of stringFields) {
+    const val = cleaned[field]
+    if (typeof val === "string" && isPlaceholder(val)) {
+      (cleaned as any)[field] = ""
+    }
+  }
+
+  return cleaned
 }

@@ -47,13 +47,23 @@ export function PromptScreen({
     setSelectedSessionId(sessionId)
   }, [])
 
+  // When a linked document is created, switch to it and update the category
+  const handleLinkedSessionCreate = useCallback((sessionId: string, docType: string) => {
+    const capitalized = docType.charAt(0).toUpperCase() + docType.slice(1)
+    setData(prev => ({
+      ...getInitialInvoiceData(),
+      documentType: capitalized,
+    }))
+    setSelectedSessionId(sessionId)
+  }, [])
+
   return (
     <div className="h-screen flex flex-col bg-background">
       <header className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-card shadow-sm shrink-0">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center justify-center w-10 h-10 rounded-xl bg-background border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 hover:shadow-md transition-all duration-200 active:scale-95"
+          className="flex items-center justify-center w-10 h-10 rounded-2xl bg-background border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 hover:shadow-md transition-all duration-200 active:scale-95"
           aria-label="Go back"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -67,7 +77,7 @@ export function PromptScreen({
           <button
             type="button"
             onClick={() => setMobileTab("chat")}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 btn-press ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 btn-press ${
               mobileTab === "chat"
                 ? "bg-foreground text-background shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -79,7 +89,7 @@ export function PromptScreen({
           <button
             type="button"
             onClick={() => setMobileTab("edit")}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 btn-press ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 btn-press ${
               mobileTab === "edit"
                 ? "bg-foreground text-background shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -91,7 +101,7 @@ export function PromptScreen({
           <button
             type="button"
             onClick={() => setMobileTab("preview")}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 btn-press ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 btn-press ${
               mobileTab === "preview"
                 ? "bg-foreground text-background shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -106,10 +116,10 @@ export function PromptScreen({
           <button
             type="button"
             onClick={() => setShowHistory(!showHistory)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 btn-press ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 btn-press ${
               showHistory
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-secondary text-foreground hover:bg-secondary/80 hover:shadow-sm"
+                : "bg-secondary text-foreground hover:bg-secondary/50 hover:shadow-sm"
             }`}
           >
             <HistoryIcon className="w-[18px] h-[18px]" />
@@ -118,10 +128,10 @@ export function PromptScreen({
           <button
             type="button"
             onClick={() => setShowEditor(!showEditor)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 btn-press ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 btn-press ${
               showEditor
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-secondary text-foreground hover:bg-secondary/80 hover:shadow-sm"
+                : "bg-secondary text-foreground hover:bg-secondary/50 hover:shadow-sm"
             }`}
           >
             <Edit3 className="w-[18px] h-[18px]" />
@@ -136,7 +146,7 @@ export function PromptScreen({
         <div
           className={cn(
             "hidden md:block transition-all duration-300 ease-in-out overflow-hidden shrink-0",
-            showHistory ? "w-[280px] opacity-100" : "w-0 opacity-0"
+            showHistory ? "w-[320px] opacity-100" : "w-0 opacity-0"
           )}
         >
           {showHistory && (
@@ -167,6 +177,8 @@ export function PromptScreen({
                 onChange={handleChange}
                 selectedSessionId={selectedSessionId}
                 onSessionChange={setSelectedSessionId}
+                onLinkedSessionCreate={handleLinkedSessionCreate}
+                onChainSessionSelect={handleSessionSelect}
                 initialPrompt={initialPrompt}
               />
             </div>
@@ -183,13 +195,17 @@ export function PromptScreen({
           {/* Mobile tabs */}
           <div className="md:hidden flex flex-col h-full">
             {mobileTab === "chat" && (
-              <InvoiceChat 
-                data={data} 
-                onChange={handleChange}
-                selectedSessionId={selectedSessionId}
-                onSessionChange={setSelectedSessionId}
-                initialPrompt={initialPrompt}
-              />
+              <>
+                <InvoiceChat 
+                  data={data} 
+                  onChange={handleChange}
+                  selectedSessionId={selectedSessionId}
+                  onSessionChange={setSelectedSessionId}
+                  onLinkedSessionCreate={handleLinkedSessionCreate}
+                  onChainSessionSelect={handleSessionSelect}
+                  initialPrompt={initialPrompt}
+                />
+              </>
             )}
             {mobileTab === "edit" && <EditorPanel data={data} onChange={handleChange} />}
           </div>

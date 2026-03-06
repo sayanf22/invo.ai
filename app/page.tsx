@@ -3,6 +3,16 @@ import { LandingPage } from "@/components/landing/landing-page"
 import { redirect } from "next/navigation"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
+import { Suspense } from "react"
+import { Loader2 } from "lucide-react"
+
+function AppShellFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  )
+}
 
 export default async function Page() {
   const cookieStore = await cookies()
@@ -43,5 +53,9 @@ export default async function Page() {
     redirect("/onboarding")
   }
 
-  return <AppShell />
+  return (
+    <Suspense fallback={<AppShellFallback />}>
+      <AppShell />
+    </Suspense>
+  )
 }

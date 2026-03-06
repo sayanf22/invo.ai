@@ -191,7 +191,7 @@ All tables have Row Level Security (RLS) policies.
 | Authentication | Supabase JWT validation via `getUser()` on every request |
 | Authorization | RLS policies enforce user ownership on all tables |
 | Rate Limiting | Postgres-based, category limits (AI: 10/min, Export: 20/min) |
-| Cost Protection | Per-user monthly spending limits ($5 free / $50 pro) |
+| Cost Protection | Per-user monthly document limits (3 free / 50 starter / 150 pro / unlimited agency) + per-session message caps |
 | Input Sanitization | XSS, SQL injection, path traversal prevention |
 | CSRF Protection | HMAC-signed tokens with 1-hour expiry |
 | Security Headers | CSP, HSTS, X-Frame-Options, X-Content-Type-Options |

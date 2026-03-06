@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -14,72 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      ai_config: {
-        Row: {
-          config_key: string
-          config_value: Json
-          created_at: string | null
-          description: string | null
-          id: string
-          is_active: boolean | null
-          updated_at: string | null
-        }
-        Insert: {
-          config_key: string
-          config_value: Json
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean | null
-          updated_at?: string | null
-        }
-        Update: {
-          config_key?: string
-          config_value?: Json
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      ai_prompts: {
-        Row: {
-          created_at: string | null
-          document_type: string
-          examples: Json | null
-          id: string
-          instructions: string | null
-          is_active: boolean | null
-          system_prompt: string
-          updated_at: string | null
-          version: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          document_type: string
-          examples?: Json | null
-          id?: string
-          instructions?: string | null
-          is_active?: boolean | null
-          system_prompt: string
-          updated_at?: string | null
-          version?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          document_type?: string
-          examples?: Json | null
-          id?: string
-          instructions?: string | null
-          is_active?: boolean | null
-          system_prompt?: string
-          updated_at?: string | null
-          version?: number | null
-        }
-        Relationships: []
-      }
       audit_logs: {
         Row: {
           action: string
@@ -118,6 +52,7 @@ export type Database = {
       }
       businesses: {
         Row: {
+          additional_notes: string | null
           address: Json
           business_type: string | null
           client_countries: string[] | null
@@ -141,6 +76,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          additional_notes?: string | null
           address?: Json
           business_type?: string | null
           client_countries?: string[] | null
@@ -164,6 +100,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          additional_notes?: string | null
           address?: Json
           business_type?: string | null
           client_countries?: string[] | null
@@ -231,126 +168,6 @@ export type Database = {
           },
         ]
       }
-      compliance_alerts: {
-        Row: {
-          country: string
-          created_at: string | null
-          effective_date: string | null
-          id: string
-          reviewed_at: string | null
-          reviewed_by: string | null
-          severity: string | null
-          source_urls: string[] | null
-          status: string | null
-          summary: string
-        }
-        Insert: {
-          country: string
-          created_at?: string | null
-          effective_date?: string | null
-          id?: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          severity?: string | null
-          source_urls?: string[] | null
-          status?: string | null
-          summary: string
-        }
-        Update: {
-          country?: string
-          created_at?: string | null
-          effective_date?: string | null
-          id?: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          severity?: string | null
-          source_urls?: string[] | null
-          status?: string | null
-          summary?: string
-        }
-        Relationships: []
-      }
-      compliance_knowledge: {
-        Row: {
-          category: string
-          confidence_score: number | null
-          content: string
-          country_code: string
-          created_at: string | null
-          id: string
-          last_updated: string | null
-          next_review_date: string | null
-          source_urls: string[] | null
-          topic: string
-        }
-        Insert: {
-          category: string
-          confidence_score?: number | null
-          content: string
-          country_code: string
-          created_at?: string | null
-          id?: string
-          last_updated?: string | null
-          next_review_date?: string | null
-          source_urls?: string[] | null
-          topic: string
-        }
-        Update: {
-          category?: string
-          confidence_score?: number | null
-          content?: string
-          country_code?: string
-          created_at?: string | null
-          id?: string
-          last_updated?: string | null
-          next_review_date?: string | null
-          source_urls?: string[] | null
-          topic?: string
-        }
-        Relationships: []
-      }
-      compliance_rules: {
-        Row: {
-          confidence_score: number | null
-          country: string
-          created_at: string | null
-          document_type: string
-          embedding: string | null
-          id: string
-          last_updated: string | null
-          needs_human_review: boolean | null
-          rules: Json
-          source_urls: string[] | null
-          validated_by: string | null
-        }
-        Insert: {
-          confidence_score?: number | null
-          country: string
-          created_at?: string | null
-          document_type: string
-          embedding?: string | null
-          id?: string
-          last_updated?: string | null
-          needs_human_review?: boolean | null
-          rules?: Json
-          source_urls?: string[] | null
-          validated_by?: string | null
-        }
-        Update: {
-          confidence_score?: number | null
-          country?: string
-          created_at?: string | null
-          document_type?: string
-          embedding?: string | null
-          id?: string
-          last_updated?: string | null
-          needs_human_review?: boolean | null
-          rules?: Json
-          source_urls?: string[] | null
-          validated_by?: string | null
-        }
-        Relationships: []
-      }
       csrf_tokens: {
         Row: {
           created_at: string
@@ -375,14 +192,56 @@ export type Database = {
         }
         Relationships: []
       }
+      document_links: {
+        Row: {
+          child_session_id: string
+          created_at: string | null
+          id: string
+          parent_session_id: string
+          relationship: string
+        }
+        Insert: {
+          child_session_id: string
+          created_at?: string | null
+          id?: string
+          parent_session_id: string
+          relationship?: string
+        }
+        Update: {
+          child_session_id?: string
+          created_at?: string | null
+          id?: string
+          parent_session_id?: string
+          relationship?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_links_child_session_id_fkey"
+            columns: ["child_session_id"]
+            isOneToOne: false
+            referencedRelation: "document_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_links_parent_session_id_fkey"
+            columns: ["parent_session_id"]
+            isOneToOne: false
+            referencedRelation: "document_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_sessions: {
         Row: {
           business_context: Json | null
+          chain_id: string | null
+          client_name: string | null
           completed_at: string | null
           context: Json | null
           created_at: string | null
           document_id: string | null
           document_type: string
+          finalized_at: string | null
           id: string
           last_message_at: string | null
           status: string
@@ -392,11 +251,14 @@ export type Database = {
         }
         Insert: {
           business_context?: Json | null
+          chain_id?: string | null
+          client_name?: string | null
           completed_at?: string | null
           context?: Json | null
           created_at?: string | null
           document_id?: string | null
           document_type?: string
+          finalized_at?: string | null
           id?: string
           last_message_at?: string | null
           status?: string
@@ -406,11 +268,14 @@ export type Database = {
         }
         Update: {
           business_context?: Json | null
+          chain_id?: string | null
+          client_name?: string | null
           completed_at?: string | null
           context?: Json | null
           created_at?: string | null
           document_id?: string | null
           document_type?: string
+          finalized_at?: string | null
           id?: string
           last_message_at?: string | null
           status?: string
@@ -427,78 +292,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      document_templates: {
-        Row: {
-          compliance_notes: string | null
-          country_code: string
-          created_at: string | null
-          created_by: string | null
-          document_type: string
-          example_data: Json | null
-          field_validations: Json | null
-          generation_prompt: string | null
-          id: string
-          is_active: boolean | null
-          language_requirements: Json | null
-          last_verified_at: string | null
-          layout_guidelines: Json | null
-          legal_references: string[] | null
-          mandatory_clauses: string[] | null
-          numbering_format: string | null
-          optional_fields: Json | null
-          required_fields: Json
-          tax_requirements: Json | null
-          template_version: string
-          updated_at: string | null
-        }
-        Insert: {
-          compliance_notes?: string | null
-          country_code: string
-          created_at?: string | null
-          created_by?: string | null
-          document_type: string
-          example_data?: Json | null
-          field_validations?: Json | null
-          generation_prompt?: string | null
-          id?: string
-          is_active?: boolean | null
-          language_requirements?: Json | null
-          last_verified_at?: string | null
-          layout_guidelines?: Json | null
-          legal_references?: string[] | null
-          mandatory_clauses?: string[] | null
-          numbering_format?: string | null
-          optional_fields?: Json | null
-          required_fields?: Json
-          tax_requirements?: Json | null
-          template_version?: string
-          updated_at?: string | null
-        }
-        Update: {
-          compliance_notes?: string | null
-          country_code?: string
-          created_at?: string | null
-          created_by?: string | null
-          document_type?: string
-          example_data?: Json | null
-          field_validations?: Json | null
-          generation_prompt?: string | null
-          id?: string
-          is_active?: boolean | null
-          language_requirements?: Json | null
-          last_verified_at?: string | null
-          layout_guidelines?: Json | null
-          legal_references?: string[] | null
-          mandatory_clauses?: string[] | null
-          numbering_format?: string | null
-          optional_fields?: Json | null
-          required_fields?: Json
-          tax_requirements?: Json | null
-          template_version?: string
-          updated_at?: string | null
-        }
-        Relationships: []
       }
       document_versions: {
         Row: {
@@ -666,33 +459,6 @@ export type Database = {
           },
         ]
       }
-      onboarding_sessions: {
-        Row: {
-          collected_data: Json | null
-          created_at: string | null
-          id: string
-          messages: Json | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          collected_data?: Json | null
-          created_at?: string | null
-          id?: string
-          messages?: Json | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          collected_data?: Json | null
-          created_at?: string | null
-          id?: string
-          messages?: Json | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -753,33 +519,6 @@ export type Database = {
         }
         Relationships: []
       }
-      rate_limits: {
-        Row: {
-          created_at: string
-          id: string
-          request_timestamps: string[]
-          route_category: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          request_timestamps?: string[]
-          route_category: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          request_timestamps?: string[]
-          route_category?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       signatures: {
         Row: {
           created_at: string | null
@@ -836,90 +575,12 @@ export type Database = {
           },
         ]
       }
-      template_update_history: {
-        Row: {
-          change_type: string
-          changes_made: Json | null
-          created_at: string | null
-          id: string
-          reason: string | null
-          source_urls: string[] | null
-          template_id: string | null
-          verified_by: string | null
-        }
-        Insert: {
-          change_type: string
-          changes_made?: Json | null
-          created_at?: string | null
-          id?: string
-          reason?: string | null
-          source_urls?: string[] | null
-          template_id?: string | null
-          verified_by?: string | null
-        }
-        Update: {
-          change_type?: string
-          changes_made?: Json | null
-          created_at?: string | null
-          id?: string
-          reason?: string | null
-          source_urls?: string[] | null
-          template_id?: string | null
-          verified_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "template_update_history_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "document_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      template_update_schedule: {
-        Row: {
-          auto_update_enabled: boolean | null
-          check_frequency_days: number | null
-          created_at: string | null
-          id: string
-          last_check_at: string | null
-          next_check_at: string
-          template_id: string | null
-        }
-        Insert: {
-          auto_update_enabled?: boolean | null
-          check_frequency_days?: number | null
-          created_at?: string | null
-          id?: string
-          last_check_at?: string | null
-          next_check_at: string
-          template_id?: string | null
-        }
-        Update: {
-          auto_update_enabled?: boolean | null
-          check_frequency_days?: number | null
-          created_at?: string | null
-          id?: string
-          last_check_at?: string | null
-          next_check_at?: string
-          template_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "template_update_schedule_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: true
-            referencedRelation: "document_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_usage: {
         Row: {
           ai_requests_count: number
           ai_tokens_used: number
           created_at: string
+          documents_count: number | null
           estimated_cost_usd: number
           month: string
           updated_at: string
@@ -929,6 +590,7 @@ export type Database = {
           ai_requests_count?: number
           ai_tokens_used?: number
           created_at?: string
+          documents_count?: number | null
           estimated_cost_usd?: number
           month: string
           updated_at?: string
@@ -938,37 +600,11 @@ export type Database = {
           ai_requests_count?: number
           ai_tokens_used?: number
           created_at?: string
+          documents_count?: number | null
           estimated_cost_usd?: number
           month?: string
           updated_at?: string
           user_id?: string
-        }
-        Relationships: []
-      }
-      welcome_messages: {
-        Row: {
-          created_at: string | null
-          document_type: string
-          id: string
-          is_active: boolean | null
-          message: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          document_type: string
-          id?: string
-          is_active?: boolean | null
-          message: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          document_type?: string
-          id?: string
-          is_active?: boolean | null
-          message?: string
-          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1007,8 +643,6 @@ export type Database = {
           ai_tokens_used: number | null
           estimated_cost_usd: number | null
           month: string | null
-          status: string | null
-          updated_at: string | null
           user_id: string | null
         }
         Insert: {
@@ -1016,8 +650,6 @@ export type Database = {
           ai_tokens_used?: number | null
           estimated_cost_usd?: number | null
           month?: string | null
-          status?: never
-          updated_at?: string | null
           user_id?: string | null
         }
         Update: {
@@ -1025,8 +657,6 @@ export type Database = {
           ai_tokens_used?: number | null
           estimated_cost_usd?: number | null
           month?: string | null
-          status?: never
-          updated_at?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -1049,32 +679,11 @@ export type Database = {
       }
       cleanup_abandoned_sessions: { Args: never; Returns: undefined }
       cleanup_expired_csrf_tokens: { Args: never; Returns: undefined }
-      cleanup_old_onboarding_sessions: { Args: never; Returns: undefined }
       cleanup_old_rate_limits: { Args: never; Returns: undefined }
       cleanup_rate_limit_logs: { Args: never; Returns: undefined }
-      cleanup_rate_limits: { Args: never; Returns: undefined }
-      get_ai_config: { Args: { p_config_key: string }; Returns: Json }
-      get_ai_prompt: {
-        Args: { p_document_type: string }
-        Returns: {
-          examples: Json
-          instructions: string
-          system_prompt: string
-        }[]
-      }
-      get_templates_needing_update: {
-        Args: never
-        Returns: {
-          country_code: string
-          days_since_check: number
-          document_type: string
-          last_check_at: string
-          template_id: string
-        }[]
-      }
-      get_welcome_message: {
-        Args: { p_document_type: string }
-        Returns: string
+      increment_document_count: {
+        Args: { p_month: string; p_user_id: string }
+        Returns: undefined
       }
       increment_user_usage: {
         Args: {
@@ -1116,142 +725,3 @@ export type Database = {
     }
   }
 }
-
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
-
-export type Tables<
-  DefaultSchemaTableNameOrOptions extends
-  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-  : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : never
-
-export type TablesInsert<
-  DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : never
-
-export type TablesUpdate<
-  DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : never
-
-export type Enums<
-  DefaultSchemaEnumNameOrOptions extends
-  | keyof DefaultSchema["Enums"]
-  | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-  : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-  | keyof DefaultSchema["CompositeTypes"]
-  | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-  : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
-
-// Exported convenience types
-export type Document = Tables<"documents">
-export type Business = Tables<"businesses">
-export type Profile = Tables<"profiles">
-export type DocumentSession = Tables<"document_sessions">
-export type Signature = Tables<"signatures">
-export type DocumentTemplate = Tables<"document_templates">
-export type ComplianceRule = Tables<"compliance_rules">
-export type DocumentVersion = Tables<"document_versions">
-export type OnboardingSession = Tables<"onboarding_sessions">
-export type AuditLog = Tables<"audit_logs">
-
-export interface ComplianceRulesData {
-  required_fields: { name: string; format: string }[]
-  tax_rules?: {
-    domestic?: { rate: number; applicable_on: string }
-    export?: { rate: number; requires: string }
-  }
-  legal_notices?: string[]
-}
-

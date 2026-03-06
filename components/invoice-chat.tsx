@@ -1,24 +1,30 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { ArrowUp, Sparkles, RotateCcw, Square } from "lucide-react"
+import { Sparkles, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { AIInputWithLoading } from "@/components/ui/ai-input-with-loading"
 import { toast } from "sonner"
 import type { InvoiceData } from "@/lib/invoice-types"
+import { calculateTotal } from "@/lib/invoice-types"
 import { useDocumentSession } from "@/hooks/use-document-session"
 import { MarkdownMessage } from "@/components/markdown-message"
+import { NextStepsBar } from "@/components/next-steps-bar"
+import { ChainNavigator } from "@/components/chain-navigator"
 
 interface InvoiceChatProps {
     data: InvoiceData
     onChange: (updates: Partial<InvoiceData>) => void
     selectedSessionId?: string
     onSessionChange?: (sessionId: string) => void
+    onLinkedSessionCreate?: (sessionId: string, docType: string) => void
+    onChainSessionSelect?: (sessionId: string) => void
     initialPrompt?: string
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, initialPrompt }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, initialPrompt }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
 
     // Hook handles session init + switching when selectedSessionId changes
@@ -29,6 +35,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         isSaving,
         saveMessage,
         updateSessionContext,
+        updateClientName,
         saveGeneration,
         startNewSession,
     } = useDocumentSession(docType, selectedSessionId)
@@ -37,11 +44,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([])
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
+    const [documentGenerated, setDocumentGenerated] = useState(false)
 
     const scrollRef = useRef<HTMLDivElement>(null)
-    const inputRef = useRef<HTMLTextAreaElement>(null)
     const initialPromptSentRef = useRef(false)
     const lastSyncedSessionRef = useRef<string | null>(null)
+    const pendingAutoGenerateRef = useRef<string | null>(null)
 
     // Sync messages from hook when session changes (new session loaded or switched)
     useEffect(() => {
@@ -51,6 +59,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         // Only sync when the session actually changed
         if (lastSyncedSessionRef.current === session.id) return
         lastSyncedSessionRef.current = session.id
+
+        // Reset chat state for the new session
+        setDocumentGenerated(false)
+        setIsLoading(false)
 
         if (savedMessages.length > 0) {
             // Loaded an existing session with messages
@@ -64,12 +76,39 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             const ctx = session.context
             if (ctx && typeof ctx === "object" && !Array.isArray(ctx) && Object.keys(ctx).length > 0) {
                 onChange(ctx as Partial<InvoiceData>)
+                setDocumentGenerated(true)
             }
-        } else if (!welcomeLoaded) {
-            // New session with no messages — load welcome
-            loadWelcome()
+        } else {
+            // Check if this is a linked session with seed context (no messages yet)
+            const ctx = session.context
+            const hasSeedData = ctx && typeof ctx === "object" && !Array.isArray(ctx) && Object.keys(ctx).length > 1
+
+            if (hasSeedData && session.chain_id) {
+                // Linked session — show seed data in preview and auto-generate
+                onChange(ctx as Partial<InvoiceData>)
+                const clientName = (ctx as any).toName || "the client"
+                const welcomeMsg = `I've loaded the details from your previous document for ${clientName}. Generating your ${docType} now...`
+                setMessages([{ role: "assistant", content: welcomeMsg }])
+                setWelcomeLoaded(true)
+                // Queue auto-generation (will be picked up by a separate effect that has fresh refs)
+                pendingAutoGenerateRef.current = `Generate a ${docType} using the linked document details for ${clientName}`
+            } else {
+                // New session with no messages — load welcome
+                setMessages([])
+                setWelcomeLoaded(false)
+                loadWelcome()
+            }
         }
     }, [session, sessionLoading, savedMessages]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Handle pending auto-generation for linked sessions (separate effect to avoid stale closures)
+    useEffect(() => {
+        if (!pendingAutoGenerateRef.current || isLoading || !session) return
+        const prompt = pendingAutoGenerateRef.current
+        pendingAutoGenerateRef.current = null
+        const timer = setTimeout(() => sendMessage(prompt), 300)
+        return () => clearTimeout(timer)
+    }, [session, isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Load welcome message
     const loadWelcome = useCallback(async () => {
@@ -100,9 +139,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 body: JSON.stringify({
                     prompt: userMessage,
                     documentType: docType,
-                    // Only send currentData if this is a follow-up (not the first message)
-                    // This prevents the AI from treating a new prompt as an edit of old data
-                    currentData: messages.length > 1 ? data : undefined,
+                    // Send currentData if this is a follow-up OR if this is a linked session with seed data
+                    currentData: (messages.length > 1 || session.chain_id) ? data : undefined,
                     conversationHistory: messages.length > 1 ? messages.slice(-5) : [],
                 }),
             })
@@ -153,6 +191,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                             id: item.id || `ai-${Date.now()}-${i}`,
                                             quantity: Number(item.quantity) || 1,
                                             rate: Number(item.rate) || 0,
+                                            discount: item.discount ? Number(item.discount) || 0 : 0,
                                         }))
                                     }
 
@@ -164,9 +203,56 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                         if (docData.paymentInstructions) docData.paymentInstructions = ""
                                     }
 
+                                    // Strip markdown formatting from all text fields — PDF renders raw asterisks
+                                    const stripMarkdown = (s: string) => s.replace(/\*\*/g, "").replace(/^#{1,6}\s+/gm, "").replace(/^[-*]\s+/gm, "• ")
+                                    const textFields = ["notes", "terms", "description", "paymentInstructions"] as const
+                                    for (const field of textFields) {
+                                        if (typeof docData[field] === "string" && docData[field]) {
+                                            docData[field] = stripMarkdown(docData[field])
+                                        }
+                                    }
+                                    if (Array.isArray(docData.items)) {
+                                        for (const item of docData.items) {
+                                            if (typeof item.description === "string") {
+                                                item.description = stripMarkdown(item.description)
+                                            }
+                                        }
+                                    }
+
+                                    // Recalculate totals client-side — LLMs can't do math reliably
+                                    if (Array.isArray(docData.items) && docData.items.length > 0) {
+                                        // Ensure numeric types for calculation inputs
+                                        docData.taxRate = Number(docData.taxRate) || 0
+                                        docData.discountValue = Number(docData.discountValue) || 0
+                                        docData.shippingFee = Number(docData.shippingFee) || 0
+                                        if (docData.discountType && docData.discountType !== "percent" && docData.discountType !== "flat") {
+                                            docData.discountType = "percent"
+                                        }
+
+                                        // Prevent double-discounting: if AI set per-item discounts AND a global discount,
+                                        // zero out the global discount — the AI is likely double-counting the same discount.
+                                        // Only keep global discount if NO items have per-item discounts.
+                                        const hasPerItemDiscounts = docData.items.some((item: any) => item.discount && item.discount > 0)
+                                        if (hasPerItemDiscounts && docData.discountValue > 0) {
+                                            docData.discountValue = 0
+                                        }
+
+                                        // Strip any AI-computed total fields — system calculates these
+                                        delete (docData as any).subtotal
+                                        delete (docData as any).total
+                                        delete (docData as any).taxAmount
+                                        delete (docData as any).discountAmount
+                                        delete (docData as any).grandTotal
+                                    }
+
                                     onChange(docData)
                                     await updateSessionContext(docData)
                                     await saveGeneration(userMessage, docData, null, true)
+                                    setDocumentGenerated(true)
+
+                                    // Update client name on session for chain grouping
+                                    const clientName = docData.toName || docData.clientName || docData.preparedFor
+                                    if (clientName) await updateClientName(clientName)
 
                                     const displayMsg = aiMessage || "✅ Document generated! Check the preview. Need changes? Just tell me."
                                     setMessages(prev => [...prev, { role: "assistant", content: displayMsg }])
@@ -196,15 +282,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             await saveGeneration(messageText, {}, null, false, errorMsg)
         } finally {
             setIsLoading(false)
-            inputRef.current?.focus()
         }
     }, [isLoading, messages, data, docType, onChange, session, saveMessage, updateSessionContext, saveGeneration])
-
-    // Handle manual send
-    const handleSendMessage = useCallback(() => {
-        if (!inputValue.trim()) return
-        sendMessage(inputValue.trim())
-    }, [inputValue, sendMessage])
 
     // Auto-send initial prompt ONCE
     useEffect(() => {
@@ -219,6 +298,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         initialPromptSentRef.current = true // prevent re-send of initialPrompt
         lastSyncedSessionRef.current = null
         setWelcomeLoaded(false)
+        setDocumentGenerated(false)
 
         const newSession = await startNewSession()
         if (newSession && onSessionChange) {
@@ -227,12 +307,35 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         toast.success("Started new conversation")
     }, [startNewSession, onSessionChange])
 
+    // Handle creating a linked document from the Next Steps bar
+    const handleCreateLinked = useCallback(async (parentSessionId: string, targetType: string) => {
+        try {
+            const res = await fetch("/api/sessions/create-linked", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ parentSessionId, targetDocumentType: targetType }),
+            })
+            const result = await res.json()
+            if (!res.ok || !result.success) {
+                toast.error(result.error || "Failed to create linked document")
+                return
+            }
+            // Navigate to the new linked session
+            if (onLinkedSessionCreate) {
+                onLinkedSessionCreate(result.session.id, targetType)
+            }
+            toast.success(`${targetType.charAt(0).toUpperCase() + targetType.slice(1)} created from ${docType}`)
+        } catch {
+            toast.error("Failed to create linked document")
+        }
+    }, [docType, onLinkedSessionCreate])
+
     return (
         <div className="flex flex-col h-full">
             {/* Chat Header */}
-            <div className="bg-gradient-to-r from-primary/5 to-primary/10 px-5 py-4 border-b flex items-center justify-between shrink-0">
+            <div className="px-5 py-4 border-b flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/15 rounded-xl">
+                    <div className="p-2 bg-primary/10 rounded-2xl">
                         <Sparkles className="w-5 h-5 text-primary" />
                     </div>
                     <div>
@@ -244,11 +347,17 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         </p>
                     </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={handleNewConversation} className="gap-2 btn-press">
+                <Button variant="ghost" size="sm" onClick={handleNewConversation} className="gap-2 btn-press rounded-xl">
                     <RotateCcw className="w-4 h-4" />
                     <span className="hidden sm:inline">New</span>
                 </Button>
             </div>
+
+            {/* Chain Navigator — shows when session is part of a linked chain */}
+            <ChainNavigator
+                currentSessionId={selectedSessionId}
+                onSessionSelect={onChainSessionSelect || (() => {})}
+            />
 
             {/* Messages */}
             <ScrollArea className="flex-1 p-5">
@@ -285,62 +394,29 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 </div>
             </ScrollArea>
 
-            {/* Input */}
-            <div className="px-4 py-3 bg-background border-t shrink-0">
+            {/* Input + Next Steps */}
+            <div className="px-4 py-3 border-t border-border/50 shrink-0">
                 <div className="max-w-2xl mx-auto">
-                    <div className={cn(
-                        "rounded-2xl border bg-card transition-all duration-200",
-                        isLoading
-                            ? "border-primary/30 shadow-[0_0_0_3px_hsl(var(--primary)/0.06)]"
-                            : "border-border focus-within:border-primary/40 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)]"
-                    )}>
-                        <textarea
-                            ref={inputRef}
-                            value={inputValue}
-                            onChange={(e) => {
-                                setInputValue(e.target.value)
-                                const el = e.target
-                                el.style.height = "auto"
-                                el.style.height = Math.min(el.scrollHeight, 160) + "px"
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault()
-                                    handleSendMessage()
-                                }
-                            }}
-                            placeholder={`Describe your ${docType}...`}
-                            disabled={isLoading || sessionLoading || !session}
-                            rows={2}
-                            className="w-full px-4 pt-4 pb-2 text-[15px] text-foreground placeholder:text-muted-foreground/40 bg-transparent outline-none resize-none leading-relaxed max-h-[160px] overflow-y-auto"
-                            style={{ scrollbarWidth: "thin" }}
-                            autoFocus
-                        />
-                        <div className="flex items-center justify-between px-3 pb-3 pt-0">
-                            <p className="text-[11px] text-muted-foreground/50 pl-1 select-none">
-                                {isSaving ? "Saving..." : "Shift+Enter for new line"}
-                            </p>
-                            <button
-                                type="button"
-                                onClick={handleSendMessage}
-                                disabled={(!inputValue.trim() && !isLoading) || sessionLoading || !session}
-                                className={cn(
-                                    "flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200 shrink-0",
-                                    isLoading
-                                        ? "bg-destructive/10 text-destructive hover:bg-destructive/15 cursor-pointer"
-                                        : inputValue.trim()
-                                        ? "bg-foreground text-background hover:opacity-80 active:scale-90"
-                                        : "bg-muted/60 text-muted-foreground/30 cursor-not-allowed"
-                                )}
-                                aria-label={isLoading ? "Stop" : "Send"}
-                            >
-                                {isLoading
-                                    ? <Square className="w-3 h-3 fill-current" />
-                                    : <ArrowUp className="w-4 h-4" />
-                                }
-                            </button>
+                    {/* Next Steps Bar — shows after generation is complete */}
+                    {documentGenerated && !isLoading && session && (
+                        <div className="mb-2.5">
+                            <NextStepsBar
+                                clientName={data.toName || null}
+                                currentDocType={docType}
+                                parentSessionId={session.id}
+                                onCreateLinked={handleCreateLinked}
+                            />
                         </div>
-                    </div>
+                    )}
+                    <AIInputWithLoading
+                        value={inputValue}
+                        onValueChange={setInputValue}
+                        isLoading={isLoading}
+                        onSubmit={sendMessage}
+                        placeholder={`Describe your ${docType}...`}
+                        disabled={sessionLoading || !session}
+                        statusText={isSaving ? "Saving..." : undefined}
+                    />
                 </div>
             </div>
         </div>

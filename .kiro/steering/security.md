@@ -161,21 +161,16 @@ export function validateCSRFToken(token: string, sessionToken: string): boolean 
 
 ### 2. Cost Protection (HIGH PRIORITY)
 
-Track AI API spending per user:
+Track document usage per user with tier-based limits:
 
 ```typescript
-// Add to database schema
-CREATE TABLE user_usage (
-  user_id UUID REFERENCES auth.users(id),
-  month TEXT, -- 'YYYY-MM'
-  ai_requests_count INT DEFAULT 0,
-  ai_tokens_used INT DEFAULT 0,
-  estimated_cost_usd DECIMAL(10,4) DEFAULT 0,
-  PRIMARY KEY (user_id, month)
-);
+// Document limits per tier (per month)
+// Free: 3 docs, 10 msgs/session
+// Starter ($9/mo): 50 docs, 25 msgs/session
+// Pro ($24/mo): 150 docs, 30 msgs/session
+// Agency ($59/mo): Unlimited
 
-// Add spending limit check before AI calls
-const MONTHLY_LIMIT_USD = 50.00
+// Enforcement in cost-protection.ts via checkDocumentLimit() and checkMessageLimit()
 ```
 
 ### 3. Input Sanitization (HIGH PRIORITY)

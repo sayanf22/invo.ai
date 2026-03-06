@@ -181,20 +181,22 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
   const logoInputRef = useRef<HTMLInputElement>(null)
 
   const isInvoice = data.documentType === "Invoice"
+  const isContract = data.documentType === "Contract"
+  const hasLineItems = !isContract // invoices, quotations, proposals all have items
   const step1Complete = data.documentType !== null
   const step2Complete =
     data.fromName.trim().length > 0 && data.toName.trim().length > 0
-  const step3Complete = isInvoice
+  const step3Complete = hasLineItems
     ? data.items.some((i) => i.description.trim().length > 0 && i.rate > 0)
     : data.description.trim().length > 0
-  const step4Complete = isInvoice
+  const step4Complete = hasLineItems
     ? data.notes.trim().length > 0 ||
     data.terms.trim().length > 0 ||
     data.paymentInstructions.trim().length > 0
     : true
   const step5Complete =
     data.signatureName.trim().length > 0
-  const totalSteps = isInvoice ? 6 : 4
+  const totalSteps = hasLineItems ? 6 : 4
   const completedSteps = [
     step1Complete,
     step2Complete,
@@ -383,7 +385,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
             {/* From / Seller */}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                {isInvoice ? "From (Seller)" : "Party A"}
+                {isInvoice ? "From (Seller)" : isContract ? "Party A" : "From"}
               </p>
               <Field
                 id="from-name"
@@ -440,7 +442,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
             {/* To / Buyer */}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                {isInvoice ? "Bill To (Buyer)" : "Party B"}
+                {isInvoice ? "Bill To (Buyer)" : isContract ? "Party B" : "To (Client)"}
               </p>
               <Field
                 id="to-name"
@@ -502,26 +504,26 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 label="Reference / PO #"
                 value={data.referenceNumber}
                 onChange={(v) => onChange({ referenceNumber: v })}
-                placeholder="PO-1234"
-                optional
+                placeholder={isInvoice ? "PO-1234" : data.documentType === "Quotation" ? "QUO-0001" : data.documentType === "Proposal" ? "PROP-0001" : "CTR-0001"}
+                optional={isInvoice}
               />
               <Field
                 id="invoice-date"
-                label={isInvoice ? "Invoice Date" : "Date"}
+                label={isInvoice ? "Invoice Date" : data.documentType === "Quotation" ? "Quote Date" : data.documentType === "Proposal" ? "Proposal Date" : "Date"}
                 value={data.invoiceDate}
                 onChange={(v) => onChange({ invoiceDate: v })}
                 type="date"
               />
-              {isInvoice && (
+              {hasLineItems && (
                 <Field
                   id="due-date"
-                  label="Due Date"
+                  label={isInvoice ? "Due Date" : "Valid Until"}
                   value={data.dueDate}
                   onChange={(v) => onChange({ dueDate: v })}
                   type="date"
                 />
               )}
-              {isInvoice && (
+              {hasLineItems && (
                 <SelectField
                   id="payment-terms"
                   label="Payment Terms"
@@ -542,8 +544,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
           </div>
         </Step>
 
-        {/* ═══ Step 3: Line Items (Invoice) / Description (others) ═══ */}
-        {isInvoice ? (
+        {/* ═══ Step 3: Line Items (Invoice/Quotation/Proposal) / Description (Contract) ═══ */}
+        {hasLineItems ? (
           <Step
             number={3}
             title="Line Items"
@@ -553,17 +555,18 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
           >
             <div className="flex flex-col gap-3">
               {/* Column headers */}
-              <div className="grid grid-cols-[1fr_60px_80px_28px] gap-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="grid grid-cols-[1fr_50px_70px_56px_28px] gap-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                 <span>Description</span>
                 <span>Qty</span>
                 <span>Rate ({currencyObj.symbol})</span>
+                <span>Disc %</span>
                 <span className="sr-only">Remove</span>
               </div>
 
               {data.items.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="grid grid-cols-[1fr_60px_80px_28px] gap-2 items-start"
+                  className="grid grid-cols-[1fr_50px_70px_56px_28px] gap-2 items-start"
                 >
                   <input
                     type="text"
@@ -597,6 +600,20 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                     }
                     placeholder="0.00"
                     className="px-2 py-2 rounded-xl border border-border bg-background text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={item.discount || ""}
+                    onChange={(e) =>
+                      updateItem(item.id, {
+                        discount: Number(e.target.value) || 0,
+                      })
+                    }
+                    placeholder="0"
+                    className="px-2 py-2 rounded-xl border border-border bg-background text-sm text-foreground text-center outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
                   />
                   <button
                     type="button"
@@ -764,8 +781,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
           </Step>
         )}
 
-        {/* ═══ Step 4: Payment & Notes (Invoice) / Signature (others) ═══ */}
-        {isInvoice ? (
+        {/* ═══ Step 4: Payment & Notes (Items docs) / Notes & Terms (Contract) ═══ */}
+        {hasLineItems ? (
           <Step
             number={4}
             title="Payment & Notes"
@@ -897,8 +914,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
           </Step>
         )}
 
-        {/* ═══ Step 5 (Invoice): Signature ═══ */}
-        {isInvoice && (
+        {/* ═══ Step 5: Signature ═══ */}
+        {hasLineItems && (
           <Step
             number={5}
             title="Signature"
@@ -930,8 +947,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
           </Step>
         )}
 
-        {/* ═══ Step 6 (Invoice) / hidden: Description for prompt context ═══ */}
-        {isInvoice && (
+        {/* ═══ Step 6: Additional Details / Description ═══ */}
+        {hasLineItems && (
           <Step
             number={6}
             title="Additional Details"

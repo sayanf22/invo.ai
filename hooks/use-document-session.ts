@@ -32,10 +32,14 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                 .select("*")
                 .eq("id", sessionId)
                 .eq("user_id", user.id)
-                .single()
+                .maybeSingle()
 
-            if (sessionError || !sessionData) {
-                console.error("Failed to load session:", sessionError)
+            if (sessionError) {
+                console.warn("Session load issue:", sessionError.message)
+                return null
+            }
+            if (!sessionData) {
+                // Session not found — silently fall back (stale ID, deleted, etc.)
                 return null
             }
 
@@ -134,23 +138,22 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
 
     // Save message to the CURRENT session
     const saveMessage = useCallback(async (role: "user" | "assistant", content: string) => {
-        if (!session || !user) return
+        if (!session?.id || !user) return
         setIsSaving(true)
         try {
-            const { data, error } = await supabase
+            const { error } = await supabase
                 .from("chat_messages")
                 .insert({
                     session_id: session.id,
                     role,
                     content,
                 })
-                .select()
-                .single()
 
-            if (error) throw error
-            // Don't append to messages here — InvoiceChat manages its own local messages state
+            if (error) {
+                console.error("Error saving message:", error.message, error.code, error.details)
+            }
         } catch (error) {
-            console.error("Error saving message:", error)
+            console.error("Error saving message (exception):", error instanceof Error ? error.message : String(error))
         } finally {
             setIsSaving(false)
         }
@@ -248,6 +251,20 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
         }
     }, [supabase, session, user])
 
+    // Update client name on the session (for chain grouping)
+    const updateClientName = useCallback(async (clientName: string) => {
+        if (!session || !user || !clientName) return
+        try {
+            await supabase
+                .from("document_sessions")
+                .update({ client_name: clientName })
+                .eq("id", session.id)
+            setSession(prev => prev ? { ...prev, client_name: clientName } : null)
+        } catch (error) {
+            console.error("Error updating client name:", error)
+        }
+    }, [supabase, session, user])
+
     return {
         session,
         messages,
@@ -255,9 +272,11 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
         isSaving,
         saveMessage,
         updateSessionContext,
+        updateClientName,
         saveGeneration,
         completeSession,
         startNewSession,
         loadSession,
+        chainId: session?.chain_id ?? null,
     }
 }

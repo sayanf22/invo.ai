@@ -9,70 +9,57 @@ import {
 import type { InvoiceData } from "@/lib/invoice-types"
 
 // ─── Font Registration ───
-// Register static font files from Fontsource CDN (via jsdelivr).
-// Using WOFF format (supported by @react-pdf/renderer) with static weights
-// instead of variable font TTFs which react-pdf doesn't handle properly.
-
-Font.register({
-    family: "Inter",
-    fonts: [
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.1.1/files/inter-latin-400-normal.woff", fontWeight: 400 },
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.1.1/files/inter-latin-700-normal.woff", fontWeight: 700 },
-    ],
-})
-
-Font.register({
-    family: "Lora",
-    fonts: [
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/lora@5.1.1/files/lora-latin-400-normal.woff", fontWeight: 400 },
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/lora@5.1.1/files/lora-latin-700-normal.woff", fontWeight: 700 },
-    ],
-})
-
-Font.register({
-    family: "Playfair Display",
-    fonts: [
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/playfair-display@5.1.1/files/playfair-display-latin-400-normal.woff", fontWeight: 400 },
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/playfair-display@5.1.1/files/playfair-display-latin-700-normal.woff", fontWeight: 700 },
-    ],
-})
-
-Font.register({
-    family: "Roboto Mono",
-    fonts: [
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/roboto-mono@5.1.1/files/roboto-mono-latin-400-normal.woff", fontWeight: 400 },
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/roboto-mono@5.1.1/files/roboto-mono-latin-700-normal.woff", fontWeight: 700 },
-    ],
-})
-
-// NOTE: No special font needed for currency symbols — we use ASCII-safe
-// abbreviations (Rs., PHP, etc.) so any registered font can render them.
+// Local static WOFF fonts from @fontsource packages (copied to public/fonts/).
+// These are weight-specific static files — NOT variable fonts.
+// @react-pdf/renderer embeds them into the PDF so pdfjs renders crisp text
+// instead of ugly bitmap fallbacks from built-in Type1 fonts.
 
 // Disable hyphenation for cleaner text rendering in PDFs
 Font.registerHyphenationCallback(word => [word])
 
-// ─── Font mapping ───
-// Maps the user-selected font name to the registered PDF font family.
-// Built-in: Helvetica, Times-Roman, Courier (always available)
-// Registered: Inter, Lora, Playfair Display, Roboto Mono (loaded from Google Fonts CDN)
+// Inter — clean sans-serif (default for most templates)
+Font.register({
+    family: "Inter",
+    fonts: [
+        { src: "/fonts/inter-400.woff", fontWeight: 400 },
+        { src: "/fonts/inter-700.woff", fontWeight: 700 },
+    ],
+})
 
+// Lora — elegant serif
+Font.register({
+    family: "Lora",
+    fonts: [
+        { src: "/fonts/lora-400.woff", fontWeight: 400 },
+        { src: "/fonts/lora-700.woff", fontWeight: 700 },
+    ],
+})
+
+// Roboto Mono — monospace
+Font.register({
+    family: "Roboto Mono",
+    fonts: [
+        { src: "/fonts/roboto-mono-400.woff", fontWeight: 400 },
+        { src: "/fonts/roboto-mono-700.woff", fontWeight: 700 },
+    ],
+})
+
+// ─── Font mapping ───
 function getFontFamily(data: InvoiceData): { font: string; fontB: string } {
-    const f = data.design?.font || "Helvetica"
+    const f = data.design?.font || "Inter"
     switch (f) {
-        case "Inter":
-            return { font: "Inter", fontB: "Inter" }
+        // Serif fonts → Lora
         case "Playfair":
-            return { font: "Playfair Display", fontB: "Playfair Display" }
         case "Lora":
-            return { font: "Lora", fontB: "Lora" }
-        case "Roboto Mono":
-            return { font: "Roboto Mono", fontB: "Roboto Mono" }
         case "Times-Roman":
-            return { font: "Times-Roman", fontB: "Times-Bold" }
+            return { font: "Lora", fontB: "Lora" }
+        // Monospace fonts → Roboto Mono
+        case "Roboto Mono":
         case "Courier":
-            return { font: "Courier", fontB: "Courier-Bold" }
+            return { font: "Roboto Mono", fontB: "Roboto Mono" }
+        // Sans-serif fonts → Inter
         default:
-            return { font: "Helvetica", fontB: "Helvetica-Bold" }
+            return { font: "Inter", fontB: "Inter" }
     }
 }
 
@@ -106,11 +93,16 @@ function fmtDate(d: string | undefined): string {
 
 function calc(data: InvoiceData) {
     const sub = data.items.reduce((s, i) => s + i.quantity * i.rate, 0)
-    const disc = data.discountType === "percent" ? (sub * (data.discountValue || 0)) / 100 : data.discountValue || 0
-    const after = sub - disc
+    const itemDisc = data.items.reduce((s, i) => {
+        const line = i.quantity * i.rate
+        return s + (i.discount ? line * (i.discount / 100) : 0)
+    }, 0)
+    const afterItem = sub - itemDisc
+    const disc = data.discountType === "percent" ? (afterItem * (data.discountValue || 0)) / 100 : data.discountValue || 0
+    const after = afterItem - disc
     const tax = (after * (data.taxRate || 0)) / 100
     const total = after + tax + (data.shippingFee || 0)
-    return { sub, disc, tax, total }
+    return { sub, itemDisc, disc, tax, total }
 }
 
 type Tpl = "modern" | "classic" | "bold" | "minimal" | "elegant" | "corporate" | "creative" | "warm" | "geometric"
@@ -144,15 +136,9 @@ function getTheme(tpl: Tpl, data: InvoiceData) {
 }
 
 // Helper: bold text style
-// For registered Google Fonts, bold = fontWeight 700 (same family name).
-// For built-in PDF fonts, bold = separate fontFamily (e.g. Helvetica-Bold).
-function bold(c: ReturnType<typeof getTheme>): { fontFamily: string; fontWeight?: number } {
-    if (c.font === c.fontB) {
-        // Registered Google Font — use fontWeight for bold
-        return { fontFamily: c.font, fontWeight: 700 }
-    }
-    // Built-in PDF font — use the bold variant family name
-    return { fontFamily: c.fontB }
+// Registered fonts use fontWeight to select the bold variant.
+function bold(_c: ReturnType<typeof getTheme>): { fontWeight: number } {
+    return { fontWeight: 700 }
 }
 
 // Helper: expand borderRadius into 4 explicit corners (react-pdf shorthand is buggy)
@@ -191,6 +177,44 @@ function bNone() {
     return { ...bw(0, 0, 0, 0), ...bc("transparent", "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
 }
 
+// Helper: render a single item row — Amount always shows full price (qty × rate)
+function ItemRow({ item, i, data, c, CF, CFB, tRow, tRowAlt, cD, cQ, cR, cA }: {
+    item: any; i: number; data: InvoiceData; c: any; CF: any; CFB: any;
+    tRow: any; tRowAlt: any; cD: any; cQ: any; cR: any; cA: any;
+}) {
+    const gross = item.quantity * item.rate
+    const hasDisc = item.discount && item.discount > 0
+    const discAmt = hasDisc ? gross * (item.discount / 100) : 0
+    const lineTotal = gross - discAmt
+    return (
+        <View key={i} style={i % 2 === 1 ? tRowAlt : tRow} wrap={false}>
+            <View style={cD}>
+                <Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text>
+            </View>
+            <View style={cQ}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+            <View style={cR}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right", ...CF }}>{fmt(item.rate, data.currency)}</Text></View>
+            <View style={cA}>
+                {hasDisc ? (
+                    <>
+                        <Text style={{ fontSize: 8, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
+                        <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", ...CFB }}>{fmt(lineTotal, data.currency)}</Text>
+                    </>
+                ) : (
+                    <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", ...CFB }}>{fmt(gross, data.currency)}</Text>
+                )}
+            </View>
+        </View>
+    )
+}
+
+// Get total of all per-item discounts (single combined line)
+function getItemDiscountTotal(data: InvoiceData): number {
+    return data.items.reduce((s, i) => {
+        if (!i.discount || i.discount <= 0) return s
+        return s + i.quantity * i.rate * (i.discount / 100)
+    }, 0)
+}
+
 
 // ═══════════════════════════════════════════════════════
 // INVOICE PDF
@@ -200,7 +224,7 @@ export function InvoicePDF({ data }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
-
+    
     const s = StyleSheet.create({
         page: { paddingTop: tpl === "bold" ? 0 : 48, paddingBottom: 60, paddingHorizontal: tpl === "bold" ? 0 : 48, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff" },
         topBar: { height: 8, backgroundColor: c.pri, marginBottom: 0 },
@@ -293,18 +317,14 @@ export function InvoicePDF({ data }: Props) {
                         <View style={s.cA}><Text style={{ fontSize: 8, color: tpl === "classic" ? c.pri : "#fff", textTransform: "uppercase", letterSpacing: 0.8, textAlign: "right", ...bold(c) }}>Amount</Text></View>
                     </View>
                     {data.items.map((item, i) => (
-                        <View key={i} style={i % 2 === 1 ? s.tRowAlt : s.tRow} wrap={false}>
-                            <View style={s.cD}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
-                            <View style={s.cQ}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-                            <View style={s.cR}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right", ...CF }}>{fmt(item.rate, data.currency)}</Text></View>
-                            <View style={s.cA}><Text style={{ fontSize: 10, color: c.txt, textAlign: "right", ...CFB }}>{fmt(item.quantity * item.rate, data.currency)}</Text></View>
-                        </View>
+                        <ItemRow key={i} item={item} i={i} data={data} c={c} CF={CF} CFB={CFB} tRow={s.tRow} tRowAlt={s.tRowAlt} cD={s.cD} cQ={s.cQ} cR={s.cR} cA={s.cA} />
                     ))}
                 </View>
 
                 <View style={s.totWrap} wrap={false}>
                     <View style={s.totBox}>
                         <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(sub, data.currency)}</Text></View>
+                        {getItemDiscountTotal(data) > 0 && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Discount</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>-{fmt(getItemDiscountTotal(data), data.currency)}</Text></View>}
                         {!!data.discountValue && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Discount {data.discountType === "percent" ? `(${data.discountValue}%)` : ""}</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>-{fmt(disc, data.currency)}</Text></View>}
                         {!!data.taxRate && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(tax, data.currency)}</Text></View>}
                         {!!data.shippingFee && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Shipping</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(data.shippingFee, data.currency)}</Text></View>}
@@ -342,8 +362,8 @@ export function ContractPDF({ data }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const hasItems = data.items.some(i => i.description.trim().length > 0 || i.rate > 0)
-    const total = data.items.reduce((s, i) => s + i.quantity * i.rate, 0)
-
+    const { sub: cSub, disc: cDisc, tax: cTax, total: cTotal } = calc(data)
+    
     const s = StyleSheet.create({
         page: { paddingTop: tpl === "bold" ? 0 : 48, paddingBottom: 60, paddingHorizontal: 0, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff" },
         sidebar: { position: "absolute", top: 0, left: 0, width: 6, height: "100%" as any, backgroundColor: c.pri },
@@ -363,8 +383,10 @@ export function ContractPDF({ data }: Props) {
         tRow: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.bg) },
         tRowAlt: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.bg), backgroundColor: c.bg },
         cD: { flex: 1 }, cQ: { width: 50, textAlign: "center" }, cR: { width: 80, textAlign: "right" }, cA: { width: 80, textAlign: "right" },
-        totRow: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20 },
-        totBox: { flexDirection: "row", justifyContent: "space-between", width: 220, backgroundColor: c.pri, ...r(8), padding: 14 },
+        totWrap: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20 },
+        totBox: { width: 220, backgroundColor: tpl === "bold" ? c.bg : "transparent", ...r(8), padding: tpl === "bold" ? 14 : 0, ...(tpl === "classic" ? bAll(1, c.bdr) : bAll(0, "transparent")) },
+        totRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
+        gRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 10, marginTop: 6, ...bTop(2, c.pri) },
         sigRow: { flexDirection: "row", paddingHorizontal: 48, marginTop: 24 },
         sigBlk: { flex: 1, marginRight: 24 },
         sigLine: { ...bBottom(1, c.mut), marginTop: 36, marginBottom: 8, width: 180 },
@@ -442,15 +464,21 @@ export function ContractPDF({ data }: Props) {
                         {data.items.map((item, i) => {
                             if (!item.description && item.rate === 0) return null
                             return (
-                                <View key={i} style={i % 2 === 1 ? s.tRowAlt : s.tRow} wrap={false}>
-                                    <View style={s.cD}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
-                                    <View style={s.cQ}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-                                    <View style={s.cR}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right", ...CF }}>{fmt(item.rate, data.currency)}</Text></View>
-                                    <View style={s.cA}><Text style={{ fontSize: 10, color: c.txt, textAlign: "right", ...CFB }}>{fmt(item.quantity * item.rate, data.currency)}</Text></View>
-                                </View>
+                                <ItemRow key={i} item={item} i={i} data={data} c={c} CF={CF} CFB={CFB} tRow={s.tRow} tRowAlt={s.tRowAlt} cD={s.cD} cQ={s.cQ} cR={s.cR} cA={s.cA} />
                             )
                         })}
-                        {total > 0 && <View style={s.totRow} wrap={false}><View style={s.totBox}><Text style={{ fontSize: 12, color: "#fff", ...bold(c) }}>Total Value</Text><Text style={{ fontSize: 16, color: "#fff", ...CFB }}>{fmt(total, data.currency)}</Text></View></View>}
+                    </View>
+                )}
+
+                {cTotal > 0 && (
+                    <View style={s.totWrap} wrap={false}>
+                        <View style={s.totBox}>
+                            <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(cSub, data.currency)}</Text></View>
+                            {getItemDiscountTotal(data) > 0 && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Discount</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>-{fmt(getItemDiscountTotal(data), data.currency)}</Text></View>}
+                            {!!data.discountValue && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Discount {data.discountType === "percent" ? `(${data.discountValue}%)` : ""}</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>-{fmt(cDisc, data.currency)}</Text></View>}
+                            {!!data.taxRate && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(cTax, data.currency)}</Text></View>}
+                            <View style={s.gRow}><Text style={{ fontSize: 12, color: c.pri, ...bold(c) }}>Total Value</Text><Text style={{ fontSize: 18, color: c.pri, ...CFB }}>{fmt(cTotal, data.currency)}</Text></View>
+                        </View>
                     </View>
                 )}
 
@@ -489,7 +517,7 @@ export function QuotationPDF({ data }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
-
+    
     const s = StyleSheet.create({
         page: { paddingTop: tpl === "bold" ? 0 : 48, paddingBottom: 60, paddingHorizontal: 0, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff" },
         cornerAcc: { position: "absolute", top: 0, left: 0, width: 100, height: 100, backgroundColor: c.acc },
@@ -584,18 +612,14 @@ export function QuotationPDF({ data }: Props) {
                         <View style={s.cA}><Text style={{ fontSize: 8, color: tpl === "classic" ? c.pri : "#fff", textTransform: "uppercase", letterSpacing: 0.8, textAlign: "right", ...bold(c) }}>Amount</Text></View>
                     </View>
                     {data.items.map((item, i) => (
-                        <View key={i} style={i % 2 === 1 ? s.tRowAlt : s.tRow} wrap={false}>
-                            <View style={s.cD}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
-                            <View style={s.cQ}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-                            <View style={s.cR}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right", ...CF }}>{fmt(item.rate, data.currency)}</Text></View>
-                            <View style={s.cA}><Text style={{ fontSize: 10, color: c.txt, textAlign: "right", ...CFB }}>{fmt(item.quantity * item.rate, data.currency)}</Text></View>
-                        </View>
+                        <ItemRow key={i} item={item} i={i} data={data} c={c} CF={CF} CFB={CFB} tRow={s.tRow} tRowAlt={s.tRowAlt} cD={s.cD} cQ={s.cQ} cR={s.cR} cA={s.cA} />
                     ))}
                 </View>
 
                 <View style={s.totWrap} wrap={false}>
                     <View style={s.totBox}>
                         <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(sub, data.currency)}</Text></View>
+                        {getItemDiscountTotal(data) > 0 && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Discount</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>-{fmt(getItemDiscountTotal(data), data.currency)}</Text></View>}
                         {!!data.discountValue && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Discount {data.discountType === "percent" ? `(${data.discountValue}%)` : ""}</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>-{fmt(disc, data.currency)}</Text></View>}
                         {!!data.taxRate && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(tax, data.currency)}</Text></View>}
                         <View style={s.gRow}><Text style={{ fontSize: 12, color: c.pri, ...bold(c) }}>Total</Text><Text style={{ fontSize: 18, color: c.pri, ...CFB }}>{fmt(total, data.currency)}</Text></View>
@@ -623,8 +647,8 @@ export function ProposalPDF({ data }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const hasItems = data.items.some(i => i.description.trim().length > 0 || i.rate > 0)
-    const total = data.items.reduce((s, i) => s + i.quantity * i.rate, 0)
-
+    const { sub: pSub, disc: pDisc, tax: pTax, total: pTotal } = calc(data)
+    
     const s = StyleSheet.create({
         page: { paddingTop: tpl === "bold" ? 0 : 48, paddingBottom: 60, paddingHorizontal: 0, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff" },
         topBar: { height: 6, backgroundColor: c.pri },
@@ -647,7 +671,9 @@ export function ProposalPDF({ data }: Props) {
         tRowAlt: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.acc), backgroundColor: c.bg },
         cD: { flex: 1 }, cQ: { width: 50, textAlign: "center" }, cR: { width: 80, textAlign: "right" }, cA: { width: 80, textAlign: "right" },
         totWrap: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20 },
-        totBox: { backgroundColor: c.pri, ...r(10), padding: 16, width: 240, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+        totBox: { width: 240, backgroundColor: tpl === "bold" ? c.bg : "transparent", ...r(10), padding: tpl === "bold" ? 16 : 0, ...(tpl === "classic" ? bAll(1, c.bdr) : bAll(0, "transparent")) },
+        totRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
+        gRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 10, marginTop: 6, ...bTop(2, c.pri) },
         ctaBox: { marginHorizontal: 48, backgroundColor: c.acc, ...r(8), padding: 18, ...bLeft(4, c.pri), marginBottom: 16 },
         nWrap: { paddingHorizontal: 48, marginBottom: 16 },
         footer: { position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: tpl === "bold" ? c.pri : c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48 },
@@ -751,22 +777,20 @@ export function ProposalPDF({ data }: Props) {
                         {data.items.map((item, i) => {
                             if (!item.description && item.rate === 0) return null
                             return (
-                                <View key={i} style={i % 2 === 1 ? s.tRowAlt : s.tRow} wrap={false}>
-                                    <View style={s.cD}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Phase ${i + 1}`}</Text></View>
-                                    <View style={s.cQ}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-                                    <View style={s.cR}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right", ...CF }}>{fmt(item.rate, data.currency)}</Text></View>
-                                    <View style={s.cA}><Text style={{ fontSize: 10, color: c.txt, textAlign: "right", ...CFB }}>{fmt(item.quantity * item.rate, data.currency)}</Text></View>
-                                </View>
+                                <ItemRow key={i} item={item} i={i} data={data} c={c} CF={CF} CFB={CFB} tRow={s.tRow} tRowAlt={s.tRowAlt} cD={s.cD} cQ={s.cQ} cR={s.cR} cA={s.cA} />
                             )
                         })}
                     </View>
                 )}
 
-                {total > 0 && (
+                {pTotal > 0 && (
                     <View style={s.totWrap} wrap={false}>
                         <View style={s.totBox}>
-                            <Text style={{ fontSize: 12, color: "#fff", ...bold(c) }}>Total Investment</Text>
-                            <Text style={{ fontSize: 20, color: "#fff", ...CFB }}>{fmt(total, data.currency)}</Text>
+                            <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(pSub, data.currency)}</Text></View>
+                            {getItemDiscountTotal(data) > 0 && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Discount</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>-{fmt(getItemDiscountTotal(data), data.currency)}</Text></View>}
+                            {!!data.discountValue && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>Discount {data.discountType === "percent" ? `(${data.discountValue}%)` : ""}</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>-{fmt(pDisc, data.currency)}</Text></View>}
+                            {!!data.taxRate && <View style={s.totRow}><Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text><Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(pTax, data.currency)}</Text></View>}
+                            <View style={s.gRow}><Text style={{ fontSize: 12, color: c.pri, ...bold(c) }}>Total Investment</Text><Text style={{ fontSize: 18, color: c.pri, ...CFB }}>{fmt(pTotal, data.currency)}</Text></View>
                         </View>
                     </View>
                 )}
