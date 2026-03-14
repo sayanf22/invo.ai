@@ -47,7 +47,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://*.supabase.co",
-              "connect-src 'self' blob: https://*.supabase.co https://api.deepseek.com https://api.openai.com",
+              "connect-src 'self' blob: data: https://*.supabase.co https://api.deepseek.com https://api.openai.com",
               "frame-ancestors 'none'",
               "worker-src 'self' blob:",
             ].join("; "),
