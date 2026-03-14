@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useState, useRef, useEffect } from "react"
 import { Palette, ChevronDown, Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -233,7 +233,7 @@ export function TemplatePicker({ data, onChange }: TemplatePickerProps) {
                   <input
                     type="color"
                     value={curColor || "#2563eb"}
-                    onChange={e => applyColor(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => applyColor(e.target.value)}
                     className="w-7 h-7 rounded-lg border border-border cursor-pointer"
                   />
                   <span className="text-[10px] font-mono text-muted-foreground">{curColor || "#2563eb"}</span>
