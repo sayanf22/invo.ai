@@ -11,7 +11,7 @@
  *   const { user, supabase } = auth
  */
 
-import { createServerClient } from "@supabase/ssr"
+import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import type { Database } from "./database.types"
@@ -33,29 +33,47 @@ interface AuthFailure {
 
 type AuthResult = AuthSuccess | AuthFailure
 
+// ── Helper: Extract access token from cookies ──────────────────────────
+
+async function getAccessTokenFromCookies(): Promise<string | undefined> {
+    const cookieStore = await cookies()
+    const allCookies = cookieStore.getAll()
+    const authCookies = allCookies.filter(c => c.name.startsWith("sb-") && c.name.includes("-auth-token"))
+
+    if (authCookies.length === 0) return undefined
+
+    // Reconstruct from chunked cookies
+    const baseName = authCookies[0].name.replace(/\.\d+$/, "")
+    const chunks = allCookies
+        .filter(c => c.name === baseName || c.name.startsWith(baseName + "."))
+        .sort((a, b) => {
+            const aIdx = a.name.includes(".") ? parseInt(a.name.split(".").pop()!) : 0
+            const bIdx = b.name.includes(".") ? parseInt(b.name.split(".").pop()!) : 0
+            return aIdx - bIdx
+        })
+        .map(c => c.value)
+        .join("")
+
+    try {
+        const parsed = JSON.parse(chunks)
+        return parsed.access_token
+    } catch {
+        return undefined
+    }
+}
+
 // ── Main Auth Function ─────────────────────────────────────────────────
 
 export async function authenticateRequest(): Promise<AuthResult> {
     try {
-        const cookieStore = await cookies()
+        const accessToken = await getAccessTokenFromCookies()
 
-        const supabase = createServerClient<Database>(
+        const supabase = createClient<Database>(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             {
-                cookies: {
-                    getAll() {
-                        return cookieStore.getAll()
-                    },
-                    setAll(cookiesToSet) {
-                        try {
-                            cookiesToSet.forEach(({ name, value, options }) =>
-                                cookieStore.set(name, value, options)
-                            )
-                        } catch {
-                            // Server Component context — middleware handles refresh
-                        }
-                    },
+                global: {
+                    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
                 },
             }
         )

@@ -5,19 +5,24 @@
  * Uses DOMPurify for HTML sanitization and custom validators for other input types.
  */
 
-import DOMPurify from "isomorphic-dompurify"
-
 /**
  * Sanitize HTML content - removes all scripts and dangerous tags
+ * Uses dynamic import to avoid loading jsdom on Cloudflare Workers
  */
-export function sanitizeHTML(input: string): string {
+export async function sanitizeHTML(input: string): Promise<string> {
     if (!input || typeof input !== "string") return ""
     
-    return DOMPurify.sanitize(input, {
-        ALLOWED_TAGS: [], // Strip all HTML tags
-        ALLOWED_ATTR: [],
-        KEEP_CONTENT: true, // Keep text content
-    })
+    try {
+        const DOMPurify = (await import("isomorphic-dompurify")).default
+        return DOMPurify.sanitize(input, {
+            ALLOWED_TAGS: [], // Strip all HTML tags
+            ALLOWED_ATTR: [],
+            KEEP_CONTENT: true, // Keep text content
+        })
+    } catch {
+        // Fallback: strip HTML tags manually if DOMPurify unavailable (e.g. Workers)
+        return input.replace(/<[^>]*>/g, "")
+    }
 }
 
 /**

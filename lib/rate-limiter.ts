@@ -7,7 +7,7 @@
  * be bypassed by the client.
  * 
  * Each route category has its own limit:
- *   - AI routes: 10 req/min (expensive API calls)
+ *   - AI routes: 50 req/min (increased for onboarding)
  *   - Export routes: 20 req/min
  *   - Other routes: 30 req/min
  * 
@@ -19,7 +19,7 @@
  */
 
 import { NextResponse } from "next/server"
-import { createServerClient } from "@supabase/ssr"
+import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 
 // ── Configuration ──────────────────────────────────────────────────────
@@ -30,6 +30,49 @@ const RATE_LIMITS: Record<RouteCategory, { maxRequests: number; windowSeconds: n
     ai: { maxRequests: 50, windowSeconds: 60 },       // 50 req/min for AI calls (increased for onboarding)
     export: { maxRequests: 20, windowSeconds: 60 },    // 20 req/min for exports
     general: { maxRequests: 30, windowSeconds: 60 },   // 30 req/min for other
+}
+
+// ── Helper: Extract access token from cookies ──────────────────────────
+
+async function getAccessTokenFromCookies(): Promise<string | undefined> {
+    const cookieStore = await cookies()
+    const allCookies = cookieStore.getAll()
+    const authCookies = allCookies.filter(c => c.name.startsWith("sb-") && c.name.includes("-auth-token"))
+
+    if (authCookies.length === 0) return undefined
+
+    const baseName = authCookies[0].name.replace(/\.\d+$/, "")
+    const chunks = allCookies
+        .filter(c => c.name === baseName || c.name.startsWith(baseName + "."))
+        .sort((a, b) => {
+            const aIdx = a.name.includes(".") ? parseInt(a.name.split(".").pop()!) : 0
+            const bIdx = b.name.includes(".") ? parseInt(b.name.split(".").pop()!) : 0
+            return aIdx - bIdx
+        })
+        .map(c => c.value)
+        .join("")
+
+    try {
+        const parsed = JSON.parse(chunks)
+        return parsed.access_token
+    } catch {
+        return undefined
+    }
+}
+
+// ── Helper: Create authenticated Supabase client ───────────────────────
+
+async function createAuthenticatedClient() {
+    const accessToken = await getAccessTokenFromCookies()
+    return createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            global: {
+                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            },
+        }
+    )
 }
 
 // ── Main Function ──────────────────────────────────────────────────────
@@ -48,27 +91,7 @@ export async function checkRateLimit(
     const config = RATE_LIMITS[category]
 
     try {
-        const cookieStore = await cookies()
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-                    getAll() {
-                        return cookieStore.getAll()
-                    },
-                    setAll(cookiesToSet) {
-                        try {
-                            cookiesToSet.forEach(({ name, value, options }) =>
-                                cookieStore.set(name, value, options)
-                            )
-                        } catch {
-                            // Server Component context
-                        }
-                    },
-                },
-            }
-        )
+        const supabase = await createAuthenticatedClient()
 
         const { data, error } = await supabase.rpc('check_rate_limit', {
             p_user_id: identifier,
@@ -123,39 +146,10 @@ export async function checkRateLimit(
  * Get remaining requests for a user + category
  */
 export async function getRateLimitRemaining(
-    identifier: string,
+    _identifier: string,
     category: RouteCategory
 ): Promise<number> {
     const config = RATE_LIMITS[category]
-
-    try {
-        const cookieStore = await cookies()
-        const _supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-                    getAll() {
-                        return cookieStore.getAll()
-                    },
-                    setAll(cookiesToSet) {
-                        try {
-                            cookiesToSet.forEach(({ name, value, options }) =>
-                                cookieStore.set(name, value, options)
-                            )
-                        } catch {
-                            // Server Component context
-                        }
-                    },
-                },
-            }
-        )
-
-        // We do a "dry" check — but since check_rate_limit records the request,
-        // we can't do a pure read. Return the max as a fallback.
-        // In a production system, you'd have a separate read-only function.
-        return config.maxRequests
-    } catch {
-        return config.maxRequests
-    }
+    // Return the max as a fallback — a production system would have a separate read-only function
+    return config.maxRequests
 }

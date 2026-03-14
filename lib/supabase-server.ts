@@ -1,32 +1,48 @@
-import { createServerClient } from "@supabase/ssr"
+import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import type { Database } from "./database.types"
 
 export async function createServerSupabaseClient() {
     const cookieStore = await cookies()
 
-    return createServerClient<Database>(
+    // Read the Supabase auth token from cookies
+    const allCookies = cookieStore.getAll()
+    const authCookies = allCookies.filter(c => c.name.startsWith("sb-") && c.name.includes("-auth-token"))
+
+    // Reconstruct the auth token from chunked cookies
+    let accessToken: string | undefined
+    if (authCookies.length > 0) {
+        // Supabase stores auth as JSON in cookies (may be chunked)
+        const baseName = authCookies[0].name.replace(/\.\d+$/, "")
+        const chunks = allCookies
+            .filter(c => c.name === baseName || c.name.startsWith(baseName + "."))
+            .sort((a, b) => {
+                const aIdx = a.name.includes(".") ? parseInt(a.name.split(".").pop()!) : 0
+                const bIdx = b.name.includes(".") ? parseInt(b.name.split(".").pop()!) : 0
+                return aIdx - bIdx
+            })
+            .map(c => c.value)
+            .join("")
+
+        try {
+            const parsed = JSON.parse(chunks)
+            accessToken = parsed.access_token
+        } catch {
+            // Cookie parse failed
+        }
+    }
+
+    const supabase = createClient<Database>(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
-            cookies: {
-                getAll() {
-                    return cookieStore.getAll()
-                },
-                setAll(cookiesToSet) {
-                    try {
-                        cookiesToSet.forEach(({ name, value, options }) =>
-                            cookieStore.set(name, value, options)
-                        )
-                    } catch {
-                        // The `setAll` method was called from a Server Component.
-                        // This can be ignored if you have middleware refreshing
-                        // user sessions.
-                    }
-                },
+            global: {
+                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
             },
         }
     )
+
+    return supabase
 }
 
 // Helper to get current user on server
