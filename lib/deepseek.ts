@@ -591,6 +591,7 @@ export async function* streamGenerateDocument(
         const reader = response.body?.getReader()
         const decoder = new TextDecoder()
         let fullContent = ""
+        let sseBuffer = "" // Buffer for incomplete SSE lines split across TCP chunks
 
         if (!reader) {
             throw new Error("No response body")
@@ -601,9 +602,16 @@ export async function* streamGenerateDocument(
             if (done) break
 
             const chunk = decoder.decode(value, { stream: true })
-            const lines = chunk.split("\n").filter((line) => line.startsWith("data: "))
+            sseBuffer += chunk
 
-            for (const line of lines) {
+            // Split on newlines, keep the last (potentially incomplete) part in the buffer
+            const parts = sseBuffer.split("\n")
+            sseBuffer = parts.pop() || ""
+
+            for (const rawLine of parts) {
+                const line = rawLine.trim()
+                if (!line.startsWith("data: ")) continue
+
                 const data = line.slice(6)
                 if (data === "[DONE]") continue
 

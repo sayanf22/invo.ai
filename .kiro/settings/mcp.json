@@ -31,7 +31,8 @@
         "take_snapshot",
         "list_pages",
         "list_console_messages",
-        "navigate_page"
+        "navigate_page",
+        "type_text"
       ]
     }
   }

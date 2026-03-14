@@ -180,7 +180,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         } else if (parsed.type === "error") {
                             streamError = parsed.data
                         }
-                    } catch {
+                    } catch (sseErr) {
                         // Skip malformed SSE lines
                     }
                 }
