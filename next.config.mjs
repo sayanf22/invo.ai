@@ -12,8 +12,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Empty turbopack config to allow build
-  turbopack: {},
 
   // Exclude heavy packages from the server bundle — they're only used client-side
   serverExternalPackages: [

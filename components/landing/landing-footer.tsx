@@ -47,7 +47,7 @@ export function LandingFooter() {
                         </p>
                     </div>
                     <Link
-                        href="/auth/register"
+                        href="/auth/signup"
                         className="group shrink-0 flex items-center gap-2 px-8 py-4 rounded-full bg-[var(--landing-cream)] text-[var(--landing-dark)] font-bold text-lg hover:scale-105 active:scale-95 transition-all shadow-xl"
                     >
                         Get Started Free

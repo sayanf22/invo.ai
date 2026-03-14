@@ -68,7 +68,7 @@ export default function BusinessPage() {
                                 <Link href="/contact-sales" className="group px-8 py-4 rounded-full bg-[var(--landing-dark)] text-[var(--landing-cream)] font-bold text-lg hover:scale-105 transition-all shadow-xl hover:shadow-2xl inline-flex items-center gap-2">
                                     Talk to Sales <ArrowRight className="transition-transform group-hover:translate-x-1" size={18} />
                                 </Link>
-                                <Link href="/auth/register" className="px-8 py-4 rounded-full bg-white text-[var(--landing-text-dark)] font-bold text-lg border border-stone-200 hover:bg-stone-50 transition-all">
+                                <Link href="/auth/signup" className="px-8 py-4 rounded-full bg-white text-[var(--landing-text-dark)] font-bold text-lg border border-stone-200 hover:bg-stone-50 transition-all">
                                     Start Free Trial
                                 </Link>
                             </div>

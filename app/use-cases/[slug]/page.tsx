@@ -111,7 +111,7 @@ export default function UseCasePage() {
                                 {data.desc}
                             </p>
                             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                                <Link href="/auth/register" className="group px-8 py-4 rounded-full bg-[var(--landing-dark)] text-white font-bold text-lg hover:scale-105 transition-all shadow-xl inline-flex items-center gap-2">
+                                <Link href="/auth/signup" className="group px-8 py-4 rounded-full bg-[var(--landing-dark)] text-white font-bold text-lg hover:scale-105 transition-all shadow-xl inline-flex items-center gap-2">
                                     Get Started Free <ArrowRight className="transition-transform group-hover:translate-x-1" size={18} />
                                 </Link>
                             </div>
@@ -199,7 +199,7 @@ export default function UseCasePage() {
                         <p className="text-[var(--landing-text-dim)] text-lg mb-8 relative z-10">
                             Professional documents in seconds. Free to get started.
                         </p>
-                        <Link href="/auth/register" className="group relative z-10 inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[var(--landing-cream)] text-[var(--landing-dark)] font-bold text-lg hover:scale-105 transition-transform">
+                        <Link href="/auth/signup" className="group relative z-10 inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[var(--landing-cream)] text-[var(--landing-dark)] font-bold text-lg hover:scale-105 transition-transform">
                             Get Started Free <ArrowRight className="transition-transform group-hover:translate-x-1" size={20} />
                         </Link>
                     </motion.div>

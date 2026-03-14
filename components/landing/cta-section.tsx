@@ -30,7 +30,7 @@ export function CTASection() {
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
                         <Link
-                            href="/auth/register"
+                            href="/auth/signup"
                             className="group relative inline-flex items-center gap-3 px-10 py-5 rounded-full bg-[var(--landing-cream)] text-[var(--landing-dark)] font-bold text-xl hover:scale-105 active:scale-95 transition-all shadow-[0_20px_40px_rgba(0,0,0,0.2)] hover:shadow-[0_25px_50px_rgba(0,0,0,0.3)]"
                         >
                             Get Started Free
