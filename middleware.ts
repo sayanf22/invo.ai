@@ -1,15 +1,104 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 
 /**
- * Server-side middleware for Supabase auth.
+ * Server-side middleware for Supabase auth + IP-based rate limiting.
  *
- * 1. Refreshes the session on every navigation (keeps long-lived sessions alive).
- * 2. Redirects unauthenticated users away from protected routes.
- * 3. Redirects authenticated users away from auth pages (login/signup).
- * 4. Edge-runtime compatible (works on Cloudflare Workers).
+ * 1. IP-based rate limiting (DDoS / brute-force protection)
+ * 2. Refreshes the session on every navigation (keeps long-lived sessions alive)
+ * 3. Redirects unauthenticated users away from protected routes
+ * 4. Redirects authenticated users away from auth pages (login/signup)
+ * 5. Edge-runtime compatible (works on Cloudflare Workers)
  */
+
+// ── IP-Based Rate Limiting (in-memory sliding window) ──────────────────
+// Edge-compatible, no DB needed. Resets on deploy/restart which is acceptable
+// since Cloudflare Workers have short lifetimes anyway.
+
+interface RateLimitEntry {
+  timestamps: number[]
+}
+
+// Separate stores for different route categories
+const ipStore = new Map<string, RateLimitEntry>()
+
+// Rate limit configs per route category
+const RATE_LIMITS = {
+  auth:    { maxRequests: 20,  windowMs: 60_000 },  // 20 req/min for auth (brute force)
+  api:     { maxRequests: 60,  windowMs: 60_000 },  // 60 req/min for API routes
+  global:  { maxRequests: 120, windowMs: 60_000 },  // 120 req/min global fallback
+} as const
+
+type RateLimitCategory = keyof typeof RATE_LIMITS
+
+// Cleanup stale entries every 5 minutes to prevent memory leaks
+let lastCleanup = Date.now()
+const CLEANUP_INTERVAL = 5 * 60_000
+
+function cleanupStaleEntries() {
+  const now = Date.now()
+  if (now - lastCleanup < CLEANUP_INTERVAL) return
+  lastCleanup = now
+
+  const cutoff = now - 120_000 // Remove entries older than 2 minutes
+  for (const [key, entry] of ipStore.entries()) {
+    entry.timestamps = entry.timestamps.filter((t) => t > cutoff)
+    if (entry.timestamps.length === 0) {
+      ipStore.delete(key)
+    }
+  }
+}
+
+function getClientIP(request: NextRequest): string {
+  // Cloudflare provides the real IP
+  const cfIP = request.headers.get("cf-connecting-ip")
+  if (cfIP) return cfIP
+
+  const forwarded = request.headers.get("x-forwarded-for")
+  if (forwarded) return forwarded.split(",")[0].trim()
+
+  const realIP = request.headers.get("x-real-ip")
+  if (realIP) return realIP
+
+  return "unknown"
+}
+
+function getRouteCategory(pathname: string): RateLimitCategory {
+  if (pathname.startsWith("/auth")) return "auth"
+  if (pathname.startsWith("/api")) return "api"
+  return "global"
+}
+
+function checkIPRateLimit(
+  ip: string,
+  category: RateLimitCategory
+): { allowed: boolean; retryAfter: number } {
+  cleanupStaleEntries()
+
+  const config = RATE_LIMITS[category]
+  const key = `${ip}:${category}`
+  const now = Date.now()
+  const windowStart = now - config.windowMs
+
+  let entry = ipStore.get(key)
+  if (!entry) {
+    entry = { timestamps: [] }
+    ipStore.set(key, entry)
+  }
+
+  // Remove timestamps outside the window
+  entry.timestamps = entry.timestamps.filter((t) => t > windowStart)
+
+  if (entry.timestamps.length >= config.maxRequests) {
+    // Calculate retry-after from oldest timestamp in window
+    const oldestInWindow = entry.timestamps[0]
+    const retryAfter = Math.ceil((oldestInWindow + config.windowMs - now) / 1000)
+    return { allowed: false, retryAfter: Math.max(1, retryAfter) }
+  }
+
+  entry.timestamps.push(now)
+  return { allowed: true, retryAfter: 0 }
+}
 
 // ── Public routes that don't require auth ──────────────────────────────
 const PUBLIC_PATHS = [
@@ -24,7 +113,6 @@ const PUBLIC_PATHS = [
 ]
 
 function isPublicPath(pathname: string): boolean {
-  // Root landing page is protected (dashboard)
   if (pathname === "/") return false
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p))
 }
@@ -72,6 +160,29 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
+  // ── IP-Based Rate Limiting ───────────────────────────────────────────
+  const clientIP = getClientIP(request)
+  const category = getRouteCategory(pathname)
+  const rateCheck = checkIPRateLimit(clientIP, category)
+
+  if (!rateCheck.allowed) {
+    return new NextResponse(
+      JSON.stringify({
+        error: "Too many requests. Please slow down.",
+        retryAfter: rateCheck.retryAfter,
+      }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(rateCheck.retryAfter),
+          "X-RateLimit-Limit": String(RATE_LIMITS[category].maxRequests),
+          "X-RateLimit-Remaining": "0",
+        },
+      }
+    )
+  }
+
   // ── Read auth token from cookies ─────────────────────────────────────
   const rawToken = getAuthTokenFromCookies(request)
   const parsed = rawToken ? parseAuthToken(rawToken) : null
@@ -81,26 +192,21 @@ export async function middleware(request: NextRequest) {
   let isAuthenticated = false
 
   if (accessToken) {
-    // Quick JWT expiry check (avoid network call if token is clearly valid)
     try {
       const payload = JSON.parse(atob(accessToken.split(".")[1]))
       const exp = payload.exp * 1000
       const now = Date.now()
 
       if (exp > now + 60_000) {
-        // Token valid for >1 minute — no refresh needed
         isAuthenticated = true
       } else if (refreshToken) {
-        // Token expired or about to expire — try refreshing
         const refreshed = await refreshSession(accessToken, refreshToken)
         if (refreshed) {
           isAuthenticated = true
-          // Write refreshed tokens back to cookies
           writeAuthCookies(response, refreshed.rawJson, request)
         }
       }
     } catch {
-      // JWT decode failed — try refresh as fallback
       if (refreshToken) {
         const refreshed = await refreshSession(accessToken, refreshToken)
         if (refreshed) {
@@ -118,7 +224,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Redirect authenticated users away from auth pages (except callback/confirm)
+  // Redirect authenticated users away from auth pages (except callback/confirm/update-password)
   if (
     isAuthenticated &&
     pathname.startsWith("/auth") &&
@@ -156,7 +262,6 @@ async function refreshSession(
     const data = await res.json()
     if (!data.access_token || !data.refresh_token) return null
 
-    // Build the same JSON structure the client stores
     const tokenObj = {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
@@ -176,7 +281,6 @@ async function refreshSession(
 const CHUNK_SIZE = 3500
 
 function writeAuthCookies(response: NextResponse, rawJson: string, request: NextRequest): void {
-  // Determine the cookie name from existing cookies
   const allCookies = request.cookies.getAll()
   const authCookie = allCookies.find(
     (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token")
@@ -190,7 +294,6 @@ function writeAuthCookies(response: NextResponse, rawJson: string, request: Next
     path: "/",
     expires,
     sameSite: "lax" as const,
-    // Don't set secure in dev
     ...(process.env.NODE_ENV === "production" ? { secure: true } : {}),
   }
 
@@ -217,13 +320,6 @@ function writeAuthCookies(response: NextResponse, rawJson: string, request: Next
 // ── Matcher: run middleware on all routes except static files ───────────
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico
-     * - public files with extensions (images, fonts, etc.)
-     */
     "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot)).*)",
   ],
 }

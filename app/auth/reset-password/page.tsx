@@ -84,7 +84,19 @@ export default function ResetPasswordPage() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16 bg-background">
+        <div className="min-h-screen flex flex-col bg-background">
+            {/* Header */}
+            <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
+                <Link href="/pricing" aria-label="Go to pricing page">
+                    <InvoLogo size={36} />
+                </Link>
+                <nav className="flex items-center gap-4 text-[14px]">
+                    <Link href="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
+                    <Link href="/features" className="text-muted-foreground hover:text-foreground transition-colors">Features</Link>
+                    <Link href="/auth/login" className="text-muted-foreground hover:text-foreground transition-colors font-medium">Sign in</Link>
+                </nav>
+            </header>
+            <div className="flex-1 flex flex-col items-center justify-center px-4 pb-16">
             <div className="w-full max-w-sm space-y-8">
                 <div className="flex flex-col items-center gap-4">
                     <InvoLogo />
@@ -186,6 +198,7 @@ export default function ResetPasswordPage() {
                         Back to sign in
                     </Link>
                 </div>
+            </div>
             </div>
         </div>
     )
