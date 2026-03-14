@@ -12,6 +12,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Empty turbopack config to allow build
+  turbopack: {},
 
   // ── Security Headers ────────────────────────────────────────────────
   async headers() {
