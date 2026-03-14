@@ -16,9 +16,32 @@ const lora = Lora({ subsets: ["latin"], variable: "--font-lora" })
 const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: "--font-roboto-mono" })
 
 export const metadata: Metadata = {
-  title: "Invo.ai - Intelligent Business Documents",
+  title: {
+    default: "Invo.ai - Intelligent Business Documents",
+    template: "%s | Invo.ai",
+  },
   description:
-    "Create invoices, contracts, quotations, and proposals with AI-powered precision. Fast, calm, and trustworthy.",
+    "Create invoices, contracts, quotations, and proposals with AI-powered precision. Compliant across 11 countries.",
+  metadataBase: new URL("https://invoai.proj-invo.workers.dev"),
+  openGraph: {
+    title: "Invo.ai - Intelligent Business Documents",
+    description:
+      "AI-powered invoices, contracts, quotations, and proposals. Compliant across 11 countries. Export as PDF, DOCX, or image.",
+    url: "https://invoai.proj-invo.workers.dev",
+    siteName: "Invo.ai",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Invo.ai - Intelligent Business Documents",
+    description:
+      "AI-powered invoices, contracts, quotations, and proposals. Compliant across 11 countries.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 }
 
 export default function RootLayout({
