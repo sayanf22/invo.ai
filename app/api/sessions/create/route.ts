@@ -15,7 +15,7 @@ interface CreateSessionRequest {
 
 export async function POST(request: NextRequest) {
     try {
-        const auth = await authenticateRequest()
+        const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
         const body: CreateSessionRequest = await request.json()

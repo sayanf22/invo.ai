@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
         if (originError) return originError
 
         // SECURITY: Authenticate user
-        const auth = await authenticateRequest()
+        const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
         // Rate limiting removed - handled by Supabase if needed

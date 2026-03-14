@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import type { InvoiceData } from "@/lib/invoice-types"
 import type { DocumentSession, Json } from "@/lib/database.types"
+import { authFetch } from "@/lib/auth-fetch"
 
 export interface ChatMessage {
     id: string
@@ -70,7 +71,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
     const createNewSession = useCallback(async (): Promise<DocumentSession | null> => {
         if (!user) return null
         try {
-            const response = await fetch("/api/sessions/create", {
+            const response = await authFetch("/api/sessions/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ documentType }),

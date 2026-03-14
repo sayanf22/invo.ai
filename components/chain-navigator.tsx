@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { FileText, ScrollText, ClipboardList, Lightbulb, ChevronRight, Link2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/components/auth-provider"
+import { authFetch } from "@/lib/auth-fetch"
 
 interface ChainSession {
     id: string
@@ -61,7 +62,7 @@ export function ChainNavigator({ currentSessionId, onSessionSelect }: ChainNavig
         lastFetchedSessionRef.current = currentSessionId
 
         try {
-            const res = await fetch(`/api/sessions/linked?sessionId=${currentSessionId}`)
+            const res = await authFetch(`/api/sessions/linked?sessionId=${currentSessionId}`)
             if (!res.ok) return
             const data = await res.json()
 

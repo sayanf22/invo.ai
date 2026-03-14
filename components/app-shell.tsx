@@ -9,6 +9,7 @@ import { CategoryPills } from "@/components/category-pills"
 import { PromptScreen } from "@/components/prompt-screen"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { Loader2, Sparkles, Globe, FileDown, ShieldCheck, ArrowRight, FileText, ScrollText, ClipboardList, Lightbulb, MessageSquare } from "lucide-react"
+import { authFetch } from "@/lib/auth-fetch"
 
 type View = "start" | "prompt"
 
@@ -69,7 +70,7 @@ export function AppShell() {
     try {
       let category = selectedCategory
       if (!category) {
-        const response = await fetch("/api/ai/detect-type", {
+        const response = await authFetch("/api/ai/detect-type", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt }),
         })

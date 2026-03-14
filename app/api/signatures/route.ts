@@ -20,7 +20,7 @@ function generateSigningToken(): string {
 export async function POST(request: NextRequest) {
     try {
         // SECURITY: Authenticate user via standard helper
-        const auth = await authenticateRequest()
+        const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
         // SECURITY: Rate limit (general: 30 req/min)
@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
 
         if (documentId) {
             // Authenticated lookup by document
-            const auth = await authenticateRequest()
+            const auth = await authenticateRequest(request)
             if (auth.error) return auth.error
 
             // SECURITY: Rate limit authenticated lookups

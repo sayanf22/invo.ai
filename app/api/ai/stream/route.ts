@@ -12,8 +12,8 @@ export async function POST(request: NextRequest) {
         const originError = validateOrigin(request)
         if (originError) return originError
 
-        // SECURITY: Authenticate user
-        const auth = await authenticateRequest()
+        // SECURITY: Authenticate user (pass request for Authorization header fallback)
+        const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
         // SECURITY: Cost protection - check monthly limit
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
                     }
                 }
             } catch (err) {
-                console.error("Failed to fetch business profile:", err)
+                console.error("Failed to fetch business profile:", err instanceof Error ? err.message : err)
                 // Continue without business context — AI will use placeholders
             }
         }

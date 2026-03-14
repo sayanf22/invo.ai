@@ -66,7 +66,7 @@ function extractClientName(context: Record<string, any>): string | null {
 
 export async function POST(request: NextRequest) {
     try {
-        const auth = await authenticateRequest()
+        const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
         const body = await request.json()

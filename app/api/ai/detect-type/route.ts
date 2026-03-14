@@ -16,7 +16,7 @@ interface DetectTypeRequest {
 export async function POST(request: NextRequest) {
     try {
         // SECURITY: Authenticate user
-        const auth = await authenticateRequest()
+        const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
         const body: DetectTypeRequest = await request.json()

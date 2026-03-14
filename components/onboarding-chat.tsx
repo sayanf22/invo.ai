@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { authFetch } from "@/lib/auth-fetch"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -157,7 +158,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
     const sendInitialGreeting = async () => {
         setIsLoading(true)
         try {
-            const response = await fetch("/api/ai/onboarding", {
+            const response = await authFetch("/api/ai/onboarding", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -198,7 +199,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
         setIsLoading(true)
 
         try {
-            const response = await fetch("/api/ai/onboarding", {
+            const response = await authFetch("/api/ai/onboarding", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

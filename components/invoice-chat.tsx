@@ -13,6 +13,7 @@ import { useDocumentSession } from "@/hooks/use-document-session"
 import { MarkdownMessage } from "@/components/markdown-message"
 import { NextStepsBar } from "@/components/next-steps-bar"
 import { ChainNavigator } from "@/components/chain-navigator"
+import { authFetch } from "@/lib/auth-fetch"
 
 interface InvoiceChatProps {
     data: InvoiceData
@@ -133,7 +134,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         setIsLoading(true)
 
         try {
-            const response = await fetch("/api/ai/stream", {
+            const response = await authFetch("/api/ai/stream", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -310,7 +311,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     // Handle creating a linked document from the Next Steps bar
     const handleCreateLinked = useCallback(async (parentSessionId: string, targetType: string) => {
         try {
-            const res = await fetch("/api/sessions/create-linked", {
+            const res = await authFetch("/api/sessions/create-linked", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ parentSessionId, targetDocumentType: targetType }),

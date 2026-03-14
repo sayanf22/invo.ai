@@ -36,37 +36,51 @@ type AuthResult = AuthSuccess | AuthFailure
 // ── Helper: Extract access token from cookies ──────────────────────────
 
 async function getAccessTokenFromCookies(): Promise<string | undefined> {
-    const cookieStore = await cookies()
-    const allCookies = cookieStore.getAll()
-    const authCookies = allCookies.filter(c => c.name.startsWith("sb-") && c.name.includes("-auth-token"))
-
-    if (authCookies.length === 0) return undefined
-
-    // Reconstruct from chunked cookies
-    const baseName = authCookies[0].name.replace(/\.\d+$/, "")
-    const chunks = allCookies
-        .filter(c => c.name === baseName || c.name.startsWith(baseName + "."))
-        .sort((a, b) => {
-            const aIdx = a.name.includes(".") ? parseInt(a.name.split(".").pop()!) : 0
-            const bIdx = b.name.includes(".") ? parseInt(b.name.split(".").pop()!) : 0
-            return aIdx - bIdx
-        })
-        .map(c => c.value)
-        .join("")
-
     try {
+        const cookieStore = await cookies()
+        const allCookies = cookieStore.getAll()
+        const authCookies = allCookies.filter(c => c.name.startsWith("sb-") && c.name.includes("-auth-token"))
+
+        if (authCookies.length === 0) return undefined
+
+        // Reconstruct from chunked cookies
+        const baseName = authCookies[0].name.replace(/\.\d+$/, "")
+        const chunks = allCookies
+            .filter(c => c.name === baseName || c.name.startsWith(baseName + "."))
+            .sort((a, b) => {
+                const aIdx = a.name.includes(".") ? parseInt(a.name.split(".").pop()!) : 0
+                const bIdx = b.name.includes(".") ? parseInt(b.name.split(".").pop()!) : 0
+                return aIdx - bIdx
+            })
+            .map(c => c.value)
+            .join("")
+
         const parsed = JSON.parse(chunks)
         return parsed.access_token
-    } catch {
+    } catch (err) {
+        console.error("[api-auth] Cookie extraction failed:", err)
         return undefined
     }
 }
 
 // ── Main Auth Function ─────────────────────────────────────────────────
 
-export async function authenticateRequest(): Promise<AuthResult> {
+export async function authenticateRequest(request?: Request): Promise<AuthResult> {
     try {
-        const accessToken = await getAccessTokenFromCookies()
+        // Try cookies first (standard Next.js approach)
+        let accessToken = await getAccessTokenFromCookies()
+
+        // Fallback: read Authorization header (for Cloudflare Workers where cookies may not work)
+        if (!accessToken && request) {
+            const authHeader = request.headers.get("authorization")
+            if (authHeader?.startsWith("Bearer ")) {
+                accessToken = authHeader.slice(7)
+            }
+        }
+
+        if (!accessToken) {
+            console.error("[api-auth] No access token found in cookies or Authorization header")
+        }
 
         const supabase = createClient<Database>(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
