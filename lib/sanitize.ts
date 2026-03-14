@@ -2,27 +2,16 @@
  * Input Sanitization Module
  * 
  * Sanitizes user inputs to prevent XSS, injection attacks, and other malicious content.
- * Uses DOMPurify for HTML sanitization and custom validators for other input types.
+ * Uses regex-based sanitization (lightweight, no jsdom dependency).
  */
 
 /**
- * Sanitize HTML content - removes all scripts and dangerous tags
- * Uses dynamic import to avoid loading jsdom on Cloudflare Workers
+ * Sanitize HTML content - strips all HTML tags using regex.
+ * Lightweight alternative to DOMPurify — no jsdom dependency.
  */
-export async function sanitizeHTML(input: string): Promise<string> {
+export function sanitizeHTML(input: string): string {
     if (!input || typeof input !== "string") return ""
-    
-    try {
-        const DOMPurify = (await import("isomorphic-dompurify")).default
-        return DOMPurify.sanitize(input, {
-            ALLOWED_TAGS: [], // Strip all HTML tags
-            ALLOWED_ATTR: [],
-            KEEP_CONTENT: true, // Keep text content
-        })
-    } catch {
-        // Fallback: strip HTML tags manually if DOMPurify unavailable (e.g. Workers)
-        return input.replace(/<[^>]*>/g, "")
-    }
+    return input.replace(/<[^>]*>/g, "")
 }
 
 /**

@@ -17,3 +17,6 @@ node_modules/
 
 # Cloudflare dev vars (contains secrets)
 .dev.vars
+
+# Wrangler dry-run output
+.wrangler-dry-run/

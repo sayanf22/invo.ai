@@ -15,6 +15,12 @@ const nextConfig = {
   // Empty turbopack config to allow build
   turbopack: {},
 
+  // Exclude heavy packages from the server bundle — they're only used client-side
+  serverExternalPackages: [
+    "@react-pdf/renderer",
+    "react-pdf",
+  ],
+
   // ── Security Headers ────────────────────────────────────────────────
   async headers() {
     return [
