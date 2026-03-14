@@ -90,14 +90,21 @@ export function createClient() {
             global: {
                 fetch: async (url, options) => {
                     const response = await fetch(url, options)
+                    // Only clear tokens on confirmed invalid_grant (expired/revoked refresh token).
+                    // Do NOT clear on network errors, 5xx, or other transient failures —
+                    // Supabase's built-in auto-refresh will retry automatically.
                     if (!response.ok && typeof url === "string" && url.includes("/auth/v1/token")) {
                         try {
                             const cloned = response.clone()
                             const body = await cloned.json()
-                            if (body?.error_description?.includes("Refresh Token") || body?.error === "invalid_grant") {
+                            // Only these specific errors mean the refresh token is permanently invalid
+                            if (body?.error === "invalid_grant") {
+                                console.warn("Supabase: Refresh token invalid, clearing auth tokens")
                                 clearAuthTokens()
                             }
-                        } catch { /* ignore */ }
+                        } catch {
+                            // JSON parse failed or network error — do NOT clear tokens
+                        }
                     }
                     return response
                 },

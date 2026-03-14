@@ -151,127 +151,163 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             const reader = response.body?.getReader()
             const decoder = new TextDecoder()
             let fullContent = ""
+            let sseBuffer = "" // Buffer for incomplete SSE lines across chunks
+            let streamError: string | null = null
+            let completeData: string | null = null
             if (!reader) throw new Error("No response body")
 
+            // Phase 1: Read the entire stream, accumulate content
             while (true) {
                 const { done, value: chunk } = await reader.read()
                 if (done) break
                 const text = decoder.decode(chunk, { stream: true })
-                const lines = text.split("\n").filter(l => l.startsWith("data: "))
-
-                for (const line of lines) {
+                sseBuffer += text
+                
+                // Process complete lines from the buffer
+                const parts = sseBuffer.split("\n")
+                sseBuffer = parts.pop() || "" // Keep incomplete last line in buffer
+                
+                for (const rawLine of parts) {
+                    const line = rawLine.trim()
+                    if (!line.startsWith("data: ")) continue
                     try {
                         const parsed = JSON.parse(line.slice(6))
                         if (parsed.type === "chunk") {
                             fullContent += parsed.data
                         } else if (parsed.type === "complete") {
-                            let cleaned = fullContent.trim()
-                            if (cleaned.startsWith("```json")) cleaned = cleaned.replace(/^```json\s*/i, "").replace(/```\s*$/, "")
-                            else if (cleaned.startsWith("```")) cleaned = cleaned.replace(/^```\s*/, "").replace(/```\s*$/, "")
-                            cleaned = cleaned.trim()
-
-                            if (cleaned.startsWith("{")) {
-                                try {
-                                    const result = JSON.parse(cleaned)
-                                    const docData = result.document || result
-                                    const aiMessage = result.message || ""
-
-                                    if (docData.documentType) {
-                                        const t = docData.documentType.toLowerCase()
-                                        docData.documentType = t === "invoice" ? "Invoice"
-                                            : t === "contract" ? "Contract"
-                                            : t === "quotation" ? "Quotation"
-                                            : t === "proposal" ? "Proposal"
-                                            : docData.documentType
-                                    }
-
-                                    // Ensure every item has a unique id (AI often omits them)
-                                    if (Array.isArray(docData.items)) {
-                                        docData.items = docData.items.map((item: any, i: number) => ({
-                                            ...item,
-                                            id: item.id || `ai-${Date.now()}-${i}`,
-                                            quantity: Number(item.quantity) || 1,
-                                            rate: Number(item.rate) || 0,
-                                            discount: item.discount ? Number(item.discount) || 0 : 0,
-                                        }))
-                                    }
-
-                                    // Strip AI-invented payment info if user didn't ask for it
-                                    const promptLower = userMessage.toLowerCase()
-                                    const mentionsPayment = /\b(payment method|bank transfer|bank details|payment info|pay via|pay by|wire|paypal|stripe|credit card|upi|ach)\b/i.test(promptLower)
-                                    if (!mentionsPayment) {
-                                        if (docData.paymentMethod) docData.paymentMethod = ""
-                                        if (docData.paymentInstructions) docData.paymentInstructions = ""
-                                    }
-
-                                    // Strip markdown formatting from all text fields — PDF renders raw asterisks
-                                    const stripMarkdown = (s: string) => s.replace(/\*\*/g, "").replace(/^#{1,6}\s+/gm, "").replace(/^[-*]\s+/gm, "• ")
-                                    const textFields = ["notes", "terms", "description", "paymentInstructions"] as const
-                                    for (const field of textFields) {
-                                        if (typeof docData[field] === "string" && docData[field]) {
-                                            docData[field] = stripMarkdown(docData[field])
-                                        }
-                                    }
-                                    if (Array.isArray(docData.items)) {
-                                        for (const item of docData.items) {
-                                            if (typeof item.description === "string") {
-                                                item.description = stripMarkdown(item.description)
-                                            }
-                                        }
-                                    }
-
-                                    // Recalculate totals client-side — LLMs can't do math reliably
-                                    if (Array.isArray(docData.items) && docData.items.length > 0) {
-                                        // Ensure numeric types for calculation inputs
-                                        docData.taxRate = Number(docData.taxRate) || 0
-                                        docData.discountValue = Number(docData.discountValue) || 0
-                                        docData.shippingFee = Number(docData.shippingFee) || 0
-                                        if (docData.discountType && docData.discountType !== "percent" && docData.discountType !== "flat") {
-                                            docData.discountType = "percent"
-                                        }
-
-                                        // Prevent double-discounting: if AI set per-item discounts AND a global discount,
-                                        // zero out the global discount — the AI is likely double-counting the same discount.
-                                        // Only keep global discount if NO items have per-item discounts.
-                                        const hasPerItemDiscounts = docData.items.some((item: any) => item.discount && item.discount > 0)
-                                        if (hasPerItemDiscounts && docData.discountValue > 0) {
-                                            docData.discountValue = 0
-                                        }
-
-                                        // Strip any AI-computed total fields — system calculates these
-                                        delete (docData as any).subtotal
-                                        delete (docData as any).total
-                                        delete (docData as any).taxAmount
-                                        delete (docData as any).discountAmount
-                                        delete (docData as any).grandTotal
-                                    }
-
-                                    onChange(docData)
-                                    await updateSessionContext(docData)
-                                    await saveGeneration(userMessage, docData, null, true)
-                                    setDocumentGenerated(true)
-
-                                    // Update client name on session for chain grouping
-                                    const clientName = docData.toName || docData.clientName || docData.preparedFor
-                                    if (clientName) await updateClientName(clientName)
-
-                                    const displayMsg = aiMessage || "✅ Document generated! Check the preview. Need changes? Just tell me."
-                                    setMessages(prev => [...prev, { role: "assistant", content: displayMsg }])
-                                    await saveMessage("assistant", displayMsg)
-                                    toast.success("Document updated!")
-                                } catch {
-                                    setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
-                                    await saveMessage("assistant", cleaned)
-                                }
-                            } else {
-                                setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
-                                await saveMessage("assistant", cleaned)
-                            }
+                            // Backend sends the full cleaned content — use it as authoritative source
+                            completeData = parsed.data
                         } else if (parsed.type === "error") {
-                            throw new Error(parsed.data)
+                            streamError = parsed.data
                         }
-                    } catch { /* skip malformed SSE lines */ }
+                    } catch {
+                        // Skip malformed SSE lines
+                    }
                 }
+            }
+
+            // Phase 2: Handle errors
+            if (streamError) {
+                throw new Error(streamError)
+            }
+
+            // Phase 3: Parse the complete response
+            // Prefer backend's cleaned data, fall back to our accumulated content
+            let cleaned = (completeData || fullContent).trim()
+            if (cleaned.startsWith("```json")) cleaned = cleaned.replace(/^```json\s*/i, "").replace(/```\s*$/, "")
+            else if (cleaned.startsWith("```")) cleaned = cleaned.replace(/^```\s*/, "").replace(/```\s*$/, "")
+            cleaned = cleaned.trim()
+
+            if (cleaned.startsWith("{")) {
+                let result: any = null
+                try {
+                    result = JSON.parse(cleaned)
+                } catch (parseErr) {
+                    // Try to salvage — sometimes there's trailing garbage after the JSON
+                    const lastBrace = cleaned.lastIndexOf("}")
+                    if (lastBrace > 0) {
+                        try {
+                            result = JSON.parse(cleaned.slice(0, lastBrace + 1))
+                        } catch {
+                            // Truly unparseable
+                        }
+                    }
+                }
+
+                if (result && typeof result === "object") {
+                    const docData = result.document || result
+                    const aiMessage = result.message || ""
+
+                    if (docData.documentType) {
+                        const t = docData.documentType.toLowerCase()
+                        docData.documentType = t === "invoice" ? "Invoice"
+                            : t === "contract" ? "Contract"
+                            : t === "quotation" ? "Quotation"
+                            : t === "proposal" ? "Proposal"
+                            : docData.documentType
+                    }
+
+                    // Ensure every item has a unique id (AI often omits them)
+                    if (Array.isArray(docData.items)) {
+                        docData.items = docData.items.map((item: any, i: number) => ({
+                            ...item,
+                            id: item.id || `ai-${Date.now()}-${i}`,
+                            quantity: Number(item.quantity) || 1,
+                            rate: Number(item.rate) || 0,
+                            discount: item.discount ? Number(item.discount) || 0 : 0,
+                        }))
+                    }
+
+                    // Strip AI-invented payment info if user didn't ask for it
+                    const promptLower = userMessage.toLowerCase()
+                    const mentionsPayment = /\b(payment method|bank transfer|bank details|payment info|pay via|pay by|wire|paypal|stripe|credit card|upi|ach)\b/i.test(promptLower)
+                    if (!mentionsPayment) {
+                        if (docData.paymentMethod) docData.paymentMethod = ""
+                        if (docData.paymentInstructions) docData.paymentInstructions = ""
+                    }
+
+                    // Strip markdown formatting from all text fields — PDF renders raw asterisks
+                    const stripMarkdown = (s: string) => s.replace(/\*\*/g, "").replace(/^#{1,6}\s+/gm, "").replace(/^[-*]\s+/gm, "• ")
+                    const textFields = ["notes", "terms", "description", "paymentInstructions"] as const
+                    for (const field of textFields) {
+                        if (typeof docData[field] === "string" && docData[field]) {
+                            docData[field] = stripMarkdown(docData[field])
+                        }
+                    }
+                    if (Array.isArray(docData.items)) {
+                        for (const item of docData.items) {
+                            if (typeof item.description === "string") {
+                                item.description = stripMarkdown(item.description)
+                            }
+                        }
+                    }
+
+                    // Recalculate totals client-side — LLMs can't do math reliably
+                    if (Array.isArray(docData.items) && docData.items.length > 0) {
+                        docData.taxRate = Number(docData.taxRate) || 0
+                        docData.discountValue = Number(docData.discountValue) || 0
+                        docData.shippingFee = Number(docData.shippingFee) || 0
+                        if (docData.discountType && docData.discountType !== "percent" && docData.discountType !== "flat") {
+                            docData.discountType = "percent"
+                        }
+
+                        // Prevent double-discounting
+                        const hasPerItemDiscounts = docData.items.some((item: any) => item.discount && item.discount > 0)
+                        if (hasPerItemDiscounts && docData.discountValue > 0) {
+                            docData.discountValue = 0
+                        }
+
+                        // Strip any AI-computed total fields — system calculates these
+                        delete (docData as any).subtotal
+                        delete (docData as any).total
+                        delete (docData as any).taxAmount
+                        delete (docData as any).discountAmount
+                        delete (docData as any).grandTotal
+                    }
+
+                    onChange(docData)
+                    await updateSessionContext(docData)
+                    await saveGeneration(userMessage, docData, null, true)
+                    setDocumentGenerated(true)
+
+                    // Update client name on session for chain grouping
+                    const clientName = docData.toName || docData.clientName || docData.preparedFor
+                    if (clientName) await updateClientName(clientName)
+
+                    const displayMsg = aiMessage || "✅ Document generated! Check the preview. Need changes? Just tell me."
+                    setMessages(prev => [...prev, { role: "assistant", content: displayMsg }])
+                    await saveMessage("assistant", displayMsg)
+                    toast.success("Document updated!")
+                } else {
+                    // JSON parse completely failed — show the raw text as a chat message
+                    console.error("Failed to parse AI response as JSON:", cleaned.slice(0, 200))
+                    setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
+                    await saveMessage("assistant", cleaned)
+                }
+            } else {
+                // Not JSON — plain text response from AI (e.g., clarification question)
+                setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
+                await saveMessage("assistant", cleaned)
             }
         } catch (err: any) {
             const errorMsg = err.message || "Something went wrong"

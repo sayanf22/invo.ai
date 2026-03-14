@@ -31,10 +31,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (!mounted) return
 
                 if (error) {
-                    console.warn("Session load failed:", error.message)
-                    // If token refresh failed, clear the stale tokens and sign out cleanly
-                    clearAuthTokens()
-                    await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+                    console.warn("Session load warning:", error.message)
+                    // DON'T clear tokens on session load failure — the token might still be valid
+                    // and auto-refresh will handle it. Only clear on explicit sign-out.
                     setSession(null)
                     setUser(null)
                 } else {
@@ -44,9 +43,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } catch (err) {
                 if (!mounted) return
                 console.warn("Session init error:", err)
-                // Network error or other failure — clear stale tokens
-                clearAuthTokens()
-                await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+                // Network error — DON'T clear tokens. User might just have a flaky connection.
+                // The session will be restored on next successful request.
                 setSession(null)
                 setUser(null)
             } finally {
