@@ -725,3 +725,6 @@ export type Database = {
     }
   }
 }
+
+// Convenience type aliases
+export type DocumentSession = Database["public"]["Tables"]["document_sessions"]["Row"]

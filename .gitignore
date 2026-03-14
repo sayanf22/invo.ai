@@ -11,3 +11,9 @@ node_modules/
 .env
 .env.*
 .DS_Store
+
+# OpenNext build output
+.open-next/
+
+# Cloudflare dev vars (contains secrets)
+.dev.vars
