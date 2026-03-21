@@ -87,13 +87,15 @@ export function PDFDownloadButton({
             variant={variant}
             size={size}
             className="btn-press transition-all duration-200"
+            title="Download PDF"
+            aria-label="Download PDF"
         >
             {isGenerating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
                 <>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download PDF
+                    <Download className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Download PDF</span>
                 </>
             )}
         </Button>

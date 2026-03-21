@@ -337,16 +337,16 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
   return (
     <div className="flex flex-col h-full w-full">
       {/* Toolbar */}
-      <div className="relative z-30 flex items-center justify-between px-4 py-2.5 border-b bg-card/80 backdrop-blur-sm shadow-sm shrink-0 gap-2">
+      <div className="relative z-30 flex items-center justify-between px-2 sm:px-4 py-2.5 border-b bg-card/80 backdrop-blur-sm shadow-sm shrink-0 gap-1.5 sm:gap-2">
         {/* Left: Design + Editor toggle */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {onChange && <TemplatePicker data={data} onChange={onChange} />}
           {onToggleEditor && (
             <button
               type="button"
               onClick={onToggleEditor}
               className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border transition-all duration-200 active:scale-95",
+                "hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border transition-all duration-200 active:scale-95",
                 showEditor
                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                   : "bg-card border-border text-foreground hover:border-primary/40 hover:shadow-sm"
@@ -358,8 +358,8 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
           )}
         </div>
 
-        {/* Center: Zoom controls + page info */}
-        <div className="flex items-center gap-1 bg-secondary/40 rounded-xl px-2 py-1">
+        {/* Center: Zoom controls + page info — hidden on mobile */}
+        <div className="hidden sm:flex items-center gap-1 bg-secondary/40 rounded-xl px-2 py-1">
           <ToolbarBtn onClick={handleZoomOut} disabled={!canZoomOut} title="Zoom out">
             <ZoomOut className="w-4 h-4" />
           </ToolbarBtn>
@@ -386,14 +386,21 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
           )}
         </div>
 
+        {/* Mobile: page count only */}
+        {pageCount > 0 && (
+          <span className="sm:hidden text-xs text-muted-foreground select-none">
+            {pageCount} {pageCount === 1 ? "page" : "pages"}
+          </span>
+        )}
+
         {/* Right: Print + Download */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={handlePrint}
             title="Print document"
             aria-label="Print document"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm transition-all duration-200 active:scale-95"
+            className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm transition-all duration-200 active:scale-95"
           >
             <Printer className="w-4 h-4" />
             <span className="hidden lg:inline">Print</span>

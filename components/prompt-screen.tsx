@@ -1,13 +1,14 @@
 ﻿"use client"
 
 import { useState, useCallback } from "react"
-import { ArrowLeft, Eye, PenLine, MessageSquare, Edit3, History as HistoryIcon } from "lucide-react"
+import { ArrowLeft, Eye, PenLine, MessageSquare, Edit3, History as HistoryIcon, Download } from "lucide-react"
 import { EditorPanel } from "@/components/editor-panel"
 import { DocumentPreview } from "@/components/document-preview"
 import { InvoiceChat } from "@/components/invoice-chat"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { InvoLogo } from "@/components/invo-logo"
 import { SessionHistorySidebar } from "@/components/session-history-sidebar"
+import { PDFDownloadButton } from "@/components/pdf-download-button"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { getInitialInvoiceData } from "@/lib/invoice-types"
 import { cn } from "@/lib/utils"
@@ -220,6 +221,13 @@ export function PromptScreen({
           <DocumentPreview data={data} onChange={handleChange} onToggleEditor={() => setShowEditor(e => !e)} showEditor={showEditor} />
         </div>
       </div>
+
+      {/* Mobile floating download button — visible on chat/edit tabs when document has content */}
+      {mobileTab !== "preview" && (data.documentType || data.fromName || data.toName) && (
+        <div className="md:hidden fixed bottom-6 right-4 z-50">
+          <PDFDownloadButton data={data} size="default" variant="default" />
+        </div>
+      )}
     </div>
   )
 }
