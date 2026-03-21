@@ -103,9 +103,21 @@ export function HamburgerMenu() {
                     isOpen ? "translate-x-0" : "translate-x-full"
                 )}
             >
+                {/* Close button inside panel */}
+                <div className="flex items-center justify-end px-4 pt-4 pb-0">
+                    <button
+                        type="button"
+                        onClick={() => setIsOpen(false)}
+                        aria-label="Close menu"
+                        className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-secondary/50 transition-all duration-200"
+                    >
+                        <MenuToggleIcon open={true} className="w-7 h-7" strokeWidth={3} duration={400} />
+                    </button>
+                </div>
+
                 {/* Header with user info */}
                 {user && (
-                    <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-primary/10">
+                    <div className="p-6 pt-2 border-b border-border bg-gradient-to-br from-primary/5 to-primary/10">
                         <div className="flex items-center gap-4">
                             {avatarUrl ? (
                                 <Image
