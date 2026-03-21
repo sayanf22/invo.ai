@@ -127,3 +127,8 @@ export function clearAuthTokens() {
             })
     } catch {}
 }
+
+/** Reset the singleton Supabase client. Call this after signOut to ensure fresh state. */
+export function resetSupabaseClient() {
+    supabaseInstance = null
+}

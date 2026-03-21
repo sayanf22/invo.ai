@@ -27,21 +27,40 @@ function LoginForm() {
         e.preventDefault()
         setIsLoading(true)
 
-        // Clear any stale auth tokens before attempting login
+        try {
+            // Sign out any stale session first — this clears the Supabase client's
+            // internal state AND removes cookies/localStorage via our storage adapter.
+            // Using scope: 'local' so we only clear this browser, not all sessions.
+            await supabase.auth.signOut({ scope: "local" })
+        } catch {
+            // Ignore sign-out errors — we're just clearing stale state
+        }
+
+        // Also clear any leftover cookie fragments that signOut might miss
         clearAuthTokens()
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({
+            const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             })
 
             if (error) {
+                console.error("[login] signInWithPassword error:", error.message, error.status)
                 if (error.message.includes("Invalid login credentials")) {
                     toast.error("Invalid email or password. Please try again or reset your password.")
+                } else if (error.message.includes("Email not confirmed")) {
+                    toast.error("Please confirm your email address first. Check your inbox.")
                 } else {
                     toast.error(error.message)
                 }
+                setIsLoading(false)
+                return
+            }
+
+            if (!data.session) {
+                console.error("[login] No session returned after successful login")
+                toast.error("Login succeeded but session was not created. Please try again.")
                 setIsLoading(false)
                 return
             }
@@ -50,6 +69,7 @@ function LoginForm() {
             router.push(redirectTo)
             router.refresh()
         } catch (err) {
+            console.error("[login] Unexpected error:", err)
             toast.error("Unable to connect. Please check your internet connection.")
             setIsLoading(false)
         }

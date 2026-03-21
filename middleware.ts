@@ -143,7 +143,12 @@ function parseAuthToken(raw: string): { access_token?: string; refresh_token?: s
   try {
     return JSON.parse(raw)
   } catch {
-    return null
+    // Cookie value might still be URL-encoded
+    try {
+      return JSON.parse(decodeURIComponent(raw))
+    } catch {
+      return null
+    }
   }
 }
 
