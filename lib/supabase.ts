@@ -51,7 +51,7 @@ function setCookieChunked(name: string, value: string): void {
     if (typeof document === "undefined") return
     removeCookieChunked(name)
     const encoded = encodeURIComponent(value)
-    const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString()
+    const expires = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toUTCString()
     const opts = `path=/;expires=${expires};SameSite=Lax`
     if (encoded.length <= CHUNK_SIZE) {
         document.cookie = `${name}=${encoded};${opts}`
