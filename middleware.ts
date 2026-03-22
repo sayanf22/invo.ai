@@ -24,9 +24,9 @@ const ipStore = new Map<string, RateLimitEntry>()
 
 // Rate limit configs per route category
 const RATE_LIMITS = {
-  auth:    { maxRequests: 20,  windowMs: 60_000 },  // 20 req/min for auth (brute force)
-  api:     { maxRequests: 60,  windowMs: 60_000 },  // 60 req/min for API routes
-  global:  { maxRequests: 120, windowMs: 60_000 },  // 120 req/min global fallback
+  auth:    { maxRequests: 30,  windowMs: 60_000 },  // 30 req/min for auth (brute force)
+  api:     { maxRequests: 120, windowMs: 60_000 },  // 120 req/min for API routes
+  global:  { maxRequests: 300, windowMs: 60_000 },  // 300 req/min global fallback
 } as const
 
 type RateLimitCategory = keyof typeof RATE_LIMITS
