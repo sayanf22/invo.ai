@@ -159,18 +159,22 @@ export function PromptScreen({
           )}
         </div>
 
-        {/* Chat/Editor Panel */}
+        {/* Chat/Editor Panel — single instance of each, shared across mobile & desktop */}
         <div
           className={`w-full md:w-[420px] lg:w-[460px] border-r border-border bg-card shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)] shrink-0 overflow-hidden flex flex-col ${
             mobileTab === "chat" || mobileTab === "edit" ? "flex" : "hidden md:flex"
           }`}
         >
-          {/* Desktop: Show chat by default, editor when toggled */}
-          <div className="hidden md:flex flex-col h-full relative overflow-hidden">
+          <div className="flex flex-col h-full relative overflow-hidden">
+            {/* Chat panel */}
             <div
               className={cn(
-                "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
-                showEditor ? "-translate-x-full opacity-0" : "translate-x-0 opacity-100"
+                "absolute inset-0 flex flex-col",
+                // Mobile: simple show/hide, no animation
+                mobileTab !== "chat" && "max-md:hidden",
+                // Desktop: slide animation for editor toggle
+                "md:transition-all md:duration-300 md:ease-in-out",
+                showEditor ? "md:-translate-x-full md:opacity-0" : "md:translate-x-0 md:opacity-100"
               )}
             >
               <InvoiceChat 
@@ -183,30 +187,17 @@ export function PromptScreen({
                 initialPrompt={initialPrompt}
               />
             </div>
+            {/* Editor panel */}
             <div
               className={cn(
-                "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
-                showEditor ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
+                "absolute inset-0 flex flex-col",
+                // Mobile: simple show/hide, no animation
+                mobileTab !== "edit" && "max-md:hidden",
+                // Desktop: slide animation for editor toggle
+                "md:transition-all md:duration-300 md:ease-in-out",
+                showEditor ? "md:translate-x-0 md:opacity-100" : "md:translate-x-full md:opacity-0"
               )}
             >
-              <EditorPanel data={data} onChange={handleChange} />
-            </div>
-          </div>
-
-          {/* Mobile tabs — always mounted, toggled via CSS to preserve state */}
-          <div className="md:hidden flex flex-col h-full relative">
-            <div className={mobileTab === "chat" ? "flex flex-col h-full" : "hidden"}>
-              <InvoiceChat 
-                data={data} 
-                onChange={handleChange}
-                selectedSessionId={selectedSessionId}
-                onSessionChange={setSelectedSessionId}
-                onLinkedSessionCreate={handleLinkedSessionCreate}
-                onChainSessionSelect={handleSessionSelect}
-                initialPrompt={initialPrompt}
-              />
-            </div>
-            <div className={mobileTab === "edit" ? "flex flex-col h-full" : "hidden"}>
               <EditorPanel data={data} onChange={handleChange} />
             </div>
           </div>
