@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Sparkles, RotateCcw } from "lucide-react"
+import { FileText, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -373,7 +373,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             <div className="px-5 py-4 border-b flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-primary/10 rounded-2xl">
-                        <Sparkles className="w-5 h-5 text-primary" />
+                        <FileText className="w-5 h-5 text-primary" />
                     </div>
                     <div>
                         <h3 className="font-semibold text-base">
