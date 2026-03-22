@@ -12,8 +12,25 @@ const cookieStorage = {
     getItem: (key: string): string | null => {
         if (typeof document === "undefined") return null
         const cookieVal = getCookie(key)
-        if (cookieVal) return cookieVal
-        try { return localStorage.getItem(key) } catch { return null }
+        if (cookieVal) {
+            // Supabase may store cookies with a "base64-" prefix (from @supabase/ssr or newer client versions).
+            // The auth client expects a raw JSON string, so decode it.
+            if (cookieVal.startsWith("base64-")) {
+                try {
+                    return atob(cookieVal.slice(7))
+                } catch {
+                    return cookieVal
+                }
+            }
+            return cookieVal
+        }
+        try {
+            const lsVal = localStorage.getItem(key)
+            if (lsVal && lsVal.startsWith("base64-")) {
+                try { return atob(lsVal.slice(7)) } catch { return lsVal }
+            }
+            return lsVal
+        } catch { return null }
     },
     setItem: (key: string, value: string): void => {
         if (typeof document === "undefined") return

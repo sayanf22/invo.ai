@@ -25,7 +25,16 @@ export async function createServerSupabaseClient() {
             .join("")
 
         try {
-            const parsed = JSON.parse(chunks)
+            // Handle base64-prefixed cookies (from @supabase/ssr or newer client versions)
+            let decoded = chunks
+            if (decoded.startsWith("base64-")) {
+                try {
+                    decoded = atob(decoded.slice(7))
+                } catch {
+                    // Not valid base64, try as-is
+                }
+            }
+            const parsed = JSON.parse(decoded)
             accessToken = parsed.access_token
         } catch {
             // Cookie parse failed

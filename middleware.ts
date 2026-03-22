@@ -140,12 +140,21 @@ function getAuthTokenFromCookies(request: NextRequest): string | null {
 }
 
 function parseAuthToken(raw: string): { access_token?: string; refresh_token?: string } | null {
+  // Handle base64-prefixed cookies (from @supabase/ssr or newer client versions)
+  let decoded = raw
+  if (decoded.startsWith("base64-")) {
+    try {
+      decoded = atob(decoded.slice(7))
+    } catch {
+      // Not valid base64, try as-is
+    }
+  }
   try {
-    return JSON.parse(raw)
+    return JSON.parse(decoded)
   } catch {
     // Cookie value might still be URL-encoded
     try {
-      return JSON.parse(decodeURIComponent(raw))
+      return JSON.parse(decodeURIComponent(decoded))
     } catch {
       return null
     }
