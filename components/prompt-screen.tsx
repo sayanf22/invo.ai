@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import { useState, useCallback } from "react"
-import { ArrowLeft, Eye, PenLine, MessageSquare, Edit3, History as HistoryIcon, Download } from "lucide-react"
+import { ArrowLeft, Eye, PenLine, MessageSquare, Edit3, History as HistoryIcon } from "lucide-react"
 import { EditorPanel } from "@/components/editor-panel"
 import { DocumentPreview } from "@/components/document-preview"
 import { InvoiceChat } from "@/components/invoice-chat"
@@ -51,10 +51,10 @@ export function PromptScreen({
   // When a linked document is created, switch to it and update the category
   const handleLinkedSessionCreate = useCallback((sessionId: string, docType: string) => {
     const capitalized = docType.charAt(0).toUpperCase() + docType.slice(1)
-    setData(prev => ({
+    setData({
       ...getInitialInvoiceData(),
       documentType: capitalized,
-    }))
+    })
     setSelectedSessionId(sessionId)
   }, [])
 
@@ -193,37 +193,37 @@ export function PromptScreen({
             </div>
           </div>
 
-          {/* Mobile tabs */}
-          <div className="md:hidden flex flex-col h-full">
-            {mobileTab === "chat" && (
-              <>
-                <InvoiceChat 
-                  data={data} 
-                  onChange={handleChange}
-                  selectedSessionId={selectedSessionId}
-                  onSessionChange={setSelectedSessionId}
-                  onLinkedSessionCreate={handleLinkedSessionCreate}
-                  onChainSessionSelect={handleSessionSelect}
-                  initialPrompt={initialPrompt}
-                />
-              </>
-            )}
-            {mobileTab === "edit" && <EditorPanel data={data} onChange={handleChange} />}
+          {/* Mobile tabs — always mounted, toggled via CSS to preserve state */}
+          <div className="md:hidden flex flex-col h-full relative">
+            <div className={mobileTab === "chat" ? "flex flex-col h-full" : "hidden"}>
+              <InvoiceChat 
+                data={data} 
+                onChange={handleChange}
+                selectedSessionId={selectedSessionId}
+                onSessionChange={setSelectedSessionId}
+                onLinkedSessionCreate={handleLinkedSessionCreate}
+                onChainSessionSelect={handleSessionSelect}
+                initialPrompt={initialPrompt}
+              />
+            </div>
+            <div className={mobileTab === "edit" ? "flex flex-col h-full" : "hidden"}>
+              <EditorPanel data={data} onChange={handleChange} />
+            </div>
           </div>
         </div>
 
-        {/* Preview Panel */}
+        {/* Preview Panel — always mounted, toggled via CSS */}
         <div
           className={`flex-1 bg-background overflow-hidden flex flex-col ${
-            mobileTab === "preview" ? "" : "hidden md:flex"
+            mobileTab === "preview" ? "flex" : "hidden md:flex"
           }`}
         >
           <DocumentPreview data={data} onChange={handleChange} onToggleEditor={() => setShowEditor(e => !e)} showEditor={showEditor} />
         </div>
       </div>
 
-      {/* Mobile floating download button — visible on chat/edit tabs when document has content */}
-      {mobileTab !== "preview" && (data.documentType || data.fromName || data.toName) && (
+      {/* Mobile floating download button — only on preview tab */}
+      {mobileTab === "preview" && (data.documentType || data.fromName || data.toName) && (
         <div className="md:hidden fixed bottom-6 right-4 z-50">
           <PDFDownloadButton data={data} size="default" variant="default" />
         </div>
