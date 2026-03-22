@@ -8,11 +8,11 @@ import { cn } from "@/lib/utils"
 import { AIInputWithLoading } from "@/components/ui/ai-input-with-loading"
 import { toast } from "sonner"
 import type { InvoiceData } from "@/lib/invoice-types"
-import { calculateTotal } from "@/lib/invoice-types"
 import { useDocumentSession } from "@/hooks/use-document-session"
 import { MarkdownMessage } from "@/components/markdown-message"
 import { NextStepsBar } from "@/components/next-steps-bar"
 import { ChainNavigator } from "@/components/chain-navigator"
+import AIThinkingBlock from "@/components/ui/ai-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
 
 interface InvoiceChatProps {
@@ -420,11 +420,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     ))}
                     {isLoading && (
                         <div className="flex justify-start w-full animate-in fade-in duration-200">
-                            <div className="bg-muted rounded-2xl px-4 py-3 space-x-1.5 flex items-center rounded-bl-md">
-                                <span className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                <span className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                <span className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce" />
-                            </div>
+                            <AIThinkingBlock label={`Generating ${docType}...`} />
                         </div>
                     )}
                     <div ref={scrollRef} />
