@@ -90,15 +90,15 @@ export default function AIThinkingBlock({ label = "Invo is thinking" }: AIThinki
         <span className="text-xs text-muted-foreground/60 tabular-nums">{timer}s</span>
       </div>
 
-      <Card className="relative h-[130px] overflow-hidden !p-0 border-border/50">
+      <Card className="relative h-[130px] overflow-hidden !p-0 border-border shadow-md">
         {/* Top fade */}
-        <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-card from-30% to-transparent z-10 pointer-events-none h-[60px]" />
+        <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-card from-20% to-transparent z-10 pointer-events-none h-[50px]" />
         {/* Bottom fade */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-card from-30% to-transparent z-10 pointer-events-none h-[60px]" />
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-card from-20% to-transparent z-10 pointer-events-none h-[50px]" />
         {/* Scrolling content */}
         <div
           ref={contentRef}
-          className="h-full overflow-hidden px-4 py-3 text-muted-foreground/40"
+          className="h-full overflow-hidden px-4 py-3 text-muted-foreground/70"
           style={{ scrollBehavior: "auto" }}
         >
           <p className="text-xs leading-relaxed whitespace-pre-wrap">{THINKING_CONTENT}</p>

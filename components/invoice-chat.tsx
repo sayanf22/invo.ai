@@ -428,7 +428,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             </ScrollArea>
 
             {/* Input + Next Steps */}
-            <div className="px-4 py-3 border-t border-border/50 shrink-0">
+            <div className="px-4 py-3 border-t border-border shrink-0">
                 <div className="max-w-2xl mx-auto">
                     {/* Next Steps Bar — shows after generation is complete */}
                     {documentGenerated && !isLoading && session && (

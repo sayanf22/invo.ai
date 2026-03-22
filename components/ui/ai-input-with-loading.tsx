@@ -64,10 +64,10 @@ export function AIInputWithLoading({
       <div className="relative w-full">
         <div
           className={cn(
-            "relative rounded-2xl border bg-card transition-all duration-200 shadow-sm",
+            "relative rounded-2xl border bg-card transition-all duration-200",
             isLoading
-              ? "border-primary/30 shadow-[0_2px_12px_-2px_hsl(var(--primary)/0.12)]"
-              : "border-border/60 focus-within:border-primary/40 focus-within:shadow-[0_2px_12px_-2px_hsl(var(--primary)/0.12)]"
+              ? "border-primary/40 shadow-[0_2px_16px_-2px_hsl(var(--primary)/0.15)]"
+              : "border-border shadow-[0_1px_8px_-1px_rgba(0,0,0,0.08)] focus-within:border-primary/40 focus-within:shadow-[0_2px_16px_-2px_hsl(var(--primary)/0.15)]"
           )}
         >
           <Textarea
