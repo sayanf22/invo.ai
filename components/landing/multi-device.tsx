@@ -17,13 +17,13 @@ export function MultiDeviceSection() {
     const yMobile = useTransform(scrollYProgress, [0, 1], [200, -200])
 
     return (
-        <section ref={containerRef} className="py-24 sm:py-32 px-6 overflow-hidden bg-[var(--landing-cream)]">
-            <div className="max-w-7xl mx-auto text-center mb-16 sm:mb-24 relative z-10">
+        <section ref={containerRef} className="py-16 sm:py-24 lg:py-32 px-4 sm:px-6 overflow-hidden bg-[var(--landing-cream)]">
+            <div className="max-w-7xl mx-auto text-center mb-10 sm:mb-16 lg:mb-24 relative z-10">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    className="inline-block px-4 py-1.5 rounded-full bg-white border border-stone-200/50 text-sm font-semibold mb-6 shadow-sm text-[var(--landing-text-muted)]"
+                    className="inline-block px-4 py-1.5 rounded-full bg-white border border-stone-200/50 text-sm font-semibold mb-4 sm:mb-6 shadow-sm text-[var(--landing-text-muted)]"
                 >
                     Cross-Platform Sync
                 </motion.div>
@@ -31,18 +31,51 @@ export function MultiDeviceSection() {
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    className="font-display text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-[var(--landing-text-dark)] drop-shadow-sm"
+                    className="font-display text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-4 sm:mb-6 text-[var(--landing-text-dark)] drop-shadow-sm"
                 >
                     Everywhere you <br />
                     <span className="text-[var(--landing-amber)] italic font-serif">work</span>
                 </motion.h2>
-                <p className="text-xl sm:text-2xl text-[var(--landing-text-muted)] max-w-2xl mx-auto drop-shadow-sm">
+                <p className="text-base sm:text-xl md:text-2xl text-[var(--landing-text-muted)] max-w-2xl mx-auto drop-shadow-sm">
                     Capture ideas on your phone, edit on your tablet, finalize on your desktop.
                 </p>
             </div>
 
             {/* Device Composition */}
-            <div className="relative h-[600px] md:h-[800px] w-full max-w-[1200px] mx-auto perspective-[2000px] flex items-center justify-center">
+            <div className="relative w-full max-w-[1200px] mx-auto flex items-center justify-center">
+
+                {/* Mobile: just show the desktop mockup, no parallax */}
+                <div className="sm:hidden w-full">
+                    <div className="w-full bg-white rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] border border-stone-100 overflow-hidden">
+                        {/* Browser chrome */}
+                        <div className="h-8 bg-[#F9F9F9] border-b border-stone-200 flex items-center px-3 gap-1.5">
+                            <div className="flex gap-1 opacity-50">
+                                <div className="w-2 h-2 rounded-full bg-red-400" />
+                                <div className="w-2 h-2 rounded-full bg-amber-400" />
+                                <div className="w-2 h-2 rounded-full bg-green-400" />
+                            </div>
+                        </div>
+                        {/* Content */}
+                        <div className="p-5 font-serif text-stone-800">
+                            <div className="text-xl font-bold font-display text-stone-900 border-b border-stone-100 pb-3 mb-4">
+                                Project Proposal: Q3 Marketing
+                            </div>
+                            <div className="space-y-3 text-sm leading-relaxed text-stone-600">
+                                <p><span className="font-semibold text-stone-800">Objective:</span> To increase brand awareness by 25% through targeted social media campaigns.</p>
+                                <p className="p-3 bg-[var(--landing-cream)] rounded-xl border border-[var(--landing-amber)]/20 text-stone-700 italic text-xs">
+                                    &ldquo;Strategy without tactics is the slowest route to victory.&rdquo;
+                                </p>
+                                <p>This proposal outlines the key deliverables, timeline, and budget allocation for the upcoming quarter.</p>
+                                <div className="flex items-center gap-2 text-[var(--landing-amber)] font-sans text-xs animate-pulse">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-current" /> AI generating next section...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Desktop+ parallax composition — hidden on mobile */}
+                <div className="hidden sm:block relative h-[600px] md:h-[800px] w-full perspective-[2000px]">
 
                 {/* 1. DESKTOP: Main Document Editor */}
                 <motion.div
@@ -241,6 +274,7 @@ export function MultiDeviceSection() {
                     </div>
                 </motion.div>
 
+                </div>{/* end desktop+ parallax */}
             </div>
         </section>
     )
