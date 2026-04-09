@@ -28,7 +28,7 @@ function writeSessionCookies(response: NextResponse, session: { access_token: st
         user: session.user,
     }
 
-    const encoded = encodeURIComponent(JSON.stringify(tokenObj))
+    const raw = JSON.stringify(tokenObj)
     const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
     const cookieOpts = {
         path: "/",
@@ -44,14 +44,16 @@ function writeSessionCookies(response: NextResponse, session: { access_token: st
     }
     response.cookies.delete(cookieName)
 
-    if (encoded.length <= CHUNK_SIZE) {
-        response.cookies.set(cookieName, encoded, cookieOpts)
+    // NextResponse.cookies.set automatically handles encoding
+    // Store as raw JSON — the browser client's getCookie does decodeURIComponent
+    if (raw.length <= CHUNK_SIZE) {
+        response.cookies.set(cookieName, raw, cookieOpts)
     } else {
-        const count = Math.ceil(encoded.length / CHUNK_SIZE)
+        const count = Math.ceil(raw.length / CHUNK_SIZE)
         for (let i = 0; i < count; i++) {
             response.cookies.set(
                 `${cookieName}.${i}`,
-                encoded.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
+                raw.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
                 cookieOpts
             )
         }
