@@ -1,5 +1,5 @@
 {
-  "name": "clorefy",
+  "name": "invoai",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-05-05",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -15,7 +15,7 @@
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "clorefy"
+      "service": "invoai"
     }
   ]
 }
