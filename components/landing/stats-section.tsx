@@ -48,7 +48,7 @@ function Counter({ from, to, duration, suffix }: { from: number; to: number; dur
         return () => cancelAnimationFrame(animationFrameId)
     }, [inView, from, to, duration, suffix, hasAnimated])
 
-    return <span ref={nodeRef} className="font-display font-bold text-5xl sm:text-6xl md:text-7xl text-[var(--landing-text-dark)] tabular-nums tracking-tight">0{suffix}</span>
+    return <span ref={nodeRef} className="font-display font-bold text-3xl sm:text-5xl md:text-6xl lg:text-7xl text-[var(--landing-text-dark)] tabular-nums tracking-tight">0{suffix}</span>
 }
 
 export function StatsSection() {

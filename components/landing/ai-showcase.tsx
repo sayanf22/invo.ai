@@ -16,9 +16,9 @@ export function AIShowcase() {
     }, [])
 
     return (
-        <section className="py-32 px-6 sm:px-10 bg-[var(--landing-cream)] overflow-hidden">
+        <section className="py-16 sm:py-24 lg:py-32 px-4 sm:px-6 lg:px-10 bg-[var(--landing-cream)] overflow-hidden">
             <div className="max-w-7xl mx-auto">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 sm:gap-20 items-center">
                     {/* Left Content - Text Focused */}
                     <motion.div
                         initial={{ opacity: 0, x: -30 }}
@@ -29,7 +29,7 @@ export function AIShowcase() {
                             <span className="w-2 h-2 rounded-full bg-[var(--landing-amber)] animate-pulse" />
                             How it works
                         </div>
-                        <h2 className="font-display text-5xl sm:text-7xl font-bold mb-8 leading-[0.9]">
+                        <h2 className="font-display text-3xl sm:text-5xl lg:text-7xl font-bold mb-6 sm:mb-8 leading-[0.95]">
                             From messy thought <br />
                             to <span className="text-[var(--landing-amber)] italic font-serif">masterpiece</span>
                         </h2>

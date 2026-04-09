@@ -31,7 +31,7 @@ export function MultiDeviceSection() {
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    className="font-display text-4xl sm:text-6xl md:text-7xl font-bold mb-6 text-[var(--landing-text-dark)] drop-shadow-sm"
+                    className="font-display text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-[var(--landing-text-dark)] drop-shadow-sm"
                 >
                     Everywhere you <br />
                     <span className="text-[var(--landing-amber)] italic font-serif">work</span>

@@ -104,16 +104,16 @@ const subVariants = {
 
 export function FeaturesSection() {
     return (
-        <section className="py-32 px-6 sm:px-10 bg-[var(--landing-cream)]">
+        <section className="py-16 sm:py-24 lg:py-32 px-4 sm:px-6 lg:px-10 bg-[var(--landing-cream)]">
             <div className="max-w-7xl mx-auto">
                 {/* Section heading */}
-                <div className="text-center mb-24">
+                <div className="text-center mb-12 sm:mb-24">
                     <motion.h2
                         variants={headingVariants}
                         initial="hidden"
                         whileInView="visible"
                         viewport={{ once: true, margin: "-60px" }}
-                        className="font-display text-5xl sm:text-7xl font-bold mb-6 leading-[0.9]"
+                        className="font-display text-3xl sm:text-5xl lg:text-7xl font-bold mb-4 sm:mb-6 leading-[0.95]"
                     >
                         Everything you need to <br />
                         <span className="text-[var(--landing-amber)] italic font-serif">flow</span>
@@ -123,7 +123,7 @@ export function FeaturesSection() {
                         initial="hidden"
                         whileInView="visible"
                         viewport={{ once: true, margin: "-60px" }}
-                        className="text-xl text-[var(--landing-text-muted)] max-w-2xl mx-auto"
+                        className="text-base sm:text-xl text-[var(--landing-text-muted)] max-w-2xl mx-auto"
                     >
                         Powerful tools wrapped in a simple, intuitive interface. No complex setup required.
                     </motion.p>
@@ -142,14 +142,14 @@ export function FeaturesSection() {
                             key={feat.title}
                             custom={i}
                             variants={cardVariants}
-                            className={`rounded-[2.5rem] p-10 flex flex-col justify-between hover:-translate-y-2 hover:shadow-2xl transition-[transform,box-shadow] duration-300 cursor-default ${feat.className}`}
+                            className={`rounded-[1.5rem] sm:rounded-[2.5rem] p-6 sm:p-10 flex flex-col justify-between hover:-translate-y-2 hover:shadow-2xl transition-[transform,box-shadow] duration-300 cursor-default ${feat.className}`}
                         >
-                            <div className="mb-8">
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${feat.className.includes('text-white') ? 'bg-white/10 text-white' : 'bg-[var(--landing-cream)] text-[var(--landing-amber)]'}`}>
-                                    <feat.icon size={26} />
+                            <div className="mb-4 sm:mb-8">
+                                <div className={`w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center mb-4 sm:mb-6 ${feat.className.includes('text-white') ? 'bg-white/10 text-white' : 'bg-[var(--landing-cream)] text-[var(--landing-amber)]'}`}>
+                                    <feat.icon size={22} className="sm:w-[26px] sm:h-[26px]" />
                                 </div>
-                                <h3 className="font-display text-3xl font-bold mb-4">{feat.title}</h3>
-                                <p className={`text-lg leading-relaxed ${feat.className.includes('text-white') ? 'text-white/80' : 'text-[var(--landing-text-muted)]'}`}>
+                                <h3 className="font-display text-xl sm:text-3xl font-bold mb-2 sm:mb-4">{feat.title}</h3>
+                                <p className={`text-sm sm:text-lg leading-relaxed ${feat.className.includes('text-white') ? 'text-white/80' : 'text-[var(--landing-text-muted)]'}`}>
                                     {feat.desc}
                                 </p>
                             </div>

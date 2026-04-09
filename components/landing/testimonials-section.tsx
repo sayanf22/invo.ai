@@ -48,7 +48,7 @@ export function TestimonialsSection() {
     }
 
     return (
-        <section className="py-32 px-6 sm:px-10 bg-white overflow-hidden">
+        <section className="py-16 sm:py-24 lg:py-32 px-4 sm:px-6 lg:px-10 bg-white overflow-hidden">
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row items-end justify-between gap-8 mb-20">
                     <motion.div
@@ -56,7 +56,7 @@ export function TestimonialsSection() {
                         whileInView={{ opacity: 1, x: 0 }}
                         viewport={{ once: true }}
                     >
-                        <h2 className="font-display text-4xl sm:text-6xl font-bold mb-4">
+                        <h2 className="font-display text-3xl sm:text-4xl lg:text-6xl font-bold mb-4">
                             Loved by <span className="text-[var(--landing-amber)] italic font-serif">builders</span>
                         </h2>
                         <p className="text-xl text-[var(--landing-text-muted)]">

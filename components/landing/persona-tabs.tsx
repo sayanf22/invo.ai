@@ -23,7 +23,7 @@ export function PersonaTabs() {
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        className="font-display text-4xl sm:text-6xl font-bold mb-4"
+                        className="font-display text-3xl sm:text-4xl lg:text-6xl font-bold mb-4"
                     >
                         Made for <span className="text-[var(--landing-amber)] italic font-serif">you</span>
                     </motion.h2>
@@ -61,7 +61,7 @@ export function PersonaTabs() {
                             >
                                 <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(198,122,60,0.15)_0%,transparent_70%)] pointer-events-none" />
 
-                                <h3 className="font-display text-4xl sm:text-5xl font-bold mb-6 relative z-10">
+                                <h3 className="font-display text-2xl sm:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 relative z-10">
                                     {personas[active].title}
                                 </h3>
                                 <p className="text-xl sm:text-2xl text-[var(--landing-text-dim)] leading-relaxed relative z-10">
