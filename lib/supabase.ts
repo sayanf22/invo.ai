@@ -11,26 +11,20 @@ let supabaseInstance: ReturnType<typeof createSupabaseClient<Database>> | null =
 const cookieStorage = {
     getItem: (key: string): string | null => {
         if (typeof document === "undefined") return null
-        const cookieVal = getCookie(key)
-        if (cookieVal) {
-            // Supabase may store cookies with a "base64-" prefix (from @supabase/ssr or newer client versions).
-            // The auth client expects a raw JSON string, so decode it.
-            if (cookieVal.startsWith("base64-")) {
-                try {
-                    return atob(cookieVal.slice(7))
-                } catch {
-                    return cookieVal
-                }
-            }
-            return cookieVal
+        let val = getCookie(key)
+        if (!val) {
+            try { val = localStorage.getItem(key) } catch { return null }
         }
-        try {
-            const lsVal = localStorage.getItem(key)
-            if (lsVal && lsVal.startsWith("base64-")) {
-                try { return atob(lsVal.slice(7)) } catch { return lsVal }
-            }
-            return lsVal
-        } catch { return null }
+        if (!val) return null
+        // Handle base64-prefixed values from @supabase/ssr
+        if (val.startsWith("base64-")) {
+            try { return atob(val.slice(7)) } catch { return val }
+        }
+        // Handle URL-encoded JSON (from server-side cookie writes)
+        if (val.startsWith("%7B") || val.startsWith("%5B")) {
+            try { return decodeURIComponent(val) } catch { return val }
+        }
+        return val
     },
     setItem: (key: string, value: string): void => {
         if (typeof document === "undefined") return
@@ -57,11 +51,21 @@ function getCookie(name: string): string | null {
             if (!chunk) break
             chunks.push(chunk.split("=").slice(1).join("="))
         }
-        return decodeURIComponent(chunks.join(""))
+        return safeDecodeURI(chunks.join(""))
     }
     const base = cookies.find(c => c.startsWith(`${name}=`))
-    if (base) return decodeURIComponent(base.split("=").slice(1).join("="))
+    if (base) return safeDecodeURI(base.split("=").slice(1).join("="))
     return null
+}
+
+/** Decode URI component safely — returns original if already decoded or invalid */
+function safeDecodeURI(val: string): string {
+    try {
+        const decoded = decodeURIComponent(val)
+        return decoded
+    } catch {
+        return val
+    }
 }
 
 function setCookieChunked(name: string, value: string): void {
