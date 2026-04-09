@@ -109,7 +109,7 @@ function LoginForm() {
                 <div className="text-center space-y-2">
                     <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
                     <p className="text-sm text-muted-foreground">
-                        Sign in to continue to Invo.ai
+                        Sign in to continue to Clorefy
                     </p>
                 </div>
             </div>

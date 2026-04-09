@@ -210,7 +210,7 @@ export function validateOrigin(request: Request): NextResponse | null {
     const allowedOrigins = [
         process.env.NEXT_PUBLIC_APP_URL,
         process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
-        "https://invoai.proj-invo.workers.dev",
+        "https://clorefy.com",
         "http://localhost:3000",
         "http://localhost:3001",
     ].filter(Boolean) as string[]

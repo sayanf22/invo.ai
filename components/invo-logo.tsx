@@ -1,14 +1,2 @@
-import Image from "next/image"
-
-export function InvoLogo({ size = 72 }: { size?: number }) {
-  return (
-    <Image
-      src="/favicon.png"
-      alt="Invo.ai"
-      width={size}
-      height={size}
-      className="rounded-lg"
-      priority
-    />
-  )
-}
+// Re-export from new branded file for backward compatibility
+export { ClorefyLogo, ClorefyLogo as InvoLogo } from "./clorefy-logo"

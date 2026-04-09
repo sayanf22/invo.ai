@@ -1,4 +1,4 @@
-// 11 Supported Countries for Invo.ai
+// 11 Supported Countries for Clorefy
 // All countries have equal priority as per specification
 
 export interface Country {

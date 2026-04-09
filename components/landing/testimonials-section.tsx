@@ -9,7 +9,7 @@ const testimonials = [
     {
         name: "Sarah Chen",
         role: "Product Manager at TechFlow",
-        content: "I used to spend hours drafting PRDs and release notes. With Invo, I just talk through my ideas during my commute, and by the time I'm at my desk, the documents are ready.",
+        content: "I used to spend hours drafting PRDs and release notes. with Clorefy, I just talk through my ideas during my commute, and by the time I'm at my desk, the documents are ready.",
         rating: 5,
         avatar: "https://i.pravatar.cc/150?u=sarah"
     },
@@ -30,7 +30,7 @@ const testimonials = [
     {
         name: "David Kim",
         role: "Startup Founder",
-        content: "We use Invo for everything — meeting minutes, investor updates, hiring contracts. It's the operating system for our documentation.",
+        content: "We use Clorefy for everything — meeting minutes, investor updates, hiring contracts. It's the operating system for our documentation.",
         rating: 5,
         avatar: "https://i.pravatar.cc/150?u=david"
     }

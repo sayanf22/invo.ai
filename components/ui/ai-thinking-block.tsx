@@ -41,7 +41,7 @@ interface AIThinkingBlockProps {
   label?: string
 }
 
-export default function AIThinkingBlock({ label = "Invo is thinking" }: AIThinkingBlockProps) {
+export default function AIThinkingBlock({ label = "Clorefy is thinking" }: AIThinkingBlockProps) {
   const [scrollPosition, setScrollPosition] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
   const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)

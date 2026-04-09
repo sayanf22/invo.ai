@@ -17,8 +17,8 @@ const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: "--font-roboto-mo
 
 export const metadata: Metadata = {
   title: {
-    default: "Invo.ai - Intelligent Business Documents",
-    template: "%s | Invo.ai",
+    default: "Clorefy - Intelligent Business Documents",
+    template: "%s | Clorefy",
   },
   description:
     "Create invoices, contracts, quotations, and proposals with AI-powered precision. Compliant across 11 countries.",
@@ -26,19 +26,19 @@ export const metadata: Metadata = {
     icon: "/fabicon.png",
     apple: "/fabicon.png",
   },
-  metadataBase: new URL("https://invoai.proj-invo.workers.dev"),
+  metadataBase: new URL("https://clorefy.com"),
   openGraph: {
-    title: "Invo.ai - Intelligent Business Documents",
+    title: "Clorefy - Intelligent Business Documents",
     description:
       "AI-powered invoices, contracts, quotations, and proposals. Compliant across 11 countries. Export as PDF, DOCX, or image.",
-    url: "https://invoai.proj-invo.workers.dev",
-    siteName: "Invo.ai",
+    url: "https://clorefy.com",
+    siteName: "Clorefy",
     locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Invo.ai - Intelligent Business Documents",
+    title: "Clorefy - Intelligent Business Documents",
     description:
       "AI-powered invoices, contracts, quotations, and proposals. Compliant across 11 countries.",
   },

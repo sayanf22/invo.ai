@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/auth/callback", "/auth/confirm", "/onboarding"],
       },
     ],
-    sitemap: "https://invoai.proj-invo.workers.dev/sitemap.xml",
+    sitemap: "https://clorefy.com/sitemap.xml",
   }
 }

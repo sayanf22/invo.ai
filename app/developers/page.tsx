@@ -42,7 +42,7 @@ export default function DevelopersPage() {
 
             <h1 className="font-display text-5xl sm:text-6xl font-medium tracking-tight leading-[1.08]" style={{ color: "#1a1a1a" }}>
               Build with<br />
-              <span className="font-serif italic" style={{ color: "#e07b39" }}>Invo.ai API</span>
+              <span className="font-serif italic" style={{ color: "#e07b39" }}>Clorefy API</span>
             </h1>
 
             <p className="text-lg text-stone-500 leading-relaxed max-w-lg mx-auto">

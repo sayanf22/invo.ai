@@ -34,7 +34,7 @@ export function AIShowcase() {
                             to <span className="text-[var(--landing-amber)] italic font-serif">masterpiece</span>
                         </h2>
                         <p className="text-xl text-[var(--landing-text-muted)] mb-12 leading-relaxed max-w-lg">
-                            Stop worrying about structure or format. Just type your rough ideas. Invo understands context and formats everything perfectly.
+                            Stop worrying about structure or format. Just type your rough ideas. Clorefy understands context and formats everything perfectly.
                         </p>
 
                         <div className="space-y-8">

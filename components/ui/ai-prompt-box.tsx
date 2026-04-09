@@ -215,7 +215,7 @@ const PromptInputAction: React.FC<PromptInputActionProps> = ({
   )
 }
 
-// Main PromptInputBox Component — adapted for Invo.ai theme
+// Main PromptInputBox Component — adapted for Clorefy theme
 interface PromptInputBoxProps {
   onSend?: (message: string) => void
   isLoading?: boolean
@@ -283,7 +283,7 @@ export const PromptInputBox = React.forwardRef(
 
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5 text-[14px] text-muted-foreground select-none">
-              <span className="font-medium">Invo AI</span>
+              <span className="font-medium">Clorefy AI</span>
               <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
                 <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>

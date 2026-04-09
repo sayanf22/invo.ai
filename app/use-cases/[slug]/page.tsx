@@ -18,16 +18,16 @@ type UseCaseData = {
 
 const USE_CASES: Record<string, UseCaseData> = {
     freelancers: {
-        title: "Invo for Freelancers",
+        title: "Clorefy for Freelancers",
         tagline: "Get paid faster, stress less",
-        desc: "Stop spending hours formatting invoices. Describe your work, and Invo generates professional invoices with correct tax calculations, payment terms, and your branding — in seconds.",
+        desc: "Stop spending hours formatting invoices. Describe your work, and Clorefy generates professional invoices with correct tax calculations, payment terms, and your branding — in seconds.",
         icon: Briefcase,
         color: "from-orange-100 to-orange-50",
         benefits: ["Professional branded invoices", "Auto tax calculation", "Recurring invoice scheduling", "Payment tracking & reminders", "Multi-currency support", "Client portal for payments"],
         stats: [{ label: "Faster invoicing", value: "10×" }, { label: "Avg. saved per month", value: "8 hrs" }]
     },
     developers: {
-        title: "Invo for Consultants",
+        title: "Clorefy for Consultants",
         tagline: "Professional proposals in minutes",
         desc: "Create polished proposals, contracts, and invoices that win clients. AI handles the formatting and compliance so you can focus on delivering value.",
         icon: Code2,
@@ -36,7 +36,7 @@ const USE_CASES: Record<string, UseCaseData> = {
         stats: [{ label: "Time saved per doc", value: "15 min" }, { label: "Client win rate", value: "+40%" }]
     },
     students: {
-        title: "Invo for Students",
+        title: "Clorefy for Students",
         tagline: "Professional docs, student budget",
         desc: "Create polished project proposals, freelance invoices, and internship contracts. Free tier includes everything you need to start your professional journey.",
         icon: GraduationCap,
@@ -45,16 +45,16 @@ const USE_CASES: Record<string, UseCaseData> = {
         stats: [{ label: "Student users", value: "50K+" }, { label: "Student discount", value: "50%" }]
     },
     lawyers: {
-        title: "Invo for Lawyers",
+        title: "Clorefy for Lawyers",
         tagline: "Draft with precision, bill with ease",
         desc: "Generate contracts, quotations, and engagement letters with legal-grade accuracy. Built-in compliance checks, version tracking, and audit trails for every document.",
         icon: Scale,
         color: "from-indigo-100 to-indigo-50",
         benefits: ["Legal document templates", "Clause library & smart fill", "Version history & audit trail", "E-signature integration", "HIPAA-eligible infrastructure", "Jurisdiction-aware formatting"],
-        stats: [{ label: "Faster drafting", value: "5×" }, { label: "Firms using Invo", value: "2,000+" }]
+        stats: [{ label: "Faster drafting", value: "5×" }, { label: "Firms using Clorefy", value: "2,000+" }]
     },
     agencies: {
-        title: "Invo for Agencies",
+        title: "Clorefy for Agencies",
         tagline: "Scale your client operations",
         desc: "Manage proposals, contracts, and invoices across all your clients from one dashboard. Brand each document per client, manage team access, and automate billing workflows.",
         icon: Palette,
@@ -63,7 +63,7 @@ const USE_CASES: Record<string, UseCaseData> = {
         stats: [{ label: "Agencies onboarded", value: "500+" }, { label: "Time saved on admin", value: "60%" }]
     },
     sales: {
-        title: "Invo for Sales",
+        title: "Clorefy for Sales",
         tagline: "Close deals with speed",
         desc: "Generate proposals, quotes, and contracts instantly after meetings. Auto-fill client data, add custom terms, and get signatures — all from one workflow.",
         icon: TrendingUp,
@@ -72,7 +72,7 @@ const USE_CASES: Record<string, UseCaseData> = {
         stats: [{ label: "Faster deal close", value: "3×" }, { label: "Proposals sent daily", value: "100K+" }]
     },
     teams: {
-        title: "Invo for Teams",
+        title: "Clorefy for Teams",
         tagline: "One platform, every document",
         desc: "Centralized document generation for your whole organization. Shared templates, consistent branding, usage dashboards, and enterprise-grade security.",
         icon: Users,
@@ -104,7 +104,7 @@ export default function UseCasePage() {
                                 <span className="uppercase tracking-wider text-xs font-bold">{slug.replace(/-/g, ' ')}</span>
                             </div>
                             <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight text-[var(--landing-text-dark)] mb-6 leading-[1.1]">
-                                {data.title.replace("Invo for ", "")}<br />
+                                {data.title.replace("Clorefy for ", "")}<br />
                                 <span className="font-serif italic text-[var(--landing-amber)]">{data.tagline}</span>
                             </h1>
                             <p className="text-xl text-[var(--landing-text-muted)] max-w-2xl mx-auto mb-10">
@@ -140,7 +140,7 @@ export default function UseCasePage() {
                             viewport={{ once: true }}
                             className="font-display text-4xl font-bold mb-12 text-center"
                         >
-                            Why {slug.replace(/-/g, ' ')} love Invo
+                            Why {slug.replace(/-/g, ' ')} love Clorefy
                         </motion.h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                             {data.benefits.map((benefit, i) => (

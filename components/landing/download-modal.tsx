@@ -53,7 +53,7 @@ export function DownloadModalProvider({ children }: { children: ReactNode }) {
                                 >
                                     <div className="flex items-center justify-between mb-8">
                                         <Dialog.Title className="text-2xl font-display font-medium text-[var(--landing-text-dark)]">
-                                            Get Invo Flow
+                                            Get Clorefy Flow
                                         </Dialog.Title>
                                         <Dialog.Close className="p-2 rounded-full hover:bg-stone-100 transition-colors">
                                             <X size={20} />

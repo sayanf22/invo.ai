@@ -176,7 +176,7 @@ export function LandingNavbar() {
             <nav className={`hidden md:flex fixed top-6 left-1/2 -translate-x-1/2 z-[100] items-center gap-1 px-2 py-2 rounded-full transition-all duration-500 ${scrolled ? 'glass-nav shadow-lg shadow-black/5 border border-stone-200/30' : 'bg-transparent'}`}>
                 {/* Logo */}
                 <Link href="/" className="flex items-center px-3 mr-2">
-                    <Image src="/favicon.png" alt="Invo.ai" width={50} height={50} className="rounded-lg" priority />
+                    <Image src="/favicon.png" alt="Clorefy" width={50} height={50} className="rounded-lg" priority />
                 </Link>
 
                 <NavDropdown label="Product" items={productItems} isOpen={openDropdown === "product"} onOpen={() => openMenu("product")} onClose={() => closeMenu("product")} />
@@ -197,7 +197,7 @@ export function LandingNavbar() {
             <nav className="md:hidden fixed top-4 left-4 right-4 z-50">
                 <div className={`flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 ${scrolled || mobileOpen ? 'glass-nav shadow-lg border border-stone-200/30' : 'bg-transparent'}`}>
                     <Link href="/" className="flex items-center">
-                        <Image src="/favicon.png" alt="Invo.ai" width={50} height={50} className="rounded-lg" priority />
+                        <Image src="/favicon.png" alt="Clorefy" width={50} height={50} className="rounded-lg" priority />
                     </Link>
                     <button onClick={() => setMobileOpen(!mobileOpen)} className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-stone-100 transition-colors">
                         {mobileOpen ? <X size={20} /> : <Menu size={20} />}

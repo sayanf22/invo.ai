@@ -155,7 +155,7 @@ export default function UpdatePasswordPage() {
                             </p>
                         </div>
                         <Button className="w-full" onClick={() => router.push("/")}>
-                            Continue to Invo.ai
+                            Continue to Clorefy
                         </Button>
                     </div>
                 ) : (

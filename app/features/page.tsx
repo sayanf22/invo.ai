@@ -28,7 +28,7 @@ const tabs = [
 const tabContent: Record<string, { title: string; desc: string; features: { icon: any; name: string; detail: string }[] }> = {
     generate: {
         title: "AI-powered document generation",
-        desc: "Describe what you need in plain language. Invo generates professional invoices, contracts, quotations, and proposals in seconds.",
+        desc: "Describe what you need in plain language. Clorefy generates professional invoices, contracts, quotations, and proposals in seconds.",
         features: [
             { icon: Sparkles, name: "Smart AI drafting", detail: "Turn a few sentences into a complete, formatted document" },
             { icon: FileText, name: "Multiple document types", detail: "Invoices, contracts, quotations, proposals, and more" },

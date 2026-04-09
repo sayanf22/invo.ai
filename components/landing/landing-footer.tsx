@@ -80,11 +80,11 @@ export function LandingFooter() {
                 {/* Bottom */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-white/10">
                     <div className="flex items-center gap-2">
-                        <Image src="/favicon.png" alt="Invo.ai" width={28} height={28} className="rounded-lg" />
-                        <span className="font-bold text-sm">Invo.ai</span>
+                        <Image src="/favicon.png" alt="Clorefy" width={28} height={28} className="rounded-lg" />
+                        <span className="font-bold text-sm">Clorefy</span>
                     </div>
                     <p className="text-xs text-white/30">
-                        © {new Date().getFullYear()} Invo.ai. All rights reserved.
+                        © {new Date().getFullYear()} Clorefy. All rights reserved.
                     </p>
                 </div>
             </div>

@@ -91,7 +91,7 @@ export default function OnboardingPage() {
                 throw profileError
             }
 
-            toast.success("🎉 Business profile saved! Welcome to Invo.ai")
+            toast.success("🎉 Business profile saved! Welcome to Clorefy")
             router.push("/")
             router.refresh()
         } catch (error) {

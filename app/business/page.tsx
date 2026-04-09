@@ -32,8 +32,8 @@ const teamFeatures = [
 ]
 
 const faqs = [
-    { q: "How do I try Invo with my team?", a: "Sign up for a free account and invite your team members. You can try the Starter plan with up to 5 users before upgrading." },
-    { q: "Is there a minimum team size?", a: "No minimum. Whether you're a team of 2 or 2,000, Invo scales with you." },
+    { q: "How do I try Clorefy with my team?", a: "Sign up for a free account and invite your team members. You can try the Starter plan with up to 5 users before upgrading." },
+    { q: "Is there a minimum team size?", a: "No minimum. Whether you're a team of 2 or 2,000, Clorefy scales with you." },
     { q: "What if I already have a personal account?", a: "You can merge your personal account into a team workspace without losing any documents or templates." },
     { q: "How does billing work for teams?", a: "One centralized bill for your entire organization. Add or remove seats anytime — you only pay for active users." },
 ]
@@ -55,7 +55,7 @@ export default function BusinessPage() {
                         >
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-100/80 text-[var(--landing-amber)] font-semibold text-sm mb-8 border border-orange-200/50">
                                 <Building2 size={16} />
-                                <span>Invo for Teams</span>
+                                <span>Clorefy for Teams</span>
                             </div>
                             <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight text-[var(--landing-text-dark)] mb-6 leading-[1.1]">
                                 Get your whole team <br />
@@ -202,10 +202,10 @@ export default function BusinessPage() {
                     <motion.div {...fadeUp} className="max-w-5xl mx-auto bg-[var(--landing-dark)] rounded-[3rem] p-12 sm:p-20 text-center relative overflow-hidden">
                         <div className="absolute inset-0 bg-mesh-dark opacity-50" />
                         <h2 className="font-display text-4xl sm:text-6xl text-[var(--landing-cream)] mb-4 relative z-10">
-                            Ready to bring Invo<br /><span className="text-[var(--landing-amber)] italic font-serif">to your team?</span>
+                            Ready to bring Clorefy<br /><span className="text-[var(--landing-amber)] italic font-serif">to your team?</span>
                         </h2>
                         <p className="text-[var(--landing-text-dim)] text-lg mb-8 relative z-10 max-w-lg mx-auto">
-                            Join hundreds of teams generating documents faster with Invo.
+                            Join hundreds of teams generating documents faster with Clorefy.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
                             <Link href="/contact-sales" className="group inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[var(--landing-cream)] text-[var(--landing-dark)] font-bold text-lg hover:scale-105 transition-transform">

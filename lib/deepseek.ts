@@ -39,7 +39,7 @@ export interface AIGenerationResponse {
 
 // ── Document Generation System Prompt ──────────────────────────────────
 
-const GENERATION_SYSTEM_PROMPT = `You are Invo AI, a professional document generator. You create invoices, contracts, quotations, and proposals from user prompts.
+const GENERATION_SYSTEM_PROMPT = `You are Clorefy AI, a professional document generator. You create invoices, contracts, quotations, and proposals from user prompts.
 
 ## CRITICAL: MATH & CALCULATIONS
 - DO NOT compute subtotals, totals, tax amounts, or discount amounts. The system calculates these automatically from the raw values you provide.

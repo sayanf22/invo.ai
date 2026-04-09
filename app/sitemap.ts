@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next"
 
-const BASE_URL = "https://invoai.proj-invo.workers.dev"
+const BASE_URL = "https://clorefy.com"
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [

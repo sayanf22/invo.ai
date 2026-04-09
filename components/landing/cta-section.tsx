@@ -25,7 +25,7 @@ export function CTASection() {
                     </h2>
 
                     <p className="text-base sm:text-xl md:text-2xl text-[var(--landing-text-dim)] mb-8 sm:mb-14 max-w-2xl mx-auto font-light">
-                        Join 10,000+ professionals generating documents with Invo. No credit card required.
+                        Join 10,000+ professionals generating documents with Clorefy. No credit card required.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">

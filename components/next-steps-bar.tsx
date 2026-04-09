@@ -43,7 +43,7 @@ export function NextStepsBar({ clientName, currentDocType, parentSessionId, onCr
                     : <span>Create a related document</span>
                 }
             </p>
-            <div className="flex gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 -mb-1 scrollbar-none snap-x snap-mandatory">
                 {availableTypes.map(type => {
                     const opt = DOC_OPTIONS[type]
                     const Icon = opt.icon
@@ -55,7 +55,7 @@ export function NextStepsBar({ clientName, currentDocType, parentSessionId, onCr
                             onClick={() => handleClick(type)}
                             disabled={!!loadingType}
                             className={cn(
-                                "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium border border-border/60 bg-background text-foreground transition-all duration-200 active:scale-[0.97] shadow-sm",
+                                "flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium border border-border/60 bg-background text-foreground transition-all duration-200 active:scale-[0.97] shadow-sm whitespace-nowrap shrink-0 snap-start",
                                 isLoading ? "opacity-60 cursor-wait" : "cursor-pointer hover:bg-secondary/50 hover:shadow-md"
                             )}
                         >

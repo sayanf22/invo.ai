@@ -172,13 +172,13 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
             } else {
                 setMessages([{
                     role: "assistant",
-                    content: "Hi! 👋 I'm Invo AI. I'll help you set up your business profile in just a few minutes. What type of business do you run?"
+                    content: "Hi! 👋 I'm Clorefy AI. I'll help you set up your business profile in just a few minutes. What type of business do you run?"
                 }])
             }
         } catch {
             setMessages([{
                 role: "assistant",
-                content: "Hi! 👋 I'm Invo AI. I'll help you set up your business profile. What type of business do you run? (e.g., freelancer, agency, e-commerce)"
+                content: "Hi! 👋 I'm Clorefy AI. I'll help you set up your business profile. What type of business do you run? (e.g., freelancer, agency, e-commerce)"
             }])
         } finally {
             setIsLoading(false)
@@ -302,7 +302,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                             <Sparkles className="w-6 h-6 text-primary" />
                         </div>
                         <div>
-                            <h3 className="font-semibold text-lg">Invo AI</h3>
+                            <h3 className="font-semibold text-lg">Clorefy AI</h3>
                             <p className="text-sm text-muted-foreground">Setting up your business profile</p>
                         </div>
                     </div>

@@ -35,16 +35,22 @@ export function HamburgerMenu() {
 
     const handleOpen = useCallback(() => {
         setIsOpen(true)
-        // Small delay so the panel starts sliding in, then the icon morphs
+        // Let the browser paint the panel at translate-x-full first,
+        // then on the next frame trigger the slide-in + icon morph together
         requestAnimationFrame(() => {
-            setVisibleOpen(true)
+            requestAnimationFrame(() => {
+                setVisibleOpen(true)
+            })
         })
     }, [])
 
     const handleClose = useCallback(() => {
-        // Morph icon X → hamburger AND slide panel out simultaneously
+        // Start icon morph and panel slide-out together
         setVisibleOpen(false)
-        setIsOpen(false)
+        // Wait for the slide-out animation to finish before unmounting overlay
+        setTimeout(() => {
+            setIsOpen(false)
+        }, 350)
     }, [])
 
     const toggle = useCallback(() => {
@@ -81,15 +87,16 @@ export function HamburgerMenu() {
         : email.charAt(0).toUpperCase()
     const avatarUrl = user?.user_metadata?.avatar_url || ""
 
-    // Lock body scroll when menu is open
+    // Lock body scroll when menu is open (keep locked during close animation)
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = "hidden"
-        } else {
+        }
+        if (!isOpen && !visibleOpen) {
             document.body.style.overflow = ""
         }
         return () => { document.body.style.overflow = "" }
-    }, [isOpen])
+    }, [isOpen, visibleOpen])
 
     return (
         <div className="relative">
@@ -110,7 +117,7 @@ export function HamburgerMenu() {
                     open={visibleOpen}
                     className="w-9 h-9"
                     strokeWidth={3}
-                    duration={400}
+                    duration={350}
                 />
             </button>
 
@@ -118,7 +125,8 @@ export function HamburgerMenu() {
             <div
                 className={cn(
                     "fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300",
-                    isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+                    isOpen ? "pointer-events-auto" : "pointer-events-none",
+                    visibleOpen ? "opacity-100" : "opacity-0"
                 )}
                 onClick={handleClose}
             />
@@ -126,9 +134,12 @@ export function HamburgerMenu() {
             {/* Slide-out menu panel */}
             <div
                 className={cn(
-                    "fixed top-0 right-0 h-full w-[420px] max-w-[calc(100vw-16px)] bg-background border-l border-border shadow-[-8px_0_30px_-5px_rgba(0,0,0,0.15)] z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col",
-                    isOpen ? "translate-x-0" : "translate-x-full"
+                    "fixed top-0 right-0 h-full w-[420px] max-w-[calc(100vw-16px)] bg-background border-l border-border shadow-[-8px_0_30px_-5px_rgba(0,0,0,0.15)] z-50 flex flex-col",
+                    "transition-transform ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform",
+                    visibleOpen ? "translate-x-0" : "translate-x-full",
+                    !isOpen && !visibleOpen && "invisible"
                 )}
+                style={{ transitionDuration: "350ms" }}
             >
                 {/* Header with user info */}
                 {user && (
@@ -229,7 +240,7 @@ export function HamburgerMenu() {
 
                 {/* Footer */}
                 <div className="shrink-0 p-4 border-t border-border bg-muted/30">
-                    <p className="text-xs text-center text-muted-foreground">Invo.ai © 2026</p>
+                    <p className="text-xs text-center text-muted-foreground">Clorefy © 2026</p>
                     <p className="text-xs text-center text-muted-foreground mt-1">v1.0.0</p>
                 </div>
             </div>

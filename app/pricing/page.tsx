@@ -522,7 +522,7 @@ export default function PricingPage() {
                 </div>
               </motion.div>
 
-              {/* Invo.ai — featured row */}
+              {/* Clorefy — featured row */}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 whileInView={{ opacity: 1, x: 0 }}
@@ -547,7 +547,7 @@ export default function PricingPage() {
                 </div>
                 <div className="flex-1 min-w-0 relative z-10">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-bold text-white">Invo.ai Pro</p>
+                    <p className="text-sm font-bold text-white">Clorefy Pro</p>
                     <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "rgba(224,123,57,0.2)", color: "#e07b39" }}>recommended</span>
                   </div>
                   <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>AI-generated, compliant, ready in seconds</p>

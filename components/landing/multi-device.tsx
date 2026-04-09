@@ -57,7 +57,7 @@ export function MultiDeviceSection() {
                             <div className="w-3 h-3 rounded-full bg-green-400" />
                         </div>
                         <div className="hidden md:flex ml-4 px-3 py-1 bg-white rounded-md border border-stone-200 text-xs text-stone-400 w-64 shadow-sm items-center gap-2">
-                            <span className="opacity-50">invo.ai/editor/proposal-v2</span>
+                            <span className="opacity-50">Clorefy/editor/proposal-v2</span>
                         </div>
                     </div>
 
@@ -66,7 +66,7 @@ export function MultiDeviceSection() {
                         {/* Sidebar */}
                         <div className="hidden md:flex w-64 bg-[#FAFAFA] border-r border-stone-200 flex-col p-6 gap-6">
                             <div className="flex items-center gap-2 font-bold text-xl text-[var(--landing-text-dark)] opacity-80 mb-4">
-                                <div className="w-6 h-6 rounded bg-[var(--landing-amber)]" /> Invo
+                                <div className="w-6 h-6 rounded bg-[var(--landing-amber)]" /> Clorefy
                             </div>
                             <div className="space-y-2">
                                 <div className="flex items-center gap-3 p-2 bg-white rounded-lg shadow-sm font-medium text-sm text-[var(--landing-amber)]">
