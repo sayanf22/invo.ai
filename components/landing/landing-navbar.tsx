@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Menu, X, ArrowRight, ChevronDown, Sparkles, FileText, Shield, Code2, Briefcase, GraduationCap, Scale, Palette, Users, TrendingUp, BookOpen, HelpCircle, MessageCircle } from "lucide-react"
+import { Menu, X, ArrowRight, ChevronDown, Sparkles, FileText, Shield, Briefcase, GraduationCap, Scale, Palette, Users, TrendingUp, BookOpen, HelpCircle, MessageCircle } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { usePathname } from "next/navigation"
 
@@ -174,9 +175,8 @@ export function LandingNavbar() {
             {/* Desktop Navbar */}
             <nav className={`hidden md:flex fixed top-6 left-1/2 -translate-x-1/2 z-[100] items-center gap-1 px-2 py-2 rounded-full transition-all duration-500 ${scrolled ? 'glass-nav shadow-lg shadow-black/5 border border-stone-200/30' : 'bg-transparent'}`}>
                 {/* Logo */}
-                <Link href="/" className="flex items-center gap-2 px-3 mr-2">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[var(--landing-amber)] to-[var(--landing-amber-light)] flex items-center justify-center text-white font-bold text-sm shadow-md">I</div>
-                    <span className="font-bold text-[var(--landing-text-dark)] text-sm tracking-tight">Invo.ai</span>
+                <Link href="/" className="flex items-center px-3 mr-2">
+                    <Image src="/favicon.png" alt="Invo.ai" width={50} height={50} className="rounded-lg" priority />
                 </Link>
 
                 <NavDropdown label="Product" items={productItems} isOpen={openDropdown === "product"} onOpen={() => openMenu("product")} onClose={() => closeMenu("product")} />
@@ -196,9 +196,8 @@ export function LandingNavbar() {
             {/* Mobile Navbar */}
             <nav className="md:hidden fixed top-4 left-4 right-4 z-50">
                 <div className={`flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 ${scrolled || mobileOpen ? 'glass-nav shadow-lg border border-stone-200/30' : 'bg-transparent'}`}>
-                    <Link href="/" className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[var(--landing-amber)] to-[var(--landing-amber-light)] flex items-center justify-center text-white font-bold text-sm shadow-md">I</div>
-                        <span className="font-bold text-[var(--landing-text-dark)] text-sm">Invo.ai</span>
+                    <Link href="/" className="flex items-center">
+                        <Image src="/favicon.png" alt="Invo.ai" width={50} height={50} className="rounded-lg" priority />
                     </Link>
                     <button onClick={() => setMobileOpen(!mobileOpen)} className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-stone-100 transition-colors">
                         {mobileOpen ? <X size={20} /> : <Menu size={20} />}

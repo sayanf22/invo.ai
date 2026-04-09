@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { ArrowRight } from "lucide-react"
 
 const footerLinks = {
@@ -8,7 +9,7 @@ const footerLinks = {
         { label: "Features", href: "/features" },
         { label: "Pricing", href: "/pricing" },
         { label: "Business", href: "/business" },
-        { label: "Developers", href: "/developers" },
+        { label: "Use Cases", href: "/use-cases/freelancers" },
     ],
     "Use Cases": [
         { label: "Freelancers", href: "/use-cases/freelancers" },
@@ -79,9 +80,7 @@ export function LandingFooter() {
                 {/* Bottom */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-white/10">
                     <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[var(--landing-amber)] to-[var(--landing-amber-light)] flex items-center justify-center text-white font-bold text-xs shadow-md">
-                            I
-                        </div>
+                        <Image src="/favicon.png" alt="Invo.ai" width={28} height={28} className="rounded-lg" />
                         <span className="font-bold text-sm">Invo.ai</span>
                     </div>
                     <p className="text-xs text-white/30">

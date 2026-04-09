@@ -64,11 +64,11 @@ const tabContent: Record<string, { title: string; desc: string; features: { icon
     },
     integrate: {
         title: "Connects to your workflow",
-        desc: "API-first architecture means Invo works with your existing tools. Automate document creation from your favorite apps.",
+        desc: "Export, share, and collaborate on documents with your team. Multiple formats, shareable links, and version history built in.",
         features: [
-            { icon: Zap, name: "REST API", detail: "Full API access for automated document generation" },
-            { icon: Languages, name: "Webhooks", detail: "Real-time notifications when documents are signed or viewed" },
-            { icon: Globe, name: "Zapier & Make", detail: "Connect to 5,000+ apps without writing code" },
+            { icon: Zap, name: "Instant Export", detail: "Download as PDF, DOCX, or image in one click" },
+            { icon: Languages, name: "Version History", detail: "Track every change with full document version history" },
+            { icon: Globe, name: "Shareable Links", detail: "Send documents via link — clients view and sign online" },
         ]
     }
 }
@@ -176,7 +176,7 @@ export default function FeaturesPage() {
                                 { icon: Languages, name: "Multi-Language", desc: "Generate in 50+ languages" },
                                 { icon: Shield, name: "E-Signatures", desc: "Built-in signing workflow" },
                                 { icon: FileText, name: "PDF Export", desc: "Pixel-perfect documents" },
-                                { icon: Zap, name: "API Access", desc: "Automate everything" },
+                                { icon: Zap, name: "Quick Export", desc: "PDF, DOCX, and images" },
                                 { icon: Users, name: "Team Sharing", desc: "Collaborate on templates" },
                                 { icon: Stamp, name: "Audit Trail", desc: "Version tracking & history" },
                                 { icon: CheckCircle, name: "Compliance", desc: "Legal-ready documents" },

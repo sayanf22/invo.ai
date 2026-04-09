@@ -27,13 +27,13 @@ const USE_CASES: Record<string, UseCaseData> = {
         stats: [{ label: "Faster invoicing", value: "10×" }, { label: "Avg. saved per month", value: "8 hrs" }]
     },
     developers: {
-        title: "Invo for Developers",
-        tagline: "Ship billing features in minutes",
-        desc: "Full REST API for programmatic document generation. Create invoices, receipts, and contracts from your codebase. Strongly typed schemas, webhooks, and SDKs in JS, Python, Go.",
+        title: "Invo for Consultants",
+        tagline: "Professional proposals in minutes",
+        desc: "Create polished proposals, contracts, and invoices that win clients. AI handles the formatting and compliance so you can focus on delivering value.",
         icon: Code2,
         color: "from-blue-100 to-blue-50",
-        benefits: ["RESTful API with OpenAPI specs", "Webhooks for document events", "SDKs in JS, Python, Go, Ruby", "Sandbox mode for testing", "Idempotent request handling", "Strongly typed JSON schemas"],
-        stats: [{ label: "API response time", value: "<200ms" }, { label: "Documents via API", value: "10M+" }]
+        benefits: ["AI-generated proposals and SOWs", "Country-specific tax compliance", "E-signature workflow built in", "Multiple export formats", "Client-ready in seconds", "Version history and audit trail"],
+        stats: [{ label: "Time saved per doc", value: "15 min" }, { label: "Client win rate", value: "+40%" }]
     },
     students: {
         title: "Invo for Students",

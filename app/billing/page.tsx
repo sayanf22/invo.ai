@@ -41,7 +41,7 @@ export default function BillingPage() {
         "Priority support",
         "All export formats",
         "Custom branding",
-        "API access"
+        "Priority support"
       ],
       current: false,
       popular: true

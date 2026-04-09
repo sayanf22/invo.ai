@@ -22,6 +22,10 @@ export const metadata: Metadata = {
   },
   description:
     "Create invoices, contracts, quotations, and proposals with AI-powered precision. Compliant across 11 countries.",
+  icons: {
+    icon: "/fabicon.png",
+    apple: "/fabicon.png",
+  },
   metadataBase: new URL("https://invoai.proj-invo.workers.dev"),
   openGraph: {
     title: "Invo.ai - Intelligent Business Documents",

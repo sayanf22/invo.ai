@@ -64,7 +64,7 @@ export default function SignupPage() {
         <div className="min-h-screen flex flex-col bg-background">
             {/* Header */}
             <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
-                <Link href="/pricing" aria-label="Go to pricing page">
+                <Link href="/" aria-label="Go to home page">
                     <InvoLogo size={36} />
                 </Link>
                 <nav className="flex items-center gap-4 text-[14px]">

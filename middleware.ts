@@ -113,7 +113,7 @@ const PUBLIC_PATHS = [
 ]
 
 function isPublicPath(pathname: string): boolean {
-  if (pathname === "/") return false
+  if (pathname === "/") return true // Landing page is public — app/page.tsx handles auth check
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p))
 }
 
