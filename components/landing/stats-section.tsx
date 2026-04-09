@@ -75,12 +75,13 @@ function Counter({ from, to, duration, suffix }: { from: number; to: number; dur
 }
 
 const cardVariants = {
-    hidden: { opacity: 0, y: 30 },
-    visible: (i: number) => ({
+    hidden: { opacity: 0, y: 50, scale: 0.97 },
+    visible: {
         opacity: 1,
         y: 0,
-        transition: { delay: i * 0.12, duration: 0.6, ease: [0.22, 1, 0.36, 1] },
-    }),
+        scale: 1,
+        transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] },
+    },
 }
 
 export function StatsSection() {
@@ -92,25 +93,24 @@ export function StatsSection() {
                     return (
                         <motion.div
                             key={i}
-                            custom={i}
                             variants={cardVariants}
                             initial="hidden"
                             whileInView="visible"
-                            viewport={{ once: true, margin: "-40px" }}
-                            className="flex items-center gap-5 sm:gap-6 rounded-2xl sm:rounded-3xl bg-white p-5 sm:p-7 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.08)] border border-stone-100/60"
+                            viewport={{ once: true, amount: 0.4 }}
+                            className="flex items-center gap-5 sm:gap-6 rounded-2xl sm:rounded-3xl bg-white p-5 sm:p-7 shadow-[0_4px_24px_-6px_rgba(0,0,0,0.1)] border border-stone-100/60"
                         >
                             {/* Rounded icon badge */}
                             <div className={`${stat.bg} shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl flex items-center justify-center shadow-md`}>
                                 <Icon className="w-7 h-7 sm:w-9 sm:h-9 text-white" strokeWidth={1.8} />
                             </div>
 
-                            {/* Text content */}
-                            <div className="flex-1 min-w-0">
+                            {/* Text content — vertically centered */}
+                            <div className="flex-1 min-w-0 flex flex-col justify-center">
                                 <Counter from={0} to={stat.value} duration={stat.duration} suffix={stat.suffix} />
-                                <p className="mt-1 text-base sm:text-lg font-semibold text-[var(--landing-text-dark)] leading-snug">
+                                <p className="mt-1.5 text-base sm:text-lg font-semibold text-[var(--landing-text-dark)] leading-tight">
                                     {stat.label}
                                 </p>
-                                <p className="mt-0.5 text-sm text-[var(--landing-text-muted)]">
+                                <p className="mt-0.5 text-[13px] sm:text-sm text-[var(--landing-text-muted)]">
                                     {stat.detail}
                                 </p>
                             </div>
