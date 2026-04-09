@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { InvoLogo } from "@/components/invo-logo"
+import { HamburgerMenu } from "@/components/hamburger-menu"
 import { OnboardingChat, type CollectedData } from "@/components/onboarding-chat"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
@@ -112,10 +113,11 @@ export default function OnboardingPage() {
         <div className="min-h-screen flex flex-col bg-background">
             {/* Header */}
             <header className="border-b py-5 px-6 flex items-center justify-between shrink-0">
-                <InvoLogo />
+                <InvoLogo size={36} />
                 <div className="text-base font-medium text-muted-foreground">
                     Business Setup
                 </div>
+                <HamburgerMenu />
             </header>
 
             {/* Main — Chat Only */}

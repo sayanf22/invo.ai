@@ -9,12 +9,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { InvoLogo } from "@/components/invo-logo"
 import { toast } from "sonner"
-import { Loader2, Lock, CheckCircle2, ArrowLeft } from "lucide-react"
+import { Loader2, Lock, CheckCircle2, ArrowLeft, Eye, EyeOff } from "lucide-react"
 
 export default function UpdatePasswordPage() {
     const router = useRouter()
     const [password, setPassword] = useState("")
     const [confirmPassword, setConfirmPassword] = useState("")
+    const [showPassword, setShowPassword] = useState(false)
+    const [showConfirm, setShowConfirm] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [isUpdated, setIsUpdated] = useState(false)
     const [hasSession, setHasSession] = useState<boolean | null>(null)
@@ -166,15 +168,23 @@ export default function UpdatePasswordPage() {
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     id="password"
-                                    type="password"
+                                    type={showPassword ? "text" : "password"}
                                     placeholder="••••••••"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="pl-10"
+                                    className="pl-10 pr-10"
                                     required
                                     minLength={6}
                                     autoFocus
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                    aria-label={showPassword ? "Hide password" : "Show password"}
+                                >
+                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
                             </div>
                         </div>
 
@@ -184,14 +194,22 @@ export default function UpdatePasswordPage() {
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     id="confirmPassword"
-                                    type="password"
+                                    type={showConfirm ? "text" : "password"}
                                     placeholder="••••••••"
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
-                                    className="pl-10"
+                                    className="pl-10 pr-10"
                                     required
                                     minLength={6}
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirm(!showConfirm)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                    aria-label={showConfirm ? "Hide password" : "Show password"}
+                                >
+                                    {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
                             </div>
                             {confirmPassword && password !== confirmPassword && (
                                 <p className="text-xs text-destructive">Passwords do not match</p>
