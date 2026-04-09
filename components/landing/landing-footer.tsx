@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { ArrowRight } from "lucide-react"
+import { ClorefyLogo } from "@/components/clorefy-logo"
 
 const footerLinks = {
     Product: [
@@ -79,8 +79,8 @@ export function LandingFooter() {
 
                 {/* Bottom */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-white/10">
-                    <div className="flex items-center gap-2">
-                        <Image src="/favicon.png" alt="Clorefy" width={28} height={28} className="rounded-lg" />
+                    <div className="flex items-center gap-2.5">
+                        <ClorefyLogo size={28} />
                         <span className="font-bold text-sm">Clorefy</span>
                     </div>
                     <p className="text-xs text-white/30">
