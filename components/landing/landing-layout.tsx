@@ -7,7 +7,6 @@ import { DownloadModalProvider } from "./download-modal"
 import { motion, AnimatePresence } from "framer-motion"
 import { usePathname } from "next/navigation"
 import { SmoothScroller } from "@/components/smooth-scroller"
-import { CustomCursor } from "@/components/custom-cursor"
 
 const pageVariants = {
     initial: { opacity: 0, y: 20 },
@@ -18,18 +17,9 @@ const pageVariants = {
 export function LandingLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
 
-    // Add landing-page class to body for custom cursor CSS
-    useEffect(() => {
-        document.body.classList.add("landing-page")
-        return () => {
-            document.body.classList.remove("landing-page")
-        }
-    }, [])
-
     return (
         <DownloadModalProvider>
             <SmoothScroller>
-                <CustomCursor />
                 <div className="min-h-screen bg-[var(--landing-cream)] text-[var(--landing-text-dark)] font-sans antialiased selection:bg-[var(--landing-amber)] selection:text-white">
                     <LandingNavbar />
                     <AnimatePresence mode="wait">

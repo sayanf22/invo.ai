@@ -59,11 +59,6 @@
     /* Enable smart font features */
   }
 
-  /* Only hide cursor on landing page where custom cursor is used */
-  body.landing-page {
-    cursor: none;
-  }
-
   /* Lenis Smooth Scroll */
   html.lenis,
   html.lenis body {
