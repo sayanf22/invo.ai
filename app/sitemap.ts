@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next"
+import { getAllPosts } from "@/lib/blog-data"
 
 const BASE_URL = "https://clorefy.com"
 
@@ -10,6 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: BASE_URL, lastModified: now, changeFrequency: "daily", priority: 1.0 },
     { url: `${BASE_URL}/pricing`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
     { url: `${BASE_URL}/features`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${BASE_URL}/blog`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${BASE_URL}/business`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/resources`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/developers`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
@@ -48,5 +50,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/auth/signup`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
   ]
 
-  return [...marketingPages, ...useCasePages, ...legalPages, ...authPages]
+  // ── Blog posts (content marketing — high SEO value) ───────────────────
+  const blogPages: MetadataRoute.Sitemap = getAllPosts().map((post) => ({
+    url: `${BASE_URL}/blog/${post.slug}`,
+    lastModified: new Date(post.updatedAt),
+    changeFrequency: "monthly" as const,
+    priority: 0.7,
+  }))
+
+  return [...marketingPages, ...useCasePages, ...blogPages, ...legalPages, ...authPages]
 }
