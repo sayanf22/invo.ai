@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /auth/callback
+Disallow: /auth/confirm
+Disallow: /auth/update-password
+Disallow: /auth/reset-password
+Disallow: /onboarding
+Disallow: /choose-plan
+Disallow: /billing
+Disallow: /profile
+Disallow: /settings
+Disallow: /notifications
+Disallow: /documents
+Disallow: /history
+Disallow: /sign/
+
+Sitemap: https://clorefy.com/sitemap.xml
