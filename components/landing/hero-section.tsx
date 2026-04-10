@@ -37,7 +37,7 @@ export function HeroSection() {
                     {/* CTA buttons */}
                     <div className="animate-fade-in-up flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5" style={{ animationDelay: "0.45s" }}>
                         <Link
-                            href="/auth/login"
+                            href="/auth/signup"
                             className="group inline-flex items-center gap-2.5 px-7 py-4 sm:px-10 sm:py-5 rounded-full bg-[var(--landing-dark)] text-[var(--landing-cream)] font-semibold text-base sm:text-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] w-full sm:w-auto justify-center"
                         >
                             <FileText size={20} className="sm:w-[22px] sm:h-[22px]" />

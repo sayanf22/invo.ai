@@ -6,6 +6,7 @@ import { Check, Minus, ArrowRight, ChevronDown, Sparkles, Clock, Zap, Lock } fro
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
+import { createClient } from "@/lib/supabase"
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
 
@@ -200,10 +201,17 @@ export default function PricingPage() {
   const [billing, setBilling] = useState<"monthly" | "yearly">("yearly")
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [cp, setCp] = useState<CountryPricing>(COUNTRY_PRICING[DEFAULT_COUNTRY])
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
     const detected = detectCountryFromTimezone()
     setCp(COUNTRY_PRICING[detected] || COUNTRY_PRICING[DEFAULT_COUNTRY])
+
+    // Check if user is logged in to adjust CTA links
+    const supabase = createClient()
+    supabase.auth.getSession().then(({ data }) => {
+      setIsLoggedIn(!!data.session)
+    })
   }, [])
 
   // Helper to get localized price for a plan
@@ -390,7 +398,7 @@ export default function PricingPage() {
                   {/* CTA */}
                   <div className="mb-6">
                     <Link
-                      href={plan.href}
+                      href={plan.comingSoon ? "#" : isLoggedIn ? "/choose-plan" : plan.href}
                       className={`block w-full text-center py-3 rounded-2xl font-semibold text-sm transition-all duration-200 ${
                         plan.comingSoon
                           ? "cursor-default"
@@ -681,7 +689,7 @@ export default function PricingPage() {
               Free forever. No credit card. No setup. Just describe what you need.
             </p>
             <Link
-              href="/auth/signup"
+              href={isLoggedIn ? "/choose-plan" : "/auth/signup"}
               className="group relative z-10 inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-semibold text-sm hover:scale-105 transition-transform"
               style={{ backgroundColor: "#faf8f5", color: "#1a1a1a" }}
             >
