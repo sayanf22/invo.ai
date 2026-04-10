@@ -373,27 +373,27 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 setMessages(prev => [...prev, { role: "assistant", content: summaryMsg }])
                 await saveMessage("assistant", summaryMsg)
 
-                // Build a prompt that includes the extracted file context
+                // Build a prompt that clearly tells AI: this is the CLIENT's info
                 const contextParts: string[] = []
-                if (extracted.businessName) contextParts.push(`Client: ${extracted.businessName}`)
-                if (extracted.ownerName) contextParts.push(`Contact: ${extracted.ownerName}`)
-                if (extracted.email) contextParts.push(`Email: ${extracted.email}`)
-                if (extracted.phone) contextParts.push(`Phone: ${extracted.phone}`)
+                if (extracted.businessName) contextParts.push(`Client business name: ${extracted.businessName}`)
+                if (extracted.ownerName) contextParts.push(`Client contact person: ${extracted.ownerName}`)
+                if (extracted.email) contextParts.push(`Client email: ${extracted.email}`)
+                if (extracted.phone) contextParts.push(`Client phone: ${extracted.phone}`)
                 if (extracted.address) {
                     const a = extracted.address
                     const addr = [a.street, a.city, a.state, a.postalCode].filter(Boolean).join(", ")
-                    if (addr) contextParts.push(`Address: ${addr}`)
+                    if (addr) contextParts.push(`Client address: ${addr}`)
                 }
-                if (extracted.taxId) contextParts.push(`Tax ID: ${extracted.taxId}`)
-                if (extracted.additionalContext) contextParts.push(`Details: ${extracted.additionalContext}`)
+                if (extracted.taxId) contextParts.push(`Client tax ID: ${extracted.taxId}`)
+                if (extracted.services) contextParts.push(`Services/items from document: ${extracted.services}`)
+                if (extracted.projectDescription) contextParts.push(`Project description: ${extracted.projectDescription}`)
+                if (extracted.additionalContext) contextParts.push(`Additional context from document: ${extracted.additionalContext}`)
 
-                const fileContext = contextParts.length > 0
-                    ? `\n\n[Extracted from attached document "${file.name}"]\n${contextParts.join("\n")}`
-                    : ""
+                const clientDetails = contextParts.join("\n")
 
                 const prompt = userText
-                    ? `${userText}${fileContext}`
-                    : `Generate a ${docType} using the information from the attached document.${fileContext}`
+                    ? `${userText}\n\nUse the following as the CLIENT/RECIPIENT details (Bill To) for this ${docType}. My own business details should be used as the sender (Bill From):\n${clientDetails}`
+                    : `Generate a ${docType} for the following client. Use their details as the recipient (Bill To). My business profile should be the sender (Bill From). Include the services/items listed below as line items:\n${clientDetails}`
 
                 // Now send to the AI stream with the enriched prompt
                 setIsUploading(false)

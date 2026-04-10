@@ -23,14 +23,16 @@ import { checkRateLimit } from "@/lib/rate-limiter"
  * - Input sanitization on extracted data
  */
 
-const EXTRACTION_PROMPT = `You are a business information extraction AI. Analyze the provided document/image and extract ALL business information you can find.
+const EXTRACTION_PROMPT = `You are a business document analysis AI. Analyze the provided document/image and extract ALL business and client information you can find.
+
+This document is being uploaded by a user who wants to generate an invoice, contract, quotation, or proposal. The information in this document likely belongs to their CLIENT or contains details about a project/service.
 
 Return a JSON object with these fields (use null for fields you cannot determine):
 
 {
   "businessType": "freelancer|agency|ecommerce|professional|developer|other",
-  "businessName": "Company/Business name",
-  "ownerName": "Owner/Director name",
+  "businessName": "Company/Business name found in the document",
+  "ownerName": "Owner/Director/Contact person name",
   "email": "Business email",
   "phone": "Primary phone number with country code",
   "phone2": "Secondary phone number (if found)",
@@ -51,13 +53,18 @@ Return a JSON object with these fields (use null for fields you cannot determine
     "ifscCode": "IFSC/SWIFT/routing code",
     "accountHolderName": "Name on account"
   },
-  "additionalContext": "Any other relevant business information found in the document that could help generate better documents"
+  "services": "List of services, products, or line items mentioned in the document with prices if available",
+  "projectDescription": "Brief description of the project, work, or engagement described in the document",
+  "additionalContext": "Any other relevant business information — industry, pricing, terms, deadlines, deliverables, etc."
 }
 
 IMPORTANT:
 - Extract as much as possible from the document
 - For fields you cannot determine, use null
-- The "additionalContext" field should contain any extra business details like services offered, industry, typical clients, etc.
+- Pay special attention to: company names, contact details, services/products listed, prices/amounts, and project descriptions
+- The "services" field should list any line items, packages, or offerings with their prices if mentioned
+- The "projectDescription" field should summarize what the document is about
+- The "additionalContext" field should contain any extra details that could help generate a professional document
 - Return ONLY valid JSON, no markdown or explanation`
 
 export async function POST(request: Request) {
