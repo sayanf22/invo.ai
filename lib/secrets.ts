@@ -2,30 +2,44 @@
  * Fetch API keys from Supabase Vault.
  * Falls back to environment variables if Vault is unavailable.
  * Caches secrets in memory for 5 minutes to avoid repeated DB calls.
+ * 
+ * The get_secret RPC requires an authenticated Supabase client.
+ * Pass the auth.supabase client from API routes for Vault access.
  */
 
-import { createClient } from "@supabase/supabase-js"
+import { SupabaseClient } from "@supabase/supabase-js"
 
 const cache = new Map<string, { value: string; expires: number }>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
-async function fetchFromVault(name: string): Promise<string | null> {
+async function fetchFromVault(name: string, supabase?: SupabaseClient): Promise<string | null> {
+    if (!supabase) return null
+
     try {
-        const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
+        const { data, error } = await supabase.rpc("get_secret", { secret_name: name })
 
-        const { data, error } = await (supabase.rpc as any)("get_secret", { secret_name: name })
-
-        if (error || !data) return null
+        if (error) {
+            console.error(`Vault fetch error for ${name}:`, error.message)
+            return null
+        }
+        if (!data) return null
         return data as string
-    } catch {
+    } catch (err) {
+        console.error(`Vault fetch exception for ${name}:`, err)
         return null
     }
 }
 
-export async function getSecret(name: string): Promise<string> {
+/**
+ * Get a secret value. Checks in order:
+ * 1. In-memory cache
+ * 2. Environment variable (process.env)
+ * 3. Supabase Vault (requires authenticated client)
+ * 
+ * @param name - Secret name (e.g. "OPENAI_API_KEY")
+ * @param supabase - Optional authenticated Supabase client for Vault access
+ */
+export async function getSecret(name: string, supabase?: SupabaseClient): Promise<string> {
     // Check cache first
     const cached = cache.get(name)
     if (cached && cached.expires > Date.now()) {
@@ -39,8 +53,8 @@ export async function getSecret(name: string): Promise<string> {
         return envValue
     }
 
-    // Try Supabase Vault
-    const vaultValue = await fetchFromVault(name)
+    // Try Supabase Vault (requires authenticated client)
+    const vaultValue = await fetchFromVault(name, supabase)
     if (vaultValue) {
         cache.set(name, { value: vaultValue, expires: Date.now() + CACHE_TTL })
         return vaultValue

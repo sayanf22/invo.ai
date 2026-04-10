@@ -95,9 +95,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Unsupported file type. Upload an image or PDF." }, { status: 400 })
         }
 
-        const openaiKey = await getSecret("OPENAI_API_KEY")
+        const openaiKey = await getSecret("OPENAI_API_KEY", auth.supabase)
         if (!openaiKey) {
-            return NextResponse.json({ error: "OpenAI API not configured" }, { status: 500 })
+            console.error("OPENAI_API_KEY not found in environment or Supabase Vault")
+            return NextResponse.json({ error: "File analysis is temporarily unavailable. Please type your details manually." }, { status: 503 })
         }
 
         // Convert file to base64 — use chunked approach for large files

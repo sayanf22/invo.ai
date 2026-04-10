@@ -417,7 +417,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                     role: "assistant",
                     content: isRateLimit
                         ? "Please wait a moment before uploading another file. In the meantime, you can type your business details directly."
-                        : `Could not analyze the file. You can try again or type your business details directly.`
+                        : `File analysis is temporarily unavailable. Please type your business details directly — I'll guide you through each field.`
                 }]
             })
         } finally {
