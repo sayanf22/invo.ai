@@ -20,9 +20,10 @@ const footerLinks = {
         { label: "Teams", href: "/use-cases/teams" },
     ],
     Resources: [
+        { label: "Blog", href: "/blog" },
         { label: "Help Center", href: "/contact" },
         { label: "Templates", href: "/resources" },
-        { label: "Blog", href: "#" },
+        { label: "Developers", href: "/developers" },
     ],
     Company: [
         { label: "About Us", href: "/about" },

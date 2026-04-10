@@ -25,9 +25,9 @@ const useCaseItems: DropdownItem[] = [
 ]
 
 const resourceItems: DropdownItem[] = [
-    { label: "Resources", desc: "Guides and tutorials", href: "/resources", icon: BookOpen },
-    { label: "Help Center", desc: "Find answers fast", href: "#", icon: HelpCircle },
-    { label: "Talk to Support", desc: "We're here to help", href: "#", icon: MessageCircle },
+    { label: "Blog", desc: "Tips and guides", href: "/blog", icon: BookOpen },
+    { label: "Resources", desc: "Guides and tutorials", href: "/resources", icon: HelpCircle },
+    { label: "Contact Support", desc: "We're here to help", href: "/contact", icon: MessageCircle },
 ]
 
 // Animation variants for the dropdown container
@@ -218,6 +218,7 @@ export function LandingNavbar() {
                                     { label: "Features", href: "/features" },
                                     { label: "Pricing", href: "/pricing" },
                                     { label: "Business", href: "/business" },
+                                    { label: "Blog", href: "/blog" },
                                     { label: "Resources", href: "/resources" },
                                 ].map((link) => (
                                     <Link key={link.label} href={link.href} onClick={() => setMobileOpen(false)} className="block px-4 py-3 rounded-xl text-sm font-semibold text-[var(--landing-text-dark)] hover:bg-stone-100 transition-colors">
