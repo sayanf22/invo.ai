@@ -35,8 +35,7 @@ export async function POST(request: Request) {
         const isValid = await verifyPaymentSignature(
             razorpay_order_id,
             razorpay_payment_id,
-            razorpay_signature,
-            auth.supabase
+            razorpay_signature
         )
 
         if (!isValid) {

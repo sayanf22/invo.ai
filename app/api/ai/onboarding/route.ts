@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { getSecret } = await import("@/lib/secrets")
-        const apiKey = await getSecret("DEEPSEEK_API_KEY", auth.supabase)
+        const apiKey = await getSecret("DEEPSEEK_API_KEY")
         if (!apiKey || apiKey === "your_deepseek_api_key_here") {
             return NextResponse.json({
                 message: "⚠️ AI is not configured yet. Please add your DEEPSEEK_API_KEY to the .env file. You can get a key at https://platform.deepseek.com/",

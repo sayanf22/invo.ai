@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { getSecret } = await import("@/lib/secrets")
-        const apiKey = await getSecret("DEEPSEEK_API_KEY", auth.supabase)
+        const apiKey = await getSecret("DEEPSEEK_API_KEY")
         if (!apiKey) {
             return NextResponse.json({ error: "AI service not configured" }, { status: 500 })
         }

@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
 
         // Fetch DeepSeek API key from Vault
         const { getSecret } = await import("@/lib/secrets")
-        const deepseekKey = await getSecret("DEEPSEEK_API_KEY", auth.supabase)
+        const deepseekKey = await getSecret("DEEPSEEK_API_KEY")
 
         // Create a readable stream from our generator
         const stream = new ReadableStream({
