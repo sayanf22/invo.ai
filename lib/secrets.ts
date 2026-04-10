@@ -1,77 +1,55 @@
 /**
- * Fetch API keys from Supabase Vault.
- * Falls back to environment variables if Vault is unavailable.
- * Caches secrets in memory for 5 minutes to avoid repeated DB calls.
+ * Fetch API keys securely.
  * 
- * The get_secret RPC requires an authenticated Supabase client.
- * Pass the auth.supabase client from API routes for Vault access.
+ * Priority order:
+ * 1. In-memory cache (5 min TTL)
+ * 2. Environment variable (process.env)
+ * 3. Supabase Vault via authenticated RPC
+ * 
+ * SECURITY: The get_secret RPC requires an authenticated Supabase client.
+ * Anon users cannot read secrets. The function is SECURITY DEFINER but
+ * checks auth.role() and auth.uid() before returning any value.
  */
 
-import { SupabaseClient } from "@supabase/supabase-js"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
 const cache = new Map<string, { value: string; expires: number }>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
-async function fetchFromVault(name: string, supabase?: SupabaseClient): Promise<string | null> {
-    try {
-        // Use provided client, or create a basic one with anon key
-        const client = supabase || (await createAnonClient())
-        if (!client) return null
-
-        const { data, error } = await client.rpc("get_secret", { secret_name: name })
-
-        if (error) {
-            console.error(`Vault fetch error for ${name}:`, error.message)
-            return null
-        }
-        if (!data) return null
-        return data as string
-    } catch (err) {
-        console.error(`Vault fetch exception for ${name}:`, err)
-        return null
-    }
-}
-
-async function createAnonClient(): Promise<SupabaseClient | null> {
-    try {
-        const { createClient } = await import("@supabase/supabase-js")
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        if (!url || !key) return null
-        return createClient(url, key)
-    } catch {
-        return null
-    }
-}
-
 /**
- * Get a secret value. Checks in order:
- * 1. In-memory cache
- * 2. Environment variable (process.env)
- * 3. Supabase Vault (requires authenticated client)
+ * Get a secret value securely.
  * 
  * @param name - Secret name (e.g. "OPENAI_API_KEY")
- * @param supabase - Optional authenticated Supabase client for Vault access
+ * @param supabase - Authenticated Supabase client (from auth.supabase in API routes)
  */
 export async function getSecret(name: string, supabase?: SupabaseClient): Promise<string> {
-    // Check cache first
+    // 1. Check cache
     const cached = cache.get(name)
     if (cached && cached.expires > Date.now()) {
         return cached.value
     }
 
-    // Try environment variable first (fastest)
+    // 2. Check environment variable
     const envValue = process.env[name]
-    if (envValue) {
+    if (envValue && envValue.length > 5) {
         cache.set(name, { value: envValue, expires: Date.now() + CACHE_TTL })
         return envValue
     }
 
-    // Try Supabase Vault (requires authenticated client)
-    const vaultValue = await fetchFromVault(name, supabase)
-    if (vaultValue) {
-        cache.set(name, { value: vaultValue, expires: Date.now() + CACHE_TTL })
-        return vaultValue
+    // 3. Fetch from Supabase Vault (requires authenticated client)
+    if (supabase) {
+        try {
+            const { data, error } = await supabase.rpc("get_secret", { secret_name: name })
+            if (!error && data && typeof data === "string" && data.length > 0) {
+                cache.set(name, { value: data, expires: Date.now() + CACHE_TTL })
+                return data
+            }
+            if (error) {
+                console.error(`[secrets] Vault error for ${name}:`, error.message)
+            }
+        } catch (err) {
+            console.error(`[secrets] Vault exception for ${name}:`, err)
+        }
     }
 
     return ""
