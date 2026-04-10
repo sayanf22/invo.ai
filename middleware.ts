@@ -110,6 +110,12 @@ const PUBLIC_PATHS = [
   "/developers",
   "/sign",
   "/api",
+  "/about",
+  "/contact",
+  "/terms",
+  "/privacy",
+  "/refund-policy",
+  "/business",
 ]
 
 function isPublicPath(pathname: string): boolean {

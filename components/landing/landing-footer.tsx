@@ -20,15 +20,16 @@ const footerLinks = {
         { label: "Teams", href: "/use-cases/teams" },
     ],
     Resources: [
-        { label: "Help Center", href: "#" },
+        { label: "Help Center", href: "/contact" },
         { label: "Templates", href: "/resources" },
         { label: "Blog", href: "#" },
     ],
     Company: [
-        { label: "About", href: "#" },
-        { label: "Privacy", href: "/privacy" },
-        { label: "Terms", href: "/terms" },
-        { label: "Contact Sales", href: "/contact-sales" },
+        { label: "About Us", href: "/about" },
+        { label: "Contact Us", href: "/contact" },
+        { label: "Privacy Policy", href: "/privacy" },
+        { label: "Terms & Conditions", href: "/terms" },
+        { label: "Refund Policy", href: "/refund-policy" },
     ],
 }
 
