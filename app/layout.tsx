@@ -17,11 +17,11 @@ const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: "--font-roboto-mo
 
 export const metadata: Metadata = {
   title: {
-    default: "Clorefy — AI Document Generator | Invoices, Contracts, Proposals",
+    default: "Clorefy — Free AI Invoice Generator | Create Invoices, Contracts & Proposals in Seconds",
     template: "%s | Clorefy",
   },
   description:
-    "Generate professional invoices, contracts, quotations, and proposals with AI in seconds. Compliant across 11 countries including India, USA, UK, Germany. Export as PDF, DOCX, or image. Free to start.",
+    "Create professional invoices, contracts, quotations, and proposals in under 60 seconds with AI. Auto GST, VAT & sales tax for India, USA, UK + 8 more countries. Export PDF, DOCX. Free plan available — no credit card needed.",
   keywords: [
     "AI document generator", "AI invoice generator", "AI contract generator",
     "invoice maker", "contract maker", "quotation generator", "proposal generator",
@@ -55,9 +55,9 @@ export const metadata: Metadata = {
   // },
   manifest: "/manifest.json",
   openGraph: {
-    title: "Clorefy — AI-Powered Document Generation",
+    title: "Clorefy — Free AI Invoice & Contract Generator",
     description:
-      "Create invoices, contracts, quotations, and proposals with AI. Compliant across 11 countries. Export as PDF, DOCX, or image. Start free.",
+      "Create invoices, contracts, quotations, and proposals with AI in under 60 seconds. GST, VAT & sales tax compliant for 11 countries. Export PDF, DOCX. Free to start.",
     url: "https://clorefy.com",
     siteName: "Clorefy",
     locale: "en_US",
@@ -73,9 +73,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Clorefy — AI Document Generator",
+    title: "Clorefy — Free AI Invoice & Contract Generator",
     description:
-      "Generate professional invoices, contracts, quotations, and proposals with AI. Compliant across 11 countries. Free to start.",
+      "Create invoices, contracts & proposals with AI in 60 seconds. GST, VAT compliant for 11 countries. Free plan available.",
     images: ["/og-image.png"],
   },
   robots: {

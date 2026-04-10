@@ -24,6 +24,7 @@ export function HeroSection() {
 
                     {/* Main heading */}
                     <h1 className="animate-fade-in-up font-display text-[2.75rem] sm:text-7xl md:text-8xl lg:text-9xl font-semibold tracking-tighter leading-[0.92] text-[var(--landing-text-dark)] mb-6 sm:mb-10" style={{ animationDelay: "0.15s" }}>
+                        <span className="sr-only">Clorefy — Free AI Invoice Generator for Invoices, Contracts and Proposals</span>
                         Don&apos;t draft,
                         <br />
                         just <span className="italic gradient-text sm:pr-4">describe</span>
