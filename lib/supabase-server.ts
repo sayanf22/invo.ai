@@ -25,19 +25,26 @@ export async function createServerSupabaseClient() {
             .join("")
 
         try {
-            // Handle base64-prefixed cookies (from @supabase/ssr or newer client versions)
             let decoded = chunks
+            // Handle base64-prefixed cookies
             if (decoded.startsWith("base64-")) {
-                try {
-                    decoded = atob(decoded.slice(7))
-                } catch {
-                    // Not valid base64, try as-is
-                }
+                try { decoded = atob(decoded.slice(7)) } catch {}
+            }
+            // Handle URL-encoded cookies
+            if (decoded.startsWith("%7B") || decoded.startsWith("%5B")) {
+                try { decoded = decodeURIComponent(decoded) } catch {}
             }
             const parsed = JSON.parse(decoded)
             accessToken = parsed.access_token
         } catch {
-            // Cookie parse failed
+            // Cookie parse failed — try URL-decoding the whole thing
+            try {
+                const decoded = decodeURIComponent(chunks)
+                const parsed = JSON.parse(decoded)
+                accessToken = parsed.access_token
+            } catch {
+                // Give up
+            }
         }
     }
 
