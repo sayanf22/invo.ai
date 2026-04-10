@@ -6,7 +6,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth"
 import { PromptInputBox } from "@/components/ui/ai-prompt-box"
 
 interface PromptInputProps {
-  onSubmit?: (prompt: string) => void
+  onSubmit?: (prompt: string, file?: File) => void
   placeholder?: string
 }
 
@@ -15,11 +15,12 @@ export function PromptInput({ onSubmit, placeholder }: PromptInputProps) {
 
   const wrappedSubmit = requireAuth((...args: unknown[]) => {
     const message = args[0] as string
-    if (message && onSubmit) onSubmit(message)
+    const file = args[1] as File | undefined
+    if ((message || file) && onSubmit) onSubmit(message, file)
   })
 
-  const handleSend = (message: string) => {
-    wrappedSubmit(message)
+  const handleSend = (message: string, file?: File) => {
+    wrappedSubmit(message, file)
   }
 
   return (

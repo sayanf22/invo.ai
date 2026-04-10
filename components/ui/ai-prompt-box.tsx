@@ -217,7 +217,7 @@ const PromptInputAction: React.FC<PromptInputActionProps> = ({
 
 // Main PromptInputBox Component — adapted for Clorefy theme
 interface PromptInputBoxProps {
-  onSend?: (message: string) => void
+  onSend?: (message: string, file?: File) => void
   isLoading?: boolean
   placeholder?: string
   className?: string
@@ -235,15 +235,33 @@ export const PromptInputBox = React.forwardRef(
     } = props
 
     const [input, setInput] = React.useState("")
+    const [stagedFile, setStagedFile] = React.useState<File | null>(null)
+    const fileInputId = React.useId()
 
     const handleSubmit = () => {
-      if (input.trim()) {
-        onSend(input.trim())
+      if (input.trim() || stagedFile) {
+        onSend(input.trim(), stagedFile || undefined)
         setInput("")
+        setStagedFile(null)
       }
     }
 
-    const hasContent = input.trim() !== ""
+    const hasContent = input.trim() !== "" || stagedFile !== null
+
+    const formatSize = (bytes: number) => {
+      if (bytes < 1024) return `${bytes} B`
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    }
+
+    const getTypeLabel = (type: string) => {
+      if (type === "application/pdf") return "PDF"
+      if (type.startsWith("image/png")) return "PNG"
+      if (type.startsWith("image/jpeg") || type.startsWith("image/jpg")) return "JPG"
+      if (type.startsWith("image/webp")) return "WEBP"
+      if (type.startsWith("image/")) return "IMG"
+      return "FILE"
+    }
 
     return (
       <PromptInputRoot
@@ -255,20 +273,68 @@ export const PromptInputBox = React.forwardRef(
         disabled={disabled || isLoading}
         ref={ref}
       >
+        {/* Staged file card */}
+        <AnimatePresence>
+          {stagedFile && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="px-5 pt-4 overflow-hidden"
+            >
+              <div className="inline-flex items-center gap-3 px-3 py-2.5 bg-muted/50 rounded-xl border border-border/40 max-w-[240px] group">
+                <div className="w-10 h-10 rounded-lg bg-background border border-border/50 flex flex-col items-center justify-center shrink-0 shadow-sm">
+                  <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-[7px] font-bold text-muted-foreground mt-0.5 leading-none">{getTypeLabel(stagedFile.type)}</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] font-medium text-foreground truncate leading-tight">{stagedFile.name}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{formatSize(stagedFile.size)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStagedFile(null)}
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-background transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="px-6 pt-5 pb-2">
-          <PromptInputTextarea placeholder={placeholder} />
+          <PromptInputTextarea placeholder={stagedFile ? "Describe what to do with this file..." : placeholder} />
         </div>
 
         <PromptInputActions className="flex items-center justify-between px-5 pb-4">
           <div className="flex items-center gap-1.5">
-            <PromptInputAction tooltip="Add attachment">
-              <button
-                type="button"
-                className="flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all duration-200"
+            {/* Hidden file input */}
+            <input
+              id={fileInputId}
+              type="file"
+              accept="image/*,application/pdf,.doc,.docx"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) setStagedFile(file)
+                if (e.target) e.target.value = ""
+              }}
+            />
+            <PromptInputAction tooltip="Attach file (PDF, image)">
+              <label
+                htmlFor={!disabled && !isLoading ? fileInputId : undefined}
+                className={cn(
+                  "flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200",
+                  disabled || isLoading
+                    ? "text-muted-foreground/30 cursor-not-allowed"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50 cursor-pointer"
+                )}
                 aria-label="Add attachment"
               >
                 <Paperclip className="w-[18px] h-[18px]" />
-              </button>
+              </label>
             </PromptInputAction>
             <PromptInputAction tooltip="History">
               <button

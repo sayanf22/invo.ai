@@ -308,6 +308,49 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
             })
 
             if (!res.ok) {
+                if (res.status === 429) {
+                    // Rate limited — wait 5 seconds and retry once
+                    setMessages(prev => {
+                        const filtered = prev.filter(m => m.content !== "Analyzing your document... This may take a moment.")
+                        return [...filtered, { role: "assistant", content: "Processing... please wait a moment." }]
+                    })
+                    await new Promise(resolve => setTimeout(resolve, 5000))
+                    const retryRes = await fetch("/api/ai/analyze-file", {
+                        method: "POST",
+                        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+                        body: formData,
+                    })
+                    if (!retryRes.ok) {
+                        throw new Error("Please wait a minute and try uploading again.")
+                    }
+                    const retryResult = await retryRes.json()
+                    if (retryResult.extracted) {
+                        // Use retry result — fall through to the extraction logic below
+                        const result = retryResult
+                        const extracted = result.extracted
+                        setCollectedData(prev => {
+                            const updated = { ...prev }
+                            for (const [key, value] of Object.entries(extracted)) {
+                                if (value === null || value === "") continue
+                                if (key === "address" && typeof value === "object") updated.address = { ...prev.address, ...(value as any) }
+                                else if (key === "bankDetails" && typeof value === "object") updated.bankDetails = { ...prev.bankDetails, ...(value as any) }
+                                else if (key === "additionalContext") updated.additionalNotes = (prev.additionalNotes || "") + "\n" + String(value)
+                                else if (key === "phone2" && value) updated.additionalNotes = (prev.additionalNotes || "") + "\nSecondary phone: " + String(value)
+                                else (updated as any)[key] = value
+                            }
+                            return updated
+                        })
+                        const fieldCount = result.fieldsFound || 0
+                        setMessages(prev => {
+                            const filtered = prev.filter(m => m.content !== "Processing... please wait a moment." && m.content !== "Analyzing your document... This may take a moment.")
+                            return [...filtered, { role: "assistant", content: `Done! Extracted ${fieldCount} fields from your document. Let me check what's still needed...` }]
+                        })
+                        toast.success(`${fieldCount} fields extracted!`)
+                        setIsUploading(false)
+                        return
+                    }
+                    throw new Error("Could not analyze the file. Please try again.")
+                }
                 const err = await res.json()
                 throw new Error(err.error || "Failed to analyze file")
             }
@@ -433,10 +476,10 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                                 )}
                             >
                                 <div className={cn(
-                                    "max-w-[85%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm whitespace-pre-wrap",
+                                    "max-w-[80%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed whitespace-pre-wrap",
                                     msg.role === "user"
-                                        ? "bg-primary text-primary-foreground rounded-br-md"
-                                        : "bg-muted text-foreground rounded-bl-md"
+                                        ? "bg-primary text-primary-foreground rounded-br-sm shadow-md"
+                                        : "bg-card text-foreground rounded-bl-sm border border-border/50 shadow-sm"
                                 )}>
                                     {msg.content}
                                 </div>

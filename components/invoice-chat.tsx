@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { FileText, RotateCcw, Paperclip, X, Loader2 } from "lucide-react"
+import { FileText, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -51,7 +51,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [documentGenerated, setDocumentGenerated] = useState(false)
 
     const scrollRef = useRef<HTMLDivElement>(null)
-    const fileInputRef = useRef<HTMLInputElement>(null)
     const initialPromptSentRef = useRef(false)
     const lastSyncedSessionRef = useRef<string | null>(null)
     const pendingAutoGenerateRef = useRef<string | null>(null)
@@ -536,61 +535,28 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         </div>
                     )}
 
-                    {/* Hidden file input */}
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,application/pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) setStagedFile(file)
-                            e.target.value = ""
+                    <AIInputWithLoading
+                        value={inputValue}
+                        onValueChange={setInputValue}
+                        isLoading={isLoading}
+                        isUploading={isUploading}
+                        onSubmit={(val) => {
+                            if (stagedFile) {
+                                handleFileUpload(stagedFile, val.trim() || undefined)
+                                setStagedFile(null)
+                                setInputValue("")
+                            } else {
+                                sendMessage(val)
+                            }
                         }}
+                        placeholder={`Describe your ${docType}...`}
+                        disabled={sessionLoading || !session}
+                        statusText={isSaving ? "Saving..." : undefined}
+                        showAttachButton={true}
+                        stagedFile={stagedFile}
+                        onFileSelect={(file) => setStagedFile(file)}
+                        onFileRemove={() => setStagedFile(null)}
                     />
-
-                    {/* Staged file indicator */}
-                    {stagedFile && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 mb-2 bg-primary/5 border border-primary/20 rounded-xl text-xs">
-                            <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
-                            <span className="truncate flex-1 text-foreground">{stagedFile.name}</span>
-                            <button type="button" onClick={() => setStagedFile(null)} className="text-muted-foreground hover:text-foreground">
-                                <X className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="flex items-end gap-2">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="rounded-xl h-10 w-10 shrink-0 mb-[26px]"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isLoading || isUploading || sessionLoading || !session}
-                            title="Attach a document (PDF, image)"
-                        >
-                            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                        </Button>
-                        <div className="flex-1">
-                            <AIInputWithLoading
-                                value={inputValue}
-                                onValueChange={setInputValue}
-                                isLoading={isLoading || isUploading}
-                                onSubmit={(val) => {
-                                    if (stagedFile) {
-                                        handleFileUpload(stagedFile, val.trim() || undefined)
-                                        setStagedFile(null)
-                                        setInputValue("")
-                                    } else {
-                                        sendMessage(val)
-                                    }
-                                }}
-                                placeholder={stagedFile ? `Describe what to do with ${stagedFile.name}...` : `Describe your ${docType}...`}
-                                disabled={sessionLoading || !session}
-                                statusText={isUploading ? "Analyzing file..." : isSaving ? "Saving..." : undefined}
-                            />
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

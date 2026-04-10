@@ -209,13 +209,13 @@ export function HamburgerMenu() {
                         <p className="px-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                             Support & Legal
                         </p>
-                        <MenuItem icon={HelpCircle} label="Help Center" onClick={() => navigate("/help")} />
-                        <MenuItem icon={BookOpen} label="Documentation" onClick={() => navigate("/docs")} />
+                        <MenuItem icon={HelpCircle} label="Help Center" onClick={() => navigate("/contact")} />
+                        <MenuItem icon={BookOpen} label="Blog" onClick={() => navigate("/blog")} />
                         <MenuItem icon={Mail} label="Contact Us" onClick={() => navigate("/contact")} />
                         <MenuItem icon={Info} label="About Us" onClick={() => navigate("/about")} />
                         <MenuItem icon={Shield} label="Privacy Policy" onClick={() => navigate("/privacy")} />
                         <MenuItem icon={FileCheck} label="Terms & Conditions" onClick={() => navigate("/terms")} />
-                        <MenuItem icon={Lock} label="Security" onClick={() => navigate("/security")} />
+                        <MenuItem icon={Lock} label="Refund Policy" onClick={() => navigate("/refund-policy")} />
                     </div>
 
                     {/* Sign out */}

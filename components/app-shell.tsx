@@ -65,14 +65,67 @@ export function AppShell() {
     checkOnboarding()
   }, [authLoading, user, supabase, router])
 
-  const handlePromptSubmit = useCallback(async (prompt: string) => {
+  const handlePromptSubmit = useCallback(async (prompt: string, file?: File) => {
     setSelectedSessionId(undefined)
+
+    let enrichedPrompt = prompt
+
+    // If a file is attached, analyze it with GPT first, then include extracted data in the prompt
+    if (file) {
+      try {
+        const formData = new FormData()
+        formData.append("file", file)
+        if (prompt) formData.append("message", prompt)
+
+        const { createClient } = await import("@/lib/supabase")
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token
+
+        const res = await fetch("/api/ai/analyze-file", {
+          method: "POST",
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+          body: formData,
+        })
+
+        if (res.ok) {
+          const result = await res.json()
+          const extracted = result.extracted
+          if (extracted) {
+            const parts: string[] = []
+            if (extracted.businessName) parts.push(`Client: ${extracted.businessName}`)
+            if (extracted.ownerName) parts.push(`Contact: ${extracted.ownerName}`)
+            if (extracted.email) parts.push(`Email: ${extracted.email}`)
+            if (extracted.phone) parts.push(`Phone: ${extracted.phone}`)
+            if (extracted.address) {
+              const a = extracted.address
+              const addr = [a.street, a.city, a.state, a.postalCode].filter(Boolean).join(", ")
+              if (addr) parts.push(`Address: ${addr}`)
+            }
+            if (extracted.taxId) parts.push(`Tax ID: ${extracted.taxId}`)
+            if (extracted.additionalContext) parts.push(`Details: ${extracted.additionalContext}`)
+
+            const fileContext = parts.length > 0
+              ? `\n\n[Extracted from "${file.name}"]\n${parts.join("\n")}`
+              : ""
+
+            enrichedPrompt = prompt
+              ? `${prompt}${fileContext}`
+              : `Generate a document using the information from the attached file.${fileContext}`
+          }
+        }
+      } catch (err) {
+        console.error("File analysis error:", err)
+        // Continue with just the text prompt if file analysis fails
+      }
+    }
+
     try {
       let category = selectedCategory
       if (!category) {
         const response = await authFetch("/api/ai/detect-type", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify({ prompt: enrichedPrompt }),
         })
         if (!response.ok) throw new Error("Failed to detect document type")
         const detection = await response.json()
@@ -80,13 +133,13 @@ export function AppShell() {
         category = t.charAt(0).toUpperCase() + t.slice(1)
         setSelectedCategory(category)
       }
-      setInitialPrompt(prompt)
+      setInitialPrompt(enrichedPrompt)
       setPromptKey(prev => prev + 1)
       setView("prompt")
     } catch (error) {
       console.error("Detection error:", error)
       setSelectedCategory("Invoice")
-      setInitialPrompt(prompt)
+      setInitialPrompt(enrichedPrompt)
       setPromptKey(prev => prev + 1)
       setView("prompt")
     }
