@@ -4,7 +4,8 @@ import { LandingLayout } from "@/components/landing/landing-layout"
 import { motion, AnimatePresence } from "framer-motion"
 import { Check, Minus, ArrowRight, ChevronDown, Sparkles, Clock, Zap, Lock } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
 
@@ -198,6 +199,20 @@ function MissingRow({ text, featured }: { text: string; featured: boolean }) {
 export default function PricingPage() {
   const [billing, setBilling] = useState<"monthly" | "yearly">("yearly")
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [cp, setCp] = useState<CountryPricing>(COUNTRY_PRICING[DEFAULT_COUNTRY])
+
+  useEffect(() => {
+    const detected = detectCountryFromTimezone()
+    setCp(COUNTRY_PRICING[detected] || COUNTRY_PRICING[DEFAULT_COUNTRY])
+  }, [])
+
+  // Helper to get localized price for a plan
+  const getPrice = (planId: string, cycle: "monthly" | "yearly") => {
+    if (planId === "free") return "Free"
+    const p = planId as "starter" | "pro" | "agency"
+    if (!cp[p]) return ""
+    return formatPrice(cp[p][cycle], cp)
+  }
 
   return (
     <LandingLayout>
@@ -331,7 +346,7 @@ export default function PricingPage() {
                           className={`font-display font-bold leading-none ${plan.featured ? "text-white" : plan.comingSoon ? "text-stone-300" : "text-stone-900"}`}
                           style={{ fontSize: plan.comingSoon ? "1.5rem" : "2.75rem" }}
                         >
-                          {plan.monthly === 0 ? "Free" : plan.comingSoon ? "Coming Soon" : billing === "yearly" ? plan.yearly : plan.monthly}
+                          {plan.monthly === 0 ? "Free" : plan.comingSoon ? "Coming Soon" : getPrice(plan.id, billing)}
                         </span>
                         {plan.monthly > 0 && !plan.comingSoon && (
                           <span className={`text-sm ml-0.5 ${plan.featured ? "text-white/35" : "text-stone-400"}`} style={{ paddingBottom: "0.2rem" }}>/mo</span>
@@ -341,12 +356,12 @@ export default function PricingPage() {
 
                     {plan.monthly > 0 && !plan.comingSoon && billing === "yearly" && (
                       <p className={`text-xs mt-1.5 font-medium ${plan.featured ? "text-amber-400/80" : "text-emerald-600"}`}>
-                        Save ${(plan.monthly - plan.yearly) * 12}/yr vs monthly
+                        Save ~20% vs monthly
                       </p>
                     )}
                     {plan.monthly > 0 && !plan.comingSoon && billing === "monthly" && (
                       <p className={`text-xs mt-1.5 ${plan.featured ? "text-white/30" : "text-stone-400"}`}>
-                        or ${plan.yearly}/mo billed yearly
+                        or {getPrice(plan.id, "yearly")}/mo billed yearly
                       </p>
                     )}
                     {plan.monthly === 0 && (
@@ -566,7 +581,7 @@ export default function PricingPage() {
                     <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>per doc</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-bold text-white">$19/mo</p>
+                    <p className="text-sm font-bold text-white">{getPrice("pro", "yearly")}/mo</p>
                     <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "rgba(224,123,57,0.15)", color: "#e07b39" }}>150 docs</span>
                   </div>
                 </div>
