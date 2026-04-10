@@ -13,10 +13,12 @@ const cache = new Map<string, { value: string; expires: number }>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
 async function fetchFromVault(name: string, supabase?: SupabaseClient): Promise<string | null> {
-    if (!supabase) return null
-
     try {
-        const { data, error } = await supabase.rpc("get_secret", { secret_name: name })
+        // Use provided client, or create a basic one with anon key
+        const client = supabase || (await createAnonClient())
+        if (!client) return null
+
+        const { data, error } = await client.rpc("get_secret", { secret_name: name })
 
         if (error) {
             console.error(`Vault fetch error for ${name}:`, error.message)
@@ -26,6 +28,18 @@ async function fetchFromVault(name: string, supabase?: SupabaseClient): Promise<
         return data as string
     } catch (err) {
         console.error(`Vault fetch exception for ${name}:`, err)
+        return null
+    }
+}
+
+async function createAnonClient(): Promise<SupabaseClient | null> {
+    try {
+        const { createClient } = await import("@supabase/supabase-js")
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        if (!url || !key) return null
+        return createClient(url, key)
+    } catch {
         return null
     }
 }
