@@ -7,6 +7,13 @@ import { checkRateLimit } from "@/lib/rate-limiter"
  * POST /api/ai/analyze-file
  * Analyzes uploaded files (images, PDFs) using OpenAI GPT-5.4 to extract business information.
  * 
+ * MODEL ROUTING STRATEGY:
+ * - This endpoint uses GPT (OpenAI) EXCLUSIVELY for file analysis/extraction
+ * - GPT is ONLY called when a file is physically attached by the user
+ * - All text-only chat messages use DeepSeek (via /api/ai/stream, /api/ai/onboarding, /api/ai/profile-update)
+ * - After file extraction, the extracted data is passed back to the client,
+ *   which then sends it as text context to a DeepSeek endpoint for generation/chat
+ * 
  * SECURITY:
  * - Requires authentication (no anonymous access)
  * - Rate limited: 5 file analyses per minute per user (prevents API exhaustion)

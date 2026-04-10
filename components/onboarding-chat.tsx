@@ -188,6 +188,8 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
         }
     }
 
+    // Text-only chat — ALWAYS uses DeepSeek (via /api/ai/onboarding)
+    // GPT is NEVER used for text messages — only DeepSeek handles chat
     const handleSendMessage = useCallback(async () => {
         if (!inputValue.trim() || isLoading) return
 
@@ -269,6 +271,9 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
         }
     }, [inputValue, isLoading, messages, collectedData])
 
+    // File upload — uses GPT (via /api/ai/analyze-file) for extraction ONLY
+    // After extraction, the follow-up goes to DeepSeek (via /api/ai/onboarding)
+    // GPT is ONLY invoked when a file is physically attached — never for text-only messages
     const handleFileUpload = useCallback(async (file: File, userText?: string) => {
         setIsUploading(true)
         setMessages(prev => [...prev, {

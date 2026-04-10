@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { FileText, RotateCcw } from "lucide-react"
+import { FileText, RotateCcw, Paperclip, X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -14,6 +14,7 @@ import { NextStepsBar } from "@/components/next-steps-bar"
 import { ChainNavigator } from "@/components/chain-navigator"
 import AIThinkingBlock from "@/components/ui/ai-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
+import { createClient } from "@/lib/supabase"
 
 interface InvoiceChatProps {
     data: InvoiceData
@@ -43,11 +44,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
     const [inputValue, setInputValue] = useState("")
     const [isLoading, setIsLoading] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
+    const [stagedFile, setStagedFile] = useState<File | null>(null)
     const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([])
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
 
     const scrollRef = useRef<HTMLDivElement>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
     const initialPromptSentRef = useRef(false)
     const lastSyncedSessionRef = useRef<string | null>(null)
     const pendingAutoGenerateRef = useRef<string | null>(null)
@@ -123,7 +127,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" })
     }, [messages])
 
-    // Core send function
+    // Core send function — ALWAYS uses DeepSeek (via /api/ai/stream)
+    // This is called for ALL text-only messages AND as step 2 after file extraction
+    // GPT is NEVER used here — only DeepSeek for document generation/chat
     const sendMessage = useCallback(async (messageText: string) => {
         if (!messageText.trim() || isLoading || !session) return
 
@@ -322,6 +328,94 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         }
     }, [isLoading, messages, data, docType, onChange, session, saveMessage, updateSessionContext, saveGeneration])
 
+    // File upload handler — analyzes file and sends extracted context with the prompt
+    // MODEL ROUTING: File → GPT (via /api/ai/analyze-file) for extraction ONLY
+    // Then the extracted text is passed to DeepSeek (via sendMessage → /api/ai/stream) for generation
+    // Text-only messages ALWAYS go to DeepSeek — GPT is NEVER used without a file attachment
+    const handleFileUpload = useCallback(async (file: File, userText?: string) => {
+        if (!session) return
+        setIsUploading(true)
+
+        const displayText = userText ? `📎 ${file.name}\n${userText}` : `📎 Attached: ${file.name}`
+        setMessages(prev => [...prev, { role: "user", content: displayText }])
+        await saveMessage("user", displayText)
+        setMessages(prev => [...prev, { role: "assistant", content: "Analyzing your document..." }])
+
+        try {
+            const formData = new FormData()
+            formData.append("file", file)
+            if (userText) formData.append("message", userText)
+
+            // Get auth token for the file upload endpoint
+            const supabase = createClient()
+            const { data: { session: authSession } } = await supabase.auth.getSession()
+            const accessToken = authSession?.access_token
+
+            const res = await fetch("/api/ai/analyze-file", {
+                method: "POST",
+                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+                body: formData,
+            })
+
+            if (!res.ok) {
+                const err = await res.json()
+                throw new Error(err.error || "Failed to analyze file")
+            }
+
+            const result = await res.json()
+            const extracted = result.extracted
+
+            if (extracted) {
+                // Remove the "analyzing" placeholder
+                setMessages(prev => prev.filter(m => m.content !== "Analyzing your document..."))
+
+                const fieldCount = result.fieldsFound || 0
+                const summaryMsg = `✅ Extracted ${fieldCount} fields from your document. Using this info to generate your ${docType}...`
+                setMessages(prev => [...prev, { role: "assistant", content: summaryMsg }])
+                await saveMessage("assistant", summaryMsg)
+
+                // Build a prompt that includes the extracted file context
+                const contextParts: string[] = []
+                if (extracted.businessName) contextParts.push(`Client: ${extracted.businessName}`)
+                if (extracted.ownerName) contextParts.push(`Contact: ${extracted.ownerName}`)
+                if (extracted.email) contextParts.push(`Email: ${extracted.email}`)
+                if (extracted.phone) contextParts.push(`Phone: ${extracted.phone}`)
+                if (extracted.address) {
+                    const a = extracted.address
+                    const addr = [a.street, a.city, a.state, a.postalCode].filter(Boolean).join(", ")
+                    if (addr) contextParts.push(`Address: ${addr}`)
+                }
+                if (extracted.taxId) contextParts.push(`Tax ID: ${extracted.taxId}`)
+                if (extracted.additionalContext) contextParts.push(`Details: ${extracted.additionalContext}`)
+
+                const fileContext = contextParts.length > 0
+                    ? `\n\n[Extracted from attached document "${file.name}"]\n${contextParts.join("\n")}`
+                    : ""
+
+                const prompt = userText
+                    ? `${userText}${fileContext}`
+                    : `Generate a ${docType} using the information from the attached document.${fileContext}`
+
+                // Now send to the AI stream with the enriched prompt
+                setIsUploading(false)
+                await sendMessage(prompt)
+            } else {
+                throw new Error("Could not extract information from the file")
+            }
+        } catch (err: any) {
+            setMessages(prev => {
+                const filtered = prev.filter(m => m.content !== "Analyzing your document...")
+                return [...filtered, {
+                    role: "assistant",
+                    content: `❌ ${err.message || "Could not analyze the file. Try describing your document instead."}`
+                }]
+            })
+            await saveMessage("assistant", `Could not analyze file: ${err.message}`)
+        } finally {
+            setIsUploading(false)
+        }
+    }, [session, docType, saveMessage, sendMessage])
+
     // Auto-send initial prompt ONCE
     useEffect(() => {
         if (initialPrompt && session && !sessionLoading && !initialPromptSentRef.current && welcomeLoaded) {
@@ -431,7 +525,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             <div className="px-4 py-3 border-t border-border shrink-0">
                 <div className="max-w-2xl mx-auto">
                     {/* Next Steps Bar — shows after generation is complete */}
-                    {documentGenerated && !isLoading && session && (
+                    {documentGenerated && !isLoading && !isUploading && session && (
                         <div className="mb-2.5">
                             <NextStepsBar
                                 clientName={data.toName || null}
@@ -441,15 +535,62 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             />
                         </div>
                     )}
-                    <AIInputWithLoading
-                        value={inputValue}
-                        onValueChange={setInputValue}
-                        isLoading={isLoading}
-                        onSubmit={sendMessage}
-                        placeholder={`Describe your ${docType}...`}
-                        disabled={sessionLoading || !session}
-                        statusText={isSaving ? "Saving..." : undefined}
+
+                    {/* Hidden file input */}
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) setStagedFile(file)
+                            e.target.value = ""
+                        }}
                     />
+
+                    {/* Staged file indicator */}
+                    {stagedFile && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 mb-2 bg-primary/5 border border-primary/20 rounded-xl text-xs">
+                            <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span className="truncate flex-1 text-foreground">{stagedFile.name}</span>
+                            <button type="button" onClick={() => setStagedFile(null)} className="text-muted-foreground hover:text-foreground">
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="flex items-end gap-2">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="rounded-xl h-10 w-10 shrink-0 mb-[26px]"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isLoading || isUploading || sessionLoading || !session}
+                            title="Attach a document (PDF, image)"
+                        >
+                            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                        </Button>
+                        <div className="flex-1">
+                            <AIInputWithLoading
+                                value={inputValue}
+                                onValueChange={setInputValue}
+                                isLoading={isLoading || isUploading}
+                                onSubmit={(val) => {
+                                    if (stagedFile) {
+                                        handleFileUpload(stagedFile, val.trim() || undefined)
+                                        setStagedFile(null)
+                                        setInputValue("")
+                                    } else {
+                                        sendMessage(val)
+                                    }
+                                }}
+                                placeholder={stagedFile ? `Describe what to do with ${stagedFile.name}...` : `Describe your ${docType}...`}
+                                disabled={sessionLoading || !session}
+                                statusText={isUploading ? "Analyzing file..." : isSaving ? "Saving..." : undefined}
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
