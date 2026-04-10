@@ -93,13 +93,17 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // Fetch DeepSeek API key from Vault
+        const { getSecret } = await import("@/lib/secrets")
+        const deepseekKey = await getSecret("DEEPSEEK_API_KEY", auth.supabase)
+
         // Create a readable stream from our generator
         const stream = new ReadableStream({
             async start(controller) {
                 const encoder = new TextEncoder()
 
                 try {
-                    for await (const chunk of streamGenerateDocument(body)) {
+                    for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                         const data = `data: ${JSON.stringify(chunk)}\n\n`
                         controller.enqueue(encoder.encode(data))
 

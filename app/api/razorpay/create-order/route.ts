@@ -43,7 +43,8 @@ export async function POST(request: Request) {
             plan as PlanId,
             cycle,
             pricing.currency,
-            yearlyTotal
+            yearlyTotal,
+            auth.supabase
         )
 
         return NextResponse.json({

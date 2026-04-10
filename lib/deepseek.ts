@@ -444,9 +444,10 @@ async function fetchWithRetry(
 
 // Non-streaming generation
 export async function generateDocument(
-    request: AIGenerationRequest
+    request: AIGenerationRequest,
+    apiKeyOverride?: string
 ): Promise<AIGenerationResponse> {
-    const apiKey = process.env.DEEPSEEK_API_KEY
+    const apiKey = apiKeyOverride || process.env.DEEPSEEK_API_KEY
 
     if (!apiKey) {
         return {
@@ -537,9 +538,10 @@ export async function generateDocument(
 
 // Streaming generation for real-time UI updates
 export async function* streamGenerateDocument(
-    request: AIGenerationRequest
+    request: AIGenerationRequest,
+    apiKeyOverride?: string
 ): AsyncGenerator<{ type: "chunk" | "complete" | "error"; data: string }> {
-    const apiKey = process.env.DEEPSEEK_API_KEY
+    const apiKey = apiKeyOverride || process.env.DEEPSEEK_API_KEY
 
     if (!apiKey) {
         yield { type: "error", data: "DeepSeek API key not configured. Add DEEPSEEK_API_KEY to .env" }

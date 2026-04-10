@@ -50,10 +50,10 @@ export type PlanId = keyof typeof PLANS
  * Create a Razorpay order for a subscription payment.
  * This is called server-side only — the client never sets the amount.
  */
-export async function createRazorpayOrder(plan: PlanId, billingCycle: "monthly" | "yearly", currency: string = "INR", amount?: number) {
+export async function createRazorpayOrder(plan: PlanId, billingCycle: "monthly" | "yearly", currency: string = "INR", amount?: number, supabaseClient?: any) {
     const { getSecret } = await import("@/lib/secrets")
-    const keyId = await getSecret("RAZORPAY_KEY_ID")
-    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+    const keyId = await getSecret("RAZORPAY_KEY_ID", supabaseClient)
+    const keySecret = await getSecret("RAZORPAY_KEY_SECRET", supabaseClient)
 
     if (!keyId || !keySecret) {
         throw new Error("Razorpay API keys not configured")
@@ -122,10 +122,11 @@ export async function createRazorpayOrder(plan: PlanId, billingCycle: "monthly" 
 export async function verifyPaymentSignature(
     orderId: string,
     paymentId: string,
-    signature: string
+    signature: string,
+    supabaseClient?: any
 ): Promise<boolean> {
     const { getSecret } = await import("@/lib/secrets")
-    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+    const keySecret = await getSecret("RAZORPAY_KEY_SECRET", supabaseClient)
     if (!keySecret) return false
 
     // Use Web Crypto API (edge-compatible, works on Cloudflare Workers)
@@ -153,10 +154,11 @@ export async function verifyPaymentSignature(
  */
 export async function verifyWebhookSignature(
     body: string,
-    signature: string
+    signature: string,
+    supabaseClient?: any
 ): Promise<boolean> {
     const { getSecret } = await import("@/lib/secrets")
-    const webhookSecret = await getSecret("RAZORPAY_WEBHOOK_SECRET")
+    const webhookSecret = await getSecret("RAZORPAY_WEBHOOK_SECRET", supabaseClient)
     if (!webhookSecret) return false
 
     const encoder = new TextEncoder()
