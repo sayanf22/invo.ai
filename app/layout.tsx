@@ -35,13 +35,21 @@ export const metadata: Metadata = {
     "multi-country invoicing", "Clorefy", "clorefy.com",
   ],
   icons: {
-    icon: "/favicon.png",
-    apple: "/favicon.png",
+    icon: [
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/favicon.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [
+      { url: "/favicon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: "/favicon.png",
   },
   metadataBase: new URL("https://clorefy.com"),
   alternates: {
     canonical: "https://clorefy.com",
   },
+  manifest: "/manifest.json",
   openGraph: {
     title: "Clorefy — AI-Powered Document Generation",
     description:
