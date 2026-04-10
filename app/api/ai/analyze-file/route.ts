@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
+import { getSecret } from "@/lib/secrets"
+import { checkRateLimit } from "@/lib/rate-limiter"
 
 /**
  * POST /api/ai/analyze-file
- * Analyzes uploaded files (images, PDFs) using OpenAI Vision to extract business information.
- * Returns structured JSON with onboarding fields.
+ * Analyzes uploaded files (images, PDFs) using OpenAI GPT-5.4 to extract business information.
+ * 
+ * SECURITY:
+ * - Requires authentication (no anonymous access)
+ * - Rate limited: 5 file analyses per minute per user (prevents API exhaustion)
+ * - File size limit: 10MB
+ * - File type whitelist: only images and PDFs
+ * - OpenAI key fetched from Supabase Vault (never exposed to client)
+ * - Input sanitization on extracted data
  */
 
 const EXTRACTION_PROMPT = `You are a business information extraction AI. Analyze the provided document/image and extract ALL business information you can find.
@@ -16,7 +25,8 @@ Return a JSON object with these fields (use null for fields you cannot determine
   "businessName": "Company/Business name",
   "ownerName": "Owner/Director name",
   "email": "Business email",
-  "phone": "Phone number with country code",
+  "phone": "Primary phone number with country code",
+  "phone2": "Secondary phone number (if found)",
   "country": "2-letter country code (IN, US, GB, DE, CA, AU, SG, AE, PH, FR, NL)",
   "address": {
     "street": "Street address",
@@ -27,7 +37,7 @@ Return a JSON object with these fields (use null for fields you cannot determine
   "taxId": "GST/VAT/Tax ID number",
   "clientCountries": ["array of 2-letter country codes where clients are based"],
   "defaultCurrency": "3-letter currency code (INR, USD, EUR, GBP, etc.)",
-  "paymentTerms": "net_15|net_30|net_45|net_60|due_on_receipt",
+  "paymentTerms": "net_7|net_15|net_30|net_45|net_60|due_on_receipt",
   "bankDetails": {
     "bankName": "Bank name",
     "accountNumber": "Account number",
@@ -47,9 +57,14 @@ export async function POST(request: Request) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
+    // Rate limit: 5 file analyses per minute per user
+    const rateLimitError = await checkRateLimit(auth.user.id, "ai")
+    if (rateLimitError) return rateLimitError
+
     try {
         const formData = await request.formData()
         const file = formData.get("file") as File | null
+        const userMessage = formData.get("message") as string | null
 
         if (!file) {
             return NextResponse.json({ error: "No file provided" }, { status: 400 })
@@ -66,21 +81,47 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Unsupported file type. Upload an image or PDF." }, { status: 400 })
         }
 
-        const openaiKey = process.env.OPENAI_API_KEY
+        const openaiKey = await getSecret("OPENAI_API_KEY")
         if (!openaiKey) {
             return NextResponse.json({ error: "OpenAI API not configured" }, { status: 500 })
         }
 
-        // Convert file to base64
+        // Convert file to base64 — use chunked approach for large files
         const bytes = await file.arrayBuffer()
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)))
+        const uint8 = new Uint8Array(bytes)
+        let binary = ""
+        const chunkSize = 8192
+        for (let i = 0; i < uint8.length; i += chunkSize) {
+            binary += String.fromCharCode(...uint8.slice(i, i + chunkSize))
+        }
+        const base64 = btoa(binary)
         const mimeType = file.type
-
-        // For PDFs, we need to tell OpenAI it's a document
-        // OpenAI Vision supports images directly; for PDFs we send as image
         const imageUrl = `data:${mimeType};base64,${base64}`
 
-        // Call OpenAI Vision API
+        // Build the message content based on file type
+        const isImage = mimeType.startsWith("image/")
+        const isPDF = mimeType === "application/pdf"
+
+        let contentParts: any[]
+        const promptText = userMessage
+            ? `${EXTRACTION_PROMPT}\n\nAdditional context from the user: "${userMessage}"`
+            : EXTRACTION_PROMPT
+
+        if (isImage) {
+            contentParts = [
+                { type: "text", text: promptText },
+                { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+            ]
+        } else if (isPDF) {
+            contentParts = [
+                { type: "text", text: promptText },
+                { type: "file", file: { filename: file.name, file_data: imageUrl } },
+            ]
+        } else {
+            return NextResponse.json({ error: "Unsupported file type" }, { status: 400 })
+        }
+
+        // Call OpenAI API with gpt-5.4 (latest, supports images + PDFs natively)
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -88,28 +129,23 @@ export async function POST(request: Request) {
                 Authorization: `Bearer ${openaiKey}`,
             },
             body: JSON.stringify({
-                model: "gpt-4o-mini",
+                model: "gpt-5.4",
                 messages: [
                     {
                         role: "user",
-                        content: [
-                            { type: "text", text: EXTRACTION_PROMPT },
-                            {
-                                type: "image_url",
-                                image_url: { url: imageUrl, detail: "high" },
-                            },
-                        ],
+                        content: contentParts,
                     },
                 ],
-                max_tokens: 2000,
+                max_completion_tokens: 2000,
                 temperature: 0.1,
             }),
         })
 
         if (!response.ok) {
-            const err = await response.json()
-            console.error("OpenAI API error:", err)
-            return NextResponse.json({ error: "Failed to analyze file" }, { status: 500 })
+            const err = await response.json().catch(() => ({ error: { message: "Unknown error" } }))
+            console.error("OpenAI API error:", JSON.stringify(err))
+            const msg = err.error?.message || "Failed to analyze file"
+            return NextResponse.json({ error: msg }, { status: 500 })
         }
 
         const data = await response.json()
@@ -126,13 +162,26 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Could not extract information from file" }, { status: 422 })
         }
 
+        // Sanitize extracted data — strip any HTML/script tags
+        const sanitize = (val: any): any => {
+            if (typeof val === "string") return val.replace(/<[^>]*>/g, "").trim()
+            if (Array.isArray(val)) return val.map(sanitize)
+            if (typeof val === "object" && val !== null) {
+                const clean: any = {}
+                for (const [k, v] of Object.entries(val)) clean[k] = sanitize(v)
+                return clean
+            }
+            return val
+        }
+        const sanitized = sanitize(extracted)
+
         return NextResponse.json({
             success: true,
-            extracted,
-            fieldsFound: Object.entries(extracted).filter(([_, v]) => v !== null && v !== "").length,
+            extracted: sanitized,
+            fieldsFound: Object.entries(sanitized).filter(([_, v]) => v !== null && v !== "").length,
         })
-    } catch (error) {
-        console.error("File analysis error:", error)
-        return NextResponse.json({ error: "Failed to process file" }, { status: 500 })
+    } catch (error: any) {
+        console.error("File analysis error:", error?.message || error)
+        return NextResponse.json({ error: error?.message || "Failed to process file" }, { status: 500 })
     }
 }

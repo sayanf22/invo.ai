@@ -89,6 +89,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
     const [inputValue, setInputValue] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
+    const [stagedFile, setStagedFile] = useState<File | null>(null)
     const [collectedData, setCollectedData] = useState<CollectedData>({
         email: userEmail || "",
     })
@@ -268,11 +269,11 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
         }
     }, [inputValue, isLoading, messages, collectedData])
 
-    const handleFileUpload = useCallback(async (file: File) => {
+    const handleFileUpload = useCallback(async (file: File, userText?: string) => {
         setIsUploading(true)
         setMessages(prev => [...prev, {
             role: "user",
-            content: `📎 Uploaded: ${file.name}`
+            content: userText ? `📎 ${file.name}\n${userText}` : `📎 Uploaded: ${file.name}`
         }])
         setMessages(prev => [...prev, {
             role: "assistant",
@@ -282,6 +283,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
         try {
             const formData = new FormData()
             formData.append("file", file)
+            if (userText) formData.append("message", userText)
 
             // Get auth token
             const tokenKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.includes("-auth-token"))
@@ -320,6 +322,9 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                             updated.bankDetails = { ...prev.bankDetails, ...(value as any) }
                         } else if (key === "additionalContext") {
                             updated.additionalNotes = (prev.additionalNotes || "") + "\n" + String(value)
+                        } else if (key === "phone2" && value) {
+                            // Store secondary phone in additional notes
+                            updated.additionalNotes = (prev.additionalNotes || "") + "\nSecondary phone: " + String(value)
                         } else {
                             (updated as any)[key] = value
                         }
@@ -454,7 +459,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
 
                 {/* Input Area */}
                 <div className="p-5 bg-background border-t shrink-0">
-                    {allComplete ? (
+                    {(allComplete || progressPercent >= 100) ? (
                         <div className="flex items-center gap-3 max-w-3xl mx-auto">
                             <div className="flex-1 text-base text-muted-foreground">
                                 ✅ All information collected! Ready to complete setup.
@@ -474,17 +479,29 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                                 className="hidden"
                                 onChange={(e) => {
                                     const file = e.target.files?.[0]
-                                    if (file) handleFileUpload(file)
+                                    if (file) setStagedFile(file)
                                     e.target.value = ""
                                 }}
                             />
+
+                            {/* Staged file indicator */}
+                            {stagedFile && (
+                                <div className="absolute -top-10 left-0 right-0 flex items-center gap-2 px-3 py-1.5 bg-primary/5 border border-primary/20 rounded-xl text-xs">
+                                    <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
+                                    <span className="truncate flex-1 text-foreground">{stagedFile.name}</span>
+                                    <button type="button" onClick={() => setStagedFile(null)} className="text-muted-foreground hover:text-foreground">
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            )}
+
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 className="rounded-xl h-12 w-12 shrink-0"
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isLoading || isUploading}
-                                title="Upload a document (PDF, image) to auto-fill your business info"
+                                title="Attach a document (PDF, image)"
                             >
                                 {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
                             </Button>
@@ -492,16 +509,34 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                                 ref={inputRef}
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
-                                placeholder="Tell me about your business..."
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                        if (stagedFile) {
+                                            handleFileUpload(stagedFile, inputValue.trim() || undefined)
+                                            setStagedFile(null)
+                                            setInputValue("")
+                                        } else {
+                                            handleSendMessage()
+                                        }
+                                    }
+                                }}
+                                placeholder={stagedFile ? "Add a note about this file (optional)..." : "Tell me about your business..."}
                                 disabled={isLoading || isUploading}
                                 className="flex-1 rounded-xl h-12 px-5 text-[15px]"
                                 autoFocus
                             />
                             <Button
                                 size="icon"
-                                onClick={handleSendMessage}
-                                disabled={!inputValue.trim() || isLoading || isUploading}
+                                onClick={() => {
+                                    if (stagedFile) {
+                                        handleFileUpload(stagedFile, inputValue.trim() || undefined)
+                                        setStagedFile(null)
+                                        setInputValue("")
+                                    } else {
+                                        handleSendMessage()
+                                    }
+                                }}
+                                disabled={(!inputValue.trim() && !stagedFile) || isLoading || isUploading}
                                 className="rounded-xl h-12 w-12 shrink-0"
                             >
                                 {isLoading
