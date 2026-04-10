@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Send, Loader2, RefreshCw, Check, Paperclip, FileText, X } from "lucide-react"
+import { Send, Loader2, Check, Paperclip, FileText, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -263,7 +263,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
             console.error("Chat error:", err)
             setMessages(prev => [...prev, {
                 role: "assistant",
-                content: "I'm having trouble connecting right now. Please try again."
+                content: "Something went wrong. Please try sending your message again."
             }])
         } finally {
             setIsLoading(false)
@@ -371,11 +371,15 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                 }, 500)
             }
         } catch (err: any) {
+            const errMsg = err.message || ""
+            const isRateLimit = errMsg.toLowerCase().includes("rate limit") || errMsg.includes("429")
             setMessages(prev => {
                 const filtered = prev.filter(m => m.content !== "Analyzing your document... This may take a moment.")
                 return [...filtered, {
                     role: "assistant",
-                    content: `❌ ${err.message || "Could not analyze the file. Please try again or enter your details manually."}`
+                    content: isRateLimit
+                        ? "Please wait a moment before uploading another file. In the meantime, you can type your business details directly."
+                        : `Could not analyze the file. You can try again or type your business details directly.`
                 }]
             })
         } finally {
@@ -409,26 +413,11 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
     const progressPercent = Math.round((completedCount / REQUIRED_FIELDS.length) * 100)
 
     return (
-        <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-5rem)] max-w-7xl mx-auto w-full">
+        <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 h-full max-w-7xl mx-auto w-full">
             {/* ── Main Chat Panel ────────────────────────────────── */}
-            <div className="flex-1 flex flex-col min-w-0 border rounded-2xl bg-card shadow-sm overflow-hidden">
-                {/* Chat Header */}
-                <div className="px-6 py-5 border-b flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-3.5">
-                        <div className="p-2.5 bg-primary/10 rounded-xl">
-                            <FileText className="w-5 h-5 text-primary" />
-                        </div>
-                        <div>
-                            <h3 className="font-semibold text-base">Business Setup</h3>
-                            <p className="text-xs text-muted-foreground">{completedCount} of {REQUIRED_FIELDS.length} fields completed</p>
-                        </div>
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleReset} title="Start over">
-                        <RefreshCw className="w-4 h-4" />
-                    </Button>
-                </div>
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 {/* Mobile progress bar */}
-                <div className="lg:hidden h-1 bg-muted">
+                <div className="lg:hidden h-1 bg-muted shrink-0">
                     <div className="h-full bg-primary transition-all duration-500 ease-out" style={{ width: `${progressPercent}%` }} />
                 </div>
 

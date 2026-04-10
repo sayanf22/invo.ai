@@ -124,7 +124,7 @@ export default function OnboardingPage() {
             </header>
 
             {/* Main — Chat Only */}
-            <main className="flex-1 p-4 lg:p-6 overflow-hidden">
+            <main className="flex-1 overflow-hidden">
                 <OnboardingChat
                     onComplete={handleComplete}
                     userEmail={user?.email || ""}
