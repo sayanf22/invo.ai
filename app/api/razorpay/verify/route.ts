@@ -79,6 +79,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Failed to activate subscription" }, { status: 500 })
         }
 
+        // Mark plan as selected in profile
+        await auth.supabase
+            .from("profiles")
+            .update({ plan_selected: true } as any)
+            .eq("id", auth.user.id)
+
         // Log payment for audit
         await auth.supabase.from("payment_history" as any).insert({
             user_id: auth.user.id,

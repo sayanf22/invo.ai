@@ -14,22 +14,25 @@ export default function OnboardingPage() {
     const router = useRouter()
     const { supabase, user, isLoading } = useAuth()
 
-    // Redirect if not logged in, or if onboarding already complete
+    // Redirect if not logged in, or if plan not selected, or if onboarding already complete
     useEffect(() => {
         if (!isLoading && !user) {
             router.push("/auth/login")
             return
         }
         if (!isLoading && user) {
-            // Check if onboarding is already complete
             supabase
                 .from("profiles")
-                .select("onboarding_complete")
+                .select("onboarding_complete, plan_selected")
                 .eq("id", user.id)
                 .single()
-                .then(({ data }) => {
+                .then(({ data }: any) => {
+                    // Must select a plan before onboarding
+                    if (!data?.plan_selected) {
+                        router.push("/choose-plan")
+                        return
+                    }
                     if (data?.onboarding_complete) {
-                        // Check if there's an active localStorage session (user is mid-redo)
                         const hasActiveSession = localStorage.getItem("invo_onboarding_session")
                         if (!hasActiveSession) {
                             router.push("/")

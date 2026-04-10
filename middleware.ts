@@ -169,7 +169,15 @@ function parseAuthToken(raw: string): { access_token?: string; refresh_token?: s
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const response = NextResponse.next()
+
+  // SECURITY: Strip x-middleware-subrequest header to prevent CVE-2025-29927 bypass
+  // Even though Next.js 16.x is patched, this is defense-in-depth
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.delete("x-middleware-subrequest")
+
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  })
 
   // Skip static assets and Next.js internals
   if (

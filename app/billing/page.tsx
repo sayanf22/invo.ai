@@ -8,22 +8,24 @@ import { Check, Zap, Crown, Loader2, FileText, MessageSquare } from "lucide-reac
 import { Badge } from "@/components/ui/badge"
 import { useRazorpay } from "@/hooks/use-razorpay"
 import { authFetch } from "@/lib/auth-fetch"
+import { toast } from "sonner"
+import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
 
 const plans = [
     {
-        id: "free", name: "Free", monthlyPrice: 0, yearlyPrice: 0,
+        id: "free", name: "Free",
         features: ["3 documents/month", "Invoice + Contract only", "3 PDF templates", "3 countries (IN, US, UK)", "PDF export only", "7-day session history"],
     },
     {
-        id: "starter", name: "Starter", monthlyPrice: 900, yearlyPrice: 700, popular: true,
+        id: "starter", name: "Starter", popular: true,
         features: ["50 documents/month", "All 4 document types", "All 9 PDF templates", "All 11 countries", "PDF + DOCX export", "30-day session history"],
     },
     {
-        id: "pro", name: "Pro", monthlyPrice: 2400, yearlyPrice: 1900,
+        id: "pro", name: "Pro",
         features: ["150 documents/month", "All 4 document types", "All 9 PDF templates", "All 11 countries", "PDF + DOCX + Image export", "1-year session history", "E-signatures", "Custom logo & branding"],
     },
     {
-        id: "agency", name: "Agency", monthlyPrice: 5900, yearlyPrice: 4700, comingSoon: true,
+        id: "agency", name: "Agency", comingSoon: true,
         features: ["Unlimited documents", "Everything in Pro", "3 team members", "Priority support", "Forever session history"],
     },
 ]
@@ -47,6 +49,9 @@ export default function BillingPage() {
     const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly")
     const [data, setData] = useState<UsageData | null>(null)
     const [loading, setLoading] = useState(true)
+    const [downgradeTarget, setDowngradeTarget] = useState<string | null>(null)
+    const [isDowngrading, setIsDowngrading] = useState(false)
+    const [countryPricing, setCountryPricing] = useState<CountryPricing>(COUNTRY_PRICING[DEFAULT_COUNTRY])
 
     const { subscribe, isProcessing } = useRazorpay({
         onSuccess: () => {
@@ -68,6 +73,9 @@ export default function BillingPage() {
     useEffect(() => {
         if (!user) { router.push("/auth/login"); return }
         fetchUsage()
+        // Detect country for pricing display
+        const detected = detectCountryFromTimezone()
+        setCountryPricing(COUNTRY_PRICING[detected] || COUNTRY_PRICING[DEFAULT_COUNTRY])
     }, [user, router, fetchUsage])
 
     const currentPlan = data?.plan || "free"
@@ -159,7 +167,9 @@ export default function BillingPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {plans.map((plan) => {
                     const isCurrent = plan.id === currentPlan
-                    const price = billingCycle === "yearly" ? plan.yearlyPrice : plan.monthlyPrice
+                    const paidPlan = plan.id as "starter" | "pro" | "agency"
+                    const price = plan.id === "free" ? 0 : countryPricing[paidPlan]?.[billingCycle] || 0
+                    const priceDisplay = plan.id === "free" ? "Free" : formatPrice(price, countryPricing)
                     const isUpgrade = plans.findIndex(p => p.id === plan.id) > plans.findIndex(p => p.id === currentPlan)
                     const isDowngrade = plans.findIndex(p => p.id === plan.id) < plans.findIndex(p => p.id === currentPlan)
 
@@ -180,14 +190,14 @@ export default function BillingPage() {
                                     {isCurrent && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Current</Badge>}
                                 </div>
                                 <div className="mt-2 mb-1">
-                                    {price === 0 ? (
+                                    {plan.id === "free" ? (
                                         <span className="text-2xl font-bold">Free</span>
                                     ) : (
-                                        <><span className="text-2xl font-bold">₹{price.toLocaleString()}</span><span className="text-muted-foreground text-xs">/mo</span></>
+                                        <><span className="text-2xl font-bold">{priceDisplay}</span><span className="text-muted-foreground text-xs">/mo</span></>
                                     )}
                                 </div>
                                 {billingCycle === "yearly" && price > 0 && (
-                                    <p className="text-xs text-muted-foreground">Billed ₹{(price * 12).toLocaleString()}/year</p>
+                                    <p className="text-xs text-muted-foreground">Billed {formatPrice(price * 12, countryPricing)}/year</p>
                                 )}
                             </div>
 
@@ -209,14 +219,16 @@ export default function BillingPage() {
                                     className="w-full"
                                     variant={isCurrent ? "outline" : isDowngrade ? "ghost" : "default"}
                                     size="sm"
-                                    disabled={isCurrent || plan.comingSoon || isProcessing || (plan.id === "free" && currentPlan === "free")}
+                                    disabled={isCurrent || plan.comingSoon || isProcessing || isDowngrading || (plan.id === "free" && currentPlan === "free")}
                                     onClick={() => {
-                                        if (plan.id !== "free" && !plan.comingSoon) {
+                                        if (isDowngrade) {
+                                            setDowngradeTarget(plan.id)
+                                        } else if (plan.id !== "free" && !plan.comingSoon) {
                                             subscribe(plan.id, billingCycle)
                                         }
                                     }}
                                 >
-                                    {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" />
+                                    {(isProcessing || isDowngrading) ? <Loader2 className="w-4 h-4 animate-spin" />
                                         : isCurrent ? "Current Plan"
                                         : plan.comingSoon ? "Coming Soon"
                                         : isUpgrade ? "Upgrade"
@@ -233,6 +245,70 @@ export default function BillingPage() {
                 Payments processed securely by Razorpay. All prices in INR. Cancel anytime.{" "}
                 <a href="/refund-policy" className="underline">Refund Policy</a> · <a href="/terms" className="underline">Terms</a>
             </p>
+
+            {/* Scheduled downgrade notice */}
+            {(data?.subscription as any)?.scheduled_downgrade && (
+                <div className="mt-4 p-4 rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 text-center">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                        Your plan will downgrade to <span className="font-bold">{plans.find(p => p.id === (data?.subscription as any)?.scheduled_downgrade)?.name}</span> on{" "}
+                        {data?.subscription?.current_period_end ? new Date(data.subscription.current_period_end).toLocaleDateString() : "end of billing period"}.
+                    </p>
+                </div>
+            )}
+
+            {/* Downgrade Confirmation Dialog */}
+            {downgradeTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setDowngradeTarget(null)}>
+                    <div className="bg-background rounded-2xl border shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-semibold mb-2">Confirm Downgrade</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            Are you sure you want to downgrade to the <span className="font-medium text-foreground">{plans.find(p => p.id === downgradeTarget)?.name}</span> plan?
+                        </p>
+                        <div className="rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 mb-4">
+                            <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                                • You&apos;ll keep your current plan features until the end of your billing period<br />
+                                • The downgrade takes effect from the next billing cycle<br />
+                                • Your documents and data will be preserved<br />
+                                {downgradeTarget === "free" && "• Some features will become unavailable on the Free plan"}
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <Button variant="outline" className="flex-1" onClick={() => setDowngradeTarget(null)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                className="flex-1"
+                                disabled={isDowngrading}
+                                onClick={async () => {
+                                    setIsDowngrading(true)
+                                    try {
+                                        const res = await authFetch("/api/razorpay/downgrade", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ targetPlan: downgradeTarget }),
+                                        })
+                                        const result = await res.json()
+                                        if (res.ok) {
+                                            toast.success(result.message)
+                                            setDowngradeTarget(null)
+                                            fetchUsage()
+                                        } else {
+                                            toast.error(result.error || "Failed to downgrade")
+                                        }
+                                    } catch {
+                                        toast.error("Something went wrong")
+                                    } finally {
+                                        setIsDowngrading(false)
+                                    }
+                                }}
+                            >
+                                {isDowngrading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Downgrade"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

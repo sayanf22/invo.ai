@@ -15,7 +15,6 @@ function AppShellFallback() {
 
 export default async function Page() {
   const supabase = await createServerSupabaseClient()
-
   const { data: { user } } = await supabase.auth.getUser()
 
   // Non-authenticated users see the landing page
@@ -23,18 +22,24 @@ export default async function Page() {
     return <LandingPage />
   }
 
-  // Authenticated users: check onboarding status
+  // Authenticated users: check profile status
   const { data: profile } = await supabase
     .from("profiles")
-    .select("onboarding_complete")
+    .select("onboarding_complete, plan_selected")
     .eq("id", user.id)
-    .single()
+    .single() as any
 
-  // Redirect to onboarding if not complete
-  if (profile && !profile.onboarding_complete) {
+  // Step 1: Must select a plan first
+  if (!profile?.plan_selected) {
+    redirect("/choose-plan")
+  }
+
+  // Step 2: Must complete onboarding
+  if (!profile?.onboarding_complete) {
     redirect("/onboarding")
   }
 
+  // Step 3: Dashboard
   return (
     <Suspense fallback={<AppShellFallback />}>
       <AppShell />

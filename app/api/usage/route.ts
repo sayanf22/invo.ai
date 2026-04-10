@@ -15,7 +15,10 @@ export async function GET(request: Request) {
         const now = new Date()
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-        // Get subscription
+        // Run subscription expiry check first
+        await (auth.supabase.rpc as any)("check_subscription_expiry", { p_user_id: userId })
+
+        // Get subscription (after expiry check)
         const { data: sub } = await auth.supabase
             .from("subscriptions" as any)
             .select("*")
