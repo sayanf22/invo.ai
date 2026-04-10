@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Send, Sparkles, Loader2, RefreshCw, Check } from "lucide-react"
+import { Send, Sparkles, Loader2, RefreshCw, Check, Paperclip, FileText, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -88,6 +88,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [inputValue, setInputValue] = useState("")
     const [isLoading, setIsLoading] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
     const [collectedData, setCollectedData] = useState<CollectedData>({
         email: userEmail || "",
     })
@@ -95,6 +96,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
 
     const scrollRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Load existing session on mount
     useEffect(() => {
@@ -266,6 +268,111 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
         }
     }, [inputValue, isLoading, messages, collectedData])
 
+    const handleFileUpload = useCallback(async (file: File) => {
+        setIsUploading(true)
+        setMessages(prev => [...prev, {
+            role: "user",
+            content: `📎 Uploaded: ${file.name}`
+        }])
+        setMessages(prev => [...prev, {
+            role: "assistant",
+            content: "Analyzing your document... This may take a moment."
+        }])
+
+        try {
+            const formData = new FormData()
+            formData.append("file", file)
+
+            // Get auth token
+            const tokenKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.includes("-auth-token"))
+            const tokenRaw = tokenKey ? localStorage.getItem(tokenKey) : null
+            let accessToken = ""
+            if (tokenRaw) {
+                try {
+                    const parsed = JSON.parse(tokenRaw.startsWith("%7B") ? decodeURIComponent(tokenRaw) : tokenRaw)
+                    accessToken = parsed.access_token || ""
+                } catch {}
+            }
+
+            const res = await fetch("/api/ai/analyze-file", {
+                method: "POST",
+                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+                body: formData,
+            })
+
+            if (!res.ok) {
+                const err = await res.json()
+                throw new Error(err.error || "Failed to analyze file")
+            }
+
+            const result = await res.json()
+            const extracted = result.extracted
+
+            if (extracted) {
+                // Merge extracted data into collectedData
+                setCollectedData(prev => {
+                    const updated = { ...prev }
+                    for (const [key, value] of Object.entries(extracted)) {
+                        if (value === null || value === "") continue
+                        if (key === "address" && typeof value === "object") {
+                            updated.address = { ...prev.address, ...(value as any) }
+                        } else if (key === "bankDetails" && typeof value === "object") {
+                            updated.bankDetails = { ...prev.bankDetails, ...(value as any) }
+                        } else if (key === "additionalContext") {
+                            updated.additionalNotes = (prev.additionalNotes || "") + "\n" + String(value)
+                        } else {
+                            (updated as any)[key] = value
+                        }
+                    }
+                    return updated
+                })
+
+                const fieldCount = result.fieldsFound || 0
+                // Remove the "analyzing" message and add success
+                setMessages(prev => {
+                    const filtered = prev.filter(m => m.content !== "Analyzing your document... This may take a moment.")
+                    return [...filtered, {
+                        role: "assistant",
+                        content: `✅ I extracted ${fieldCount} fields from your document! I've auto-filled what I found. Let me check what's still missing...`
+                    }]
+                })
+
+                toast.success(`${fieldCount} fields extracted from document!`)
+
+                // Send a follow-up to the AI to check what's still needed
+                setTimeout(async () => {
+                    try {
+                        const followUp = await authFetch("/api/ai/onboarding", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                messages: [...messages, { role: "user", content: "I just uploaded a document and the system extracted my business info. What fields are still missing?" }],
+                                collectedData: { ...collectedData, ...extracted },
+                            }),
+                        })
+                        const followResult = await followUp.json()
+                        if (followResult.message) {
+                            setMessages(prev => [...prev, { role: "assistant", content: followResult.message }])
+                        }
+                        if (followResult.allFieldsComplete) {
+                            setAllComplete(true)
+                        }
+                    } catch {}
+                }, 500)
+            }
+        } catch (err: any) {
+            setMessages(prev => {
+                const filtered = prev.filter(m => m.content !== "Analyzing your document... This may take a moment.")
+                return [...filtered, {
+                    role: "assistant",
+                    content: `❌ ${err.message || "Could not analyze the file. Please try again or enter your details manually."}`
+                }]
+            })
+        } finally {
+            setIsUploading(false)
+        }
+    }, [messages, collectedData])
+
     const handleComplete = () => {
         deleteSession()
         onComplete(collectedData)
@@ -359,20 +466,42 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                         </div>
                     ) : (
                         <div className="relative flex items-center gap-2.5 max-w-3xl mx-auto">
+                            {/* Hidden file input */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0]
+                                    if (file) handleFileUpload(file)
+                                    e.target.value = ""
+                                }}
+                            />
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-xl h-12 w-12 shrink-0"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isLoading || isUploading}
+                                title="Upload a document (PDF, image) to auto-fill your business info"
+                            >
+                                {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
+                            </Button>
                             <Input
                                 ref={inputRef}
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
                                 placeholder="Tell me about your business..."
-                                disabled={isLoading}
+                                disabled={isLoading || isUploading}
                                 className="flex-1 rounded-xl h-12 px-5 text-[15px]"
                                 autoFocus
                             />
                             <Button
                                 size="icon"
                                 onClick={handleSendMessage}
-                                disabled={!inputValue.trim() || isLoading}
+                                disabled={!inputValue.trim() || isLoading || isUploading}
                                 className="rounded-xl h-12 w-12 shrink-0"
                             >
                                 {isLoading
