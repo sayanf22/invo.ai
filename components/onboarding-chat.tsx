@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Send, Sparkles, Loader2, RefreshCw, Check, Paperclip, FileText, X } from "lucide-react"
+import { Send, Loader2, RefreshCw, Check, Paperclip, FileText, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -413,19 +413,23 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
             {/* ── Main Chat Panel ────────────────────────────────── */}
             <div className="flex-1 flex flex-col min-w-0 border rounded-2xl bg-card shadow-sm overflow-hidden">
                 {/* Chat Header */}
-                <div className="bg-gradient-to-r from-primary/5 to-primary/10 px-6 py-5 border-b flex items-center justify-between shrink-0">
+                <div className="px-6 py-5 border-b flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3.5">
-                        <div className="p-2.5 bg-primary/15 rounded-xl">
-                            <Sparkles className="w-6 h-6 text-primary" />
+                        <div className="p-2.5 bg-primary/10 rounded-xl">
+                            <FileText className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                            <h3 className="font-semibold text-lg">Clorefy AI</h3>
-                            <p className="text-sm text-muted-foreground">Setting up your business profile</p>
+                            <h3 className="font-semibold text-base">Business Setup</h3>
+                            <p className="text-xs text-muted-foreground">{completedCount} of {REQUIRED_FIELDS.length} fields completed</p>
                         </div>
                     </div>
                     <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleReset} title="Start over">
-                        <RefreshCw className="w-5 h-5" />
+                        <RefreshCw className="w-4 h-4" />
                     </Button>
+                </div>
+                {/* Mobile progress bar */}
+                <div className="lg:hidden h-1 bg-muted">
+                    <div className="h-full bg-primary transition-all duration-500 ease-out" style={{ width: `${progressPercent}%` }} />
                 </div>
 
                 {/* Messages */}
@@ -555,7 +559,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
             </div>
 
             {/* ── Collected Data Sidebar ─────────────────────────── */}
-            <div className="lg:w-80 shrink-0 space-y-4">
+            <div className="hidden lg:block lg:w-80 shrink-0 space-y-4">
                 {/* Progress */}
                 <div className="border rounded-2xl bg-card shadow-sm p-5 space-y-3">
                     <div className="flex items-center justify-between text-sm">
