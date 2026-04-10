@@ -290,16 +290,11 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
             formData.append("file", file)
             if (userText) formData.append("message", userText)
 
-            // Get auth token
-            const tokenKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.includes("-auth-token"))
-            const tokenRaw = tokenKey ? localStorage.getItem(tokenKey) : null
-            let accessToken = ""
-            if (tokenRaw) {
-                try {
-                    const parsed = JSON.parse(tokenRaw.startsWith("%7B") ? decodeURIComponent(tokenRaw) : tokenRaw)
-                    accessToken = parsed.access_token || ""
-                } catch {}
-            }
+            // Get auth token using Supabase client
+            const { createClient } = await import("@/lib/supabase")
+            const supabase = createClient()
+            const { data: { session: authSession } } = await supabase.auth.getSession()
+            const accessToken = authSession?.access_token || ""
 
             const res = await fetch("/api/ai/analyze-file", {
                 method: "POST",
@@ -499,11 +494,11 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                 </ScrollArea>
 
                 {/* Input Area */}
-                <div className="p-5 bg-background border-t shrink-0">
+                <div className="px-4 py-4 bg-background border-t shrink-0">
                     {(allComplete || progressPercent >= 100) ? (
                         <div className="flex items-center gap-3 max-w-3xl mx-auto">
                             <div className="flex-1 text-base text-muted-foreground">
-                                ✅ All information collected! Ready to complete setup.
+                                All information collected. Ready to complete setup.
                             </div>
                             <Button onClick={handleComplete} className="gap-2 h-11 px-6 text-base">
                                 <Check className="w-5 h-5" />
@@ -511,80 +506,110 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                             </Button>
                         </div>
                     ) : (
-                        <div className="relative flex items-center gap-2.5 max-w-3xl mx-auto">
-                            {/* Hidden file input */}
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*,application/pdf"
-                                className="hidden"
-                                onChange={(e) => {
-                                    const file = e.target.files?.[0]
-                                    if (file) setStagedFile(file)
-                                    e.target.value = ""
-                                }}
-                            />
+                        <div className="max-w-3xl mx-auto">
+                            {/* Prompt box with file card inside */}
+                            <div className={cn(
+                                "rounded-2xl border bg-card transition-all duration-300",
+                                (isLoading || isUploading)
+                                    ? "border-primary/40 shadow-md"
+                                    : "border-border shadow-sm focus-within:border-primary/40 focus-within:shadow-md"
+                            )}>
+                                {/* Staged file card — Claude style */}
+                                {stagedFile && (
+                                    <div className="px-4 pt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                        <div className="inline-flex items-start gap-0 rounded-xl border border-border/50 bg-muted/40 overflow-hidden shadow-sm max-w-[180px]">
+                                            <div className="w-full px-3 py-2.5">
+                                                <div className="w-10 h-10 rounded-lg bg-background border border-border/50 flex flex-col items-center justify-center mb-1.5 shadow-sm">
+                                                    <FileText className="w-4 h-4 text-muted-foreground" />
+                                                    <span className="text-[7px] font-bold text-muted-foreground mt-0.5 leading-none uppercase">
+                                                        {stagedFile.type === "application/pdf" ? "PDF" : stagedFile.type.startsWith("image/") ? "IMG" : "FILE"}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] font-medium text-foreground truncate leading-tight">{stagedFile.name.length > 16 ? stagedFile.name.slice(0, 14) + "..." : stagedFile.name}</p>
+                                                <p className="text-[9px] text-muted-foreground mt-0.5">
+                                                    {stagedFile.size < 1024 ? `${stagedFile.size} B` : stagedFile.size < 1024 * 1024 ? `${(stagedFile.size / 1024).toFixed(1)} KB` : `${(stagedFile.size / (1024 * 1024)).toFixed(1)} MB`}
+                                                </p>
+                                            </div>
+                                            <button type="button" onClick={() => setStagedFile(null)}
+                                                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-background/80 border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shadow-sm">
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
 
-                            {/* Staged file indicator */}
-                            {stagedFile && (
-                                <div className="absolute -top-10 left-0 right-0 flex items-center gap-2 px-3 py-1.5 bg-primary/5 border border-primary/20 rounded-xl text-xs">
-                                    <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
-                                    <span className="truncate flex-1 text-foreground">{stagedFile.name}</span>
-                                    <button type="button" onClick={() => setStagedFile(null)} className="text-muted-foreground hover:text-foreground">
-                                        <X className="w-3.5 h-3.5" />
+                                {/* Text input */}
+                                <div className="relative">
+                                    <input
+                                        ref={fileInputRef}
+                                        id="onboarding-file-input"
+                                        type="file"
+                                        accept="image/*,application/pdf"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0]
+                                            if (file) setStagedFile(file)
+                                            e.target.value = ""
+                                        }}
+                                    />
+                                    <Input
+                                        ref={inputRef}
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" && !e.shiftKey) {
+                                                if (stagedFile) {
+                                                    handleFileUpload(stagedFile, inputValue.trim() || undefined)
+                                                    setStagedFile(null)
+                                                    setInputValue("")
+                                                } else {
+                                                    handleSendMessage()
+                                                }
+                                            }
+                                        }}
+                                        placeholder={stagedFile ? "Add a note about this file..." : "Tell me about your business..."}
+                                        disabled={isLoading || isUploading}
+                                        className="border-none shadow-none h-12 px-4 text-[15px] focus-visible:ring-0 bg-transparent"
+                                        autoFocus
+                                    />
+                                </div>
+
+                                {/* Bottom bar with attach + send */}
+                                <div className="flex items-center justify-between px-3 pb-3">
+                                    <label
+                                        htmlFor={!(isLoading || isUploading) ? "onboarding-file-input" : undefined}
+                                        className={cn(
+                                            "flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200",
+                                            (isLoading || isUploading)
+                                                ? "opacity-40 cursor-not-allowed text-muted-foreground"
+                                                : "cursor-pointer text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/50"
+                                        )}
+                                    >
+                                        {isUploading ? <Loader2 className="w-[18px] h-[18px] animate-spin" /> : <Paperclip className="w-[18px] h-[18px]" />}
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (stagedFile) {
+                                                handleFileUpload(stagedFile, inputValue.trim() || undefined)
+                                                setStagedFile(null)
+                                                setInputValue("")
+                                            } else {
+                                                handleSendMessage()
+                                            }
+                                        }}
+                                        disabled={(!inputValue.trim() && !stagedFile) || isLoading || isUploading}
+                                        className={cn(
+                                            "flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200",
+                                            (inputValue.trim() || stagedFile)
+                                                ? "bg-foreground text-background hover:opacity-80 active:scale-90"
+                                                : "bg-muted/60 text-muted-foreground/30 cursor-not-allowed"
+                                        )}
+                                    >
+                                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                     </button>
                                 </div>
-                            )}
-
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="rounded-xl h-12 w-12 shrink-0"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isLoading || isUploading}
-                                title="Attach a document (PDF, image)"
-                            >
-                                {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
-                            </Button>
-                            <Input
-                                ref={inputRef}
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter" && !e.shiftKey) {
-                                        if (stagedFile) {
-                                            handleFileUpload(stagedFile, inputValue.trim() || undefined)
-                                            setStagedFile(null)
-                                            setInputValue("")
-                                        } else {
-                                            handleSendMessage()
-                                        }
-                                    }
-                                }}
-                                placeholder={stagedFile ? "Add a note about this file (optional)..." : "Tell me about your business..."}
-                                disabled={isLoading || isUploading}
-                                className="flex-1 rounded-xl h-12 px-5 text-[15px]"
-                                autoFocus
-                            />
-                            <Button
-                                size="icon"
-                                onClick={() => {
-                                    if (stagedFile) {
-                                        handleFileUpload(stagedFile, inputValue.trim() || undefined)
-                                        setStagedFile(null)
-                                        setInputValue("")
-                                    } else {
-                                        handleSendMessage()
-                                    }
-                                }}
-                                disabled={(!inputValue.trim() && !stagedFile) || isLoading || isUploading}
-                                className="rounded-xl h-12 w-12 shrink-0"
-                            >
-                                {isLoading
-                                    ? <Loader2 className="w-5 h-5 animate-spin" />
-                                    : <Send className="w-5 h-5" />
-                                }
-                            </Button>
+                            </div>
                         </div>
                     )}
                 </div>
