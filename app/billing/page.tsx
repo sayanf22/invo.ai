@@ -10,6 +10,9 @@ import { useRazorpay } from "@/hooks/use-razorpay"
 import { authFetch } from "@/lib/auth-fetch"
 import { toast } from "sonner"
 import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
+import { HamburgerMenu } from "@/components/hamburger-menu"
+import { ClorefyLogo } from "@/components/clorefy-logo"
+import Link from "next/link"
 
 const plans = [
     {
@@ -91,6 +94,14 @@ export default function BillingPage() {
 
     return (
         <div className="container mx-auto p-4 sm:p-6 max-w-5xl pb-20">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+                <Link href="/">
+                    <ClorefyLogo size={36} />
+                </Link>
+                <HamburgerMenu />
+            </div>
+
             <div className="mb-6">
                 <h1 className="text-2xl sm:text-3xl font-bold mb-1">Billing & Plans</h1>
                 <p className="text-sm text-muted-foreground">Manage your subscription and track usage</p>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Check, Zap, Loader2, ArrowRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { ClorefyLogo } from "@/components/clorefy-logo"
+import { HamburgerMenu } from "@/components/hamburger-menu"
 import { useRazorpay } from "@/hooks/use-razorpay"
 import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
 import { toast } from "sonner"
@@ -112,8 +113,9 @@ export default function ChoosePlanPage() {
     return (
         <div className="min-h-screen bg-background flex flex-col">
             {/* Header */}
-            <header className="py-6 px-4 sm:px-6 flex items-center justify-center shrink-0">
-                <ClorefyLogo size={40} />
+            <header className="py-4 px-4 sm:px-6 flex items-center justify-between shrink-0">
+                <ClorefyLogo size={36} />
+                <HamburgerMenu />
             </header>
 
             <main className="flex-1 flex flex-col items-center justify-center px-4 pb-16">
