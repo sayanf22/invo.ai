@@ -224,7 +224,7 @@ export default function BillingPage() {
                                         if (isDowngrade) {
                                             setDowngradeTarget(plan.id)
                                         } else if (plan.id !== "free" && !plan.comingSoon) {
-                                            subscribe(plan.id, billingCycle)
+                                            subscribe(plan.id, billingCycle, countryPricing.countryCode)
                                         }
                                     }}
                                 >

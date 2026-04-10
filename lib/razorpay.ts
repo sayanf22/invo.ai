@@ -50,7 +50,7 @@ export type PlanId = keyof typeof PLANS
  * Create a Razorpay order for a subscription payment.
  * This is called server-side only — the client never sets the amount.
  */
-export async function createRazorpayOrder(plan: PlanId, billingCycle: "monthly" | "yearly") {
+export async function createRazorpayOrder(plan: PlanId, billingCycle: "monthly" | "yearly", currency: string = "INR", amount?: number) {
     const keyId = process.env.RAZORPAY_KEY_ID
     const keySecret = process.env.RAZORPAY_KEY_SECRET
 
@@ -63,9 +63,29 @@ export async function createRazorpayOrder(plan: PlanId, billingCycle: "monthly" 
         throw new Error("Invalid plan for payment")
     }
 
-    const amount = billingCycle === "yearly"
-        ? planConfig.yearlyPrice * 12 // yearly is per-month price × 12
-        : planConfig.monthlyPrice
+    // If amount is provided (from country pricing), use it. Otherwise fall back to INR.
+    let orderAmount: number
+    if (amount) {
+        // Amount is in the display currency's smallest unit
+        // For currencies with decimals (USD, EUR, GBP, etc.), multiply by 100
+        // For currencies without decimals (INR, PHP), amount is already in paise/centavos
+        const noDecimalCurrencies = ["INR", "PHP"]
+        orderAmount = noDecimalCurrencies.includes(currency)
+            ? amount * 100 // INR: ₹999 → 99900 paise
+            : Math.round(amount * 100) // USD: $9.99 → 999 cents
+    } else {
+        orderAmount = billingCycle === "yearly"
+            ? planConfig.yearlyPrice * 12
+            : planConfig.monthlyPrice
+        currency = "INR"
+    }
+
+    // Razorpay supported currencies for international payments
+    const supportedCurrencies = ["INR", "USD", "EUR", "GBP", "SGD", "AED", "CAD", "AUD", "PHP"]
+    if (!supportedCurrencies.includes(currency)) {
+        // Fall back to USD for unsupported currencies
+        currency = "USD"
+    }
 
     const response = await fetch("https://api.razorpay.com/v1/orders", {
         method: "POST",
@@ -74,8 +94,8 @@ export async function createRazorpayOrder(plan: PlanId, billingCycle: "monthly" 
             Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}`,
         },
         body: JSON.stringify({
-            amount,
-            currency: "INR",
+            amount: orderAmount,
+            currency,
             receipt: `clorefy_${plan}_${billingCycle}_${Date.now()}`,
             notes: {
                 plan,
@@ -88,7 +108,7 @@ export async function createRazorpayOrder(plan: PlanId, billingCycle: "monthly" 
     if (!response.ok) {
         const error = await response.json()
         console.error("Razorpay order creation failed:", error)
-        throw new Error("Failed to create payment order")
+        throw new Error(error.error?.description || "Failed to create payment order")
     }
 
     return response.json()

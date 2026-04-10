@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { createRazorpayOrder, PLANS, type PlanId } from "@/lib/razorpay"
+import { COUNTRY_PRICING } from "@/lib/pricing"
 
 /**
  * POST /api/razorpay/create-order
@@ -8,8 +9,8 @@ import { createRazorpayOrder, PLANS, type PlanId } from "@/lib/razorpay"
  * 
  * SECURITY:
  * - Requires authentication
- * - Amount is determined server-side from plan ID (client cannot set amount)
- * - Returns order_id for Razorpay Checkout
+ * - Amount is determined server-side from plan + country (client sends country code, not amount)
+ * - Validates country code against known pricing table
  */
 export async function POST(request: Request) {
     const auth = await authenticateRequest(request)
@@ -17,20 +18,33 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json()
-        const { plan, billingCycle } = body as { plan: string; billingCycle: string }
+        const { plan, billingCycle, countryCode } = body as { plan: string; billingCycle: string; countryCode?: string }
 
-        // Validate plan
         if (!plan || !["starter", "pro", "agency"].includes(plan)) {
             return NextResponse.json({ error: "Invalid plan" }, { status: 400 })
         }
 
-        // Validate billing cycle
         if (!billingCycle || !["monthly", "yearly"].includes(billingCycle)) {
             return NextResponse.json({ error: "Invalid billing cycle" }, { status: 400 })
         }
 
-        // Create order server-side (amount determined by plan, not client)
-        const order = await createRazorpayOrder(plan as PlanId, billingCycle as "monthly" | "yearly")
+        // Determine currency and amount from server-side pricing table
+        const pricing = countryCode && COUNTRY_PRICING[countryCode]
+            ? COUNTRY_PRICING[countryCode]
+            : COUNTRY_PRICING["IN"]
+
+        const paidPlan = plan as "starter" | "pro" | "agency"
+        const cycle = billingCycle as "monthly" | "yearly"
+        const displayAmount = pricing[paidPlan][cycle]
+        const yearlyTotal = cycle === "yearly" ? displayAmount * 12 : displayAmount
+
+        // Create order with the user's currency
+        const order = await createRazorpayOrder(
+            plan as PlanId,
+            cycle,
+            pricing.currency,
+            yearlyTotal
+        )
 
         return NextResponse.json({
             orderId: order.id,
@@ -40,9 +54,10 @@ export async function POST(request: Request) {
             plan,
             billingCycle,
             planName: PLANS[plan as PlanId].name,
+            displayPrice: `${pricing.currencySymbol}${displayAmount}`,
         })
-    } catch (error) {
+    } catch (error: any) {
         console.error("Create order error:", error)
-        return NextResponse.json({ error: "Failed to create order" }, { status: 500 })
+        return NextResponse.json({ error: error.message || "Failed to create order" }, { status: 500 })
     }
 }

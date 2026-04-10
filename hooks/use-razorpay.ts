@@ -33,7 +33,7 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
     const [isProcessing, setIsProcessing] = useState(false)
     const { user } = useAuth()
 
-    const subscribe = useCallback(async (plan: string, billingCycle: "monthly" | "yearly") => {
+    const subscribe = useCallback(async (plan: string, billingCycle: "monthly" | "yearly", countryCode?: string) => {
         if (!user) {
             toast.error("Please log in to subscribe")
             return
@@ -73,7 +73,7 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
                     "Content-Type": "application/json",
                     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
                 },
-                body: JSON.stringify({ plan, billingCycle }),
+                body: JSON.stringify({ plan, billingCycle, countryCode }),
             })
 
             if (!orderRes.ok) {
