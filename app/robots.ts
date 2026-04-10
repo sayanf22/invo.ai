@@ -11,6 +11,7 @@ export default function robots(): MetadataRoute.Robots {
           "/auth/callback",
           "/auth/confirm",
           "/auth/update-password",
+          "/auth/reset-password",
           "/onboarding",
           "/choose-plan",
           "/billing",
@@ -19,15 +20,10 @@ export default function robots(): MetadataRoute.Robots {
           "/notifications",
           "/documents",
           "/history",
+          "/sign/",
         ],
-      },
-      {
-        userAgent: "Googlebot",
-        allow: "/",
-        disallow: ["/api/", "/auth/callback", "/auth/confirm", "/onboarding"],
       },
     ],
     sitemap: "https://clorefy.com/sitemap.xml",
-    host: "https://clorefy.com",
   }
 }

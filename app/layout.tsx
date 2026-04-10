@@ -47,8 +47,12 @@ export const metadata: Metadata = {
   },
   metadataBase: new URL("https://clorefy.com"),
   alternates: {
-    canonical: "https://clorefy.com",
+    canonical: "/",
   },
+  // Add your Google Search Console verification code here after setup
+  // verification: {
+  //   google: "YOUR_GOOGLE_VERIFICATION_CODE",
+  // },
   manifest: "/manifest.json",
   openGraph: {
     title: "Clorefy — AI-Powered Document Generation",
