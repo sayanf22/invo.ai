@@ -650,6 +650,188 @@ export const blogPosts: BlogPost[] = [
 <h2>Real-World ROI</h2>
 <p>A freelance designer spending 8 hours/month on invoicing at $75/hour wastes $600/month. With AI invoicing at $9/month, the ROI is 66x. An agency spending 20 hours/month on proposals at $100/hour wastes $2,000/month. With AI proposals at $24/month, the ROI is 83x.</p>`
     },
+    // ── COMPARISON & ALTERNATIVE POSTS (bottom-of-funnel, high conversion) ──
+
+    {
+        slug: "clorefy-vs-freshbooks",
+        title: "Clorefy vs FreshBooks: Which Is Better for Freelancer Invoicing in 2025?",
+        description: "Compare Clorefy and FreshBooks for freelancer invoicing. AI-powered generation vs traditional forms. Features, pricing, and which to choose.",
+        keyword: "Clorefy vs FreshBooks",
+        publishedAt: "2025-10-15T00:00:00Z",
+        updatedAt: "2025-12-01T00:00:00Z",
+        readTime: 8,
+        category: "comparisons",
+        relatedSlugs: ["best-invoicing-software-freelancers-2025", "free-invoice-generator-online", "ai-invoice-generator-complete-guide"],
+        content: `<h2>Clorefy vs FreshBooks: Quick Comparison</h2>
+<p>FreshBooks is a full accounting platform with invoicing, expenses, time tracking, and reporting. Clorefy is an AI-first document generator focused on speed — describe what you need and get a professional document in seconds.</p>
+<h2>Pricing</h2>
+<p><strong>FreshBooks:</strong> Starts at $17/month (Lite plan, 5 clients). No free tier. <strong>Clorefy:</strong> Free tier with 3 docs/month. Starter at $9.99/month for 50 documents.</p>
+<h2>Speed of Invoice Creation</h2>
+<p><strong>FreshBooks:</strong> 5-10 minutes per invoice (fill out form fields manually). <strong>Clorefy:</strong> Under 60 seconds (describe in plain text, AI generates everything).</p>
+<h2>Document Types</h2>
+<p><strong>FreshBooks:</strong> Invoices and estimates only. <strong>Clorefy:</strong> Invoices, contracts, quotations, and proposals — all from one platform.</p>
+<h2>When to Choose FreshBooks</h2>
+<p>Choose FreshBooks if you need full accounting — expense tracking, profit/loss reports, bank reconciliation, and tax preparation.</p>
+<h2>When to Choose Clorefy</h2>
+<p>Choose Clorefy if you want the fastest way to create professional documents. If you just need to generate and send invoices, contracts, and proposals without the complexity of accounting software.</p>`
+    },
+
+    {
+        slug: "clorefy-vs-zoho-invoice",
+        title: "Clorefy vs Zoho Invoice: AI Document Generation vs Traditional Invoicing",
+        description: "Detailed comparison of Clorefy and Zoho Invoice. AI-powered vs form-based invoicing. Features, pricing, multi-country support compared.",
+        keyword: "Clorefy vs Zoho Invoice",
+        publishedAt: "2025-10-20T00:00:00Z",
+        updatedAt: "2025-12-01T00:00:00Z",
+        readTime: 7,
+        category: "comparisons",
+        relatedSlugs: ["best-invoicing-software-freelancers-2025", "clorefy-vs-freshbooks", "free-invoice-generator-online"],
+        content: `<h2>Overview</h2>
+<p>Zoho Invoice is a free invoicing tool from the Zoho suite. It's form-based — you fill in fields to create invoices. Clorefy uses AI to generate complete documents from natural language descriptions.</p>
+<h2>Pricing</h2>
+<p><strong>Zoho Invoice:</strong> Free for up to 5 clients, then part of Zoho Books ($15/month). <strong>Clorefy:</strong> Free tier with 3 docs/month, Starter $9.99/month for 50 docs.</p>
+<h2>Key Differences</h2>
+<p>Zoho Invoice is part of a larger ecosystem (Zoho CRM, Zoho Books). If you're already in the Zoho ecosystem, it integrates well. Clorefy is standalone and focused on speed — AI generates documents 10x faster than filling forms.</p>
+<h2>Multi-Country Support</h2>
+<p><strong>Zoho:</strong> Supports many countries but requires manual tax configuration. <strong>Clorefy:</strong> 11 countries with automatic tax compliance — GST, VAT, Sales Tax applied automatically based on your country.</p>`
+    },
+
+    {
+        slug: "best-ai-tools-freelancers-2025",
+        title: "Best AI Tools for Freelancers in 2025: Invoicing, Contracts, and Proposals",
+        description: "Top AI tools every freelancer needs in 2025. From AI invoice generators to contract writers and proposal builders. Save 10+ hours per month.",
+        keyword: "best AI tools freelancers",
+        publishedAt: "2025-10-25T00:00:00Z",
+        updatedAt: "2025-12-01T00:00:00Z",
+        readTime: 9,
+        category: "comparisons",
+        relatedSlugs: ["ai-invoice-generator-complete-guide", "ai-contract-generator", "ai-proposal-generator"],
+        content: `<h2>Why Freelancers Need AI Tools</h2>
+<p>Freelancers wear every hat — designer, developer, accountant, salesperson, and admin. AI tools automate the repetitive parts so you can focus on billable work. The average freelancer saves 10-15 hours per month with the right AI tools.</p>
+<h2>AI Invoicing: Clorefy</h2>
+<p>Instead of filling out invoice templates, describe your invoice in plain text. Clorefy generates a complete, tax-compliant invoice with your branding in under 60 seconds. Supports 11 countries and 9 currencies.</p>
+<h2>AI Writing: ChatGPT / Claude</h2>
+<p>For client emails, proposals, and content writing. Use AI to draft, then edit for your voice.</p>
+<h2>AI Design: Canva / Figma AI</h2>
+<p>For presentations, social media graphics, and quick design work.</p>
+<h2>AI Scheduling: Calendly + AI</h2>
+<p>Automate meeting scheduling with smart availability detection.</p>
+<h2>The Stack That Saves 15 Hours/Month</h2>
+<p>Clorefy for documents (5 hrs saved) + ChatGPT for writing (5 hrs saved) + Calendly for scheduling (3 hrs saved) + Notion AI for notes (2 hrs saved) = 15 hours back every month.</p>`
+    },
+
+    {
+        slug: "how-to-create-invoice-without-gst",
+        title: "How to Create an Invoice Without GST: Guide for Unregistered Businesses in India",
+        description: "Learn how to create professional invoices without GST registration in India. Bill of supply format, exemption rules, and when GST registration is required.",
+        keyword: "invoice without GST India",
+        publishedAt: "2025-11-01T00:00:00Z",
+        updatedAt: "2025-12-01T00:00:00Z",
+        readTime: 6,
+        category: "country",
+        relatedSlugs: ["gst-invoice-format-india", "invoice-generator-india", "invoice-tax-compliance-guide"],
+        content: `<h2>Can You Create Invoices Without GST?</h2>
+<p>Yes. If your annual turnover is below ₹20 lakhs (₹10 lakhs for special category states), GST registration is not mandatory. You can issue a "Bill of Supply" instead of a tax invoice.</p>
+<h2>Bill of Supply vs Tax Invoice</h2>
+<p>A Bill of Supply looks like a regular invoice but does NOT include tax amounts (no CGST, SGST, or IGST). It must include: your name and address, invoice number, date, description of goods/services, and total value.</p>
+<h2>When GST Registration Becomes Mandatory</h2>
+<ul>
+<li>Annual turnover exceeds ₹20 lakhs</li>
+<li>You sell goods/services inter-state (across state borders)</li>
+<li>You sell through e-commerce platforms</li>
+<li>You're required to collect TCS/TDS</li>
+</ul>
+<h2>Creating Non-GST Invoices with Clorefy</h2>
+<p>Clorefy can generate invoices with or without GST. If you're not GST-registered, simply don't add a GSTIN during onboarding and the AI will generate Bills of Supply without tax fields.</p>`
+    },
+
+    {
+        slug: "invoice-generator-usa-sales-tax",
+        title: "Invoice Generator for USA: Sales Tax by State, Nexus Rules, and Compliance",
+        description: "Generate sales tax compliant invoices for US businesses. Understand nexus rules, state-by-state tax rates, and when to charge sales tax.",
+        keyword: "invoice generator USA sales tax",
+        publishedAt: "2025-11-05T00:00:00Z",
+        updatedAt: "2025-12-01T00:00:00Z",
+        readTime: 8,
+        category: "country",
+        relatedSlugs: ["invoice-tax-compliance-guide", "ai-invoice-generator-complete-guide", "free-invoice-generator-online"],
+        content: `<h2>US Sales Tax Basics</h2>
+<p>Unlike GST or VAT, the US has no federal sales tax. Each state sets its own rates and rules. Some states (Oregon, Montana, Delaware, New Hampshire) have no sales tax at all. Others range from 2.9% (Colorado) to 7.25% (California).</p>
+<h2>What Is Nexus?</h2>
+<p>Nexus is the connection between your business and a state that requires you to collect sales tax there. Physical nexus means you have a physical presence (office, warehouse, employee). Economic nexus means you exceed a sales threshold (typically $100,000 in sales or 200 transactions per year in that state).</p>
+<h2>When to Charge Sales Tax on Invoices</h2>
+<p>You must charge sales tax when: you have nexus in the buyer's state, the product/service is taxable in that state, and the buyer is not tax-exempt.</p>
+<h2>Clorefy for US Invoicing</h2>
+<p>Clorefy supports US invoicing with customizable tax rates. Set your state tax rate during onboarding, and the AI applies it automatically to all invoices. For tax-exempt clients, simply mention "tax exempt" in your prompt.</p>`
+    },
+
+    {
+        slug: "contract-vs-proposal-difference",
+        title: "Contract vs Proposal: Key Differences and When to Use Each",
+        description: "Understand the difference between a contract and a proposal. Learn when to send each, what to include, and how they work together in the sales process.",
+        keyword: "contract vs proposal difference",
+        publishedAt: "2025-11-10T00:00:00Z",
+        updatedAt: "2025-12-01T00:00:00Z",
+        readTime: 5,
+        category: "tips",
+        relatedSlugs: ["ai-contract-generator", "ai-proposal-generator", "quotation-vs-invoice-difference"],
+        content: `<h2>Proposal vs Contract: Quick Summary</h2>
+<p>A <strong>proposal</strong> is a sales document — it pitches your services and pricing to win the client. A <strong>contract</strong> is a legal document — it defines the binding terms once the client says yes. Proposals persuade; contracts protect.</p>
+<h2>The Workflow</h2>
+<p>Proposal → Client approves → Contract → Both parties sign → Work begins → Invoice → Payment. Each document serves a different purpose in the client lifecycle.</p>
+<h2>What Goes in a Proposal</h2>
+<p>Problem statement, proposed solution, timeline, pricing options, about your company, and a call to action. The tone is persuasive and client-focused.</p>
+<h2>What Goes in a Contract</h2>
+<p>Scope of work, payment terms, IP rights, confidentiality, termination clauses, liability, and dispute resolution. The tone is precise and legally protective.</p>
+<h2>Generate Both with Clorefy</h2>
+<p>Create a proposal to win the client, then generate a linked contract from the same conversation. Client details carry over automatically — no re-entering information.</p>`
+    },
+
+    {
+        slug: "ai-invoice-generator-vs-templates",
+        title: "AI Invoice Generator vs Excel/Word Templates: Which Is Better?",
+        description: "Compare AI invoice generators with traditional Excel and Word templates. Speed, accuracy, compliance, and cost analysis for small businesses.",
+        keyword: "AI invoice generator vs templates",
+        publishedAt: "2025-11-15T00:00:00Z",
+        updatedAt: "2025-12-01T00:00:00Z",
+        readTime: 6,
+        category: "comparisons",
+        relatedSlugs: ["ai-invoice-generator-complete-guide", "free-invoice-generator-online", "best-invoicing-software-freelancers-2025"],
+        content: `<h2>The Template Problem</h2>
+<p>Excel and Word invoice templates have been the default for decades. They're free, familiar, and flexible. But they have serious drawbacks: manual calculations (prone to errors), no tax compliance checking, inconsistent formatting, and no version control.</p>
+<h2>Speed Comparison</h2>
+<p><strong>Excel/Word template:</strong> 15-30 minutes per invoice (copy template, fill fields, calculate taxes, format, export to PDF). <strong>AI generator:</strong> Under 60 seconds (describe in text, AI handles everything).</p>
+<h2>Accuracy</h2>
+<p><strong>Templates:</strong> You calculate taxes manually. One wrong formula and your invoice is non-compliant. <strong>AI:</strong> Tax calculations are always correct. GST, VAT, and Sales Tax rules are built in.</p>
+<h2>When Templates Still Make Sense</h2>
+<p>If you send 1-2 invoices per month and have a simple, unchanging format, a template works fine. But the moment you deal with multiple clients, currencies, or tax jurisdictions, AI saves significant time.</p>`
+    },
+
+    {
+        slug: "how-to-write-business-proposal",
+        title: "How to Write a Business Proposal That Wins Clients: Step-by-Step Guide",
+        description: "Complete guide to writing winning business proposals. Structure, persuasion techniques, pricing strategies, and common mistakes to avoid.",
+        keyword: "how to write business proposal",
+        publishedAt: "2025-11-20T00:00:00Z",
+        updatedAt: "2025-12-01T00:00:00Z",
+        readTime: 10,
+        category: "guides",
+        relatedSlugs: ["ai-proposal-generator", "contract-vs-proposal-difference", "how-to-create-quotation"],
+        content: `<h2>Why Most Proposals Fail</h2>
+<p>80% of proposals fail because they focus on the seller, not the buyer. The client doesn't care about your company history — they care about how you'll solve their problem. Lead with their pain, not your credentials.</p>
+<h2>The Winning Proposal Structure</h2>
+<ol>
+<li><strong>Executive Summary</strong> — 2-3 sentences summarizing the problem and your solution. This is the most-read section.</li>
+<li><strong>Understanding of the Problem</strong> — Show you've listened. Restate their challenge in their words.</li>
+<li><strong>Proposed Solution</strong> — Your approach, methodology, and specific deliverables.</li>
+<li><strong>Timeline & Milestones</strong> — When they'll see results. Be specific with dates.</li>
+<li><strong>Investment</strong> — Don't call it "cost" — call it "investment." Show value, not just price.</li>
+<li><strong>Why Us</strong> — Brief credentials. 2-3 relevant case studies or testimonials.</li>
+<li><strong>Next Steps</strong> — Make it easy to say yes. "Sign below to get started" or "Reply to schedule a kickoff call."</li>
+</ol>
+<h2>Pricing Strategies That Win</h2>
+<p>Offer 3 tiers (Basic, Standard, Premium). Most clients choose the middle option. This anchoring effect increases your average deal size by 20-30%.</p>`
+    },
 ]
 
 // ── Helper Functions ───────────────────────────────────────────────────

@@ -100,7 +100,44 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* JSON-LD Structured Data — Organization */}
+        {/* JSON-LD — WebSite schema (enables sitelinks search box in Google) */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": "Clorefy",
+              "url": "https://clorefy.com",
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": "https://clorefy.com/blog?q={search_term_string}",
+                "query-input": "required name=search_term_string",
+              },
+            }),
+          }}
+        />
+        {/* JSON-LD — Organization schema */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "Clorefy",
+              "url": "https://clorefy.com",
+              "logo": "https://clorefy.com/favicon.png",
+              "description": "AI-powered document generation platform for invoices, contracts, quotations, and proposals.",
+              "foundingDate": "2025",
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "contactType": "customer support",
+                "url": "https://clorefy.com/contact",
+              },
+            }),
+          }}
+        />
+        {/* JSON-LD — SoftwareApplication schema (for rich results) */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -173,6 +210,38 @@ export default function RootLayout({
                   "acceptedAnswer": {
                     "@type": "Answer",
                     "text": "Yes, Clorefy offers a free plan with 3 documents per month. Paid plans start at $9.99/month for 50 documents with all features.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "What document types can Clorefy generate?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Clorefy generates invoices, contracts, quotations, and proposals. Each document type supports country-specific compliance, custom branding, and export to PDF, DOCX, or image formats.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "Does Clorefy support GST invoices for India?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes, Clorefy automatically generates GST-compliant invoices with CGST, SGST, or IGST calculations based on the place of supply. It includes GSTIN, HSN/SAC codes, and all mandatory fields required under Indian GST law.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "Can I export documents as PDF?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes, all documents can be exported as PDF, DOCX, PNG, or JPG. PDFs are professionally formatted with your business branding, logo, and correct tax calculations.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "How is Clorefy different from FreshBooks or QuickBooks?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Clorefy uses AI to generate documents from natural language descriptions — you describe what you need and get a complete document in seconds. Traditional tools like FreshBooks and QuickBooks require manual form filling. Clorefy is faster for document creation but focused on generation, not full accounting.",
                   },
                 },
               ],

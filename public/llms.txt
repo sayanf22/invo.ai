@@ -1,0 +1,29 @@
+# Clorefy — AI Document Generator
+
+> Clorefy is an AI-powered platform that generates professional invoices, contracts, quotations, and proposals from natural language descriptions. It supports 11 countries with automatic tax compliance.
+
+## Key Features
+- AI document generation from plain text descriptions
+- Invoices, contracts, quotations, and proposals
+- GST (India), VAT (EU/UK), Sales Tax (US) compliance
+- PDF, DOCX, and image export
+- Digital signatures with token-based access
+- Multi-currency support (INR, USD, GBP, EUR, CAD, AUD, SGD, AED, PHP)
+- Business profile auto-fill from onboarding
+
+## Supported Countries
+India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands
+
+## Pricing
+- Free: 3 documents/month
+- Starter: $9.99/month — 50 documents
+- Pro: $24.99/month — 150 documents
+- Agency: $59.99/month — Unlimited documents
+
+## Links
+- Website: https://clorefy.com
+- Pricing: https://clorefy.com/pricing
+- Features: https://clorefy.com/features
+- Blog: https://clorefy.com/blog
+- Contact: https://clorefy.com/contact
+- Sign Up: https://clorefy.com/auth/signup
