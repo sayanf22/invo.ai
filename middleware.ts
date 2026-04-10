@@ -253,6 +253,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect authenticated users away from auth pages (except callback/confirm/update-password)
+  // Only redirect to choose-plan or home, not back to landing
   if (
     isAuthenticated &&
     pathname.startsWith("/auth") &&
@@ -260,7 +261,7 @@ export async function middleware(request: NextRequest) {
     !pathname.startsWith("/auth/confirm") &&
     !pathname.startsWith("/auth/update-password")
   ) {
-    return NextResponse.redirect(new URL("/", request.url))
+    return NextResponse.redirect(new URL("/choose-plan", request.url))
   }
 
   return response
