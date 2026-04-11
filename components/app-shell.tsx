@@ -68,95 +68,116 @@ export function AppShell() {
   const handlePromptSubmit = useCallback(async (prompt: string, file?: File) => {
     setSelectedSessionId(undefined)
 
-    let enrichedPrompt = prompt
+    // If category is already selected, switch to prompt screen IMMEDIATELY
+    if (selectedCategory) {
+      setInitialPrompt(prompt)
+      setPromptKey(prev => prev + 1)
+      setView("prompt")
 
-    // If a file is attached, analyze it with GPT first, then include extracted data in the prompt
-    if (file) {
-      try {
-        const formData = new FormData()
-        formData.append("file", file)
-        if (prompt) formData.append("message", prompt)
-
-        const { createClient } = await import("@/lib/supabase")
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        const accessToken = session?.access_token
-
-        const res = await fetch("/api/ai/analyze-file", {
-          method: "POST",
-          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-          body: formData,
-        })
-
-        if (res.ok) {
-          const result = await res.json()
-          const extracted = result.extracted
-          if (extracted) {
-            const parts: string[] = []
-            if (extracted.businessName) parts.push(`Client: ${extracted.businessName}`)
-            if (extracted.ownerName) parts.push(`Contact: ${extracted.ownerName}`)
-            if (extracted.email) parts.push(`Email: ${extracted.email}`)
-            if (extracted.phone) parts.push(`Phone: ${extracted.phone}`)
-            if (extracted.address) {
-              const a = extracted.address
-              const addr = [a.street, a.city, a.state, a.postalCode].filter(Boolean).join(", ")
-              if (addr) parts.push(`Address: ${addr}`)
-            }
-            if (extracted.taxId) parts.push(`Tax ID: ${extracted.taxId}`)
-            if (extracted.services) {
-              // Handle services as string or array
-              const svc = typeof extracted.services === "string"
-                ? extracted.services
-                : JSON.stringify(extracted.services)
-              parts.push(`Services: ${svc}`)
-            }
-            if (extracted.projectDescription) parts.push(`Project: ${extracted.projectDescription}`)
-            if (extracted.additionalContext) {
-              const ctx = typeof extracted.additionalContext === "string"
-                ? extracted.additionalContext
-                : JSON.stringify(extracted.additionalContext)
-              parts.push(`Context: ${ctx}`)
-            }
-
-            const clientDetails = parts.join("\n")
-
-            // Build the prompt for DeepSeek — but keep the user's original text as the visible message
-            // The enriched prompt is only sent to the AI, not displayed
-            enrichedPrompt = prompt
-              ? `${prompt}\n\n[CLIENT DETAILS FROM ATTACHED FILE - use as Bill To recipient]\n${clientDetails}`
-              : `Generate a document using the attached file details as the client.\n\n[CLIENT DETAILS FROM ATTACHED FILE - use as Bill To recipient]\n${clientDetails}`
+      // Handle file in background if attached (enriched prompt will be sent via initialPrompt update)
+      if (file) {
+        handleFileEnrichment(file, prompt).then(enriched => {
+          if (enriched !== prompt) {
+            setInitialPrompt(enriched)
+            setPromptKey(prev => prev + 1)
           }
-        }
-      } catch (err) {
-        console.error("File analysis error:", err)
-        // Continue with just the text prompt if file analysis fails
+        })
       }
+      return
     }
 
+    // No category selected — detect type first, but show prompt screen immediately with "Invoice" as default
+    // Switch view NOW so user sees the screen instantly
+    const defaultCategory = "Invoice"
+    setSelectedCategory(defaultCategory)
+    setInitialPrompt(prompt)
+    setPromptKey(prev => prev + 1)
+    setView("prompt")
+
+    // Detect type in background and update if different
     try {
-      let category = selectedCategory
-      if (!category) {
-        const response = await authFetch("/api/ai/detect-type", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: enrichedPrompt }),
-        })
-        if (!response.ok) throw new Error("Failed to detect document type")
+      let enrichedPrompt = prompt
+
+      if (file) {
+        enrichedPrompt = await handleFileEnrichment(file, prompt)
+      }
+
+      const response = await authFetch("/api/ai/detect-type", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: enrichedPrompt }),
+      })
+      if (response.ok) {
         const detection = await response.json()
         const t = detection.type as string
-        category = t.charAt(0).toUpperCase() + t.slice(1)
-        setSelectedCategory(category)
+        const detected = t.charAt(0).toUpperCase() + t.slice(1)
+        if (detected !== defaultCategory) {
+          setSelectedCategory(detected)
+        }
       }
-      setInitialPrompt(enrichedPrompt)
-      setPromptKey(prev => prev + 1)
-      setView("prompt")
+
+      if (enrichedPrompt !== prompt) {
+        setInitialPrompt(enrichedPrompt)
+        setPromptKey(prev => prev + 1)
+      }
     } catch (error) {
       console.error("Detection error:", error)
-      setSelectedCategory("Invoice")
-      setInitialPrompt(enrichedPrompt)
-      setPromptKey(prev => prev + 1)
-      setView("prompt")
+      // Already showing Invoice as default — no action needed
     }
   }, [selectedCategory])
+
+  // Helper: enrich prompt with file data
+  const handleFileEnrichment = useCallback(async (file: File, prompt: string): Promise<string> => {
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      if (prompt) formData.append("message", prompt)
+
+      const { createClient } = await import("@/lib/supabase")
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
+      const res = await fetch("/api/ai/analyze-file", {
+        method: "POST",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+        body: formData,
+      })
+
+      if (res.ok) {
+        const result = await res.json()
+        const extracted = result.extracted
+        if (extracted) {
+          const parts: string[] = []
+          if (extracted.businessName) parts.push(`Client: ${extracted.businessName}`)
+          if (extracted.ownerName) parts.push(`Contact: ${extracted.ownerName}`)
+          if (extracted.email) parts.push(`Email: ${extracted.email}`)
+          if (extracted.phone) parts.push(`Phone: ${extracted.phone}`)
+          if (extracted.address) {
+            const a = extracted.address
+            const addr = [a.street, a.city, a.state, a.postalCode].filter(Boolean).join(", ")
+            if (addr) parts.push(`Address: ${addr}`)
+          }
+          if (extracted.taxId) parts.push(`Tax ID: ${extracted.taxId}`)
+          if (extracted.services) {
+            const svc = typeof extracted.services === "string" ? extracted.services : JSON.stringify(extracted.services)
+            parts.push(`Services: ${svc}`)
+          }
+          if (extracted.projectDescription) parts.push(`Project: ${extracted.projectDescription}`)
+          if (extracted.additionalContext) {
+            const ctx = typeof extracted.additionalContext === "string" ? extracted.additionalContext : JSON.stringify(extracted.additionalContext)
+            parts.push(`Context: ${ctx}`)
+          }
+          const clientDetails = parts.join("\n")
+          return prompt
+            ? `${prompt}\n\n[CLIENT DETAILS FROM ATTACHED FILE - use as Bill To recipient]\n${clientDetails}`
+            : `Generate a document using the attached file details as the client.\n\n[CLIENT DETAILS FROM ATTACHED FILE - use as Bill To recipient]\n${clientDetails}`
+        }
+      }
+    } catch (err) {
+      console.error("File analysis error:", err)
+    }
+    return prompt
+  }, [])
 
   const handleCategorySelect = useCallback((category: string) => {
     setSelectedCategory(category)
