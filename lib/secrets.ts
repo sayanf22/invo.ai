@@ -1,11 +1,14 @@
 /**
- * Secure secret management.
+ * Secure secret management for Cloudflare Workers + OpenNext.
  * 
- * On Cloudflare Workers: secrets set via `wrangler secret put` are available as process.env
- * On local dev: secrets come from .env file
- * Fallback: Supabase Vault via service_role (if SUPABASE_SERVICE_ROLE_KEY is set)
+ * On Cloudflare Workers with OpenNext:
+ * - wrangler.json vars → available as process.env
+ * - Cloudflare Dashboard env vars → available as process.env
+ * - wrangler secret put → available as Worker bindings (globalThis), NOT process.env
+ * - .env files → available locally via next dev
  * 
- * All secrets are cached in memory for 5 minutes.
+ * Fallback: Supabase Vault via service_role key
+ * All values cached in memory for 5 minutes.
  */
 
 const cache = new Map<string, { value: string; expires: number }>()
@@ -18,17 +21,27 @@ export async function getSecret(name: string): Promise<string> {
         return cached.value
     }
 
-    // 2. Check process.env (covers both Cloudflare secrets and local .env)
+    // 2. Check process.env (Cloudflare dashboard vars, wrangler.json vars, local .env)
     const envValue = process.env[name]
     if (envValue && envValue.length > 5) {
         cache.set(name, { value: envValue, expires: Date.now() + CACHE_TTL })
         return envValue
     }
 
-    // 3. Try Supabase Vault as last resort
+    // 3. Check Cloudflare Worker bindings (wrangler secret put values)
+    try {
+        const binding = (globalThis as any)[name]
+        if (binding && typeof binding === "string" && binding.length > 5) {
+            cache.set(name, { value: binding, expires: Date.now() + CACHE_TTL })
+            return binding
+        }
+    } catch {}
+
+    // 4. Try Supabase Vault via service_role
     try {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL
         const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+            || (typeof globalThis !== "undefined" ? (globalThis as any).SUPABASE_SERVICE_ROLE_KEY : undefined)
         if (url && serviceKey) {
             const { createClient } = await import("@supabase/supabase-js")
             const client = createClient(url, serviceKey)
@@ -38,9 +51,7 @@ export async function getSecret(name: string): Promise<string> {
                 return data
             }
         }
-    } catch {
-        // Vault unavailable — continue
-    }
+    } catch {}
 
     return ""
 }
