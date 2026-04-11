@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner"
 import { getTaxIdFieldName } from "@/lib/countries"
 import { cn } from "@/lib/utils"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ProfileUpdateChat } from "@/components/profile-update-chat"
 import { authFetch } from "@/lib/auth-fetch"
 
@@ -582,6 +582,7 @@ export default function ProfilePage() {
             <Dialog open={aiUpdateOpen} onOpenChange={setAiUpdateOpen}>
                 <DialogContent className="max-w-2xl p-0 overflow-hidden h-[75vh]">
                     <DialogTitle className="sr-only">Update Profile with AI</DialogTitle>
+                    <DialogDescription className="sr-only">Chat with AI to update your business profile</DialogDescription>
                     <ProfileUpdateChat mode="full" currentProfile={profile} userId={user!.id}
                         onProfileUpdated={() => loadProfile()} onClose={() => setAiUpdateOpen(false)} />
                 </DialogContent>

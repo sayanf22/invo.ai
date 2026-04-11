@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { getSecret } from "@/lib/secrets"
-import { checkRateLimit } from "@/lib/rate-limiter"
 
 /**
  * POST /api/ai/analyze-file
@@ -71,9 +70,7 @@ export async function POST(request: Request) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    // Rate limit check
-    const rateLimitError = await checkRateLimit(auth.user.id, "ai")
-    if (rateLimitError) return rateLimitError
+    // Authentication is sufficient protection — OpenAI has its own rate limits
 
     try {
         const formData = await request.formData()

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Send, Sparkles, Loader2, Paperclip, FileText, X, Check, MessageSquare } from "lucide-react"
+import { Send, Loader2, Paperclip, FileText, X, Check, MessageSquare, PenLine } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -321,31 +321,17 @@ export function ProfileUpdateChat({
     if (isFullMode && !confirmed) {
         return (
             <div className="flex flex-col h-full max-h-[70vh]">
-                <div className="bg-gradient-to-r from-primary/5 to-primary/10 px-5 py-4 border-b flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/15 rounded-xl">
-                            <Sparkles className="w-5 h-5 text-primary" />
-                        </div>
-                        <div>
-                            <h3 className="font-semibold text-base">Update with AI</h3>
-                            <p className="text-xs text-muted-foreground">Review before proceeding</p>
-                        </div>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={onClose} className="text-sm">
-                        <X className="w-4 h-4" />
-                    </Button>
-                </div>
                 <div className="flex-1 flex items-center justify-center p-8">
                     <div className="max-w-md text-center space-y-5">
                         <div className="mx-auto w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
-                            <Sparkles className="w-7 h-7 text-primary" />
+                            <PenLine className="w-6 h-6 text-primary" />
                         </div>
                         <div>
                             <h3 className="text-lg font-semibold">Update your profile with AI</h3>
                             <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
                                 AI will help you update your business profile through a conversation.
-                                You can also upload documents (PDFs, images) and the AI will extract
-                                your business information automatically.
+                                You can also upload documents and the AI will extract your business
+                                information automatically.
                             </p>
                         </div>
                         <div className="bg-muted/50 rounded-xl p-4 text-left text-sm space-y-2">
@@ -361,14 +347,13 @@ export function ProfileUpdateChat({
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                                    Changes are saved immediately after AI confirms each update
+                                    Changes are saved immediately after confirmation
                                 </li>
                             </ul>
                         </div>
                         <div className="flex gap-3 justify-center pt-2">
                             <Button variant="outline" onClick={onClose}>Cancel</Button>
-                            <Button onClick={() => setConfirmed(true)} className="gap-2">
-                                <Sparkles className="w-4 h-4" />
+                            <Button onClick={() => setConfirmed(true)}>
                                 Start Updating
                             </Button>
                         </div>
@@ -383,24 +368,19 @@ export function ProfileUpdateChat({
     const headerSubtitle = updateCount > 0
         ? `${updateCount} field${updateCount > 1 ? "s" : ""} updated`
         : isSectionMode ? `Editing ${sectionTitle || section}` : "Chat or upload docs to update"
-    const HeaderIcon = isSectionMode ? MessageSquare : Sparkles
+    const HeaderIcon = isSectionMode ? MessageSquare : PenLine
 
     return (
         <div className="flex flex-col h-full max-h-[70vh]">
             {/* Header */}
-            <div className="bg-gradient-to-r from-primary/5 to-primary/10 px-5 py-4 border-b flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/15 rounded-xl">
-                        <HeaderIcon className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-base">{headerTitle}</h3>
-                        <p className="text-xs text-muted-foreground">{headerSubtitle}</p>
-                    </div>
+            <div className="px-5 py-4 border-b flex items-center gap-3 shrink-0 pr-12">
+                <div className="p-2 bg-primary/10 rounded-xl">
+                    <HeaderIcon className="w-5 h-5 text-primary" />
                 </div>
-                <Button variant="ghost" size="sm" onClick={onClose} className="gap-1.5 text-sm">
-                    <Check className="w-4 h-4" /> Done
-                </Button>
+                <div>
+                    <h3 className="font-semibold text-base">{headerTitle}</h3>
+                    <p className="text-xs text-muted-foreground">{headerSubtitle}</p>
+                </div>
             </div>
 
             {/* Messages */}
