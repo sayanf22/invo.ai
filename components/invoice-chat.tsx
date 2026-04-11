@@ -49,6 +49,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([])
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
+    const [fileContext, setFileContext] = useState<string | null>(null)
 
     const scrollRef = useRef<HTMLDivElement>(null)
     const initialPromptSentRef = useRef(false)
@@ -66,6 +67,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
         // Reset chat state for the new session
         setDocumentGenerated(false)
+        setFileContext(null)
         setIsLoading(false)
 
         if (savedMessages.length > 0) {
@@ -116,10 +118,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
     // Load welcome message
     const loadWelcome = useCallback(async () => {
-        const msg = `Hi! Describe your ${docType} and I'll generate it right away. Just tell me what you need — like "invoice for 10k for web design to Acme Corp".`
+        const msg = `Hi! I'm your AI assistant. I can help you create invoices, contracts, quotations, and proposals — or just answer your business questions.\n\nTry something like:\n• "Create an invoice for $5,000 for web design to Acme Corp"\n• "What is GST and how does it apply to my business?"\n• Upload a file and ask me about it`
         setMessages([{ role: "assistant", content: msg }])
         setWelcomeLoaded(true)
-    }, [docType])
+    }, [])
 
     // Auto-scroll on new messages
     useEffect(() => {
@@ -151,7 +153,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     documentType: docType,
                     // Send currentData if this is a follow-up OR if this is a linked session with seed data
                     currentData: (messages.length > 1 || session.chain_id) ? data : undefined,
-                    conversationHistory: messages.length > 1 ? messages.slice(-5) : [],
+                    conversationHistory: messages.length > 1 ? messages.slice(-20) : [],
+                    ...(fileContext ? { fileContext } : {}),
                 }),
             })
 
@@ -329,24 +332,35 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         } finally {
             setIsLoading(false)
         }
-    }, [isLoading, messages, data, docType, onChange, session, saveMessage, updateSessionContext, saveGeneration])
+    }, [isLoading, messages, data, docType, onChange, session, saveMessage, updateSessionContext, saveGeneration, fileContext])
 
-    // File upload handler — GPT generates the full document directly from the file
-    // MODEL ROUTING: File attached → GPT generates complete document in one shot
-    // No file → DeepSeek handles everything
+    // File upload handler — supports both extract and generate modes
+    // MODE ROUTING: File with generation request → GPT generates complete document
+    // File without generation request → GPT extracts content, stores as fileContext
     const handleFileUpload = useCallback(async (file: File, userText?: string) => {
         if (!session) return
         setIsUploading(true)
 
+        // Determine mode: if user provides text that looks like a generation request, use generate mode
+        // Otherwise, use extract mode to just read the file
+        const generationKeywords = /\b(create|generate|make|build|invoice|quotation|contract|proposal)\b/i
+        const isGenerationRequest = userText ? generationKeywords.test(userText) : false
+        const mode = isGenerationRequest ? "generate" : "extract"
+
         const displayText = userText ? `📎 ${file.name}\n${userText}` : `📎 Attached: ${file.name}`
         setMessages(prev => [...prev, { role: "user", content: displayText }])
         await saveMessage("user", displayText)
-        setMessages(prev => [...prev, { role: "assistant", content: "Reading your document and generating..." }])
+
+        if (mode === "generate") {
+            setMessages(prev => [...prev, { role: "assistant", content: "Reading your document and generating..." }])
+        } else {
+            setMessages(prev => [...prev, { role: "assistant", content: "Reading your document..." }])
+        }
 
         try {
             const formData = new FormData()
             formData.append("file", file)
-            formData.append("mode", "generate")
+            formData.append("mode", mode)
             formData.append("documentType", docType)
             if (userText) formData.append("message", userText)
 
@@ -407,12 +421,23 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 })
                 await saveMessage("assistant", result.message || "Document generated from file.")
                 toast.success("Document generated!")
+            } else if (result.mode === "extract") {
+                // Extract mode — store file context for follow-up questions
+                const summary = result.summary || ""
+                setFileContext(summary)
+
+                const assistantMsg = "I've read your file. You can ask me questions about it or say \"create an invoice from this\" to generate a document."
+                setMessages(prev => {
+                    const filtered = prev.filter(m => m.content !== "Reading your document...")
+                    return [...filtered, { role: "assistant", content: assistantMsg }]
+                })
+                await saveMessage("assistant", assistantMsg)
             } else {
-                throw new Error("Could not generate document from file")
+                throw new Error("Could not process the file")
             }
         } catch (err: any) {
             setMessages(prev => {
-                const filtered = prev.filter(m => m.content !== "Reading your document and generating...")
+                const filtered = prev.filter(m => m.content !== "Reading your document and generating..." && m.content !== "Reading your document...")
                 return [...filtered, {
                     role: "assistant",
                     content: `${err.message || "Could not process the file. Try describing your document instead."}`
@@ -422,7 +447,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         } finally {
             setIsUploading(false)
         }
-    }, [session, docType, saveMessage, sendMessage])
+    }, [session, docType, data, onChange, saveMessage, updateSessionContext, saveGeneration, updateClientName])
 
     // Auto-send initial prompt ONCE
     useEffect(() => {
@@ -438,6 +463,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         lastSyncedSessionRef.current = null
         setWelcomeLoaded(false)
         setDocumentGenerated(false)
+        setFileContext(null)
 
         const newSession = await startNewSession()
         if (newSession && onSessionChange) {
@@ -478,9 +504,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         <FileText className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                        <h3 className="font-semibold text-base">
-                            {data.documentType ? `${data.documentType} Builder` : "Document Builder"}
-                        </h3>
+                        <h3 className="font-semibold text-base">AI Assistant</h3>
                         <p className="text-xs text-muted-foreground">
                             {sessionLoading ? "Loading..." : messages.length > 1 ? `${messages.length} messages` : "New conversation"}
                         </p>
@@ -522,7 +546,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     ))}
                     {isLoading && (
                         <div className="flex justify-start w-full animate-in fade-in duration-200">
-                            <AIThinkingBlock label={`Generating ${docType}...`} />
+                            <AIThinkingBlock label="Thinking..." />
                         </div>
                     )}
                     <div ref={scrollRef} />
@@ -558,7 +582,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 sendMessage(val)
                             }
                         }}
-                        placeholder={`Describe your ${docType}...`}
+                        placeholder="Ask a question or describe a document..."
                         disabled={sessionLoading || !session}
                         statusText={isSaving ? "Saving..." : undefined}
                         showAttachButton={true}

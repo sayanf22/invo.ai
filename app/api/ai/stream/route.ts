@@ -44,6 +44,14 @@ export async function POST(request: NextRequest) {
             )
         }
 
+        // SECURITY: Sanitize and limit fileContext
+        if (body.fileContext) {
+            body.fileContext = sanitizeText(body.fileContext)
+            if (body.fileContext.length > 5_000) {
+                body.fileContext = body.fileContext.slice(0, 5_000)
+            }
+        }
+
         if (!body.documentType) {
             body.documentType = "invoice"
         }

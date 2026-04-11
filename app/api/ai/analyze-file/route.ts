@@ -66,6 +66,27 @@ IMPORTANT:
 - The "additionalContext" field should contain any extra details that could help generate a professional document
 - Return ONLY valid JSON, no markdown or explanation`
 
+function buildFileContextSummary(extracted: any): string {
+    const parts: string[] = []
+    if (extracted.businessName) parts.push(`Business: ${extracted.businessName}`)
+    if (extracted.ownerName) parts.push(`Contact: ${extracted.ownerName}`)
+    if (extracted.email) parts.push(`Email: ${extracted.email}`)
+    if (extracted.phone) parts.push(`Phone: ${extracted.phone}`)
+    if (extracted.country) parts.push(`Country: ${extracted.country}`)
+    if (extracted.address) {
+        const addr = typeof extracted.address === 'string'
+            ? extracted.address
+            : [extracted.address.street, extracted.address.city, extracted.address.state, extracted.address.postalCode].filter(Boolean).join(', ')
+        if (addr) parts.push(`Address: ${addr}`)
+    }
+    if (extracted.taxId) parts.push(`Tax ID: ${extracted.taxId}`)
+    if (extracted.defaultCurrency) parts.push(`Currency: ${extracted.defaultCurrency}`)
+    if (extracted.services) parts.push(`Services: ${extracted.services}`)
+    if (extracted.projectDescription) parts.push(`Project: ${extracted.projectDescription}`)
+    if (extracted.additionalContext) parts.push(`Additional Info: ${extracted.additionalContext}`)
+    return parts.join('\n')
+}
+
 export async function POST(request: Request) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
@@ -261,6 +282,7 @@ RULES:
             success: true,
             mode: "extract",
             extracted: sanitized,
+            summary: buildFileContextSummary(sanitized),
             fieldsFound: Object.entries(sanitized).filter(([_, v]) => v !== null && v !== "").length,
         })
     } catch (error: any) {
