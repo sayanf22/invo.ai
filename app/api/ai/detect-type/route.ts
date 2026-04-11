@@ -35,16 +35,13 @@ export async function POST(request: NextRequest) {
         // SECURITY: Sanitize prompt input
         const sanitizedPrompt = sanitizeText(body.prompt)
 
-        // SECURITY: Limit prompt length
-        if (sanitizedPrompt.length > 1000) {
-            return NextResponse.json(
-                { error: "Prompt too long. Maximum 1000 characters for type detection." },
-                { status: 400 }
-            )
-        }
+        // SECURITY: Limit prompt length — for type detection, only the first part matters
+        const detectionPrompt = sanitizedPrompt.length > 1000
+            ? sanitizedPrompt.slice(0, 1000)
+            : sanitizedPrompt
 
         // Detect document type (server-side only)
-        const detection = detectDocumentType(sanitizedPrompt)
+        const detection = detectDocumentType(detectionPrompt)
         const message = getDetectionMessage(detection)
 
         return NextResponse.json({
