@@ -79,6 +79,9 @@ export async function POST(request: Request) {
         const formData = await request.formData()
         const file = formData.get("file") as File | null
         const userMessage = formData.get("message") as string | null
+        const mode = formData.get("mode") as string | null // "extract" (default) or "generate"
+        const documentType = formData.get("documentType") as string | null
+        const businessContext = formData.get("businessContext") as string | null
 
         if (!file) {
             return NextResponse.json({ error: "No file provided" }, { status: 400 })
@@ -118,9 +121,63 @@ export async function POST(request: Request) {
         const isPDF = mimeType === "application/pdf"
 
         let contentParts: any[]
-        const promptText = userMessage
-            ? `${EXTRACTION_PROMPT}\n\nAdditional context from the user: "${userMessage}"`
-            : EXTRACTION_PROMPT
+        let activePrompt: string
+
+        if (mode === "generate") {
+            // GENERATION MODE: GPT reads the file and generates a complete document JSON
+            const docType = documentType || "invoice"
+            let businessInfo = ""
+            if (businessContext) {
+                try { businessInfo = `\n\nSENDER BUSINESS PROFILE (use as "Bill From"):\n${businessContext}` } catch {}
+            }
+
+            activePrompt = `You are a professional document generator. Analyze the attached document and generate a complete ${docType}.
+
+The attached document contains CLIENT/RECIPIENT information. Extract their details and use them as the "Bill To" / recipient.${businessInfo}
+
+${userMessage ? `User's instruction: "${userMessage}"` : `Generate a ${docType} based on the information in the attached document.`}
+
+Return ONLY valid JSON in this exact format:
+{
+  "document": {
+    "documentType": "${docType.charAt(0).toUpperCase() + docType.slice(1)}",
+    "referenceNumber": "${docType === "invoice" ? "INV" : docType === "quotation" ? "QUO" : docType === "contract" ? "CTR" : "PROP"}-${Date.now().toString().slice(-6)}",
+    "date": "${new Date().toISOString().split("T")[0]}",
+    "dueDate": "",
+    "fromName": "",
+    "fromEmail": "",
+    "fromPhone": "",
+    "fromAddress": "",
+    "toName": "CLIENT NAME FROM DOCUMENT",
+    "toEmail": "CLIENT EMAIL FROM DOCUMENT",
+    "toPhone": "",
+    "toAddress": "CLIENT ADDRESS FROM DOCUMENT",
+    "items": [{"id": "1", "description": "SERVICE FROM DOCUMENT", "quantity": 1, "rate": 0}],
+    "taxRate": 0,
+    "discountValue": 0,
+    "discountType": "percent",
+    "shippingFee": 0,
+    "notes": "",
+    "terms": "",
+    "currency": "INR"
+  },
+  "message": "Brief message about what was generated"
+}
+
+RULES:
+- Extract client name, email, phone, address from the document for the "to" fields
+- Extract services/items with prices from the document for the "items" array
+- Every item MUST have id, description, quantity, and rate
+- Do NOT compute totals — the system calculates them
+- Return ONLY valid JSON, no markdown`
+        } else {
+            // EXTRACTION MODE (default): just extract business info
+            activePrompt = userMessage
+                ? `${EXTRACTION_PROMPT}\n\nAdditional context from the user: "${userMessage}"`
+                : EXTRACTION_PROMPT
+        }
+
+        const promptText = activePrompt
 
         if (isImage) {
             contentParts = [
@@ -170,17 +227,16 @@ export async function POST(request: Request) {
         const content = data.choices?.[0]?.message?.content || ""
 
         // Parse the JSON response
-        let extracted: any = null
+        let parsed: any = null
         try {
-            // Remove markdown code blocks if present
             const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
-            extracted = JSON.parse(cleaned)
+            parsed = JSON.parse(cleaned)
         } catch {
-            console.error("Failed to parse OpenAI response:", content)
-            return NextResponse.json({ error: "Could not extract information from file" }, { status: 422 })
+            console.error("Failed to parse OpenAI response:", content.slice(0, 500))
+            return NextResponse.json({ error: "Could not process the file" }, { status: 422 })
         }
 
-        // Sanitize extracted data — strip any HTML/script tags
+        // Sanitize all string values
         const sanitize = (val: any): any => {
             if (typeof val === "string") return val.replace(/<[^>]*>/g, "").trim()
             if (Array.isArray(val)) return val.map(sanitize)
@@ -191,10 +247,22 @@ export async function POST(request: Request) {
             }
             return val
         }
-        const sanitized = sanitize(extracted)
+        const sanitized = sanitize(parsed)
 
+        if (mode === "generate") {
+            // Return the full generated document
+            return NextResponse.json({
+                success: true,
+                mode: "generate",
+                document: sanitized.document || sanitized,
+                message: sanitized.message || "Document generated from file.",
+            })
+        }
+
+        // Default: return extracted data
         return NextResponse.json({
             success: true,
+            mode: "extract",
             extracted: sanitized,
             fieldsFound: Object.entries(sanitized).filter(([_, v]) => v !== null && v !== "").length,
         })

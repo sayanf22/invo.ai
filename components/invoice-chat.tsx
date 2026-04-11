@@ -327,10 +327,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         }
     }, [isLoading, messages, data, docType, onChange, session, saveMessage, updateSessionContext, saveGeneration])
 
-    // File upload handler — analyzes file and sends extracted context with the prompt
-    // MODEL ROUTING: File → GPT (via /api/ai/analyze-file) for extraction ONLY
-    // Then the extracted text is passed to DeepSeek (via sendMessage → /api/ai/stream) for generation
-    // Text-only messages ALWAYS go to DeepSeek — GPT is NEVER used without a file attachment
+    // File upload handler — GPT generates the full document directly from the file
+    // MODEL ROUTING: File attached → GPT generates complete document in one shot
+    // No file → DeepSeek handles everything
     const handleFileUpload = useCallback(async (file: File, userText?: string) => {
         if (!session) return
         setIsUploading(true)
@@ -338,14 +337,21 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         const displayText = userText ? `📎 ${file.name}\n${userText}` : `📎 Attached: ${file.name}`
         setMessages(prev => [...prev, { role: "user", content: displayText }])
         await saveMessage("user", displayText)
-        setMessages(prev => [...prev, { role: "assistant", content: "Analyzing your document..." }])
+        setMessages(prev => [...prev, { role: "assistant", content: "Reading your document and generating..." }])
 
         try {
             const formData = new FormData()
             formData.append("file", file)
+            formData.append("mode", "generate")
+            formData.append("documentType", docType)
             if (userText) formData.append("message", userText)
 
-            // Get auth token for the file upload endpoint
+            // Pass business context so GPT can use it as the sender
+            if (data.fromName || data.fromEmail) {
+                const ctx = [data.fromName, data.fromEmail, data.fromPhone, data.fromAddress].filter(Boolean).join(", ")
+                formData.append("businessContext", ctx)
+            }
+
             const supabase = createClient()
             const { data: { session: authSession } } = await supabase.auth.getSession()
             const accessToken = authSession?.access_token
@@ -358,55 +364,54 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
             if (!res.ok) {
                 const err = await res.json()
-                throw new Error(err.error || "Failed to analyze file")
+                throw new Error(err.error || "Failed to process file")
             }
 
             const result = await res.json()
-            const extracted = result.extracted
 
-            if (extracted) {
-                // Remove the "analyzing" placeholder
-                setMessages(prev => prev.filter(m => m.content !== "Analyzing your document..."))
+            if (result.mode === "generate" && result.document) {
+                // GPT generated the full document — apply it directly
+                const docData = result.document
 
-                const fieldCount = result.fieldsFound || 0
-                const summaryMsg = `✅ Extracted ${fieldCount} fields from your document. Using this info to generate your ${docType}...`
-                setMessages(prev => [...prev, { role: "assistant", content: summaryMsg }])
-                await saveMessage("assistant", summaryMsg)
-
-                // Build a prompt that clearly tells AI: this is the CLIENT's info
-                const contextParts: string[] = []
-                if (extracted.businessName) contextParts.push(`Client business name: ${extracted.businessName}`)
-                if (extracted.ownerName) contextParts.push(`Client contact person: ${extracted.ownerName}`)
-                if (extracted.email) contextParts.push(`Client email: ${extracted.email}`)
-                if (extracted.phone) contextParts.push(`Client phone: ${extracted.phone}`)
-                if (extracted.address) {
-                    const a = extracted.address
-                    const addr = [a.street, a.city, a.state, a.postalCode].filter(Boolean).join(", ")
-                    if (addr) contextParts.push(`Client address: ${addr}`)
+                // Ensure items have IDs
+                if (Array.isArray(docData.items)) {
+                    docData.items = docData.items.map((item: any, i: number) => ({
+                        ...item,
+                        id: item.id || `gpt-${Date.now()}-${i}`,
+                        quantity: Number(item.quantity) || 1,
+                        rate: Number(item.rate) || 0,
+                    }))
                 }
-                if (extracted.taxId) contextParts.push(`Client tax ID: ${extracted.taxId}`)
-                if (extracted.services) contextParts.push(`Services/items from document: ${extracted.services}`)
-                if (extracted.projectDescription) contextParts.push(`Project description: ${extracted.projectDescription}`)
-                if (extracted.additionalContext) contextParts.push(`Additional context from document: ${extracted.additionalContext}`)
 
-                const clientDetails = contextParts.join("\n")
+                // Strip any AI-computed totals
+                delete docData.subtotal
+                delete docData.total
+                delete docData.taxAmount
+                delete docData.discountAmount
 
-                const prompt = userText
-                    ? `${userText}\n\nUse the following as the CLIENT/RECIPIENT details (Bill To) for this ${docType}. My own business details should be used as the sender (Bill From):\n${clientDetails}`
-                    : `Generate a ${docType} for the following client. Use their details as the recipient (Bill To). My business profile should be the sender (Bill From). Include the services/items listed below as line items:\n${clientDetails}`
+                onChange(docData)
+                await updateSessionContext(docData)
+                await saveGeneration(displayText, docData, null, true)
+                setDocumentGenerated(true)
 
-                // Now send to the AI stream with the enriched prompt
-                setIsUploading(false)
-                await sendMessage(prompt)
+                const clientName = docData.toName || docData.clientName
+                if (clientName) await updateClientName(clientName)
+
+                setMessages(prev => {
+                    const filtered = prev.filter(m => m.content !== "Reading your document and generating...")
+                    return [...filtered, { role: "assistant", content: result.message || "✅ Document generated from your file! Check the preview." }]
+                })
+                await saveMessage("assistant", result.message || "Document generated from file.")
+                toast.success("Document generated!")
             } else {
-                throw new Error("Could not extract information from the file")
+                throw new Error("Could not generate document from file")
             }
         } catch (err: any) {
             setMessages(prev => {
-                const filtered = prev.filter(m => m.content !== "Analyzing your document...")
+                const filtered = prev.filter(m => m.content !== "Reading your document and generating...")
                 return [...filtered, {
                     role: "assistant",
-                    content: `❌ ${err.message || "Could not analyze the file. Try describing your document instead."}`
+                    content: `${err.message || "Could not process the file. Try describing your document instead."}`
                 }]
             })
             await saveMessage("assistant", `Could not analyze file: ${err.message}`)
