@@ -58,7 +58,6 @@ Examples:
 - User says "india" → "Great, India (IN) it is! ✅ What's your business name?"
 - User says "no" (to tax) → "No worries, no tax registration noted! ✅ Which countries do your clients come from?"
 - User says "all" (for countries) → "Got it, all 11 countries! ✅ What's your preferred currency?"
-- User says "30 days" → "Perfect, Net 30 payment terms! ✅"
 - User says "kolkata" (for address) → "Got it, Kolkata! ✅ Are you registered for GST/VAT/Sales Tax?"
 
 ALWAYS include the actual value in your confirmation. Never just say "Got it!" without repeating what you understood.
@@ -104,10 +103,6 @@ Examples for other fields:
 - "dollars" / "usd" → defaultCurrency: "USD"
 - "euros" / "eur" → defaultCurrency: "EUR"
 - "pounds" / "gbp" → defaultCurrency: "GBP"
-- "30 days" / "net 30" → paymentTerms: "net_30"
-- "15 days" → paymentTerms: "net_15"
-- "60 days" → paymentTerms: "net_60"
-- "immediate" / "upfront" / "on receipt" → paymentTerms: "immediate"
 
 ## NEVER SAY "I DIDN'T UNDERSTAND" OR "COULD YOU TELL ME MORE"
 - If the user types ANYTHING that could possibly be an answer to your current question, ACCEPT IT.
@@ -134,9 +129,8 @@ If the user asks a question instead of giving an answer (e.g., "what does that m
 9. taxId: ONLY if taxRegistered=true. If false → auto-set taxId="" and SKIP to next field.
 10. clientCountries: array of 2-letter codes. "all" = all 11 countries.
 11. defaultCurrency: ONE currency code only — INR, USD, GBP, EUR, CAD, AUD, SGD, AED, PHP. Pick the FIRST one if user says multiple.
-12. paymentTerms: "immediate" | "net_15" | "net_30" | "net_60"
 
-After collecting all 12 required fields above, ask about OPTIONAL bank details:
+After collecting all 11 required fields above, ask about OPTIONAL bank details:
 13. bankDetails (OPTIONAL): Ask "Would you like to add your bank details for invoices? (You can skip this)"
     - If yes → collect: bankName, accountName, accountNumber, and ifscCode (for India) or swiftCode or routingNumber
     - If no/skip → set bankDetails to {} and move to the final question
@@ -259,7 +253,7 @@ async function callDeepSeek(
     const allRequiredFields = [
         "businessType", "country", "businessName", "ownerName",
         "email", "phone", "address",
-        "clientCountries", "defaultCurrency", "paymentTerms"
+        "clientCountries", "defaultCurrency"
     ]
     
     // Tax fields: only consider taxId missing if taxRegistered=true and taxId is empty
@@ -497,7 +491,6 @@ const FIELD_QUESTIONS: Record<string, string> = {
     taxId: "What's your tax registration number?",
     clientCountries: "Which countries do your clients come from? (or say 'all')",
     defaultCurrency: "What's your preferred currency? (e.g., INR, USD, EUR)",
-    paymentTerms: "What are your standard payment terms? (Immediate, Net 15, Net 30, or Net 60)",
     bankDetails: "Would you like to add your bank details for invoices? (You can skip this)",
 }
 

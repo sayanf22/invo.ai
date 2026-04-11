@@ -66,13 +66,12 @@ const FIELD_LABELS: Record<string, string> = {
     taxId: "Tax ID",
     clientCountries: "Client Countries",
     defaultCurrency: "Currency",
-    paymentTerms: "Payment Terms",
 }
 
 const REQUIRED_FIELDS = [
     "businessType", "country", "businessName", "ownerName",
     "email", "phone", "address", "clientCountries",
-    "defaultCurrency", "paymentTerms"
+    "defaultCurrency"
 ]
 
 const COUNTRY_FLAGS: Record<string, string> = {
@@ -213,6 +212,14 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                 }),
             })
 
+            if (!response.ok) {
+                if (response.status === 429) {
+                    throw new Error("429 rate limit")
+                }
+                const errBody = await response.json().catch(() => ({}))
+                throw new Error(errBody.error || `API error: ${response.status}`)
+            }
+
             const result = await response.json()
 
             if (result.error) {
@@ -261,9 +268,20 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
 
         } catch (err: any) {
             console.error("Chat error:", err)
+            const errorMsg = err?.message || ""
+            const isRateLimit = errorMsg.includes("429") || errorMsg.toLowerCase().includes("rate limit") || errorMsg.toLowerCase().includes("high traffic")
+            const isNetwork = errorMsg.includes("fetch") || errorMsg.includes("network") || errorMsg.includes("Failed to fetch")
+            
+            let assistantMsg = "Something went wrong. Please try sending your message again."
+            if (isRateLimit) {
+                assistantMsg = "⏳ The AI is experiencing high demand. Please wait a moment and try again."
+            } else if (isNetwork) {
+                assistantMsg = "Looks like there's a connection issue. Check your internet and try again."
+            }
+            
             setMessages(prev => [...prev, {
                 role: "assistant",
-                content: "Something went wrong. Please try sending your message again."
+                content: assistantMsg
             }])
         } finally {
             setIsLoading(false)
@@ -454,12 +472,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
         <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 h-full max-w-7xl mx-auto w-full">
             {/* ── Main Chat Panel ────────────────────────────────── */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                {/* Mobile progress bar */}
-                <div className="lg:hidden h-1 bg-muted shrink-0">
-                    <div className="h-full bg-primary transition-all duration-500 ease-out" style={{ width: `${progressPercent}%` }} />
-                </div>
-
-                {/* Messages */}
+            {/* Messages */}
                 <ScrollArea className="flex-1 p-6">
                     <div className="space-y-5 pb-4 max-w-3xl mx-auto">
                         {messages.map((msg, idx) => (
@@ -495,6 +508,16 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
 
                 {/* Input Area */}
                 <div className="px-4 py-4 bg-background border-t shrink-0">
+                    {/* Mobile green progress bar — above prompt box */}
+                    <div className="lg:hidden mb-2 max-w-3xl mx-auto">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-muted-foreground">{completedCount}/{REQUIRED_FIELDS.length} fields</span>
+                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{progressPercent}%</span>
+                        </div>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 transition-all duration-500 ease-out rounded-full" style={{ width: `${progressPercent}%` }} />
+                        </div>
+                    </div>
                     {(allComplete || progressPercent >= 100) ? (
                         <div className="flex items-center gap-3 max-w-3xl mx-auto">
                             <div className="flex-1 text-base text-muted-foreground">
@@ -625,7 +648,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                     </div>
                     <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                         <div
-                            className="h-full bg-primary transition-all duration-500 ease-out rounded-full"
+                            className="h-full bg-emerald-500 transition-all duration-500 ease-out rounded-full"
                             style={{ width: `${progressPercent}%` }}
                         />
                     </div>
