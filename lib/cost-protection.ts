@@ -30,12 +30,12 @@ const TIER_LIMITS: Record<UserTier, TierLimits> = {
     },
     starter: {
         documentsPerMonth: 50,
-        messagesPerSession: 25,
+        messagesPerSession: 30,
         allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
     },
     pro: {
         documentsPerMonth: 150,
-        messagesPerSession: 30,
+        messagesPerSession: 50,
         allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
     },
     agency: {
@@ -141,6 +141,27 @@ export async function checkDocumentLimit(
 }
 
 // ─── Message Limit Check ──────────────────────────────────────────────────────
+
+/**
+ * Count user-role messages in a session.
+ * Returns 0 on error (fail-open).
+ */
+export async function getSessionMessageCount(
+    supabase: SupabaseClient<Database>,
+    sessionId: string
+): Promise<number> {
+    const { count, error } = await supabase
+        .from("chat_messages")
+        .select("*", { count: "exact", head: true })
+        .eq("session_id", sessionId)
+        .eq("role", "user")
+
+    if (error) {
+        console.error("Error counting session messages:", error)
+        return 0  // fail-open
+    }
+    return count || 0
+}
 
 /**
  * Check if user can send another message in the current session.

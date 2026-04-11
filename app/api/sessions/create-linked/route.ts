@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
+import { incrementDocumentCount } from "@/lib/cost-protection"
 
 const VALID_TYPES = ["invoice", "contract", "quotation", "proposal"]
 
@@ -146,6 +147,9 @@ export async function POST(request: NextRequest) {
                 { status: 500 }
             )
         }
+
+        // Increment document count for usage tracking
+        await incrementDocumentCount(auth.supabase, auth.user.id)
 
         // Also update parent's client_name if not set
         if (clientName && !parent.client_name) {

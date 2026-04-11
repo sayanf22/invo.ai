@@ -17,8 +17,8 @@ To prevent abuse (e.g., using a single session as an unlimited chatbot), each se
 | Tier | Messages per session |
 |------|---------------------|
 | Free | 10 |
-| Starter | 25 |
-| Pro | 30 |
+| Starter | 30 |
+| Pro | 50 |
 | Agency | Unlimited |
 
 Once the cap is hit, the user must start a new session (which counts as a new document).
@@ -31,7 +31,7 @@ Once the cap is hit, the user must start a new session (which counts as a new do
 | Yearly price | $0 | $7/mo | $19/mo | $47/mo |
 | Yearly savings | — | ~22% | ~21% | ~20% |
 | Documents/month | 3 | 50 | 150 | Unlimited |
-| Messages/session | 10 | 25 | 30 | Unlimited |
+| Messages/session | 10 | 30 | 50 | Unlimited |
 | Document types | Invoice + Contract | All 4 | All 4 | All 4 |
 | PDF templates | 3 (Modern, Classic, Minimal) | All 9 | All 9 | All 9 |
 | Countries | 3 (India, USA, UK) | All 11 | All 11 | All 11 |
@@ -105,7 +105,7 @@ Invo.ai offers AI generation + 4 doc types + 11 countries + 9 templates — sign
 
 ### Solutions
 1. **Lock after download** — Once exported, the session is frozen. No more edits.
-2. **Per-session message caps** — 10/25/30/unlimited based on tier. Prevents chatbot abuse.
+2. **Per-session message caps** — 10/30/50/unlimited based on tier. Prevents chatbot abuse.
 3. **Rate limiting** — Existing rate limiter (10 AI requests/min) prevents automated bulk generation.
 4. **Document count tracking** — `user_usage` table tracks monthly document count per user.
 
@@ -129,3 +129,4 @@ Invo.ai offers AI generation + 4 doc types + 11 countries + 9 templates — sign
 - Default tier: "free"
 - Tier checked on every API call that needs limit enforcement
 - Payment integration (Stripe) updates tier on subscription change
+

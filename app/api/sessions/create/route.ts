@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
 import { sanitizeText } from "@/lib/sanitize"
+import { incrementDocumentCount } from "@/lib/cost-protection"
 
 interface CreateSessionRequest {
     documentType: "invoice" | "contract" | "quotation" | "proposal"
@@ -60,6 +61,9 @@ export async function POST(request: NextRequest) {
                 { status: 500 }
             )
         }
+
+        // Increment document count for usage tracking
+        await incrementDocumentCount(auth.supabase, auth.user.id)
 
         if (sanitizedPrompt) {
             const { error: messageError } = await auth.supabase

@@ -12,6 +12,7 @@ import { useDocumentSession } from "@/hooks/use-document-session"
 import { MarkdownMessage } from "@/components/markdown-message"
 import { NextStepsBar } from "@/components/next-steps-bar"
 import { ChainNavigator } from "@/components/chain-navigator"
+import { MessageLimitBanner } from "@/components/message-limit-banner"
 import AIThinkingBlock from "@/components/ui/ai-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
 import { createClient } from "@/lib/supabase"
@@ -50,6 +51,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
     const [fileContext, setFileContext] = useState<string | null>(null)
+    const [messageLimitReached, setMessageLimitReached] = useState(false)
+    const [limitInfo, setLimitInfo] = useState<{ currentMessages: number; limit: number; tier: string } | null>(null)
 
     const scrollRef = useRef<HTMLDivElement>(null)
     const initialPromptSentRef = useRef(false)
@@ -68,6 +71,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         // Reset chat state for the new session
         setDocumentGenerated(false)
         setFileContext(null)
+        setMessageLimitReached(false)
+        setLimitInfo(null)
         setIsLoading(false)
 
         if (savedMessages.length > 0) {
@@ -151,6 +156,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 body: JSON.stringify({
                     prompt: userMessage,
                     documentType: docType,
+                    sessionId: session.id,
                     // Send currentData if this is a follow-up OR if this is a linked session with seed data
                     currentData: (messages.length > 1 || session.chain_id) ? data : undefined,
                     conversationHistory: messages.length > 1 ? messages.slice(-20) : [],
@@ -158,7 +164,26 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 }),
             })
 
-            if (!response.ok) throw new Error(`API error: ${response.status}`)
+            if (!response.ok) {
+                if (response.status === 429) {
+                    const errorData = await response.json()
+                    if (errorData.error === "Session message limit reached") {
+                        setMessageLimitReached(true)
+                        setLimitInfo({
+                            currentMessages: errorData.currentMessages,
+                            limit: errorData.limit,
+                            tier: errorData.tier,
+                        })
+                        setMessages(prev => [...prev, {
+                            role: "assistant" as const,
+                            content: `You've reached the message limit (${errorData.currentMessages}/${errorData.limit}) for this session. You can create a new document to continue.`
+                        }])
+                        setIsLoading(false)
+                        return
+                    }
+                }
+                throw new Error(`API error: ${response.status}`)
+            }
 
             const reader = response.body?.getReader()
             const decoder = new TextDecoder()
@@ -568,28 +593,42 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         </div>
                     )}
 
-                    <AIInputWithLoading
-                        value={inputValue}
-                        onValueChange={setInputValue}
-                        isLoading={isLoading}
-                        isUploading={isUploading}
-                        onSubmit={(val) => {
-                            if (stagedFile) {
-                                handleFileUpload(stagedFile, val.trim() || undefined)
-                                setStagedFile(null)
-                                setInputValue("")
-                            } else {
-                                sendMessage(val)
-                            }
-                        }}
-                        placeholder="Ask a question or describe a document..."
-                        disabled={sessionLoading || !session}
-                        statusText={isSaving ? "Saving..." : undefined}
-                        showAttachButton={true}
-                        stagedFile={stagedFile}
-                        onFileSelect={(file) => setStagedFile(file)}
-                        onFileRemove={() => setStagedFile(null)}
-                    />
+                    {messageLimitReached && limitInfo ? (
+                        <MessageLimitBanner
+                            currentMessages={limitInfo.currentMessages}
+                            limit={limitInfo.limit}
+                            tier={limitInfo.tier}
+                            currentDocType={docType}
+                            hasChain={!!session?.chain_id}
+                            parentSessionId={session?.id || ""}
+                            onCreateDocument={(targetType) => {
+                                handleCreateLinked(session!.id, targetType)
+                            }}
+                        />
+                    ) : (
+                        <AIInputWithLoading
+                            value={inputValue}
+                            onValueChange={setInputValue}
+                            isLoading={isLoading}
+                            isUploading={isUploading}
+                            onSubmit={(val) => {
+                                if (stagedFile) {
+                                    handleFileUpload(stagedFile, val.trim() || undefined)
+                                    setStagedFile(null)
+                                    setInputValue("")
+                                } else {
+                                    sendMessage(val)
+                                }
+                            }}
+                            placeholder="Ask a question or describe a document..."
+                            disabled={sessionLoading || !session}
+                            statusText={isSaving ? "Saving..." : undefined}
+                            showAttachButton={true}
+                            stagedFile={stagedFile}
+                            onFileSelect={(file) => setStagedFile(file)}
+                            onFileRemove={() => setStagedFile(null)}
+                        />
+                    )}
                 </div>
             </div>
         </div>

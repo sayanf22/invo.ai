@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { streamGenerateDocument, type AIGenerationRequest } from "@/lib/deepseek"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 
-import { checkCostLimit, trackUsage } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, checkMessageLimit, type UserTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText } from "@/lib/sanitize"
 
@@ -21,6 +21,21 @@ export async function POST(request: NextRequest) {
         if (costError) return costError
 
         const body: AIGenerationRequest = await request.json()
+
+        // Fetch user tier from subscriptions table
+        const { data: sub } = await (auth.supabase as any)
+            .from("subscriptions")
+            .select("plan")
+            .eq("user_id", auth.user.id)
+            .single()
+        const userTier = ((sub as any)?.plan || "free") as UserTier
+
+        // Check per-session message limit (if sessionId provided)
+        const sessionId = (body as any).sessionId
+        if (sessionId) {
+            const limitError = await checkMessageLimit(auth.supabase, auth.user.id, sessionId, userTier)
+            if (limitError) return limitError
+        }
 
         // SECURITY: Input size limit (100KB)
         const sizeError = validateBodySize(body, 100 * 1024)
