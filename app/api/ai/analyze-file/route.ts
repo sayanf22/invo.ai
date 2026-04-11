@@ -97,7 +97,7 @@ export async function POST(request: Request) {
 
         const openaiKey = await getSecret("OPENAI_API_KEY")
         if (!openaiKey) {
-            console.error("OPENAI_API_KEY not found in environment or Supabase Vault")
+            console.error("OPENAI_API_KEY not found. ENV keys available:", Object.keys(process.env).filter(k => k.includes("OPENAI") || k.includes("DEEPSEEK") || k.includes("SUPABASE_SERVICE")).join(", ") || "none")
             return NextResponse.json({ error: "File analysis is temporarily unavailable. Please type your details manually." }, { status: 503 })
         }
 
