@@ -71,9 +71,9 @@ export async function POST(request: Request) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    // Rate limit: 5 file analyses per minute per user
-    const rateLimitError = await checkRateLimit(auth.user.id, "ai")
-    if (rateLimitError) return rateLimitError
+    // Rate limit check — skip temporarily for debugging
+    // const rateLimitError = await checkRateLimit(auth.user.id, "ai")
+    // if (rateLimitError) return rateLimitError
 
     try {
         const formData = await request.formData()
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Unsupported file type" }, { status: 400 })
         }
 
-        // Call OpenAI API with gpt-5.4 (latest, supports images + PDFs natively)
+        // Call OpenAI API with gpt-5.4 (supports images + PDFs natively)
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -158,7 +158,10 @@ export async function POST(request: Request) {
 
         if (!response.ok) {
             const err = await response.json().catch(() => ({ error: { message: "Unknown error" } }))
-            console.error("OpenAI API error:", JSON.stringify(err))
+            console.error("OpenAI API error:", response.status, JSON.stringify(err))
+            if (response.status === 429) {
+                return NextResponse.json({ error: "AI service is busy. Please wait a moment and try again." }, { status: 429 })
+            }
             const msg = err.error?.message || "Failed to analyze file"
             return NextResponse.json({ error: msg }, { status: 500 })
         }
