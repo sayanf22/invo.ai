@@ -71,9 +71,9 @@ export async function POST(request: Request) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    // Rate limit check — skip temporarily for debugging
-    // const rateLimitError = await checkRateLimit(auth.user.id, "ai")
-    // if (rateLimitError) return rateLimitError
+    // Rate limit check
+    const rateLimitError = await checkRateLimit(auth.user.id, "ai")
+    if (rateLimitError) return rateLimitError
 
     try {
         const formData = await request.formData()

@@ -30,6 +30,19 @@ export function AppShell() {
       setSelectedSessionId(sessionId)
       setView("prompt")
       loadSessionType(sessionId)
+    } else {
+      // Check localStorage for last active session
+      const lastSession = localStorage.getItem("clorefy_active_session")
+      if (lastSession) {
+        try {
+          const { sessionId: savedId, category } = JSON.parse(lastSession)
+          if (savedId) {
+            setSelectedSessionId(savedId)
+            setSelectedCategory(category || "Invoice")
+            setView("prompt")
+          }
+        } catch {}
+      }
     }
   }, [searchParams])
 
@@ -183,11 +196,22 @@ export function AppShell() {
     setSelectedCategory(category)
   }, [])
 
+  // Persist active session to localStorage so it survives page refresh
+  useEffect(() => {
+    if (view === "prompt" && selectedSessionId) {
+      localStorage.setItem("clorefy_active_session", JSON.stringify({
+        sessionId: selectedSessionId,
+        category: selectedCategory,
+      }))
+    }
+  }, [view, selectedSessionId, selectedCategory])
+
   const handleBack = useCallback(() => {
     setView("start")
     setSelectedCategory(undefined)
     setInitialPrompt(undefined)
     setPromptKey(0)
+    localStorage.removeItem("clorefy_active_session")
   }, [])
 
   if (authLoading || checkingOnboarding) {
