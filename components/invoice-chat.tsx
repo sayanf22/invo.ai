@@ -133,9 +133,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         if (!messageText.trim() || isLoading || !session) return
 
         const userMessage = messageText.trim()
+        // Display only the user's text, not the enriched file context
+        const displayText = userMessage.includes("[CLIENT DETAILS FROM ATTACHED FILE")
+            ? userMessage.split("\n\n[CLIENT DETAILS")[0].trim() || "📎 Generate from attached file"
+            : userMessage
         setInputValue("")
-        setMessages(prev => [...prev, { role: "user" as const, content: userMessage }])
-        await saveMessage("user", userMessage)
+        setMessages(prev => [...prev, { role: "user" as const, content: displayText }])
+        await saveMessage("user", displayText)
         setIsLoading(true)
 
         try {

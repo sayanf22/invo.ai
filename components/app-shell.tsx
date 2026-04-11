@@ -93,25 +93,38 @@ export function AppShell() {
           const extracted = result.extracted
           if (extracted) {
             const parts: string[] = []
-            if (extracted.businessName) parts.push(`Client business name: ${extracted.businessName}`)
-            if (extracted.ownerName) parts.push(`Client contact person: ${extracted.ownerName}`)
-            if (extracted.email) parts.push(`Client email: ${extracted.email}`)
-            if (extracted.phone) parts.push(`Client phone: ${extracted.phone}`)
+            if (extracted.businessName) parts.push(`Client: ${extracted.businessName}`)
+            if (extracted.ownerName) parts.push(`Contact: ${extracted.ownerName}`)
+            if (extracted.email) parts.push(`Email: ${extracted.email}`)
+            if (extracted.phone) parts.push(`Phone: ${extracted.phone}`)
             if (extracted.address) {
               const a = extracted.address
               const addr = [a.street, a.city, a.state, a.postalCode].filter(Boolean).join(", ")
-              if (addr) parts.push(`Client address: ${addr}`)
+              if (addr) parts.push(`Address: ${addr}`)
             }
-            if (extracted.taxId) parts.push(`Client tax ID: ${extracted.taxId}`)
-            if (extracted.services) parts.push(`Services/items from document: ${extracted.services}`)
-            if (extracted.projectDescription) parts.push(`Project description: ${extracted.projectDescription}`)
-            if (extracted.additionalContext) parts.push(`Additional context from document: ${extracted.additionalContext}`)
+            if (extracted.taxId) parts.push(`Tax ID: ${extracted.taxId}`)
+            if (extracted.services) {
+              // Handle services as string or array
+              const svc = typeof extracted.services === "string"
+                ? extracted.services
+                : JSON.stringify(extracted.services)
+              parts.push(`Services: ${svc}`)
+            }
+            if (extracted.projectDescription) parts.push(`Project: ${extracted.projectDescription}`)
+            if (extracted.additionalContext) {
+              const ctx = typeof extracted.additionalContext === "string"
+                ? extracted.additionalContext
+                : JSON.stringify(extracted.additionalContext)
+              parts.push(`Context: ${ctx}`)
+            }
 
             const clientDetails = parts.join("\n")
 
+            // Build the prompt for DeepSeek — but keep the user's original text as the visible message
+            // The enriched prompt is only sent to the AI, not displayed
             enrichedPrompt = prompt
-              ? `${prompt}\n\nUse the following as the CLIENT/RECIPIENT details (Bill To). My own business details should be used as the sender (Bill From):\n${clientDetails}`
-              : `Generate a document for the following client. Use their details as the recipient (Bill To). My business profile should be the sender (Bill From). Include the services/items listed below as line items:\n${clientDetails}`
+              ? `${prompt}\n\n[CLIENT DETAILS FROM ATTACHED FILE - use as Bill To recipient]\n${clientDetails}`
+              : `Generate a document using the attached file details as the client.\n\n[CLIENT DETAILS FROM ATTACHED FILE - use as Bill To recipient]\n${clientDetails}`
           }
         }
       } catch (err) {
