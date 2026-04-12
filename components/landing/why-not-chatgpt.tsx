@@ -41,9 +41,9 @@ export function WhyNotChatGPT() {
   ]
 
   return (
-    <section className="py-16 sm:py-28 px-4 sm:px-6 lg:px-10 overflow-hidden" style={{ backgroundColor: "#1a1a1a" }}>
+    <section className="py-16 sm:py-28 px-4 sm:px-6 lg:px-10" style={{ backgroundColor: "#1a1a1a" }}>
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-20 items-center">
 
           {/* Left — Copy */}
           <motion.div
@@ -93,15 +93,15 @@ export function WhyNotChatGPT() {
 
           {/* Right — Interactive demo */}
           <div className="relative">
-            {/* Ambient glow */}
-            <div className="absolute -inset-10 rounded-full opacity-30 pointer-events-none" style={{ background: "radial-gradient(circle, rgba(224,123,57,0.2) 0%, transparent 70%)" }} />
+            {/* Ambient glow — hidden on mobile to prevent overflow */}
+            <div className="absolute -inset-10 rounded-full opacity-30 pointer-events-none hidden sm:block" style={{ background: "radial-gradient(circle, rgba(224,123,57,0.2) 0%, transparent 70%)" }} />
 
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
               transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="relative rounded-[2.5rem] p-6 sm:p-8 min-h-[480px] flex flex-col"
+              className="relative rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 min-h-[380px] sm:min-h-[480px] flex flex-col"
               style={{ background: "linear-gradient(145deg, #232323 0%, #1f1f1f 50%, #1a1816 100%)", boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 40px 80px -20px rgba(0,0,0,0.5), 0 0 60px -10px rgba(224,123,57,0.08)" }}
             >
               {/* Tab switcher */}
