@@ -22,7 +22,9 @@ export function NextStepsBar({ clientName, currentDocType, parentSessionId, onCr
     const [loadingType, setLoadingType] = useState<string | null>(null)
 
     const currentType = currentDocType.toLowerCase()
-    const availableTypes = Object.keys(DOC_OPTIONS).filter(t => t !== currentType)
+    // Show all doc types including the current one — users may want to create
+    // the same document type again (e.g., next month's invoice for the same client)
+    const allTypes = Object.keys(DOC_OPTIONS)
 
     const handleClick = async (targetType: string) => {
         if (loadingType) return
@@ -44,10 +46,11 @@ export function NextStepsBar({ clientName, currentDocType, parentSessionId, onCr
                 }
             </p>
             <div className="flex gap-2 overflow-x-auto pb-1 -mb-1 scrollbar-none snap-x snap-mandatory">
-                {availableTypes.map(type => {
+                {allTypes.map(type => {
                     const opt = DOC_OPTIONS[type]
                     const Icon = opt.icon
                     const isLoading = loadingType === type
+                    const isCurrent = type === currentType
                     return (
                         <button
                             key={type}
@@ -55,8 +58,12 @@ export function NextStepsBar({ clientName, currentDocType, parentSessionId, onCr
                             onClick={() => handleClick(type)}
                             disabled={!!loadingType}
                             className={cn(
-                                "flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium border border-border/60 bg-background text-foreground transition-all duration-200 active:scale-[0.97] shadow-sm whitespace-nowrap shrink-0 snap-start",
-                                isLoading ? "opacity-60 cursor-wait" : "cursor-pointer hover:bg-secondary/50 hover:shadow-md"
+                                "flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium border transition-all duration-200 active:scale-[0.97] shadow-sm whitespace-nowrap shrink-0 snap-start",
+                                isLoading
+                                    ? "opacity-60 cursor-wait border-border/60 bg-background text-foreground"
+                                    : isCurrent
+                                    ? "cursor-pointer border-primary/40 bg-primary/5 text-foreground hover:bg-primary/10 hover:shadow-md"
+                                    : "cursor-pointer border-border/60 bg-background text-foreground hover:bg-secondary/50 hover:shadow-md"
                             )}
                         >
                             {isLoading
@@ -64,6 +71,7 @@ export function NextStepsBar({ clientName, currentDocType, parentSessionId, onCr
                                 : <Icon className="w-[18px] h-[18px] text-muted-foreground" />
                             }
                             {opt.label}
+                            {isCurrent && <span className="text-[11px] text-muted-foreground font-normal">(new)</span>}
                         </button>
                     )
                 })}

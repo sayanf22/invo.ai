@@ -13,6 +13,7 @@ import { MarkdownMessage } from "@/components/markdown-message"
 import { NextStepsBar } from "@/components/next-steps-bar"
 import { ChainNavigator } from "@/components/chain-navigator"
 import { MessageLimitBanner } from "@/components/message-limit-banner"
+import { UpgradeModal } from "@/components/upgrade-modal"
 import AIThinkingBlock from "@/components/ui/ai-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
 import { createClient } from "@/lib/supabase"
@@ -53,6 +54,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [fileContext, setFileContext] = useState<string | null>(null)
     const [messageLimitReached, setMessageLimitReached] = useState(false)
     const [limitInfo, setLimitInfo] = useState<{ currentMessages: number; limit: number; tier: string } | null>(null)
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+    const [upgradeInfo, setUpgradeInfo] = useState<{ tier: string; currentUsage?: number; limit?: number; errorType: "limit" | "type_restriction" | "feature_restricted"; message?: string } | null>(null)
 
     const scrollRef = useRef<HTMLDivElement>(null)
     const initialPromptSentRef = useRef(false)
@@ -146,7 +149,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             : userMessage
         setInputValue("")
         setMessages(prev => [...prev, { role: "user" as const, content: displayText }])
-        await saveMessage("user", displayText)
+        // NOTE: User message is NOT saved to DB here — it's saved only after a successful
+        // AI response. This prevents error responses from counting against the message limit.
         setIsLoading(true)
 
         try {
@@ -177,6 +181,44 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         setMessages(prev => [...prev, {
                             role: "assistant" as const,
                             content: `You've reached the message limit (${errorData.currentMessages}/${errorData.limit}) for this session. You can create a new document to continue.`
+                        }])
+                        setIsLoading(false)
+                        return
+                    }
+                    if (errorData.error === "Monthly document limit reached") {
+                        setUpgradeInfo({
+                            tier: errorData.tier || "free",
+                            currentUsage: errorData.currentUsage,
+                            limit: errorData.limit,
+                            errorType: "limit",
+                            message: errorData.message,
+                        })
+                        setShowUpgradeModal(true)
+                        setMessages(prev => [...prev, {
+                            role: "assistant" as const,
+                            content: `You've reached your monthly document limit (${errorData.currentUsage}/${errorData.limit}). Upgrade your plan to create more documents.`
+                        }])
+                        setIsLoading(false)
+                        return
+                    }
+                }
+                if (response.status === 403) {
+                    const errorData = await response.json()
+                    if (errorData.tier) {
+                        const errorType = errorData.error === "Document type not available on your plan"
+                            ? "type_restriction" as const
+                            : "feature_restricted" as const
+                        setUpgradeInfo({
+                            tier: errorData.tier,
+                            currentUsage: errorData.currentUsage,
+                            limit: errorData.limit,
+                            errorType,
+                            message: errorData.message,
+                        })
+                        setShowUpgradeModal(true)
+                        setMessages(prev => [...prev, {
+                            role: "assistant" as const,
+                            content: errorData.message || "This feature is not available on your current plan. Please upgrade to continue."
                         }])
                         setIsLoading(false)
                         return
@@ -333,17 +375,20 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
                     const displayMsg = aiMessage || "✅ Document generated! Check the preview. Need changes? Just tell me."
                     setMessages(prev => [...prev, { role: "assistant", content: displayMsg }])
+                    await saveMessage("user", displayText)
                     await saveMessage("assistant", displayMsg)
                     toast.success("Document updated!")
                 } else {
                     // JSON parse completely failed — show the raw text as a chat message
                     console.error("Failed to parse AI response as JSON:", cleaned.slice(0, 200))
                     setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
+                    await saveMessage("user", displayText)
                     await saveMessage("assistant", cleaned)
                 }
             } else {
                 // Not JSON — plain text response from AI (e.g., clarification question)
                 setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
+                await saveMessage("user", displayText)
                 await saveMessage("assistant", cleaned)
             }
         } catch (err: any) {
@@ -352,7 +397,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 ? "⏳ High demand right now. Please wait a minute and try again."
                 : "Something went wrong. Please try again."
             setMessages(prev => [...prev, { role: "assistant", content: assistantMsg }])
-            await saveMessage("assistant", assistantMsg)
+            // NOTE: Do NOT save user or error messages to DB on failure —
+            // this prevents errors from counting against the message limit.
+            // The error message is shown in the UI only.
             await saveGeneration(messageText, {}, null, false, errorMsg)
         } finally {
             setIsLoading(false)
@@ -631,6 +678,19 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     )}
                 </div>
             </div>
+
+            {/* Upgrade Modal — shown when tier limit or restriction is hit */}
+            {upgradeInfo && (
+                <UpgradeModal
+                    open={showUpgradeModal}
+                    onOpenChange={setShowUpgradeModal}
+                    tier={upgradeInfo.tier}
+                    currentUsage={upgradeInfo.currentUsage}
+                    limit={upgradeInfo.limit}
+                    errorType={upgradeInfo.errorType}
+                    message={upgradeInfo.message}
+                />
+            )}
         </div>
     )
 }

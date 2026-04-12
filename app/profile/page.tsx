@@ -283,16 +283,21 @@ export default function ProfilePage() {
     const [editCountries, setEditCountries] = useState<string[]>([])
     const [saving, setSaving] = useState(false)
     const [aiUpdateOpen, setAiUpdateOpen] = useState(false)
+    const [userTier, setUserTier] = useState<string>("free")
 
     const loadProfile = useCallback(async () => {
         if (!user) return
         try {
-            const { data, error } = await supabase.from("businesses").select("*").eq("user_id", user.id).single()
-            if (error) {
-                if (error.code === "PGRST116") { toast.error("No business profile found."); router.push("/onboarding"); return }
-                throw error
+            const [profileResult, subResult] = await Promise.all([
+                supabase.from("businesses").select("*").eq("user_id", user.id).single(),
+                (supabase as any).from("subscriptions").select("plan").eq("user_id", user.id).single(),
+            ])
+            if (profileResult.error) {
+                if (profileResult.error.code === "PGRST116") { toast.error("No business profile found."); router.push("/onboarding"); return }
+                throw profileResult.error
             }
-            setProfile(data as unknown as BusinessProfile)
+            setProfile(profileResult.data as unknown as BusinessProfile)
+            setUserTier(subResult.data?.plan || "free")
         } catch (error) {
             console.error("Load profile error:", error)
             toast.error("Failed to load profile")
@@ -409,9 +414,11 @@ export default function ProfilePage() {
                             <h1 className="text-[28px] font-semibold tracking-tight">Business Profile</h1>
                             <p className="text-[15px] text-muted-foreground mt-1">Click Edit on any section to update manually or use AI.</p>
                         </div>
-                        <Button variant="outline" className="gap-2 shrink-0 shadow-sm" onClick={() => setAiUpdateOpen(true)}>
-                            Update with AI
-                        </Button>
+                        {userTier !== "free" && (
+                            <Button variant="outline" className="gap-2 shrink-0 shadow-sm" onClick={() => setAiUpdateOpen(true)}>
+                                Update with AI
+                            </Button>
+                        )}
                     </div>
 
                     {/* ── Business Information ── */}
@@ -440,7 +447,7 @@ export default function ProfilePage() {
                                 </div>
                             ) : <EditableField label="Country" value={COUNTRY_FLAGS[profile.country] || profile.country} field="country" editing={false} editData={editData} onChange={handleChange} />}
                         </div>
-                        {isEditing("business") && <SectionChatBar section="business" sectionTitle="business info" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
+                        {isEditing("business") && userTier !== "free" && <SectionChatBar section="business" sectionTitle="business info" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
                     </Card>
 
                     {/* ── Contact Information ── */}
@@ -451,7 +458,7 @@ export default function ProfilePage() {
                             <EditableField label="Email" value={profile.email} field="email" editing={isEditing("contact")} editData={editData} onChange={handleChange} type="email" icon={<Mail className="h-3.5 w-3.5" />} />
                             <EditableField label="Phone" value={profile.phone} field="phone" editing={isEditing("contact")} editData={editData} onChange={handleChange} type="tel" icon={<Phone className="h-3.5 w-3.5" />} />
                         </div>
-                        {isEditing("contact") && <SectionChatBar section="contact" sectionTitle="contact info" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
+                        {isEditing("contact") && userTier !== "free" && <SectionChatBar section="contact" sectionTitle="contact info" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
                     </Card>
 
                     {/* ── Address ── */}
@@ -466,7 +473,7 @@ export default function ProfilePage() {
                                 <EditableField label="Postal Code" value={profile.address?.postal_code} field="postal_code" editing={isEditing("address")} editData={editData} onChange={handleChange} />
                             </div>
                         </div>
-                        {isEditing("address") && <SectionChatBar section="address" sectionTitle="address" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
+                        {isEditing("address") && userTier !== "free" && <SectionChatBar section="address" sectionTitle="address" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
                     </Card>
 
                     {/* ── Tax & Compliance ── */}
@@ -496,7 +503,7 @@ export default function ProfilePage() {
                                 )}
                             </div>
                         </div>
-                        {isEditing("tax") && <SectionChatBar section="tax" sectionTitle="tax details" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
+                        {isEditing("tax") && userTier !== "free" && <SectionChatBar section="tax" sectionTitle="tax details" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
                     </Card>
 
                     {/* ── Payment Settings & Bank Details ── */}
@@ -552,7 +559,7 @@ export default function ProfilePage() {
                                 </div>
                             ) : <p className="text-[14px] text-muted-foreground">No bank details added. Click Edit to add your bank information.</p>}
                         </div>
-                        {isEditing("payment") && <SectionChatBar section="payment" sectionTitle="payment settings" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
+                        {isEditing("payment") && userTier !== "free" && <SectionChatBar section="payment" sectionTitle="payment settings" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
                     </Card>
 
                     {/* ── Additional Notes ── */}
@@ -563,7 +570,7 @@ export default function ProfilePage() {
                             <Textarea value={editData.additional_notes} onChange={(e) => handleChange("additional_notes", e.target.value)}
                                 className="text-[15px] min-h-[120px]" placeholder="Add any extra info about your business..." />
                         ) : <p className="text-[16px] whitespace-pre-wrap">{profile.additional_notes || "No additional notes. Click Edit to add."}</p>}
-                        {isEditing("notes") && <SectionChatBar section="notes" sectionTitle="notes" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
+                        {isEditing("notes") && userTier !== "free" && <SectionChatBar section="notes" sectionTitle="notes" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
                     </Card>
 
                     <Card className="p-5 bg-primary/5 border-primary/20 shadow-sm">

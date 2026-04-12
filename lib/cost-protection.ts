@@ -26,7 +26,7 @@ const TIER_LIMITS: Record<UserTier, TierLimits> = {
     free: {
         documentsPerMonth: 3,
         messagesPerSession: 10,
-        allowedDocTypes: ["invoice", "contract"],
+        allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
     },
     starter: {
         documentsPerMonth: 50,

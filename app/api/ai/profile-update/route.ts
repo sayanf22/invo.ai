@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
 import { checkCostLimit, trackUsage } from "@/lib/cost-protection"
+import type { UserTier } from "@/lib/cost-protection"
 import { sanitizeText } from "@/lib/sanitize"
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
@@ -104,11 +105,14 @@ function buildSystemPrompt(profile: Record<string, unknown>, section?: string): 
     check("default_currency", "Currency", profile.default_currency)
     check("default_payment_terms", "Payment Terms", profile.default_payment_terms)
 
+    check("default_payment_instructions", "Payment Instructions", profile.default_payment_instructions)
+
     const bank = (profile.payment_methods as any)?.bank
     if (bank && (bank.bankName || bank.accountNumber)) filled.push("Bank Details: provided")
     else missing.push("Bank Details")
 
     if (profile.additional_notes && String(profile.additional_notes).trim()) filled.push("Additional Notes: provided")
+    else missing.push("Additional Notes")
 
     const filledStr = filled.length > 0 ? filled.join("\n  ") : "None"
     const missingStr = missing.length > 0 ? missing.join(", ") : "None"
@@ -126,7 +130,7 @@ ${filled.filter(f => {
         contact: ["Email", "Phone"],
         address: ["Street", "City", "State", "Postal Code"],
         tax: ["Tax ID", "Client Countries"],
-        payment: ["Currency", "Payment Terms", "Bank Details"],
+        payment: ["Currency", "Payment Terms", "Payment Instructions", "Bank Details"],
         notes: ["Additional Notes"],
     }
     return (fieldLabels[section] || []).some(label => f.startsWith(label))
@@ -146,6 +150,12 @@ ${filled.filter(f => {
    - User says a single word that could mean multiple different fields
 5. When you extract, confirm briefly: "Updated state to Tripura ✅" — then ask about the next empty field if any.
 6. You are ONLY updating ${sec.label}. The ONLY fields you can extract: ${sec.description}
+
+## MERGE RULES
+- NEVER set a field to null or empty string if it already has a value in the current profile.
+- Only include fields in extractedData that the user explicitly mentioned or that were extracted from a document.
+- New data supplements existing data — it does not replace it.
+- For nested objects (address, bankDetails), only include the sub-fields being changed.
 
 ## RESPONSE FORMAT
 Always respond with valid JSON:
@@ -174,6 +184,12 @@ Missing fields: ${missingStr}
 4. If the user uploads a document, acknowledge what was extracted and confirm.
 5. If the user says "everything looks good" or "done", set allFieldsComplete to true.
 6. Be concise — 1-2 sentences max per response.
+
+## MERGE RULES
+- NEVER set a field to null or empty string if it already has a value in the current profile.
+- Only include fields in extractedData that the user explicitly mentioned or that were extracted from a document.
+- New data supplements existing data — it does not replace it.
+- For nested objects (address, bankDetails), only include the sub-fields being changed.
 
 ## EXTRACTION FIELDS
 - businessType, businessName, ownerName, email, phone, country
@@ -204,7 +220,27 @@ export async function POST(request: NextRequest) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    const costError = await checkCostLimit(auth.supabase, auth.user.id, "onboarding")
+    // Fetch user tier from subscriptions table, default to "free"
+    const { data: subscription } = await auth.supabase
+        .from("subscriptions")
+        .select("plan")
+        .eq("user_id", auth.user.id)
+        .single()
+    const userTier: UserTier = (subscription?.plan as UserTier) || "free"
+
+    // Block free-tier users from AI profile editing
+    if (userTier === "free") {
+        return NextResponse.json(
+            {
+                error: "AI profile editing requires a paid plan",
+                tier: "free",
+                message: "Upgrade to Starter to use AI-powered profile editing",
+            },
+            { status: 403 }
+        )
+    }
+
+    const costError = await checkCostLimit(auth.supabase, auth.user.id, "onboarding", userTier)
     if (costError) return costError
 
     const body: ProfileUpdateRequest = await request.json()

@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Send, Loader2, Paperclip, FileText, X, Check, MessageSquare, PenLine } from "lucide-react"
+import { Send, Loader2, Check, MessageSquare, PenLine } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { AIInputWithLoading } from "@/components/ui/ai-input-with-loading"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
@@ -15,7 +16,7 @@ interface ChatMessage {
     content: string
 }
 
-interface ProfileData {
+export interface ProfileData {
     name?: string
     business_type?: string
     owner_name?: string
@@ -49,48 +50,96 @@ interface ProfileUpdateChatProps {
     sectionTitle?: string
 }
 
-// Map extracted AI field names to database column names
-function mapExtractedToDbUpdate(extracted: Record<string, unknown>, currentProfile: ProfileData): Record<string, unknown> {
+// Map extracted AI field names to database column names with intelligent merging
+export function mapExtractedToDbUpdate(
+    extracted: Record<string, unknown>,
+    currentProfile: ProfileData
+): Record<string, unknown> {
     const update: Record<string, unknown> = {}
 
-    if (extracted.businessName) update.name = extracted.businessName
-    if (extracted.businessType) update.business_type = extracted.businessType
-    if (extracted.ownerName) update.owner_name = extracted.ownerName
-    if (extracted.email) update.email = extracted.email
-    if (extracted.phone) update.phone = extracted.phone
-    if (extracted.country) update.country = extracted.country
+    const setIfPresent = (extractedKey: string, dbKey: string) => {
+        const val = extracted[extractedKey]
+        if (val !== null && val !== undefined && val !== "") {
+            update[dbKey] = val
+        }
+    }
 
+    setIfPresent("businessName", "name")
+    setIfPresent("businessType", "business_type")
+    setIfPresent("ownerName", "owner_name")
+    setIfPresent("email", "email")
+    setIfPresent("phone", "phone")
+    setIfPresent("country", "country")
+
+    // Deep merge address: only overwrite sub-fields that are present in extracted
     if (extracted.address && typeof extracted.address === "object") {
         const a = extracted.address as Record<string, string>
+        const existing = currentProfile.address || {}
         update.address = {
-            ...(currentProfile.address || {}),
-            street: a.street || currentProfile.address?.street || "",
-            city: a.city || currentProfile.address?.city || "",
-            state: a.state || currentProfile.address?.state || "",
-            postal_code: a.postalCode || a.postal_code || currentProfile.address?.postal_code || "",
+            street: (a.street && a.street.trim()) ? a.street : existing.street || "",
+            city: (a.city && a.city.trim()) ? a.city : existing.city || "",
+            state: (a.state && a.state.trim()) ? a.state : existing.state || "",
+            postal_code: (a.postalCode || a.postal_code || "").trim()
+                || existing.postal_code || "",
             country: (extracted.country as string) || currentProfile.country || "",
         }
-        if (a.state) update.state_province = a.state
+        if (a.state && a.state.trim()) update.state_province = a.state
     }
 
+    // Merge tax_ids (shallow merge, preserve existing keys)
     if (extracted.taxId) {
-        update.tax_ids = { ...(currentProfile.tax_ids || {}), tax_id: extracted.taxId as string }
+        update.tax_ids = {
+            ...(currentProfile.tax_ids || {}),
+            tax_id: extracted.taxId as string,
+        }
     }
 
+    // Deduplicated union of clientCountries
     if (extracted.clientCountries && Array.isArray(extracted.clientCountries)) {
-        update.client_countries = extracted.clientCountries
+        const existing = currentProfile.client_countries || []
+        const merged = [...new Set([...existing, ...extracted.clientCountries])]
+        update.client_countries = merged
     }
 
-    if (extracted.defaultCurrency) update.default_currency = extracted.defaultCurrency
-    if (extracted.paymentTerms) update.default_payment_terms = extracted.paymentTerms
-    if (extracted.paymentInstructions) update.default_payment_instructions = extracted.paymentInstructions
-    if (extracted.additionalNotes) update.additional_notes = extracted.additionalNotes
+    setIfPresent("defaultCurrency", "default_currency")
+    setIfPresent("paymentTerms", "default_payment_terms")
+    setIfPresent("paymentInstructions", "default_payment_instructions")
 
+    // Merge additional_notes: combine services, projectDescription, additionalContext,
+    // and additionalNotes from file extraction — append to existing notes instead of replacing
+    const noteParts: string[] = []
+    if (extracted.services && typeof extracted.services === "string" && extracted.services.trim()) {
+        noteParts.push(extracted.services.trim())
+    }
+    if (extracted.projectDescription && typeof extracted.projectDescription === "string" && extracted.projectDescription.trim()) {
+        noteParts.push(extracted.projectDescription.trim())
+    }
+    if (extracted.additionalContext && typeof extracted.additionalContext === "string" && extracted.additionalContext.trim()) {
+        noteParts.push(extracted.additionalContext.trim())
+    }
+    if (extracted.additionalNotes && typeof extracted.additionalNotes === "string" && extracted.additionalNotes.trim()) {
+        noteParts.push(extracted.additionalNotes.trim())
+    }
+    if (noteParts.length > 0) {
+        const newNotes = noteParts.join(" ")
+        const existing = currentProfile.additional_notes?.trim() || ""
+        // Always append new info to existing notes
+        if (existing) {
+            update.additional_notes = `${existing} ${newNotes}`.trim()
+        } else {
+            update.additional_notes = newNotes
+        }
+    }
+
+    // Deep merge bankDetails: only overwrite sub-fields with non-empty values
     if (extracted.bankDetails && typeof extracted.bankDetails === "object") {
         const existingBank = (currentProfile.payment_methods as any)?.bank || {}
-        update.payment_methods = {
-            bank: { ...existingBank, ...(extracted.bankDetails as Record<string, string>) },
+        const newBank = extracted.bankDetails as Record<string, string>
+        const merged: Record<string, string> = { ...existingBank }
+        for (const [k, v] of Object.entries(newBank)) {
+            if (v && String(v).trim()) merged[k] = v
         }
+        update.payment_methods = { bank: merged }
     }
 
     return update
@@ -111,10 +160,15 @@ export function ProfileUpdateChat({
 
     const scrollRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
-    const fileInputRef = useRef<HTMLInputElement>(null)
+    const latestProfileRef = useRef<ProfileData>(currentProfile)
 
     const isFullMode = mode === "full"
     const isSectionMode = mode === "section"
+
+    // Sync latestProfileRef when parent prop changes
+    useEffect(() => {
+        latestProfileRef.current = currentProfile
+    }, [currentProfile])
 
     useEffect(() => {
         if (confirmed) sendInitialGreeting()
@@ -175,6 +229,7 @@ export function ProfileUpdateChat({
             const fieldCount = Object.keys(updates).length
             setUpdateCount(prev => prev + fieldCount)
             toast.success(`${fieldCount} field${fieldCount > 1 ? "s" : ""} updated!`)
+            latestProfileRef.current = { ...latestProfileRef.current, ...updates } as ProfileData
             onProfileUpdated()
         } catch (err) {
             console.error("Failed to save profile update:", err)
@@ -199,7 +254,7 @@ export function ProfileUpdateChat({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     messages: newMessages,
-                    currentProfile,
+                    currentProfile: latestProfileRef.current,
                     ...(isSectionMode && section ? { section } : {}),
                 }),
             })
@@ -207,15 +262,23 @@ export function ProfileUpdateChat({
             const result = await response.json()
             if (result.error) throw new Error(result.error)
 
-            if (result.extractedData && Object.keys(result.extractedData).length > 0 && !result.needsClarification) {
-                const dbUpdates = mapExtractedToDbUpdate(result.extractedData, currentProfile)
+            if (result.needsClarification) {
+                // Show clarification message only, do NOT apply extractedData
+                if (result.message) {
+                    setMessages(prev => [...prev, { role: "assistant", content: result.message }])
+                }
+            } else if (result.extractedData && Object.keys(result.extractedData).length > 0) {
+                const dbUpdates = mapExtractedToDbUpdate(result.extractedData, latestProfileRef.current)
                 if (Object.keys(dbUpdates).length > 0) {
                     await applyUpdates(dbUpdates)
                 }
-            }
-
-            if (result.message) {
-                setMessages(prev => [...prev, { role: "assistant", content: result.message }])
+                if (result.message) {
+                    setMessages(prev => [...prev, { role: "assistant", content: result.message }])
+                }
+            } else {
+                if (result.message) {
+                    setMessages(prev => [...prev, { role: "assistant", content: result.message }])
+                }
             }
 
             if (result.allFieldsComplete) {
@@ -231,7 +294,7 @@ export function ProfileUpdateChat({
             setIsLoading(false)
             inputRef.current?.focus()
         }
-    }, [inputValue, isLoading, messages, currentProfile, section, isSectionMode, applyUpdates, onClose])
+    }, [inputValue, isLoading, messages, section, isSectionMode, applyUpdates, onClose])
 
     // File upload — GPT only, available in "full" mode only
     const handleFileUpload = useCallback(async (file: File, userText?: string) => {
@@ -266,41 +329,59 @@ export function ProfileUpdateChat({
             const extracted = result.extracted
 
             if (extracted) {
-                const dbUpdates = mapExtractedToDbUpdate(extracted, currentProfile)
+                const dbUpdates = mapExtractedToDbUpdate(extracted, latestProfileRef.current)
                 if (Object.keys(dbUpdates).length > 0) {
                     await applyUpdates(dbUpdates)
                 }
 
-                const fieldCount = result.fieldsFound || 0
+                // Build a detailed summary of what was extracted
+                const extractedParts: string[] = []
+                if (dbUpdates.name) extractedParts.push(`Business Name: ${dbUpdates.name}`)
+                if (dbUpdates.business_type) extractedParts.push(`Business Type: ${dbUpdates.business_type}`)
+                if (dbUpdates.owner_name) extractedParts.push(`Owner: ${dbUpdates.owner_name}`)
+                if (dbUpdates.email) extractedParts.push(`Email: ${dbUpdates.email}`)
+                if (dbUpdates.phone) extractedParts.push(`Phone: ${dbUpdates.phone}`)
+                if (dbUpdates.country) extractedParts.push(`Country: ${dbUpdates.country}`)
+                if (dbUpdates.address) extractedParts.push(`Address: updated`)
+                if (dbUpdates.tax_ids) extractedParts.push(`Tax ID: updated`)
+                if (dbUpdates.client_countries) extractedParts.push(`Client Countries: ${(dbUpdates.client_countries as string[]).join(", ")}`)
+                if (dbUpdates.default_currency) extractedParts.push(`Currency: ${dbUpdates.default_currency}`)
+                if (dbUpdates.default_payment_terms) extractedParts.push(`Payment Terms: ${dbUpdates.default_payment_terms}`)
+                if (dbUpdates.payment_methods) extractedParts.push(`Bank Details: updated`)
+                if (dbUpdates.additional_notes) extractedParts.push(`Additional Notes: updated with new services/pricing info`)
+
+                const fieldCount = extractedParts.length
+                const detailList = extractedParts.length > 0
+                    ? `\n\nUpdated fields:\n${extractedParts.map(p => `• ${p}`).join("\n")}`
+                    : ""
+
                 setMessages(prev => {
                     const filtered = prev.filter(m => m.content !== "Analyzing your document...")
                     return [...filtered, {
                         role: "assistant",
-                        content: `✅ Extracted ${fieldCount} fields from your document and updated your profile! Anything else you'd like to change?`
+                        content: `✅ Extracted and updated ${fieldCount} field${fieldCount !== 1 ? "s" : ""} from your document!${detailList}\n\nAnything else you'd like to change?`
                     }]
                 })
 
                 // Follow-up with DeepSeek to check what's still missing
-                setTimeout(async () => {
-                    try {
-                        const followUp = await authFetch("/api/ai/profile-update", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                messages: [...messages, {
-                                    role: "user",
-                                    content: "I just uploaded a document. What fields are still missing?"
-                                }],
-                                currentProfile: { ...currentProfile, ...dbUpdates },
-                                fileExtracted: extracted,
-                            }),
-                        })
-                        const followResult = await followUp.json()
-                        if (followResult.message) {
-                            setMessages(prev => [...prev, { role: "assistant", content: followResult.message }])
-                        }
-                    } catch { /* ignore */ }
-                }, 500)
+                try {
+                    const followUp = await authFetch("/api/ai/profile-update", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            messages: [...messages, {
+                                role: "user",
+                                content: "I just uploaded a document. What fields are still missing?"
+                            }],
+                            currentProfile: latestProfileRef.current,
+                            fileExtracted: extracted,
+                        }),
+                    })
+                    const followResult = await followUp.json()
+                    if (followResult.message) {
+                        setMessages(prev => [...prev, { role: "assistant", content: followResult.message }])
+                    }
+                } catch { /* silently skip follow-up failures */ }
             } else {
                 throw new Error("Could not extract information from the file")
             }
@@ -315,7 +396,7 @@ export function ProfileUpdateChat({
         } finally {
             setIsUploading(false)
         }
-    }, [messages, currentProfile, applyUpdates])
+    }, [messages, applyUpdates])
 
     // ── Confirmation screen for "full" mode ────────────────────────────
     if (isFullMode && !confirmed) {
@@ -419,88 +500,56 @@ export function ProfileUpdateChat({
 
             {/* Input */}
             <div className="p-4 bg-background border-t shrink-0">
-                <div className="relative flex items-center gap-2 max-w-xl mx-auto">
-                    {/* File upload — only in full mode */}
-                    {isFullMode && (
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*,application/pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) setStagedFile(file)
-                                e.target.value = ""
-                            }}
-                        />
-                    )}
-
-                    {isFullMode && stagedFile && (
-                        <div className="absolute -top-9 left-0 right-0 flex items-center gap-2 px-3 py-1 bg-primary/5 border border-primary/20 rounded-xl text-xs">
-                            <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
-                            <span className="truncate flex-1">{stagedFile.name}</span>
-                            <button type="button" onClick={() => setStagedFile(null)} className="text-muted-foreground hover:text-foreground">
-                                <X className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
-                    )}
-
-                    {isFullMode && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="rounded-xl h-10 w-10 shrink-0"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isLoading || isUploading}
-                            title="Upload a document"
-                        >
-                            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                        </Button>
-                    )}
-
-                    <Input
-                        ref={inputRef}
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                                if (isFullMode && stagedFile) {
-                                    handleFileUpload(stagedFile, inputValue.trim() || undefined)
+                {isFullMode ? (
+                    <div className="max-w-xl mx-auto">
+                        <AIInputWithLoading
+                            value={inputValue}
+                            onValueChange={setInputValue}
+                            isLoading={isLoading}
+                            isUploading={isUploading}
+                            onSubmit={(val) => {
+                                if (stagedFile) {
+                                    handleFileUpload(stagedFile, val.trim() || undefined)
                                     setStagedFile(null)
                                     setInputValue("")
                                 } else {
                                     handleSendMessage()
                                 }
-                            }
-                        }}
-                        placeholder={
-                            isFullMode && stagedFile
-                                ? "Add a note about this file..."
-                                : isSectionMode
-                                    ? `Tell me the new ${sectionTitle || section} values...`
-                                    : "Tell me what to update..."
-                        }
-                        disabled={isLoading || isUploading}
-                        className="flex-1 rounded-xl h-10 px-4 text-[14px]"
-                        autoFocus
-                    />
-                    <Button
-                        size="icon"
-                        onClick={() => {
-                            if (isFullMode && stagedFile) {
-                                handleFileUpload(stagedFile, inputValue.trim() || undefined)
-                                setStagedFile(null)
-                                setInputValue("")
-                            } else {
-                                handleSendMessage()
-                            }
-                        }}
-                        disabled={(!inputValue.trim() && !stagedFile) || isLoading || isUploading}
-                        className="rounded-xl h-10 w-10 shrink-0"
-                    >
-                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    </Button>
-                </div>
+                            }}
+                            placeholder="Tell me what to update..."
+                            statusText={isUploading ? "Analyzing file..." : undefined}
+                            showAttachButton={true}
+                            stagedFile={stagedFile}
+                            onFileSelect={(file) => setStagedFile(file)}
+                            onFileRemove={() => setStagedFile(null)}
+                        />
+                    </div>
+                ) : (
+                    <div className="relative flex items-center gap-2 max-w-xl mx-auto">
+                        <Input
+                            ref={inputRef}
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    handleSendMessage()
+                                }
+                            }}
+                            placeholder={`Tell me the new ${sectionTitle || section} values...`}
+                            disabled={isLoading || isUploading}
+                            className="flex-1 rounded-xl h-10 px-4 text-[14px]"
+                            autoFocus
+                        />
+                        <Button
+                            size="icon"
+                            onClick={() => handleSendMessage()}
+                            disabled={!inputValue.trim() || isLoading || isUploading}
+                            className="rounded-xl h-10 w-10 shrink-0"
+                        >
+                            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        </Button>
+                    </div>
+                )}
             </div>
         </div>
     )

@@ -26,17 +26,15 @@ const plans = [
     comingSoon: false,
     features: [
       { text: "3 documents / month", tip: null },
-      { text: "Invoice + Contract only", tip: null },
+      { text: "All 4 document types", tip: "Invoice, Contract, Quote, Proposal" },
       { text: "10 messages per session", tip: null },
       { text: "3 templates", tip: "Modern, Classic, Minimal" },
-      { text: "3 countries", tip: "India, USA, UK" },
+      { text: "All 11 countries", tip: null },
       { text: "PDF export", tip: null },
       { text: "7-day history", tip: null },
     ],
     missing: [
-      "Quotations & Proposals",
       "All 9 templates",
-      "All 11 countries",
       "DOCX & image export",
       "Digital signatures",
       "Custom branding",
@@ -58,7 +56,7 @@ const plans = [
     features: [
       { text: "50 documents / month", tip: null },
       { text: "All 4 document types", tip: "Invoice, Contract, Quote, Proposal" },
-      { text: "25 messages per session", tip: null },
+      { text: "30 messages per session", tip: null },
       { text: "All 9 templates", tip: null },
       { text: "All 11 countries", tip: null },
       { text: "PDF + DOCX export", tip: null },

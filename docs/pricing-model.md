@@ -32,9 +32,9 @@ Once the cap is hit, the user must start a new session (which counts as a new do
 | Yearly savings | — | ~22% | ~21% | ~20% |
 | Documents/month | 3 | 50 | 150 | Unlimited |
 | Messages/session | 10 | 30 | 50 | Unlimited |
-| Document types | Invoice + Contract | All 4 | All 4 | All 4 |
+| Document types | All 4 | All 4 | All 4 | All 4 |
 | PDF templates | 3 (Modern, Classic, Minimal) | All 9 | All 9 | All 9 |
-| Countries | 3 (India, USA, UK) | All 11 | All 11 | All 11 |
+| Countries | All 11 | All 11 | All 11 | All 11 |
 | Export formats | PDF only | PDF + DOCX | PDF + DOCX + Image | All formats |
 | Session history | 7 days | 30 days | 1 year | Forever |
 | Digital signatures | — | — | ✓ | ✓ |
