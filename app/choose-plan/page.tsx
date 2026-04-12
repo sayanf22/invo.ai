@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Check, Zap, Loader2, ArrowRight } from "lucide-react"
@@ -37,8 +37,10 @@ const plans = [
 
 export default function ChoosePlanPage() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const { user, supabase, isLoading } = useAuth()
-    const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly")
+    const initialBilling = searchParams.get("billing") === "yearly" ? "yearly" : "monthly"
+    const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">(initialBilling)
     const [selectingFree, setSelectingFree] = useState(false)
     const [countryPricing, setCountryPricing] = useState<CountryPricing>(COUNTRY_PRICING[DEFAULT_COUNTRY])
 

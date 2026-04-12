@@ -393,7 +393,7 @@ export default function PricingPage() {
                   {/* CTA */}
                   <div className="mb-6">
                     <Link
-                      href={plan.comingSoon ? "#" : isLoggedIn ? "/choose-plan" : plan.href}
+                      href={plan.comingSoon ? "#" : isLoggedIn ? `/choose-plan?billing=${billing}&plan=${plan.id}` : plan.href}
                       className={`block w-full text-center py-3 rounded-2xl font-semibold text-sm transition-all duration-200 ${
                         plan.comingSoon
                           ? "cursor-default"
