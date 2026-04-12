@@ -7,6 +7,7 @@ import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
 import { PDFDownloadButton } from "@/components/pdf-download-button"
 import { TemplatePicker } from "@/components/template-picker"
+import { ShareButton } from "@/components/share-button"
 import { cn } from "@/lib/utils"
 
 interface DocumentPreviewProps {
@@ -393,8 +394,9 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
           </span>
         )}
 
-        {/* Right: Print + Download */}
+        {/* Right: Share + Print + Download */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          <ShareButton data={data} />
           <button
             type="button"
             onClick={handlePrint}
