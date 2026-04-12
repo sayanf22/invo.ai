@@ -129,7 +129,7 @@ export function AIShowcase() {
                                     </motion.div>
                                 )}
 
-                                {/* Step 2: Result */}
+                                {/* Step 2: Result — realistic invoice preview */}
                                 {step === 2 && (
                                     <motion.div
                                         initial={{ opacity: 0, scale: 0.95 }}
@@ -137,28 +137,74 @@ export function AIShowcase() {
                                         exit={{ opacity: 0 }}
                                         className="w-full bg-white border border-stone-200 rounded-2xl shadow-2xl overflow-hidden transform rotate-1 transition-transform hover:rotate-0"
                                     >
-                                        {/* Doc Header */}
-                                        <div className="h-16 border-b border-stone-100 flex items-center px-6 justify-between bg-stone-50/50">
-                                            <div className="font-bold text-sm text-[var(--landing-text-dark)]">QUOTATION</div>
-                                            <div className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold">Draft</div>
-                                        </div>
-                                        {/* Doc Content */}
-                                        <div className="p-8 space-y-6">
-                                            <div className="space-y-2">
-                                                <div className="h-4 w-3/4 bg-stone-100 rounded" />
-                                                <div className="h-4 w-full bg-stone-100 rounded" />
-                                                <div className="h-4 w-5/6 bg-stone-100 rounded" />
+                                        {/* Blue header bar — matches "Modern" template */}
+                                        <div className="h-3 w-full" style={{ backgroundColor: "#2563eb" }} />
+
+                                        <div className="p-6 sm:p-8">
+                                            {/* Top: QUOTATION + business info */}
+                                            <div className="flex justify-between items-start mb-6">
+                                                <div>
+                                                    <h3 className="text-xl font-bold tracking-tight" style={{ color: "#2563eb" }}>QUOTATION</h3>
+                                                    <p className="text-[11px] text-stone-400 mt-1">QT-2026-0042 · Apr 12, 2026</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-semibold text-stone-800">TechFlow Studio</p>
+                                                    <p className="text-[11px] text-stone-400">hello@techflow.io</p>
+                                                    <p className="text-[11px] text-stone-400">GSTIN: 29AABCT1234F1ZP</p>
+                                                </div>
                                             </div>
 
-                                            <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
-                                                <div className="text-xs font-bold text-[var(--landing-amber)] uppercase tracking-wider mb-2">Non-Compete Clause</div>
-                                                <div className="h-3 w-full bg-[var(--landing-amber)]/10 rounded mb-2" />
-                                                <div className="h-3 w-2/3 bg-[var(--landing-amber)]/10 rounded" />
+                                            {/* Bill To */}
+                                            <div className="mb-5 p-3 rounded-lg bg-stone-50">
+                                                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Bill To</p>
+                                                <p className="text-sm font-semibold text-stone-800">Acme Corporation</p>
+                                                <p className="text-[11px] text-stone-400">San Francisco, CA · acme@corp.com</p>
                                             </div>
 
-                                            <div className="space-y-2">
-                                                <div className="h-4 w-full bg-stone-100 rounded" />
-                                                <div className="h-4 w-4/5 bg-stone-100 rounded" />
+                                            {/* Items table */}
+                                            <div className="mb-5">
+                                                <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-stone-400 uppercase tracking-wider pb-2 border-b border-stone-100">
+                                                    <div className="col-span-6">Description</div>
+                                                    <div className="col-span-2 text-right">Qty</div>
+                                                    <div className="col-span-2 text-right">Rate</div>
+                                                    <div className="col-span-2 text-right">Amount</div>
+                                                </div>
+                                                {[
+                                                    { desc: "Web Development", qty: "1", rate: "$3,500", amount: "$3,500" },
+                                                    { desc: "Hosting (12 months)", qty: "12", rate: "$50", amount: "$600" },
+                                                    { desc: "Maintenance Package", qty: "1", rate: "$900", amount: "$900" },
+                                                ].map((item, i) => (
+                                                    <div key={i} className="grid grid-cols-12 gap-2 text-[11px] py-2 border-b border-stone-50">
+                                                        <div className="col-span-6 text-stone-700 font-medium">{item.desc}</div>
+                                                        <div className="col-span-2 text-right text-stone-500">{item.qty}</div>
+                                                        <div className="col-span-2 text-right text-stone-500">{item.rate}</div>
+                                                        <div className="col-span-2 text-right text-stone-800 font-semibold">{item.amount}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Totals */}
+                                            <div className="flex justify-end">
+                                                <div className="w-48 space-y-1.5 text-[11px]">
+                                                    <div className="flex justify-between text-stone-500">
+                                                        <span>Subtotal</span><span className="font-medium text-stone-700">$5,000.00</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-stone-500">
+                                                        <span>GST (18%)</span><span className="font-medium text-stone-700">$900.00</span>
+                                                    </div>
+                                                    <div className="flex justify-between pt-1.5 border-t border-stone-200 text-sm font-bold text-stone-900">
+                                                        <span>Total</span><span style={{ color: "#2563eb" }}>$5,900.00</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Footer */}
+                                            <div className="mt-5 pt-4 border-t border-stone-100 flex items-center justify-between">
+                                                <p className="text-[10px] text-stone-300">Generated by Clorefy</p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                                    <span className="text-[10px] font-medium text-emerald-600">Compliant</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </motion.div>
