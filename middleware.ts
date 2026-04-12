@@ -263,7 +263,44 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url))
   }
 
+  // ── Onboarding guard: redirect completed users away from /onboarding ─
+  if (isAuthenticated && pathname === "/onboarding" && accessToken) {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (supabaseUrl && supabaseKey) {
+        const profileRes = await fetch(
+          `${supabaseUrl}/rest/v1/profiles?select=onboarding_complete&id=eq.${getUserIdFromToken(accessToken)}`,
+          {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        )
+        if (profileRes.ok) {
+          const profiles = await profileRes.json()
+          if (profiles?.[0]?.onboarding_complete === true) {
+            return NextResponse.redirect(new URL("/", request.url))
+          }
+        }
+      }
+    } catch {
+      // If the check fails, let the client-side guard handle it
+    }
+  }
+
   return response
+}
+
+/** Extract user ID (sub) from a JWT access token */
+function getUserIdFromToken(token: string): string | null {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]))
+    return payload.sub || null
+  } catch {
+    return null
+  }
 }
 
 // ── Refresh session via Supabase REST API (edge-compatible) ────────────

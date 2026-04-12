@@ -34,12 +34,12 @@ export default function OnboardingPage() {
                         router.push("/choose-plan")
                         return
                     }
+                    // If onboarding is already complete, always redirect home.
+                    // Clean up any stale localStorage keys from previous sessions.
                     if (data?.onboarding_complete) {
-                        const hasActiveSession = localStorage.getItem("invo_onboarding_session")
-                        const returningForSetup = localStorage.getItem("clorefy_onboarding_skipped")
-                        if (!hasActiveSession && !returningForSetup) {
-                            router.push("/")
-                        }
+                        localStorage.removeItem("invo_onboarding_session")
+                        localStorage.removeItem("clorefy_onboarding_skipped")
+                        router.push("/")
                     }
                 })
         }
