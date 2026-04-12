@@ -65,9 +65,14 @@ export default function ChoosePlanPage() {
         setCountryPricing(COUNTRY_PRICING[detected] || COUNTRY_PRICING[DEFAULT_COUNTRY])
     }, [isLoading, user, router])
 
-    // Check if plan already selected
+    // Check if plan already selected — only redirect during initial signup flow
+    // If user navigated here intentionally (e.g., from upgrade modal or pricing page), let them stay
     useEffect(() => {
         if (!user) return
+        // Only auto-redirect if this is the initial signup flow (no referrer/intent to upgrade)
+        const isUpgradeFlow = searchParams.get("plan") || searchParams.get("billing") || document.referrer.includes("/pricing") || document.referrer.includes("/billing")
+        if (isUpgradeFlow) return // User intentionally came here to change plan
+
         supabase
             .from("profiles")
             .select("onboarding_complete, plan_selected")
