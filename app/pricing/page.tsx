@@ -25,8 +25,8 @@ const plans = [
     featured: false,
     comingSoon: false,
     features: [
-      { text: "3 documents / month", tip: null },
-      { text: "All 4 document types", tip: "Invoice, Contract, Quote, Proposal" },
+      { text: "5 documents / month", tip: null },
+      { text: "Invoice + Contract", tip: null },
       { text: "10 messages per session", tip: null },
       { text: "3 templates", tip: "Modern, Classic, Minimal" },
       { text: "All 11 countries", tip: null },
@@ -34,6 +34,7 @@ const plans = [
       { text: "7-day history", tip: null },
     ],
     missing: [
+      "Quotations & Proposals",
       "All 9 templates",
       "DOCX & image export",
       "Digital signatures",

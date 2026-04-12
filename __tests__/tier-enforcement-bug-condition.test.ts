@@ -225,10 +225,10 @@ describe("Bug Condition Exploration: Tier Enforcement Bypass", () => {
 
       await fc.assert(
         fc.asyncProperty(
-          // Generate document counts >= 3 (the free tier limit)
-          fc.integer({ min: 3, max: 100 }),
-          // Free tier allows all 4 doc types — test with any
-          fc.constantFrom("invoice", "contract", "quotation", "proposal"),
+          // Generate document counts >= 5 (the free tier limit)
+          fc.integer({ min: 5, max: 100 }),
+          // Free tier allows only invoice + contract
+          fc.constantFrom("invoice", "contract"),
           async (documentCount, documentType) => {
             vi.clearAllMocks()
             mockSupabaseAuth.getUser.mockResolvedValue({
@@ -255,25 +255,24 @@ describe("Bug Condition Exploration: Tier Enforcement Bypass", () => {
   })
 
   /**
-   * Bug 3: Free-tier users CAN create all 4 document types within their limit
-   * (Previously this was incorrectly restricted to invoice + contract only)
-   * Validates: Corrected tier policy — all doc types available to all tiers
+   * Bug 3: Free-tier users are blocked from quotation/proposal document types
+   * Validates: Document type restriction for free tier
    */
-  describe("Bug 3: POST /api/sessions/create allows all doc types for free-tier", () => {
-    it("should return 200 for free-tier user creating any document type within limit (property-based)", async () => {
+  describe("Bug 3: POST /api/sessions/create blocks restricted doc types for free-tier", () => {
+    it("should return 403 for free-tier user creating quotation or proposal (property-based)", async () => {
       const { POST } = await import("@/app/api/sessions/create/route")
 
       await fc.assert(
         fc.asyncProperty(
-          // All 4 document types should work for free tier
-          fc.constantFrom("invoice", "contract", "quotation", "proposal"),
+          // Restricted document types for free tier
+          fc.constantFrom("quotation", "proposal"),
           async (documentType) => {
             vi.clearAllMocks()
             mockSupabaseAuth.getUser.mockResolvedValue({
               data: { user: { id: "user-123", email: "test@example.com" } },
               error: null,
             })
-            // Use 0 docs — within the free tier limit
+            // Use 0 docs — within limit, isolating the type restriction
             setupSupabaseMocks("free", 0)
 
             const req = createMockRequest("http://localhost:3000/api/sessions/create", {
@@ -283,9 +282,9 @@ describe("Bug Condition Exploration: Tier Enforcement Bypass", () => {
             const response = await POST(req)
             const body = await response.json()
 
-            // EXPECTED: 200 — free-tier users can create any doc type within their limit
-            expect(response.status).toBe(200)
-            expect(body.success).toBe(true)
+            // EXPECTED: 403 — free-tier users cannot create quotation/proposal
+            expect(response.status).toBe(403)
+            expect(body.error).toBe("Document type not available on your plan")
           }
         ),
         { numRuns: 5 }

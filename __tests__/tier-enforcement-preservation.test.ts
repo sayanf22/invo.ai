@@ -161,7 +161,7 @@ function setupDeepSeekMock() {
 // ── Tier limits reference (mirrors lib/cost-protection.ts) ─────────────────
 
 const TIER_LIMITS: Record<string, { documentsPerMonth: number; allowedDocTypes: string[] }> = {
-  free: { documentsPerMonth: 3, allowedDocTypes: ["invoice", "contract", "quotation", "proposal"] },
+  free: { documentsPerMonth: 5, allowedDocTypes: ["invoice", "contract"] },
   starter: { documentsPerMonth: 50, allowedDocTypes: ["invoice", "contract", "quotation", "proposal"] },
   pro: { documentsPerMonth: 150, allowedDocTypes: ["invoice", "contract", "quotation", "proposal"] },
   agency: { documentsPerMonth: 0, allowedDocTypes: ["invoice", "contract", "quotation", "proposal"] },
@@ -358,8 +358,8 @@ describe("Preservation Property Tests: Tier Enforcement", () => {
   })
 
   /**
-   * Property 5: Free-tier user with documentCount < 3 and
-   * any document type succeeds (all 4 types allowed for free tier).
+   * Property 5: Free-tier user with documentCount < 5 and
+   * documentType in ["invoice", "contract"] succeeds.
    *
    * Validates: Requirements 3.3, 3.4
    */
@@ -369,8 +369,8 @@ describe("Preservation Property Tests: Tier Enforcement", () => {
 
       await fc.assert(
         fc.asyncProperty(
-          fc.integer({ min: 0, max: 2 }), // < 3 (free tier limit)
-          fc.constantFrom("invoice", "contract", "quotation", "proposal"), // all 4 types allowed
+          fc.integer({ min: 0, max: 4 }), // < 5 (free tier limit)
+          fc.constantFrom("invoice", "contract"), // free tier allowed types
           async (documentCount, documentType) => {
             vi.clearAllMocks()
             mockSupabaseAuth.getUser.mockResolvedValue({

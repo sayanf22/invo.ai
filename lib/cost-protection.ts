@@ -24,9 +24,9 @@ interface TierLimits {
 
 const TIER_LIMITS: Record<UserTier, TierLimits> = {
     free: {
-        documentsPerMonth: 3,
+        documentsPerMonth: 5,
         messagesPerSession: 10,
-        allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
+        allowedDocTypes: ["invoice", "contract"],
     },
     starter: {
         documentsPerMonth: 50,
