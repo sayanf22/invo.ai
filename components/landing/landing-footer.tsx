@@ -11,6 +11,14 @@ const footerLinks = {
         { label: "Business", href: "/business" },
         { label: "Use Cases", href: "/use-cases/freelancers" },
     ],
+    Tools: [
+        { label: "Invoice Generator India", href: "/tools/invoice-generator/india" },
+        { label: "Invoice Generator USA", href: "/tools/invoice-generator/usa" },
+        { label: "Contract Generator USA", href: "/tools/contract-generator/usa" },
+        { label: "Contract Generator UK", href: "/tools/contract-generator/uk" },
+        { label: "Quotation Generator India", href: "/tools/quotation-generator/india" },
+        { label: "Proposal Generator USA", href: "/tools/proposal-generator/usa" },
+    ],
     "Use Cases": [
         { label: "Freelancers", href: "/use-cases/freelancers" },
         { label: "Agencies", href: "/use-cases/agencies" },
@@ -59,7 +67,7 @@ export function LandingFooter() {
                 </div>
 
                 {/* Links Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-16">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-10 mb-16">
                     {Object.entries(footerLinks).map(([group, links]) => (
                         <div key={group}>
                             <h4 className="text-xs uppercase tracking-widest font-bold text-white/40 mb-6">{group}</h4>

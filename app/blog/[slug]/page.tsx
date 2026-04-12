@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { getPostBySlug, getRelatedPosts, getAllSlugs } from "@/lib/blog-data"
+import { getPostBySlug, getRelatedPosts, getPostsByHub, getAllSlugs } from "@/lib/blog-data"
+import { Breadcrumbs } from "@/components/seo/breadcrumbs"
 import { ArrowLeft, Clock, ArrowRight } from "lucide-react"
 
 // Static generation — all blog posts are pre-rendered at build time
@@ -41,7 +42,15 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     const post = getPostBySlug(slug)
     if (!post) notFound()
 
-    const related = getRelatedPosts(slug)
+    // Build related posts: prioritize same-hub posts, then fall back to relatedSlugs
+    let related = getRelatedPosts(slug)
+    if (post.hub) {
+        const hubPosts = getPostsByHub(post.hub).filter((p) => p.slug !== slug)
+        // Merge: hub posts first, then remaining related posts (deduplicated)
+        const hubSlugs = new Set(hubPosts.map((p) => p.slug))
+        const nonHubRelated = related.filter((p) => !hubSlugs.has(p.slug))
+        related = [...hubPosts.slice(0, 3), ...nonHubRelated].slice(0, 5)
+    }
 
     // JSON-LD structured data for Article
     const jsonLd = {
@@ -67,14 +76,16 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
             <div className="min-h-screen bg-background">
                 <article className="max-w-3xl mx-auto px-6 py-12">
-                    {/* Breadcrumb */}
-                    <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-8">
-                        <Link href="/" className="hover:text-foreground transition-colors">Home</Link>
-                        <span>/</span>
-                        <Link href="/blog" className="hover:text-foreground transition-colors">Blog</Link>
-                        <span>/</span>
-                        <span className="text-foreground truncate">{post.title}</span>
-                    </nav>
+                    {/* Breadcrumbs */}
+                    <div className="mb-8">
+                        <Breadcrumbs
+                            items={[
+                                { label: "Home", href: "/" },
+                                { label: "Blog", href: "/blog" },
+                                { label: post.title },
+                            ]}
+                        />
+                    </div>
 
                     {/* Header */}
                     <header className="mb-10">
@@ -101,6 +112,33 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                             prose-a:text-primary prose-a:no-underline hover:prose-a:underline"
                         dangerouslySetInnerHTML={{ __html: post.content }}
                     />
+
+                    {/* Related Tool Pages */}
+                    {post.relatedToolPages && post.relatedToolPages.length > 0 && (
+                        <div className="mt-12 p-6 rounded-2xl border border-border bg-card">
+                            <h3 className="text-lg font-semibold mb-3">Related Tools</h3>
+                            <div className="flex flex-wrap gap-2">
+                                {post.relatedToolPages.map((toolPath) => {
+                                    const label = toolPath
+                                        .replace("/tools/", "")
+                                        .split("/")
+                                        .map((s) => s.replace(/-/g, " "))
+                                        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+                                        .join(" — ")
+                                    return (
+                                        <Link
+                                            key={toolPath}
+                                            href={toolPath}
+                                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-primary/20 bg-primary/5 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
+                                        >
+                                            {label}
+                                            <ArrowRight className="w-3.5 h-3.5" />
+                                        </Link>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     {/* CTA */}
                     <div className="mt-12 p-6 rounded-2xl bg-primary/5 border border-primary/20">

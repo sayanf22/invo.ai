@@ -127,8 +127,13 @@ export default function RootLayout({
               "name": "Clorefy",
               "url": "https://clorefy.com",
               "logo": "https://clorefy.com/favicon.png",
-              "description": "AI-powered document generation platform for invoices, contracts, quotations, and proposals.",
+              "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals using artificial intelligence. Compliant across 11 countries.",
               "foundingDate": "2025",
+              "sameAs": [
+                "https://twitter.com/clorefy",
+                "https://linkedin.com/company/clorefy",
+                "https://github.com/clorefy",
+              ],
               "contactPoint": {
                 "@type": "ContactPoint",
                 "contactType": "customer support",
@@ -148,7 +153,7 @@ export default function RootLayout({
               "url": "https://clorefy.com",
               "applicationCategory": "BusinessApplication",
               "operatingSystem": "Web",
-              "description": "AI-powered document generation platform for invoices, contracts, quotations, and proposals. Compliant across 11 countries.",
+              "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals using artificial intelligence. Compliant across 11 countries.",
               "offers": {
                 "@type": "AggregateOffer",
                 "lowPrice": "0",
@@ -167,7 +172,11 @@ export default function RootLayout({
                 "name": "Clorefy",
                 "url": "https://clorefy.com",
                 "logo": "https://clorefy.com/favicon.png",
-                "sameAs": [],
+                "sameAs": [
+                  "https://twitter.com/clorefy",
+                  "https://linkedin.com/company/clorefy",
+                  "https://github.com/clorefy",
+                ],
               },
             }),
           }}

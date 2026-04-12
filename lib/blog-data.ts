@@ -25,6 +25,10 @@ export interface BlogPost {
     relatedSlugs: string[]
     /** Full article content in HTML */
     content: string
+    /** Hub identifier for hub-and-spoke model (e.g., "invoice", "contract", "quotation", "proposal") */
+    hub?: string
+    /** Paths to related programmatic SEO pages (e.g., ["/tools/invoice-generator/india"]) */
+    relatedToolPages?: string[]
 }
 
 // ── Blog Posts ─────────────────────────────────────────────────────────
@@ -41,6 +45,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 8,
         category: "guides",
         relatedSlugs: ["free-invoice-generator-online", "gst-invoice-format-india", "invoice-template-freelancers"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india", "/tools/invoice-generator/usa", "/tools/invoice-generator/uk"],
         content: `<h2>What Is an AI Invoice Generator?</h2>
 <p>An AI invoice generator is a tool that uses artificial intelligence to create professional invoices from simple text descriptions. Instead of manually filling out templates, you describe what you need — "invoice for web design, $5,000, to Acme Corp" — and the AI generates a complete, formatted invoice with all the right fields.</p>
 <p>Traditional invoice tools require you to fill in dozens of fields manually. AI invoice generators like Clorefy understand natural language, auto-fill tax calculations, apply country-specific compliance rules, and produce export-ready documents in seconds.</p>
@@ -82,6 +88,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 6,
         category: "guides",
         relatedSlugs: ["ai-invoice-generator-complete-guide", "invoice-template-freelancers", "gst-invoice-format-india"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india", "/tools/invoice-generator/usa"],
         content: `<h2>Why You Need a Free Invoice Generator</h2>
 <p>If you're a freelancer, consultant, or small business owner, you need to send professional invoices — but you shouldn't have to pay $20-50/month for invoicing software when you're just starting out. A free invoice generator gives you professional results without the cost.</p>
 
@@ -115,6 +123,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 10,
         category: "country",
         relatedSlugs: ["ai-invoice-generator-complete-guide", "free-invoice-generator-online", "invoice-tax-compliance-guide"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india"],
         content: `<h2>What Is a GST Invoice?</h2>
 <p>A GST (Goods and Services Tax) invoice is a mandatory document for businesses registered under India's GST regime. It serves as proof of supply of goods or services and is required for claiming Input Tax Credit (ITC). Every GST-registered business must issue GST-compliant invoices for taxable supplies.</p>
 
@@ -154,6 +164,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 7,
         category: "templates",
         relatedSlugs: ["free-invoice-generator-online", "how-to-write-payment-terms", "ai-invoice-generator-complete-guide"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/usa", "/tools/invoice-generator/uk"],
         content: `<h2>Why Freelancers Need a Professional Invoice Template</h2>
 <p>A professional invoice isn't just about getting paid — it's about building trust. Clients who receive well-formatted invoices with clear line items, payment terms, and tax details are more likely to pay on time and hire you again.</p>
 
@@ -193,6 +205,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 9,
         category: "guides",
         relatedSlugs: ["freelance-contract-template", "ai-invoice-generator-complete-guide", "ai-proposal-generator"],
+        hub: "contract",
+        relatedToolPages: ["/tools/contract-generator/usa", "/tools/contract-generator/uk", "/tools/contract-generator/india"],
         content: `<h2>What Is an AI Contract Generator?</h2>
 <p>An AI contract generator creates legally structured contracts from plain-language descriptions. Instead of starting from a blank template or paying a lawyer $500+ for a simple service agreement, you describe the terms and the AI produces a professional contract.</p>
 
@@ -226,6 +240,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 8,
         category: "templates",
         relatedSlugs: ["ai-contract-generator", "invoice-template-freelancers", "how-to-write-payment-terms"],
+        hub: "contract",
+        relatedToolPages: ["/tools/contract-generator/usa", "/tools/contract-generator/uk"],
         content: `<h2>Why Every Freelancer Needs a Contract</h2>
 <p>Working without a contract is the fastest way to lose money as a freelancer. Scope creep, late payments, and disputes over deliverables are all preventable with a clear contract. A good contract protects both you and your client.</p>
 
@@ -259,7 +275,9 @@ export const blogPosts: BlogPost[] = [
         updatedAt: "2025-12-01T00:00:00Z",
         readTime: 7,
         category: "guides",
-        relatedSlugs: ["ai-contract-generator", "quotation-vs-invoice-difference", "ai-invoice-generator-complete-guide"],
+        relatedSlugs: ["ai-contract-generator", "quotation-vs-invoice-difference", "ai-invoice-generator-complete-guide", "how-to-write-business-proposal"],
+        hub: "proposal",
+        relatedToolPages: ["/tools/proposal-generator/usa", "/tools/proposal-generator/india", "/tools/proposal-generator/uk"],
         content: `<h2>Why Proposals Matter</h2>
 <p>A well-crafted proposal is often the difference between winning and losing a client. It demonstrates professionalism, shows you understand the client's needs, and sets clear expectations for the engagement.</p>
 
@@ -288,7 +306,9 @@ export const blogPosts: BlogPost[] = [
         updatedAt: "2025-12-01T00:00:00Z",
         readTime: 5,
         category: "tips",
-        relatedSlugs: ["ai-invoice-generator-complete-guide", "ai-proposal-generator", "how-to-write-payment-terms"],
+        relatedSlugs: ["ai-invoice-generator-complete-guide", "ai-proposal-generator", "how-to-write-payment-terms", "how-to-create-quotation"],
+        hub: "quotation",
+        relatedToolPages: ["/tools/quotation-generator/india", "/tools/quotation-generator/usa"],
         content: `<h2>Quotation vs Invoice: Quick Summary</h2>
 <p>A <strong>quotation</strong> is sent before work begins — it's an estimate of costs. An <strong>invoice</strong> is sent after work is completed — it's a request for payment. Think of a quotation as "this is what it will cost" and an invoice as "please pay this amount."</p>
 
@@ -325,6 +345,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 6,
         category: "tips",
         relatedSlugs: ["invoice-template-freelancers", "free-invoice-generator-online", "late-payment-email-templates"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/usa"],
         content: `<h2>What Are Payment Terms?</h2>
 <p>Payment terms define when and how a client should pay your invoice. Clear payment terms reduce confusion, set expectations, and help you get paid on time.</p>
 <h2>Common Payment Terms Explained</h2>
@@ -350,6 +372,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 9,
         category: "country",
         relatedSlugs: ["gst-invoice-format-india", "invoice-tax-compliance-guide", "ai-invoice-generator-complete-guide"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/uk", "/tools/invoice-generator/germany", "/tools/invoice-generator/france"],
         content: `<h2>VAT Invoice Basics</h2>
 <p>Value Added Tax (VAT) is a consumption tax applied in most European countries. If your business is VAT-registered, you must issue VAT-compliant invoices for all taxable supplies.</p>
 <h2>Mandatory Fields on a VAT Invoice</h2>
@@ -378,6 +402,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 12,
         category: "country",
         relatedSlugs: ["gst-invoice-format-india", "vat-invoice-requirements-europe", "ai-invoice-generator-complete-guide"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india", "/tools/invoice-generator/usa", "/tools/invoice-generator/uk"],
         content: `<h2>Why Tax Compliance Matters</h2>
 <p>Sending a non-compliant invoice can result in rejected payments, tax penalties, and loss of input tax credits. Each country has specific requirements for what must appear on an invoice.</p>
 <h2>Country-by-Country Overview</h2>
@@ -407,6 +433,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 6,
         category: "templates",
         relatedSlugs: ["how-to-write-payment-terms", "invoice-template-freelancers", "free-invoice-generator-online"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/usa"],
         content: `<h2>When to Send Payment Reminders</h2>
 <p>Send your first reminder 3 days before the due date as a courtesy. Follow up on the due date, then at 7 days, 14 days, and 30 days overdue. Each message should escalate in tone while remaining professional.</p>
 <h2>Template 1: Friendly Pre-Due Reminder</h2>
@@ -430,6 +458,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 7,
         category: "guides",
         relatedSlugs: ["quotation-vs-invoice-difference", "ai-proposal-generator", "ai-invoice-generator-complete-guide"],
+        hub: "quotation",
+        relatedToolPages: ["/tools/quotation-generator/india", "/tools/quotation-generator/usa"],
         content: `<h2>What Is a Quotation?</h2>
 <p>A quotation (or quote) is a formal document that outlines the price and terms for a specific product or service. It's sent to a potential client before work begins, giving them a clear picture of costs.</p>
 <h2>Steps to Create a Professional Quotation</h2>
@@ -454,6 +484,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 10,
         category: "comparisons",
         relatedSlugs: ["free-invoice-generator-online", "ai-invoice-generator-complete-guide", "invoice-template-freelancers"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/usa", "/tools/invoice-generator/india"],
         content: `<h2>What Freelancers Need from Invoicing Software</h2>
 <p>Freelancers need simplicity, speed, and affordability. You don't need a full accounting suite — you need to create professional invoices quickly, track payments, and export to PDF.</p>
 <h2>Top Invoicing Tools Compared</h2>
@@ -476,6 +508,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 5,
         category: "tips",
         relatedSlugs: ["late-payment-email-templates", "invoice-template-freelancers", "how-to-write-payment-terms"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/usa"],
         content: `<h2>The Perfect Invoice Email</h2>
 <p>Your invoice email should be short, professional, and include all the information the client needs to pay. Don't bury the invoice in a long email — make it easy to find and act on.</p>
 <h2>Invoice Email Template</h2>
@@ -504,6 +538,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 5,
         category: "tips",
         relatedSlugs: ["invoice-template-freelancers", "free-invoice-generator-online", "ai-invoice-generator-complete-guide"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india"],
         content: `<h2>Why Invoice Numbers Matter</h2>
 <p>A consistent invoice numbering system helps you track payments, organize records, and comply with tax regulations. Many countries require sequential invoice numbers with no gaps.</p>
 <h2>Common Numbering Formats</h2>
@@ -527,6 +563,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 7,
         category: "guides",
         relatedSlugs: ["ai-contract-generator", "freelance-contract-template", "ai-invoice-generator-complete-guide"],
+        hub: "contract",
+        relatedToolPages: ["/tools/contract-generator/usa", "/tools/contract-generator/india"],
         content: `<h2>What Is a Digital Signature?</h2>
 <p>A digital signature is an electronic method of signing documents that verifies the signer's identity and ensures the document hasn't been altered. It's legally binding in most countries under laws like the IT Act (India), ESIGN Act (USA), and eIDAS (EU).</p>
 <h2>When Do You Need Digital Signatures?</h2>
@@ -549,6 +587,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 7,
         category: "tips",
         relatedSlugs: ["how-to-write-payment-terms", "invoice-template-freelancers", "invoice-numbering-system"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india", "/tools/invoice-generator/usa"],
         content: `<h2>Common Invoicing Mistakes</h2>
 <ol>
 <li><strong>No payment terms</strong> — If you don't specify when payment is due, clients will pay whenever they feel like it.</li>
@@ -576,6 +616,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 8,
         category: "country",
         relatedSlugs: ["gst-invoice-format-india", "invoice-tax-compliance-guide", "free-invoice-generator-online"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india"],
         content: `<h2>Why Indian Businesses Need a GST Invoice Generator</h2>
 <p>India's GST system requires specific fields on every invoice — GSTIN, HSN/SAC codes, place of supply, and the correct tax split (CGST+SGST for intra-state, IGST for inter-state). Getting this wrong means your client can't claim Input Tax Credit.</p>
 <h2>Features to Look for in an Indian Invoice Generator</h2>
@@ -600,6 +642,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 6,
         category: "guides",
         relatedSlugs: ["invoice-template-freelancers", "how-to-write-payment-terms", "best-invoicing-software-freelancers-2025"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/usa", "/tools/invoice-generator/india"],
         content: `<h2>What Are Recurring Invoices?</h2>
 <p>Recurring invoices are automatically generated and sent at regular intervals — weekly, monthly, or quarterly. They're ideal for retainer clients, subscription services, and any ongoing billing arrangement.</p>
 <h2>When to Use Recurring Invoices</h2>
@@ -623,6 +667,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 7,
         category: "tips",
         relatedSlugs: ["invoice-tax-compliance-guide", "vat-invoice-requirements-europe", "ai-invoice-generator-complete-guide"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/usa", "/tools/invoice-generator/uk", "/tools/invoice-generator/singapore"],
         content: `<h2>Why Invoice in Your Client's Currency?</h2>
 <p>Invoicing in your client's local currency removes friction from the payment process. Clients are more likely to pay quickly when they see a familiar currency and don't have to calculate exchange rates.</p>
 <h2>How to Handle Exchange Rates</h2>
@@ -643,6 +689,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 8,
         category: "guides",
         relatedSlugs: ["ai-invoice-generator-complete-guide", "ai-contract-generator", "ai-proposal-generator"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india", "/tools/contract-generator/usa", "/tools/proposal-generator/uk"],
         content: `<h2>The Document Problem for Small Businesses</h2>
 <p>Small businesses spend an average of 15-20 hours per month creating documents — invoices, contracts, proposals, and quotations. That's nearly 3 full working days every month spent on paperwork instead of revenue-generating work.</p>
 <h2>How AI Changes the Equation</h2>
@@ -662,6 +710,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 8,
         category: "comparisons",
         relatedSlugs: ["best-invoicing-software-freelancers-2025", "free-invoice-generator-online", "ai-invoice-generator-complete-guide"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/usa"],
         content: `<h2>Clorefy vs FreshBooks: Quick Comparison</h2>
 <p>FreshBooks is a full accounting platform with invoicing, expenses, time tracking, and reporting. Clorefy is an AI-first document generator focused on speed — describe what you need and get a professional document in seconds.</p>
 <h2>Pricing</h2>
@@ -686,6 +736,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 7,
         category: "comparisons",
         relatedSlugs: ["best-invoicing-software-freelancers-2025", "clorefy-vs-freshbooks", "free-invoice-generator-online"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india", "/tools/invoice-generator/usa"],
         content: `<h2>Overview</h2>
 <p>Zoho Invoice is a free invoicing tool from the Zoho suite. It's form-based — you fill in fields to create invoices. Clorefy uses AI to generate complete documents from natural language descriptions.</p>
 <h2>Pricing</h2>
@@ -706,6 +758,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 9,
         category: "comparisons",
         relatedSlugs: ["ai-invoice-generator-complete-guide", "ai-contract-generator", "ai-proposal-generator"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/usa", "/tools/contract-generator/usa", "/tools/proposal-generator/usa"],
         content: `<h2>Why Freelancers Need AI Tools</h2>
 <p>Freelancers wear every hat — designer, developer, accountant, salesperson, and admin. AI tools automate the repetitive parts so you can focus on billable work. The average freelancer saves 10-15 hours per month with the right AI tools.</p>
 <h2>AI Invoicing: Clorefy</h2>
@@ -730,6 +784,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 6,
         category: "country",
         relatedSlugs: ["gst-invoice-format-india", "invoice-generator-india", "invoice-tax-compliance-guide"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india"],
         content: `<h2>Can You Create Invoices Without GST?</h2>
 <p>Yes. If your annual turnover is below ₹20 lakhs (₹10 lakhs for special category states), GST registration is not mandatory. You can issue a "Bill of Supply" instead of a tax invoice.</p>
 <h2>Bill of Supply vs Tax Invoice</h2>
@@ -755,6 +811,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 8,
         category: "country",
         relatedSlugs: ["invoice-tax-compliance-guide", "ai-invoice-generator-complete-guide", "free-invoice-generator-online"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/usa"],
         content: `<h2>US Sales Tax Basics</h2>
 <p>Unlike GST or VAT, the US has no federal sales tax. Each state sets its own rates and rules. Some states (Oregon, Montana, Delaware, New Hampshire) have no sales tax at all. Others range from 2.9% (Colorado) to 7.25% (California).</p>
 <h2>What Is Nexus?</h2>
@@ -775,6 +833,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 5,
         category: "tips",
         relatedSlugs: ["ai-contract-generator", "ai-proposal-generator", "quotation-vs-invoice-difference"],
+        hub: "contract",
+        relatedToolPages: ["/tools/contract-generator/usa", "/tools/proposal-generator/usa"],
         content: `<h2>Proposal vs Contract: Quick Summary</h2>
 <p>A <strong>proposal</strong> is a sales document — it pitches your services and pricing to win the client. A <strong>contract</strong> is a legal document — it defines the binding terms once the client says yes. Proposals persuade; contracts protect.</p>
 <h2>The Workflow</h2>
@@ -797,6 +857,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 6,
         category: "comparisons",
         relatedSlugs: ["ai-invoice-generator-complete-guide", "free-invoice-generator-online", "best-invoicing-software-freelancers-2025"],
+        hub: "invoice",
+        relatedToolPages: ["/tools/invoice-generator/india", "/tools/invoice-generator/usa"],
         content: `<h2>The Template Problem</h2>
 <p>Excel and Word invoice templates have been the default for decades. They're free, familiar, and flexible. But they have serious drawbacks: manual calculations (prone to errors), no tax compliance checking, inconsistent formatting, and no version control.</p>
 <h2>Speed Comparison</h2>
@@ -817,6 +879,8 @@ export const blogPosts: BlogPost[] = [
         readTime: 10,
         category: "guides",
         relatedSlugs: ["ai-proposal-generator", "contract-vs-proposal-difference", "how-to-create-quotation"],
+        hub: "proposal",
+        relatedToolPages: ["/tools/proposal-generator/usa", "/tools/proposal-generator/india"],
         content: `<h2>Why Most Proposals Fail</h2>
 <p>80% of proposals fail because they focus on the seller, not the buyer. The client doesn't care about your company history — they care about how you'll solve their problem. Lead with their pain, not your credentials.</p>
 <h2>The Winning Proposal Structure</h2>
@@ -844,8 +908,16 @@ export function getPostBySlug(slug: string): BlogPost | undefined {
     return blogPosts.find(p => p.slug === slug)
 }
 
-export function getPostsByCategory(category: BlogPost["category"]): BlogPost[] {
+export function getPostsByCategory(category: string): BlogPost[] {
     return blogPosts.filter(p => p.category === category).sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+}
+
+export function getPostsByHub(hub: string): BlogPost[] {
+    return blogPosts.filter(p => p.hub === hub).sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+}
+
+export function getAllCategories(): string[] {
+    return Array.from(new Set(blogPosts.map(p => p.category)))
 }
 
 export function getRelatedPosts(slug: string): BlogPost[] {

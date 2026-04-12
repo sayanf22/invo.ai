@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { getAllPosts } from "@/lib/blog-data"
+import { Suspense } from "react"
+import { getAllPosts, getAllCategories, getPostsByCategory } from "@/lib/blog-data"
+import { BlogCategoryFilter } from "@/components/blog/category-filter"
 import { ArrowRight, Clock } from "lucide-react"
 
 export const metadata: Metadata = {
@@ -22,8 +24,14 @@ const CATEGORY_LABELS: Record<string, string> = {
     comparisons: "Comparisons",
 }
 
-export default function BlogPage() {
-    const posts = getAllPosts()
+interface BlogPageProps {
+    searchParams: Promise<{ category?: string }>
+}
+
+export default async function BlogPage({ searchParams }: BlogPageProps) {
+    const { category } = await searchParams
+    const categories = getAllCategories()
+    const posts = category ? getPostsByCategory(category) : getAllPosts()
 
     return (
         <div className="min-h-screen bg-background">
@@ -40,6 +48,12 @@ export default function BlogPage() {
             </header>
 
             <main className="max-w-5xl mx-auto px-6 py-12">
+                <Suspense fallback={null}>
+                    <div className="mb-8">
+                        <BlogCategoryFilter categories={categories} activeCategory={category || null} />
+                    </div>
+                </Suspense>
+
                 <div className="grid gap-8">
                     {posts.map((post) => (
                         <Link key={post.slug} href={`/blog/${post.slug}`}
@@ -62,6 +76,12 @@ export default function BlogPage() {
                             </span>
                         </Link>
                     ))}
+
+                    {posts.length === 0 && (
+                        <p className="text-center text-muted-foreground py-12">
+                            No posts found in this category.
+                        </p>
+                    )}
                 </div>
             </main>
         </div>
