@@ -1,8 +1,7 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { Share2, Copy, Check, Mail, Link2, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useState, useCallback, useEffect } from "react"
+import { Share2, Copy, Check, Mail, Download, Loader2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,11 +57,17 @@ function getFileName(data: InvoiceData): string {
 export function ShareButton({ data, className }: ShareButtonProps) {
   const [isSharing, setIsSharing] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [canNativeShare, setCanNativeShare] = useState(false)
 
   const hasContent = data.documentType || data.fromName || data.toName
 
-  // Native share (mobile) — shares the PDF file directly
-  const handleNativeShare = useCallback(async () => {
+  // Check native share support after mount (avoids hydration mismatch)
+  useEffect(() => {
+    setCanNativeShare(typeof navigator !== "undefined" && !!navigator.share)
+  }, [])
+
+  // Share as PDF — uses native share on supported devices, download fallback otherwise
+  const handleSharePdf = useCallback(async () => {
     if (isSharing) return
     setIsSharing(true)
     try {
@@ -74,54 +79,57 @@ export function ShareButton({ data, className }: ShareButtonProps) {
           title: `${data.documentType || "Document"} — ${data.toName || ""}`.trim(),
           files: [file],
         })
+        toast.success("Shared successfully")
       } else if (navigator.share) {
-        // Fallback: share without file (just text)
         await navigator.share({
           title: `${data.documentType || "Document"} for ${data.toName || "client"}`,
           text: `Here's your ${(data.documentType || "document").toLowerCase()} from ${data.fromName || "us"}.`,
         })
       } else {
-        // Desktop fallback: download the file
+        // Fallback: download
         const url = URL.createObjectURL(blob)
         const a = document.createElement("a")
         a.href = url
         a.download = getFileName(data)
+        document.body.appendChild(a)
         a.click()
+        document.body.removeChild(a)
         URL.revokeObjectURL(url)
-        toast.success("PDF downloaded — share it from your files")
+        toast.success("PDF downloaded")
       }
     } catch (err: any) {
       if (err?.name !== "AbortError") {
-        toast.error("Failed to share document")
+        console.error("Share error:", err)
+        toast.error("Failed to share")
       }
     } finally {
       setIsSharing(false)
     }
   }, [data, isSharing])
 
-  // Email share — opens mailto with subject
-  const handleEmailShare = useCallback(async () => {
+  // Email share
+  const handleEmailShare = useCallback(() => {
     const type = (data.documentType || "Document").toLowerCase()
-    const client = data.toName || "client"
+    const client = data.toName || ""
     const from = data.fromName || ""
     const subject = encodeURIComponent(`${data.documentType || "Document"} from ${from}`.trim())
     const body = encodeURIComponent(`Hi ${client},\n\nPlease find the attached ${type}.\n\nBest regards,\n${from}`)
-    window.open(`mailto:${data.toEmail || ""}?subject=${subject}&body=${body}`, "_self")
+    window.location.href = `mailto:${data.toEmail || ""}?subject=${subject}&body=${body}`
   }, [data])
 
-  // Copy document summary to clipboard
-  const handleCopyLink = useCallback(async () => {
+  // Copy summary
+  const handleCopy = useCallback(async () => {
     const type = data.documentType || "Document"
-    const summary = [
+    const lines = [
       `${type} from ${data.fromName || "—"}`,
       data.toName ? `To: ${data.toName}` : null,
       data.total ? `Total: ${data.currency || "$"}${data.total}` : null,
     ].filter(Boolean).join("\n")
 
     try {
-      await navigator.clipboard.writeText(summary)
+      await navigator.clipboard.writeText(lines)
       setCopied(true)
-      toast.success("Document summary copied")
+      toast.success("Copied to clipboard")
       setTimeout(() => setCopied(false), 2000)
     } catch {
       toast.error("Failed to copy")
@@ -130,46 +138,32 @@ export function ShareButton({ data, className }: ShareButtonProps) {
 
   if (!hasContent) return null
 
-  // On mobile, use native share directly (no dropdown)
-  const isMobile = typeof window !== "undefined" && "ontouchstart" in window
-
-  if (isMobile) {
-    return (
-      <button
-        type="button"
-        onClick={handleNativeShare}
-        disabled={isSharing}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm transition-all duration-200 active:scale-95 ${className || ""}`}
-      >
-        {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
-        <span className="hidden sm:inline">Share</span>
-      </button>
-    )
-  }
-
-  // Desktop: dropdown with options
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm transition-all duration-200 active:scale-95 ${className || ""}`}
+          disabled={isSharing}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm transition-all duration-200 active:scale-95 disabled:opacity-50 ${className || ""}`}
         >
-          <Share2 className="w-4 h-4" />
-          <span className="hidden lg:inline">Share</span>
+          {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+          <span className="sr-only sm:not-sr-only">Share</span>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52 rounded-xl shadow-lg">
-        <DropdownMenuItem onClick={handleNativeShare} className="gap-3 py-2.5 rounded-lg cursor-pointer">
-          <Share2 className="w-4 h-4 text-muted-foreground" />
-          <span>Share as PDF</span>
+      <DropdownMenuContent align="end" sideOffset={8} className="w-56 rounded-xl p-1.5 shadow-lg">
+        <DropdownMenuItem onClick={handleSharePdf} className="gap-3 py-2.5 px-3 rounded-lg cursor-pointer">
+          {canNativeShare
+            ? <Share2 className="w-4 h-4 text-muted-foreground" />
+            : <Download className="w-4 h-4 text-muted-foreground" />
+          }
+          <span>{canNativeShare ? "Share as PDF" : "Download PDF"}</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleEmailShare} className="gap-3 py-2.5 rounded-lg cursor-pointer">
+        <DropdownMenuItem onClick={handleEmailShare} className="gap-3 py-2.5 px-3 rounded-lg cursor-pointer">
           <Mail className="w-4 h-4 text-muted-foreground" />
           <span>Send via Email</span>
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleCopyLink} className="gap-3 py-2.5 rounded-lg cursor-pointer">
+        <DropdownMenuSeparator className="my-1" />
+        <DropdownMenuItem onClick={handleCopy} className="gap-3 py-2.5 px-3 rounded-lg cursor-pointer">
           {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
           <span>{copied ? "Copied!" : "Copy Summary"}</span>
         </DropdownMenuItem>

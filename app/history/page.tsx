@@ -187,13 +187,17 @@ function ChainGroup({ group, onOpen }: { group: SessionGroup; onOpen: (s: Sessio
             <span className="text-xs text-muted-foreground">{group.sessions.length} docs</span>
           </div>
         </div>
-        <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", expanded && "rotate-90")} />
+        <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]", expanded && "rotate-90")} />
       </button>
 
-      {/* Chain items */}
-      {expanded && (
-        <div className="border-t border-border/40 px-3 pb-2">
-          {group.sessions.map((session, si) => {
+      {/* Chain items — animated expand/collapse via grid-template-rows */}
+      <div
+        className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+        style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
+      >
+        <div className="overflow-hidden">
+          <div className={cn("px-3 pb-2 transition-opacity duration-200", expanded ? "opacity-100 border-t border-border/40" : "opacity-0")}>
+            {group.sessions.map((session, si) => {
             const cfg = DOC_CONFIG[session.document_type] || fallbackDoc
             const Icon = cfg.icon
             return (
@@ -227,8 +231,9 @@ function ChainGroup({ group, onOpen }: { group: SessionGroup; onOpen: (s: Sessio
               </button>
             )
           })}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }

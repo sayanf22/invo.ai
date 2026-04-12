@@ -8,6 +8,7 @@ import { InvoiceChat } from "@/components/invoice-chat"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { InvoLogo } from "@/components/invo-logo"
 import { SessionHistorySidebar } from "@/components/session-history-sidebar"
+import { ShareButton } from "@/components/share-button"
 import { PDFDownloadButton } from "@/components/pdf-download-button"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { getInitialInvoiceData } from "@/lib/invoice-types"
@@ -220,9 +221,10 @@ export function PromptScreen({
         </div>
       </div>
 
-      {/* Mobile floating download button — only on preview tab */}
+      {/* Mobile floating buttons — only on preview tab */}
       {mobileTab === "preview" && (data.documentType || data.fromName || data.toName) && (
-        <div className="md:hidden fixed bottom-6 right-4 z-50">
+        <div className="md:hidden fixed bottom-6 right-4 z-50 flex items-center gap-2">
+          <ShareButton data={data} className="shadow-lg bg-card" />
           <PDFDownloadButton data={data} size="default" variant="default" />
         </div>
       )}
