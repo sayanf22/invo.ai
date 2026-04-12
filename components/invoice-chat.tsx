@@ -37,6 +37,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         messages: savedMessages,
         isLoading: sessionLoading,
         isSaving,
+        limitError,
         saveMessage,
         updateSessionContext,
         updateClientName,
@@ -141,6 +142,20 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             onMessageCountChange(userMsgCount)
         }
     }, [messages, onMessageCountChange])
+
+    // Handle document limit error from session creation
+    useEffect(() => {
+        if (limitError) {
+            setDocumentLimitReached(true)
+            setUpgradeInfo({
+                tier: limitError.tier,
+                currentUsage: limitError.currentUsage,
+                limit: limitError.limit,
+                errorType: "limit",
+                message: limitError.message,
+            })
+        }
+    }, [limitError])
 
     // Auto-scroll on new messages
     useEffect(() => {

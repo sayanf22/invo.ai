@@ -20,6 +20,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
+    const [limitError, setLimitError] = useState<{ error: string; tier: string; currentUsage: number; limit: number; message: string } | null>(null)
     const initRef = useRef(false)
     const currentSessionIdRef = useRef<string | null>(null)
 
@@ -78,9 +79,23 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
             })
             const result = await response.json()
             if (!response.ok || !result.success) {
-                console.error("Failed to create session:", result.error)
+                // Check if this is a document limit error
+                if (response.status === 429 && result.error === "Monthly document limit reached") {
+                    setLimitError({
+                        error: result.error,
+                        tier: result.tier || "free",
+                        currentUsage: result.currentUsage || 0,
+                        limit: result.limit || 0,
+                        message: result.message || "Upgrade your plan to create more documents",
+                    })
+                } else {
+                    console.error("Failed to create session:", result.error)
+                }
                 return null
             }
+
+            // Clear any previous limit error on successful creation
+            setLimitError(null)
 
             const { data: newSession, error } = await supabase
                 .from("document_sessions")
@@ -271,6 +286,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
         messages,
         isLoading,
         isSaving,
+        limitError,
         saveMessage,
         updateSessionContext,
         updateClientName,
