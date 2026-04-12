@@ -76,7 +76,10 @@ export function HamburgerMenu() {
 
     const navigate = (path: string) => {
         handleClose()
-        router.push(path)
+        // Delay navigation until close animation finishes to prevent race conditions
+        setTimeout(() => {
+            router.push(path)
+        }, 360)
     }
 
     // Get user info
