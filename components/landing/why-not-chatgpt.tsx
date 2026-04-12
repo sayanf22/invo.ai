@@ -30,7 +30,7 @@ export function WhyNotChatGPT() {
   const [activeDemo, setActiveDemo] = useState(0)
 
   useEffect(() => {
-    const timer = setInterval(() => setActiveDemo(p => (p + 1) % 3), 4000)
+    const timer = setInterval(() => setActiveDemo(p => (p + 1) % 3), 7000)
     return () => clearInterval(timer)
   }, [])
 
@@ -123,9 +123,9 @@ export function WhyNotChatGPT() {
                 {/* User prompt */}
                 <motion.div
                   key={`prompt-${activeDemo}`}
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4 }}
+                  transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
                   className="flex justify-end"
                 >
                   <div className="max-w-[85%] rounded-2xl rounded-br-md px-5 py-3.5 text-sm leading-relaxed" style={{ backgroundColor: "rgba(224,123,57,0.15)", color: "#e07b39" }}>
@@ -136,9 +136,9 @@ export function WhyNotChatGPT() {
                 {/* AI response */}
                 <motion.div
                   key={`response-${activeDemo}`}
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.3 }}
+                  transition={{ duration: 0.7, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
                   className="flex justify-start"
                 >
                   <div className="max-w-[90%] rounded-2xl rounded-bl-md px-5 py-3.5 text-sm leading-relaxed whitespace-pre-line" style={{ backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.7)" }}>
