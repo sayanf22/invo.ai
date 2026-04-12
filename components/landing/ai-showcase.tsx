@@ -95,7 +95,7 @@ export function AIShowcase() {
                                                 <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-400">U</div>
                                                 <div className="flex-1 space-y-2">
                                                     <div className="font-serif text-xl sm:text-2xl text-[var(--landing-text-dark)] leading-relaxed">
-                                                        &ldquo;Need a quotation for a web development project, include hosting and maintenance for <span className="text-[var(--landing-amber)] bg-orange-50 px-1 rounded">12 months</span>...&rdquo;
+                                                        &ldquo;Create an invoice for Acme Corp, $5,000 for web development, include <span className="text-[var(--landing-amber)] bg-orange-50 px-1 rounded">hosting and maintenance</span>...&rdquo;
                                                     </div>
                                                     <div className="h-4 w-2 bg-[var(--landing-amber)] animate-pulse" />
                                                 </div>
@@ -124,86 +124,107 @@ export function AIShowcase() {
                                                 <Sparkles className="text-[var(--landing-amber)] animate-pulse" size={32} />
                                             </div>
                                         </div>
-                                        <p className="font-display text-3xl font-bold text-[var(--landing-text-dark)] mb-2">Analyzing...</p>
-                                        <p className="text-stone-400">Extracting legal clauses</p>
+                                        <p className="font-display text-3xl font-bold text-[var(--landing-text-dark)] mb-2">Generating...</p>
+                                        <p className="text-stone-400">Building your invoice with compliance</p>
                                     </motion.div>
                                 )}
 
-                                {/* Step 2: Result — realistic invoice preview */}
+                                {/* Step 2: Result — matches the real "Modern" invoice template */}
                                 {step === 2 && (
                                     <motion.div
                                         initial={{ opacity: 0, scale: 0.95 }}
                                         animate={{ opacity: 1, scale: 1 }}
                                         exit={{ opacity: 0 }}
-                                        className="w-full bg-white border border-stone-200 rounded-2xl shadow-2xl overflow-hidden transform rotate-1 transition-transform hover:rotate-0"
+                                        className="w-full bg-white rounded-2xl shadow-2xl overflow-hidden transform rotate-1 transition-transform hover:rotate-0 relative"
+                                        style={{ border: "1px solid #e8e4de" }}
                                     >
-                                        {/* Blue header bar — matches "Modern" template */}
-                                        <div className="h-3 w-full" style={{ backgroundColor: "#2563eb" }} />
+                                        {/* Top accent bar */}
+                                        <div className="h-2 w-full" style={{ backgroundColor: "#e07b39" }} />
 
-                                        <div className="p-6 sm:p-8">
-                                            {/* Top: QUOTATION + business info */}
-                                            <div className="flex justify-between items-start mb-6">
+                                        {/* Corner accent shape — matches Modern template */}
+                                        <div className="absolute top-0 right-0 w-28 h-16 rounded-bl-[2rem]" style={{ backgroundColor: "#fde8d8" }} />
+
+                                        <div className="relative p-5 sm:p-7">
+                                            {/* Header: INVOICE title + badge */}
+                                            <div className="flex justify-between items-start mb-5">
                                                 <div>
-                                                    <h3 className="text-xl font-bold tracking-tight" style={{ color: "#2563eb" }}>QUOTATION</h3>
-                                                    <p className="text-[11px] text-stone-400 mt-1">QT-2026-0042 · Apr 12, 2026</p>
+                                                    <h3 className="text-2xl font-bold tracking-[2px]" style={{ color: "#e07b39" }}>INVOICE</h3>
+                                                    <p className="text-[10px] text-stone-400 mt-1">INV-2026-0087</p>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-sm font-semibold text-stone-800">TechFlow Studio</p>
-                                                    <p className="text-[11px] text-stone-400">hello@techflow.io</p>
-                                                    <p className="text-[11px] text-stone-400">GSTIN: 29AABCT1234F1ZP</p>
-                                                </div>
+                                                <div className="px-3 py-1 rounded-full text-[9px] font-bold" style={{ backgroundColor: "#fde8d8", color: "#e07b39" }}>DRAFT</div>
                                             </div>
 
-                                            {/* Bill To */}
-                                            <div className="mb-5 p-3 rounded-lg bg-stone-50">
-                                                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Bill To</p>
-                                                <p className="text-sm font-semibold text-stone-800">Acme Corporation</p>
-                                                <p className="text-[11px] text-stone-400">San Francisco, CA · acme@corp.com</p>
-                                            </div>
-
-                                            {/* Items table */}
-                                            <div className="mb-5">
-                                                <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-stone-400 uppercase tracking-wider pb-2 border-b border-stone-100">
-                                                    <div className="col-span-6">Description</div>
-                                                    <div className="col-span-2 text-right">Qty</div>
-                                                    <div className="col-span-2 text-right">Rate</div>
-                                                    <div className="col-span-2 text-right">Amount</div>
-                                                </div>
+                                            {/* Date strip */}
+                                            <div className="flex gap-4 mb-5 p-3 rounded-lg" style={{ backgroundColor: "#faf8f5" }}>
                                                 {[
-                                                    { desc: "Web Development", qty: "1", rate: "$3,500", amount: "$3,500" },
-                                                    { desc: "Hosting (12 months)", qty: "12", rate: "$50", amount: "$600" },
-                                                    { desc: "Maintenance Package", qty: "1", rate: "$900", amount: "$900" },
-                                                ].map((item, i) => (
-                                                    <div key={i} className="grid grid-cols-12 gap-2 text-[11px] py-2 border-b border-stone-50">
-                                                        <div className="col-span-6 text-stone-700 font-medium">{item.desc}</div>
-                                                        <div className="col-span-2 text-right text-stone-500">{item.qty}</div>
-                                                        <div className="col-span-2 text-right text-stone-500">{item.rate}</div>
-                                                        <div className="col-span-2 text-right text-stone-800 font-semibold">{item.amount}</div>
+                                                    { label: "Issue Date", value: "Apr 12, 2026" },
+                                                    { label: "Due Date", value: "May 12, 2026" },
+                                                    { label: "Terms", value: "Net 30" },
+                                                ].map(d => (
+                                                    <div key={d.label} className="flex-1">
+                                                        <p className="text-[8px] font-bold text-stone-400 uppercase tracking-[1px] mb-0.5">{d.label}</p>
+                                                        <p className="text-[11px] font-semibold text-stone-800">{d.value}</p>
                                                     </div>
                                                 ))}
                                             </div>
 
-                                            {/* Totals */}
-                                            <div className="flex justify-end">
-                                                <div className="w-48 space-y-1.5 text-[11px]">
-                                                    <div className="flex justify-between text-stone-500">
-                                                        <span>Subtotal</span><span className="font-medium text-stone-700">$5,000.00</span>
+                                            {/* From / To */}
+                                            <div className="grid grid-cols-2 gap-4 mb-5">
+                                                <div>
+                                                    <p className="text-[8px] font-bold uppercase tracking-[1px] mb-1.5 pb-1" style={{ color: "#e07b39", borderBottom: "2px solid #fde8d8" }}>From</p>
+                                                    <p className="text-[11px] font-semibold text-stone-800">TechFlow Studio</p>
+                                                    <p className="text-[9px] text-stone-400 leading-relaxed">Bangalore, India<br/>hello@techflow.io<br/>GSTIN: 29AABCT1234F1ZP</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[8px] font-bold uppercase tracking-[1px] mb-1.5 pb-1" style={{ color: "#e07b39", borderBottom: "2px solid #fde8d8" }}>Bill To</p>
+                                                    <p className="text-[11px] font-semibold text-stone-800">Acme Corporation</p>
+                                                    <p className="text-[9px] text-stone-400 leading-relaxed">San Francisco, CA<br/>billing@acme.com</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Items table with colored header */}
+                                            <div className="mb-4">
+                                                <div className="grid grid-cols-12 gap-1 text-[9px] font-bold text-white uppercase tracking-wider py-2 px-2.5 rounded-md" style={{ backgroundColor: "#e07b39" }}>
+                                                    <div className="col-span-5">Description</div>
+                                                    <div className="col-span-2 text-center">Qty</div>
+                                                    <div className="col-span-2 text-right">Rate</div>
+                                                    <div className="col-span-3 text-right">Amount</div>
+                                                </div>
+                                                {[
+                                                    { desc: "Web Development", qty: "1", rate: "$3,500", amt: "$3,500.00" },
+                                                    { desc: "Hosting (12 mo)", qty: "12", rate: "$50", amt: "$600.00" },
+                                                    { desc: "Maintenance", qty: "1", rate: "$900", amt: "$900.00" },
+                                                ].map((item, i) => (
+                                                    <div key={i} className={`grid grid-cols-12 gap-1 text-[10px] py-2 px-2.5 ${i % 2 === 1 ? "bg-[#faf8f5]" : ""}`} style={{ borderBottom: "1px solid #f5f3f0" }}>
+                                                        <div className="col-span-5 text-stone-700 font-medium">{item.desc}</div>
+                                                        <div className="col-span-2 text-center text-stone-400">{item.qty}</div>
+                                                        <div className="col-span-2 text-right text-stone-400">{item.rate}</div>
+                                                        <div className="col-span-3 text-right text-stone-800 font-semibold">{item.amt}</div>
                                                     </div>
-                                                    <div className="flex justify-between text-stone-500">
-                                                        <span>GST (18%)</span><span className="font-medium text-stone-700">$900.00</span>
+                                                ))}
+                                            </div>
+
+                                            {/* Totals — right-aligned */}
+                                            <div className="flex justify-end mb-4">
+                                                <div className="w-44 space-y-1 text-[10px]">
+                                                    <div className="flex justify-between text-stone-400">
+                                                        <span>Subtotal</span><span className="font-medium text-stone-600">$5,000.00</span>
                                                     </div>
-                                                    <div className="flex justify-between pt-1.5 border-t border-stone-200 text-sm font-bold text-stone-900">
-                                                        <span>Total</span><span style={{ color: "#2563eb" }}>$5,900.00</span>
+                                                    <div className="flex justify-between text-stone-400">
+                                                        <span>GST (18%)</span><span className="font-medium text-stone-600">$900.00</span>
+                                                    </div>
+                                                    <div className="flex justify-between pt-2 mt-1 text-[12px] font-bold text-stone-900" style={{ borderTop: "2px solid #e07b39" }}>
+                                                        <span>Total</span><span style={{ color: "#e07b39" }}>$5,900.00</span>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            {/* Footer */}
-                                            <div className="mt-5 pt-4 border-t border-stone-100 flex items-center justify-between">
-                                                <p className="text-[10px] text-stone-300">Generated by Clorefy</p>
-                                                <div className="flex items-center gap-1.5">
+                                            {/* Footer bar */}
+                                            <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid #f0ece6" }}>
+                                                <p className="text-[8px] text-stone-300">Generated by Clorefy</p>
+                                                <div className="flex items-center gap-1">
                                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                                    <span className="text-[10px] font-medium text-emerald-600">Compliant</span>
+                                                    <span className="text-[8px] font-semibold text-emerald-600">India GST Compliant</span>
                                                 </div>
                                             </div>
                                         </div>
