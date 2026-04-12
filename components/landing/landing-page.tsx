@@ -3,6 +3,7 @@
 import { LandingNavbar } from "./landing-navbar"
 import { HeroSection } from "./hero-section"
 import { StatsSection } from "./stats-section"
+import { WhyNotChatGPT } from "./why-not-chatgpt"
 import { PersonaTabs } from "./persona-tabs"
 import { AIShowcase } from "./ai-showcase"
 import { FeaturesSection } from "./features-section"
@@ -20,6 +21,7 @@ export function LandingPage() {
                 <LandingNavbar />
                 <HeroSection />
                 <StatsSection />
+                <WhyNotChatGPT />
                 <PersonaTabs />
                 <AIShowcase />
                 <FeaturesSection />

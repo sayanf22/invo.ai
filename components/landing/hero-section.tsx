@@ -24,15 +24,15 @@ export function HeroSection() {
 
                     {/* Main heading */}
                     <h1 className="animate-fade-in-up font-display text-[2.75rem] sm:text-7xl md:text-8xl lg:text-9xl font-semibold tracking-tighter leading-[0.92] text-[var(--landing-text-dark)] mb-6 sm:mb-10" style={{ animationDelay: "0.15s" }}>
-                        <span className="sr-only">Clorefy — Free AI Invoice Generator for Invoices, Contracts and Proposals</span>
-                        Don&apos;t draft,
+                        <span className="sr-only">Clorefy — AI that remembers your business. Invoices, contracts, proposals — auto-filled, compliant, instant.</span>
+                        It remembers,
                         <br />
-                        just <span className="italic gradient-text sm:pr-4">describe</span>
+                        so you <span className="italic gradient-text sm:pr-4">don&apos;t</span>
                     </h1>
 
                     {/* Subtitle */}
                     <p className="animate-fade-in-up text-base sm:text-xl md:text-2xl text-[var(--landing-text-muted)] max-w-2xl mx-auto mb-8 sm:mb-14 leading-relaxed font-light px-2" style={{ animationDelay: "0.3s" }}>
-                        AI-powered invoices, contracts, and proposals — compliant across borders, generated in seconds.
+                        Your business profile, tax IDs, payment terms, and client details — saved once, auto-filled forever. Compliant documents across 11 countries in seconds.
                     </p>
 
                     {/* CTA buttons */}
