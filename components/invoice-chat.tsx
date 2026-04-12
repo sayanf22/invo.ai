@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { FileText, RotateCcw } from "lucide-react"
+import { FileText, RotateCcw, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -54,6 +54,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [fileContext, setFileContext] = useState<string | null>(null)
     const [messageLimitReached, setMessageLimitReached] = useState(false)
     const [limitInfo, setLimitInfo] = useState<{ currentMessages: number; limit: number; tier: string } | null>(null)
+    const [documentLimitReached, setDocumentLimitReached] = useState(false)
     const [showUpgradeModal, setShowUpgradeModal] = useState(false)
     const [upgradeInfo, setUpgradeInfo] = useState<{ tier: string; currentUsage?: number; limit?: number; errorType: "limit" | "type_restriction" | "feature_restricted"; message?: string } | null>(null)
 
@@ -75,6 +76,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         setDocumentGenerated(false)
         setFileContext(null)
         setMessageLimitReached(false)
+        setDocumentLimitReached(false)
         setLimitInfo(null)
         setIsLoading(false)
 
@@ -186,6 +188,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         return
                     }
                     if (errorData.error === "Monthly document limit reached") {
+                        setDocumentLimitReached(true)
                         setUpgradeInfo({
                             tier: errorData.tier || "free",
                             currentUsage: errorData.currentUsage,
@@ -652,6 +655,27 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 handleCreateLinked(session!.id, targetType)
                             }}
                         />
+                    ) : documentLimitReached && upgradeInfo ? (
+                        <div className="rounded-2xl border bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800 p-4">
+                            <div className="flex items-start gap-3 mb-3">
+                                <Sparkles className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                                        Monthly document limit reached
+                                    </p>
+                                    <p className="text-amber-600 dark:text-amber-400 text-sm mt-0.5">
+                                        {upgradeInfo.currentUsage}/{upgradeInfo.limit} documents used this month
+                                    </p>
+                                </div>
+                            </div>
+                            <a
+                                href="/pricing"
+                                className="ml-8 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-[0.97] shadow-sm"
+                            >
+                                <Sparkles className="w-4 h-4" />
+                                Upgrade Plan
+                            </a>
+                        </div>
                     ) : (
                         <AIInputWithLoading
                             value={inputValue}
