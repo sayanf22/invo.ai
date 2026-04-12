@@ -343,19 +343,16 @@ export default function PricingPage() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 8 }}
                         transition={{ duration: 0.2 }}
-                        className="flex items-baseline gap-0.5"
+                        className="flex items-baseline gap-1"
                       >
-                        {plan.monthly > 0 && !plan.comingSoon && (
-                          <span className={`font-display font-bold ${plan.featured ? "text-white/40" : "text-stone-400"}`} style={{ fontSize: "1.5rem", lineHeight: 1, paddingBottom: "0.35rem" }}>$</span>
-                        )}
                         <span
-                          className={`font-display font-bold leading-none ${plan.featured ? "text-white" : plan.comingSoon ? "text-stone-300" : "text-stone-900"}`}
-                          style={{ fontSize: plan.comingSoon ? "1.5rem" : "2.75rem" }}
+                          className={`font-semibold leading-none tracking-tight ${plan.featured ? "text-white" : plan.comingSoon ? "text-stone-300" : "text-stone-900"}`}
+                          style={{ fontSize: plan.comingSoon ? "1.5rem" : plan.monthly === 0 ? "2.75rem" : "2.5rem", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" }}
                         >
                           {plan.monthly === 0 ? "Free" : plan.comingSoon ? "Coming Soon" : getPrice(plan.id, billing)}
                         </span>
                         {plan.monthly > 0 && !plan.comingSoon && (
-                          <span className={`text-sm ml-0.5 ${plan.featured ? "text-white/35" : "text-stone-400"}`} style={{ paddingBottom: "0.2rem" }}>/mo</span>
+                          <span className={`text-sm font-medium ${plan.featured ? "text-white/35" : "text-stone-400"}`}>/mo</span>
                         )}
                       </motion.div>
                     </AnimatePresence>
