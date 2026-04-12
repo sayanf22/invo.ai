@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
     if (auth.error) return auth.error
 
     // Fetch user tier from subscriptions table, default to "free"
-    const { data: subscription } = await auth.supabase
+    const { data: subscription } = await (auth.supabase as any)
         .from("subscriptions")
         .select("plan")
         .eq("user_id", auth.user.id)
