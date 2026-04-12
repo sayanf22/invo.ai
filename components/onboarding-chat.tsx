@@ -52,6 +52,7 @@ export interface CollectedData {
 interface OnboardingChatProps {
     onComplete: (data: CollectedData) => void
     userEmail?: string
+    initialData?: CollectedData
 }
 
 // ── Field Labels for Display ───────────────────────────────────────────
@@ -84,7 +85,7 @@ const SESSION_KEY = "invo_onboarding_session"
 
 // ── Component ──────────────────────────────────────────────────────────
 
-export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
+export function OnboardingChat({ onComplete, userEmail, initialData }: OnboardingChatProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [inputValue, setInputValue] = useState("")
     const [isLoading, setIsLoading] = useState(false)
@@ -92,6 +93,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
     const [stagedFile, setStagedFile] = useState<File | null>(null)
     const [collectedData, setCollectedData] = useState<CollectedData>({
         email: userEmail || "",
+        ...initialData,
     })
     const [allComplete, setAllComplete] = useState(false)
 
@@ -166,7 +168,7 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     messages: [{ role: "user", content: "Hi, I want to set up my business profile." }],
-                    collectedData: { email: userEmail || "" },
+                    collectedData: { email: userEmail || "", ...initialData },
                 }),
             })
             const result = await response.json()

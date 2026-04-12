@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { InvoLogo } from "@/components/invo-logo"
 import { OnboardingChat, type CollectedData } from "@/components/onboarding-chat"
+import { UploadScreen } from "@/components/upload-screen"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { getTaxIdFieldName } from "@/lib/countries"
@@ -12,6 +13,8 @@ import { getTaxIdFieldName } from "@/lib/countries"
 export default function OnboardingPage() {
     const router = useRouter()
     const { supabase, user, isLoading } = useAuth()
+    const [phase, setPhase] = useState<"upload" | "chat">("upload")
+    const [extractedData, setExtractedData] = useState<CollectedData>({})
 
     // Redirect if not logged in, or if plan not selected, or if onboarding already complete
     useEffect(() => {
@@ -151,12 +154,26 @@ export default function OnboardingPage() {
                 </button>
             </header>
 
-            {/* Main — Chat Only */}
+            {/* Main — Upload or Chat */}
             <main className="flex-1 overflow-hidden">
-                <OnboardingChat
-                    onComplete={handleComplete}
-                    userEmail={user?.email || ""}
-                />
+                {phase === "upload" ? (
+                    <UploadScreen
+                        onContinue={(data) => {
+                            setExtractedData(data)
+                            setPhase("chat")
+                        }}
+                        onSkip={() => {
+                            setExtractedData({})
+                            setPhase("chat")
+                        }}
+                    />
+                ) : (
+                    <OnboardingChat
+                        onComplete={handleComplete}
+                        userEmail={user?.email || ""}
+                        initialData={extractedData}
+                    />
+                )}
             </main>
         </div>
     )
