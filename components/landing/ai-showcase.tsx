@@ -1,6 +1,6 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { Type, Sparkles, FileCheck, ArrowRight } from "lucide-react"
 import { useState, useEffect } from "react"
 
@@ -82,12 +82,15 @@ export function AIShowcase() {
                             </div>
 
                             <div className="flex-1 flex items-center justify-center relative w-full">
+                                <AnimatePresence mode="wait">
                                 {/* Step 0: Input Prompt */}
                                 {step === 0 && (
                                     <motion.div
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0 }}
+                                        key="step-prompt"
+                                        initial={{ opacity: 0, y: 20, scale: 0.97 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -20, scale: 0.97 }}
+                                        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                                         className="w-full"
                                     >
                                         <div className="bg-white rounded-3xl p-6 shadow-xl border border-stone-100 relative overflow-hidden">
@@ -112,9 +115,11 @@ export function AIShowcase() {
                                 {/* Step 1: Processing */}
                                 {step === 1 && (
                                     <motion.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
+                                        key="step-generating"
+                                        initial={{ opacity: 0, y: 20, scale: 0.97 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -20, scale: 0.97 }}
+                                        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                                         className="text-center w-full"
                                     >
                                         <div className="relative w-24 h-24 mx-auto mb-8">
@@ -132,9 +137,11 @@ export function AIShowcase() {
                                 {/* Step 2: Result — matches the real "Modern" invoice template */}
                                 {step === 2 && (
                                     <motion.div
-                                        initial={{ opacity: 0, scale: 0.95 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0 }}
+                                        key="step-result"
+                                        initial={{ opacity: 0, y: 20, scale: 0.97 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -20, scale: 0.97 }}
+                                        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                                         className="w-full bg-white rounded-2xl shadow-2xl overflow-hidden transform rotate-1 transition-transform hover:rotate-0 relative"
                                         style={{ border: "1px solid #e8e4de" }}
                                     >
@@ -230,6 +237,7 @@ export function AIShowcase() {
                                         </div>
                                     </motion.div>
                                 )}
+                                </AnimatePresence>
                             </div>
                         </motion.div>
                     </div>
