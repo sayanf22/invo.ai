@@ -45,7 +45,7 @@ export function NextStepsBar({ clientName, currentDocType, parentSessionId, onCr
                     : <span>Create a related document</span>
                 }
             </p>
-            <div className="flex gap-2 overflow-x-auto pb-1 -mb-1 scrollbar-none snap-x snap-mandatory">
+            <div className="grid grid-cols-2 gap-2">
                 {allTypes.map(type => {
                     const opt = DOC_OPTIONS[type]
                     const Icon = opt.icon
@@ -58,7 +58,7 @@ export function NextStepsBar({ clientName, currentDocType, parentSessionId, onCr
                             onClick={() => handleClick(type)}
                             disabled={!!loadingType}
                             className={cn(
-                                "flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium border transition-all duration-200 active:scale-[0.97] shadow-sm whitespace-nowrap shrink-0 snap-start",
+                                "flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-medium border transition-all duration-200 active:scale-[0.97] shadow-sm",
                                 isLoading
                                     ? "opacity-60 cursor-wait border-border/60 bg-background text-foreground"
                                     : isCurrent
@@ -67,11 +67,11 @@ export function NextStepsBar({ clientName, currentDocType, parentSessionId, onCr
                             )}
                         >
                             {isLoading
-                                ? <Loader2 className="w-[18px] h-[18px] animate-spin" />
-                                : <Icon className="w-[18px] h-[18px] text-muted-foreground" />
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <Icon className="w-4 h-4 text-muted-foreground" />
                             }
                             {opt.label}
-                            {isCurrent && <span className="text-[11px] text-muted-foreground font-normal">(new)</span>}
+                            {isCurrent && <span className="text-[10px] text-muted-foreground font-normal">(new)</span>}
                         </button>
                     )
                 })}
