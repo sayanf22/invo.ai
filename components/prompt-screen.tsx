@@ -59,7 +59,7 @@ export function PromptScreen({
   }, [])
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-dvh flex flex-col bg-background overflow-hidden">
       <header className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-card shadow-sm shrink-0">
         <button
           type="button"

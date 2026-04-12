@@ -16,19 +16,19 @@ export async function POST(request: NextRequest) {
         const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
-        // SECURITY: Cost protection - check monthly limit
-        const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation")
-        if (costError) return costError
-
         const body: AIGenerationRequest = await request.json()
 
-        // Fetch user tier from subscriptions table
+        // Fetch user tier from subscriptions table (needed for all limit checks)
         const { data: sub } = await (auth.supabase as any)
             .from("subscriptions")
             .select("plan")
             .eq("user_id", auth.user.id)
             .single()
         const userTier = ((sub as any)?.plan || "free") as UserTier
+
+        // SECURITY: Cost protection - check monthly document limit with actual tier
+        const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
+        if (costError) return costError
 
         // Check per-session message limit (if sessionId provided)
         const sessionId = (body as any).sessionId
