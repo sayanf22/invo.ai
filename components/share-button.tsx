@@ -123,7 +123,7 @@ export function ShareButton({ data, className }: ShareButtonProps) {
     const lines = [
       `${type} from ${data.fromName || "—"}`,
       data.toName ? `To: ${data.toName}` : null,
-      data.total ? `Total: ${data.currency || "$"}${data.total}` : null,
+      data.items?.length ? `Total: ${data.currency || "$"}${data.items.reduce((sum, item) => sum + (item.quantity * item.rate), 0).toFixed(2)}` : null,
     ].filter(Boolean).join("\n")
 
     try {
