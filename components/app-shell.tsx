@@ -23,7 +23,7 @@ export function AppShell() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(undefined)
   const [promptKey, setPromptKey] = useState(0)
   const [checkingOnboarding, setCheckingOnboarding] = useState(true)
-  const [showSetupBanner, setShowSetupBanner] = useState(false)
+  const [setupIncomplete, setSetupIncomplete] = useState(false)
 
   useEffect(() => {
     const sessionId = searchParams.get("sessionId")
@@ -72,21 +72,17 @@ export function AppShell() {
         if (!error && profile && (profile as any).onboarding_complete === false) {
           router.push("/onboarding"); return
         }
-        // Check if user skipped onboarding — show banner
-        const skipped = localStorage.getItem("clorefy_onboarding_skipped")
-        if (skipped === "true") {
-          // Check if business profile exists
-          const { data: business } = await supabase
-            .from("businesses")
-            .select("name")
-            .eq("user_id", user.id)
-            .single()
-          if (!business || !business.name) {
-            setShowSetupBanner(true)
-          } else {
-            // Business exists, clear the skip flag
-            localStorage.removeItem("clorefy_onboarding_skipped")
-          }
+        // Check if business profile is actually filled out
+        const { data: business } = await supabase
+          .from("businesses")
+          .select("name, country, email")
+          .eq("user_id", user.id)
+          .single()
+        if (!business || !business.name || !business.country || !business.email) {
+          setSetupIncomplete(true)
+        } else {
+          // Business is complete, clear any skip flags
+          localStorage.removeItem("clorefy_onboarding_skipped")
         }
       } catch (error) {
         console.error("Error checking onboarding:", error)
@@ -95,12 +91,7 @@ export function AppShell() {
     checkOnboarding()
   }, [authLoading, user, supabase, router])
 
-  const handleDismissBanner = useCallback(() => {
-    setShowSetupBanner(false)
-  }, [])
-
   const handleGoToSetup = useCallback(() => {
-    localStorage.removeItem("clorefy_onboarding_skipped")
     router.push("/onboarding")
   }, [router])
 
@@ -251,6 +242,17 @@ export function AppShell() {
   if (view === "prompt") {
     return (
       <div key={promptKey} className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+        {setupIncomplete && (
+          <button
+            type="button"
+            onClick={handleGoToSetup}
+            className="w-full px-4 sm:px-6 py-2.5 bg-muted/50 border-b border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-2 group shrink-0 z-10"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            <span>Complete your business profile for personalized documents</span>
+            <span className="text-primary font-medium group-hover:underline">Set up →</span>
+          </button>
+        )}
         <PromptScreen
           onBack={handleBack}
           initialCategory={selectedCategory}
@@ -268,34 +270,16 @@ export function AppShell() {
         <HamburgerMenu />
       </header>
 
-      {showSetupBanner && (
-        <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 px-4 sm:px-6 py-3">
-          <div className="flex items-center justify-between max-w-4xl mx-auto">
-            <div className="flex items-center gap-2">
-              <span className="text-amber-600 dark:text-amber-400 text-sm">⚡</span>
-              <p className="text-sm text-amber-800 dark:text-amber-200">
-                Complete your business setup for personalized documents
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleGoToSetup}
-                className="text-sm font-medium text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 bg-amber-100 dark:bg-amber-900/40 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                Complete Setup
-              </button>
-              <button
-                type="button"
-                onClick={handleDismissBanner}
-                className="text-amber-400 dark:text-amber-600 hover:text-amber-600 dark:hover:text-amber-400 transition-colors p-1"
-                aria-label="Dismiss"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
+      {setupIncomplete && (
+        <button
+          type="button"
+          onClick={handleGoToSetup}
+          className="w-full px-4 sm:px-6 py-2.5 bg-muted/50 border-b border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-2 group"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+          <span>Complete your business profile for personalized documents</span>
+          <span className="text-primary font-medium group-hover:underline">Set up →</span>
+        </button>
       )}
 
       <main className="flex-1 overflow-y-auto">

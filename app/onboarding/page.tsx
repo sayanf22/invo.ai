@@ -33,7 +33,8 @@ export default function OnboardingPage() {
                     }
                     if (data?.onboarding_complete) {
                         const hasActiveSession = localStorage.getItem("invo_onboarding_session")
-                        if (!hasActiveSession) {
+                        const returningForSetup = localStorage.getItem("clorefy_onboarding_skipped")
+                        if (!hasActiveSession && !returningForSetup) {
                             router.push("/")
                         }
                     }
@@ -95,6 +96,7 @@ export default function OnboardingPage() {
             }
 
             toast.success("🎉 Business profile saved! Welcome to Clorefy")
+            localStorage.removeItem("clorefy_onboarding_skipped")
             router.push("/")
             router.refresh()
         } catch (error) {
