@@ -74,7 +74,7 @@ export default function OnboardingPage() {
                 default_currency: data.defaultCurrency || "",
                 default_payment_terms: data.paymentTerms || "net_30",
                 default_payment_instructions: data.paymentInstructions || "",
-                additional_notes: data.additionalNotes || "",
+                additional_notes: [data.services, data.additionalNotes].filter(Boolean).join("\n\n") || "",
                 payment_methods: data.bankDetails ? { bank: data.bankDetails } : {},
                 logo_url: data.logoUrl || null,
                 signature_url: data.signatureUrl || null,
@@ -103,6 +103,27 @@ export default function OnboardingPage() {
         }
     }
 
+    const handleSkip = async () => {
+        if (!user) return
+        try {
+            // Mark onboarding as complete but with skipped flag
+            await supabase
+                .from("profiles")
+                .update({ onboarding_complete: true })
+                .eq("id", user.id)
+            
+            // Store skip flag in localStorage so the banner shows
+            localStorage.setItem("clorefy_onboarding_skipped", "true")
+            
+            toast.info("You can complete your setup anytime from the dashboard")
+            router.push("/")
+            router.refresh()
+        } catch (error) {
+            console.error("Skip error:", error)
+            toast.error("Something went wrong. Please try again.")
+        }
+    }
+
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -114,11 +135,18 @@ export default function OnboardingPage() {
     return (
         <div className="min-h-screen flex flex-col bg-background">
             {/* Header */}
-            <header className="border-b py-4 px-5 flex items-center justify-center shrink-0 bg-card shadow-sm">
+            <header className="border-b py-4 px-5 flex items-center justify-between shrink-0 bg-card shadow-sm">
                 <div className="flex items-center gap-3">
                     <InvoLogo size={32} />
                     <span className="text-sm font-semibold text-foreground">Business Setup</span>
                 </div>
+                <button
+                    type="button"
+                    onClick={handleSkip}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted"
+                >
+                    Skip for now
+                </button>
             </header>
 
             {/* Main — Chat Only */}

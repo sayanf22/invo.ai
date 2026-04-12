@@ -46,6 +46,7 @@ export interface CollectedData {
     logoUrl?: string | null
     signatureUrl?: string | null
     additionalNotes?: string
+    services?: string
 }
 
 interface OnboardingChatProps {
@@ -349,6 +350,8 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                                 else if (key === "bankDetails" && typeof value === "object") updated.bankDetails = { ...prev.bankDetails, ...(value as any) }
                                 else if (key === "additionalContext") updated.additionalNotes = (prev.additionalNotes || "") + "\n" + String(value)
                                 else if (key === "phone2" && value) updated.additionalNotes = (prev.additionalNotes || "") + "\nSecondary phone: " + String(value)
+                                else if (key === "services" && typeof value === "string" && value.trim().length > 0) updated.services = String(value)
+                                else if (key === "paymentTerms" && typeof value === "string" && value.trim().length > 0) updated.paymentTerms = String(value)
                                 else (updated as any)[key] = value
                             }
                             return updated
@@ -386,6 +389,10 @@ export function OnboardingChat({ onComplete, userEmail }: OnboardingChatProps) {
                         } else if (key === "phone2" && value) {
                             // Store secondary phone in additional notes
                             updated.additionalNotes = (prev.additionalNotes || "") + "\nSecondary phone: " + String(value)
+                        } else if (key === "services" && typeof value === "string" && value.trim().length > 0) {
+                            updated.services = String(value)
+                        } else if (key === "paymentTerms" && typeof value === "string" && value.trim().length > 0) {
+                            updated.paymentTerms = String(value)
                         } else {
                             (updated as any)[key] = value
                         }

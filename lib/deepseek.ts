@@ -203,6 +203,14 @@ Check user's message for template preferences:
 - No preference → default to templateId="modern"
 ALWAYS include the "design" object: { templateId, font, headerColor, tableColor, layout }
 
+## PAYMENT TERMS
+- ALWAYS set the "paymentTerms" field in generated documents.
+- If the user specifies payment terms in their prompt, use those.
+- If the user does NOT specify payment terms, use the default from the BUSINESS PROFILE (the "Payment Terms" field).
+- If no business profile payment terms are available, default to "Net 30".
+- Valid values: "Due on Receipt", "Net 7", "Net 15", "Net 30", "Net 45", "Net 60"
+- Also set the "dueDate" field based on the payment terms: add the appropriate number of days to the invoice date.
+
 ## PAYMENT INFO RULES
 - If the business profile includes payment details, include ONLY the payment METHOD names in the "notes" field — for example "Payment Method: UPI / Bank Transfer". NEVER include actual payment IDs, UPI IDs, account numbers, URLs, or any specific identifiers. Just the method names.
 - Example notes format: "This quotation is valid for 30 days from the date of issue.\n\nPayment Method: UPI / Bank Transfer"

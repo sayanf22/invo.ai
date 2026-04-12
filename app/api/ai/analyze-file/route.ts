@@ -52,18 +52,19 @@ Return a JSON object with these fields (use null for fields you cannot determine
     "ifscCode": "IFSC/SWIFT/routing code",
     "accountHolderName": "Name on account"
   },
-  "services": "List of services, products, or line items mentioned in the document with prices if available",
+  "services": "List ALL services, products, packages, plans, or line items with their EXACT prices. Format: 'ServiceName - Price' for each. Include every tier, package, and offering. Example: 'Basic Website - Rs. 15,000, Dynamic Website - Rs. 25,000, E-commerce Website - Rs. 40,000'. Reproduce ALL pricing details VERBATIM.",
+  "pricing": "Extract ALL pricing information as structured data. Include plan names, prices, currencies, billing periods. Example: 'Basic: 249/month, Standard: 399/month, Advanced: 599/month'. If no structured pricing found, use null.",
   "projectDescription": "Brief description of the project, work, or engagement described in the document",
-  "additionalContext": "Any other relevant business information — industry, pricing, terms, deadlines, deliverables, etc."
+  "additionalContext": "Any other relevant business information — industry, terms, deadlines, deliverables, important notes, policies, etc. Include verbatim any pricing notes, payment terms, or conditions mentioned."
 }
 
 IMPORTANT:
 - Extract as much as possible from the document
 - For fields you cannot determine, use null
 - Pay special attention to: company names, contact details, services/products listed, prices/amounts, and project descriptions
-- The "services" field should list any line items, packages, or offerings with their prices if mentioned
+- The "services" field MUST list every package, tier, and offering with their EXACT prices. Do NOT summarize — include all pricing details verbatim (e.g., "Basic Website Rs. 15,000, Dynamic Website Rs. 25,000")
 - The "projectDescription" field should summarize what the document is about
-- The "additionalContext" field should contain any extra details that could help generate a professional document
+- The "additionalContext" field should contain any extra details like payment terms, conditions, notes, and policies mentioned in the document
 - Return ONLY valid JSON, no markdown or explanation`
 
 function buildFileContextSummary(extracted: any): string {
@@ -82,6 +83,7 @@ function buildFileContextSummary(extracted: any): string {
     if (extracted.taxId) parts.push(`Tax ID: ${extracted.taxId}`)
     if (extracted.defaultCurrency) parts.push(`Currency: ${extracted.defaultCurrency}`)
     if (extracted.services) parts.push(`Services: ${extracted.services}`)
+    if (extracted.pricing) parts.push(`Pricing: ${extracted.pricing}`)
     if (extracted.projectDescription) parts.push(`Project: ${extracted.projectDescription}`)
     if (extracted.additionalContext) parts.push(`Additional Info: ${extracted.additionalContext}`)
     return parts.join('\n')
