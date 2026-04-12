@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { FileText, RotateCcw, Sparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Sparkles } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { AIInputWithLoading } from "@/components/ui/ai-input-with-loading"
@@ -25,10 +24,11 @@ interface InvoiceChatProps {
     onSessionChange?: (sessionId: string) => void
     onLinkedSessionCreate?: (sessionId: string, docType: string) => void
     onChainSessionSelect?: (sessionId: string) => void
+    onMessageCountChange?: (count: number) => void
     initialPrompt?: string
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, initialPrompt }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, initialPrompt }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
 
     // Hook handles session init + switching when selectedSessionId changes
@@ -132,6 +132,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         setMessages([{ role: "assistant", content: msg }])
         setWelcomeLoaded(true)
     }, [])
+
+    // Notify parent of message count changes
+    useEffect(() => {
+        if (onMessageCountChange) {
+            // Count only user messages (matches backend counting)
+            const userMsgCount = messages.filter(m => m.role === "user").length
+            onMessageCountChange(userMsgCount)
+        }
+    }, [messages, onMessageCountChange])
 
     // Auto-scroll on new messages
     useEffect(() => {
@@ -572,25 +581,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
     return (
         <div className="flex flex-col h-full">
-            {/* Chat Header */}
-            <div className="px-5 py-4 border-b flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-2xl">
-                        <FileText className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-base">AI Assistant</h3>
-                        <p className="text-xs text-muted-foreground">
-                            {sessionLoading ? "Loading..." : messages.length > 1 ? `${messages.length} messages` : "New conversation"}
-                        </p>
-                    </div>
-                </div>
-                <Button variant="ghost" size="sm" onClick={handleNewConversation} className="gap-2 btn-press rounded-xl">
-                    <RotateCcw className="w-4 h-4" />
-                    <span className="hidden sm:inline">New</span>
-                </Button>
-            </div>
-
             {/* Chain Navigator — shows when session is part of a linked chain */}
             <ChainNavigator
                 currentSessionId={selectedSessionId}

@@ -35,8 +35,9 @@ export function PromptScreen({
   })
   const [mobileTab, setMobileTab] = useState<"chat" | "edit" | "preview">("chat")
   const [showEditor, setShowEditor] = useState(false)
-  const [showHistory, setShowHistory] = useState(false) // Changed from true to false
+  const [showHistory, setShowHistory] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(initialSessionId)
+  const [messageCount, setMessageCount] = useState(0)
   const handleChange = useCallback(
     (updates: Partial<InvoiceData>) => {
       setData((prev) => ({ ...prev, ...updates }))
@@ -86,6 +87,11 @@ export function PromptScreen({
           >
             <MessageSquare className="w-4 h-4" />
             Chat
+            {messageCount > 0 && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
+                mobileTab === "chat" ? "bg-background/20 text-background" : "bg-muted text-muted-foreground"
+              }`}>{messageCount}</span>
+            )}
           </button>
           <button
             type="button"
@@ -184,6 +190,7 @@ export function PromptScreen({
                 onSessionChange={setSelectedSessionId}
                 onLinkedSessionCreate={handleLinkedSessionCreate}
                 onChainSessionSelect={handleSessionSelect}
+                onMessageCountChange={setMessageCount}
                 initialPrompt={initialPrompt}
               />
             </div>
