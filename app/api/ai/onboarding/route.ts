@@ -199,6 +199,23 @@ export async function POST(request: NextRequest) {
             )
         }
 
+        // SECURITY: Validate prompt length — reject any message exceeding 10,000 chars
+        for (const msg of messages) {
+            if (typeof msg.content === "string" && msg.content.length > 10_000) {
+                return NextResponse.json(
+                    { error: "Message too long. Maximum 10,000 characters per message." },
+                    { status: 400 }
+                )
+            }
+        }
+
+        // SECURITY: Sanitize all user message content
+        for (const msg of messages) {
+            if (msg.role === "user" && typeof msg.content === "string") {
+                msg.content = sanitizeText(msg.content)
+            }
+        }
+
         const { getSecret } = await import("@/lib/secrets")
         const apiKey = await getSecret("DEEPSEEK_API_KEY")
         if (!apiKey || apiKey === "your_deepseek_api_key_here") {

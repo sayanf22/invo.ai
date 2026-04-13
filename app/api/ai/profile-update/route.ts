@@ -252,6 +252,25 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Messages array required" }, { status: 400 })
     }
 
+    // SECURITY: Validate prompt length — reject any message exceeding 10,000 chars
+    for (const msg of body.messages) {
+        if (typeof msg.content === "string" && msg.content.length > 10_000) {
+            return NextResponse.json(
+                { error: "Message too long. Maximum 10,000 characters." },
+                { status: 400 }
+            )
+        }
+    }
+
+    // SECURITY: Truncate file context to 5,000 chars if present
+    if (body.fileExtracted) {
+        for (const [key, value] of Object.entries(body.fileExtracted)) {
+            if (typeof value === "string" && value.length > 5_000) {
+                (body.fileExtracted as Record<string, unknown>)[key] = value.slice(0, 5_000)
+            }
+        }
+    }
+
     try {
         const systemPrompt = buildSystemPrompt(body.currentProfile || {}, body.section)
 
@@ -284,7 +303,7 @@ export async function POST(request: NextRequest) {
         const { getSecret } = await import("@/lib/secrets")
         const apiKey = await getSecret("DEEPSEEK_API_KEY")
         if (!apiKey) {
-            return NextResponse.json({ error: "AI service not configured" }, { status: 500 })
+            return NextResponse.json({ error: "AI service temporarily unavailable. Please try again." }, { status: 503 })
         }
 
         const response = await fetch(DEEPSEEK_API_URL, {
@@ -305,7 +324,7 @@ export async function POST(request: NextRequest) {
         if (!response.ok) {
             const err = await response.json().catch(() => ({}))
             console.error("DeepSeek API error:", err)
-            return NextResponse.json({ error: "AI service error" }, { status: 502 })
+            return NextResponse.json({ error: "AI service temporarily unavailable. Please try again." }, { status: 502 })
         }
 
         const data = await response.json()
@@ -328,6 +347,6 @@ export async function POST(request: NextRequest) {
         })
     } catch (error: any) {
         console.error("Profile update AI error:", error?.message || error)
-        return NextResponse.json({ error: "Failed to process request" }, { status: 500 })
+        return NextResponse.json({ error: "AI service temporarily unavailable. Please try again." }, { status: 500 })
     }
 }

@@ -55,3 +55,38 @@ export async function getSecret(name: string): Promise<string> {
 
     return ""
 }
+
+/**
+ * Required secrets that must be present for the application to function.
+ * Validates at startup and fails fast with descriptive errors if any are missing.
+ */
+const REQUIRED_SECRETS = [
+    { name: "NEXT_PUBLIC_SUPABASE_URL", envKey: "NEXT_PUBLIC_SUPABASE_URL", description: "Supabase project URL" },
+    { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY", envKey: "NEXT_PUBLIC_SUPABASE_ANON_KEY", description: "Supabase anonymous key" },
+    { name: "CSRF_SECRET", envKey: "CSRF_SECRET", description: "CSRF token signing secret" },
+] as const
+
+/**
+ * Validates that all required secrets are present.
+ * Throws a descriptive error listing all missing secrets if any are absent.
+ * Call this at application startup for fail-fast behavior.
+ */
+export function validateRequiredSecrets(): void {
+    const missing: string[] = []
+
+    for (const secret of REQUIRED_SECRETS) {
+        const value = process.env[secret.envKey]
+            || (typeof globalThis !== "undefined" ? (globalThis as any)[secret.envKey] : undefined)
+
+        if (!value || (typeof value === "string" && value.trim().length === 0)) {
+            missing.push(`${secret.name} (${secret.description})`)
+        }
+    }
+
+    if (missing.length > 0) {
+        throw new Error(
+            `Missing required secrets: ${missing.join(", ")}. ` +
+            `Set these as environment variables, Cloudflare Worker bindings, or in .env file.`
+        )
+    }
+}

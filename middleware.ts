@@ -1,53 +1,26 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import {
+  RATE_LIMITS,
+  ipStore,
+  bruteForceStore,
+  getRouteCategory,
+  checkIPRateLimit,
+  checkBruteForce,
+  recordFailedLogin,
+  resetBruteForce,
+} from "@/lib/middleware-security"
 
 /**
- * Server-side middleware for Supabase auth + IP-based rate limiting.
+ * Server-side middleware for Supabase auth + IP-based rate limiting + brute force protection.
  *
  * 1. IP-based rate limiting (DDoS / brute-force protection)
- * 2. Refreshes the session on every navigation (keeps long-lived sessions alive)
- * 3. Redirects unauthenticated users away from protected routes
- * 4. Redirects authenticated users away from auth pages (login/signup)
- * 5. Edge-runtime compatible (works on Cloudflare Workers)
+ * 2. Brute force detection (5 consecutive failures → 15-min block)
+ * 3. Refreshes the session on every navigation (keeps long-lived sessions alive)
+ * 4. Redirects unauthenticated users away from protected routes
+ * 5. Redirects authenticated users away from auth pages (login/signup)
+ * 6. Edge-runtime compatible (works on Cloudflare Workers)
  */
-
-// ── IP-Based Rate Limiting (in-memory sliding window) ──────────────────
-// Edge-compatible, no DB needed. Resets on deploy/restart which is acceptable
-// since Cloudflare Workers have short lifetimes anyway.
-
-interface RateLimitEntry {
-  timestamps: number[]
-}
-
-// Separate stores for different route categories
-const ipStore = new Map<string, RateLimitEntry>()
-
-// Rate limit configs per route category
-const RATE_LIMITS = {
-  auth:    { maxRequests: 30,  windowMs: 60_000 },  // 30 req/min for auth (brute force)
-  api:     { maxRequests: 120, windowMs: 60_000 },  // 120 req/min for API routes
-  global:  { maxRequests: 300, windowMs: 60_000 },  // 300 req/min global fallback
-} as const
-
-type RateLimitCategory = keyof typeof RATE_LIMITS
-
-// Cleanup stale entries every 5 minutes to prevent memory leaks
-let lastCleanup = Date.now()
-const CLEANUP_INTERVAL = 5 * 60_000
-
-function cleanupStaleEntries() {
-  const now = Date.now()
-  if (now - lastCleanup < CLEANUP_INTERVAL) return
-  lastCleanup = now
-
-  const cutoff = now - 120_000 // Remove entries older than 2 minutes
-  for (const [key, entry] of ipStore.entries()) {
-    entry.timestamps = entry.timestamps.filter((t) => t > cutoff)
-    if (entry.timestamps.length === 0) {
-      ipStore.delete(key)
-    }
-  }
-}
 
 function getClientIP(request: NextRequest): string {
   // Cloudflare provides the real IP
@@ -61,43 +34,6 @@ function getClientIP(request: NextRequest): string {
   if (realIP) return realIP
 
   return "unknown"
-}
-
-function getRouteCategory(pathname: string): RateLimitCategory {
-  if (pathname.startsWith("/auth")) return "auth"
-  if (pathname.startsWith("/api")) return "api"
-  return "global"
-}
-
-function checkIPRateLimit(
-  ip: string,
-  category: RateLimitCategory
-): { allowed: boolean; retryAfter: number } {
-  cleanupStaleEntries()
-
-  const config = RATE_LIMITS[category]
-  const key = `${ip}:${category}`
-  const now = Date.now()
-  const windowStart = now - config.windowMs
-
-  let entry = ipStore.get(key)
-  if (!entry) {
-    entry = { timestamps: [] }
-    ipStore.set(key, entry)
-  }
-
-  // Remove timestamps outside the window
-  entry.timestamps = entry.timestamps.filter((t) => t > windowStart)
-
-  if (entry.timestamps.length >= config.maxRequests) {
-    // Calculate retry-after from oldest timestamp in window
-    const oldestInWindow = entry.timestamps[0]
-    const retryAfter = Math.ceil((oldestInWindow + config.windowMs - now) / 1000)
-    return { allowed: false, retryAfter: Math.max(1, retryAfter) }
-  }
-
-  entry.timestamps.push(now)
-  return { allowed: true, retryAfter: 0 }
 }
 
 // ── Public routes that don't require auth ──────────────────────────────
@@ -191,7 +127,7 @@ export async function middleware(request: NextRequest) {
   // ── IP-Based Rate Limiting ───────────────────────────────────────────
   const clientIP = getClientIP(request)
   const category = getRouteCategory(pathname)
-  const rateCheck = checkIPRateLimit(clientIP, category)
+  const rateCheck = checkIPRateLimit(clientIP, category, ipStore)
 
   if (!rateCheck.allowed) {
     return new NextResponse(
@@ -209,6 +145,28 @@ export async function middleware(request: NextRequest) {
         },
       }
     )
+  }
+
+  // ── Brute Force Detection (auth routes only) ────────────────────────
+  if (category === "auth") {
+    const bruteCheck = checkBruteForce(clientIP, bruteForceStore)
+    if (bruteCheck.blocked) {
+      // Fire-and-forget audit log for brute force block
+      logBruteForceBlock(clientIP, request).catch(() => {})
+      return new NextResponse(
+        JSON.stringify({
+          error: "Too many login attempts. Please try again later.",
+          retryAfter: bruteCheck.retryAfter,
+        }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": String(bruteCheck.retryAfter),
+          },
+        }
+      )
+    }
   }
 
   // ── Read auth token from cookies ─────────────────────────────────────
@@ -246,6 +204,20 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Route protection ─────────────────────────────────────────────────
+  // Track brute force on auth routes
+  if (category === "auth" && pathname.startsWith("/auth/login")) {
+    if (isAuthenticated) {
+      // Successful login — reset brute force counter
+      resetBruteForce(clientIP, bruteForceStore)
+    } else if (request.method === "POST") {
+      // Failed login attempt on POST — record failure
+      const nowBlocked = recordFailedLogin(clientIP, bruteForceStore)
+      if (nowBlocked) {
+        logBruteForceBlock(clientIP, request).catch(() => {})
+      }
+    }
+  }
+
   if (!isAuthenticated && !isPublicPath(pathname)) {
     const loginUrl = new URL("/auth/login", request.url)
     loginUrl.searchParams.set("redirectTo", pathname)
@@ -291,6 +263,40 @@ export async function middleware(request: NextRequest) {
   }
 
   return response
+}
+
+/** Audit log brute force block — fire-and-forget, non-blocking */
+async function logBruteForceBlock(ip: string, request: NextRequest): Promise<void> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseKey) return
+
+    const entry = bruteForceStore.get(ip)
+    await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        user_id: null,
+        action: "security.brute_force_block",
+        ip_address: ip,
+        user_agent: request.headers.get("user-agent") || "unknown",
+        metadata: {
+          failed_attempts: entry?.failedAttempts ?? 0,
+          block_duration_minutes: 15,
+          pathname: request.nextUrl.pathname,
+        },
+      }),
+    })
+  } catch {
+    // Non-blocking — audit log failure should never break the request
+    console.error("Failed to log brute force block for IP:", ip)
+  }
 }
 
 /** Extract user ID (sub) from a JWT access token */

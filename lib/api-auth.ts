@@ -14,8 +14,10 @@
 import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
+import { logAudit } from "./audit-log"
 import type { Database } from "./database.types"
 import type { SupabaseClient, User } from "@supabase/supabase-js"
+import type { NextRequest } from "next/server"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -32,6 +34,42 @@ interface AuthFailure {
 }
 
 type AuthResult = AuthSuccess | AuthFailure
+
+// ── Helper: Create Supabase client for audit logging ───────────────────
+
+function createAuditSupabaseClient(): SupabaseClient<Database> | null {
+    try {
+        return createClient<Database>(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+    } catch {
+        return null
+    }
+}
+
+/** Fire-and-forget audit log helper — never throws */
+function fireAndForgetAuditLog(
+    action: Parameters<typeof logAudit>[1]["action"],
+    metadata: Record<string, unknown>,
+    request?: Request
+): void {
+    try {
+        const auditSupabase = createAuditSupabaseClient()
+        if (!auditSupabase) return
+        logAudit(
+            auditSupabase,
+            {
+                user_id: "anonymous",
+                action,
+                metadata: metadata as any,
+            },
+            request as unknown as NextRequest
+        ).catch(() => {})
+    } catch {
+        // Never throw from audit logging
+    }
+}
 
 // ── Helper: Extract access token from cookies ──────────────────────────
 
@@ -100,6 +138,14 @@ export async function authenticateRequest(request?: Request): Promise<AuthResult
         } = await supabase.auth.getUser()
 
         if (error || !user) {
+            // Fire-and-forget audit log for auth failure
+            if (request) {
+                fireAndForgetAuditLog(
+                    "security.auth_failure",
+                    { reason: error?.message || "no_user", path: new URL(request.url).pathname },
+                    request
+                )
+            }
             return {
                 user: null,
                 supabase: null,
@@ -162,6 +208,8 @@ export function sanitizeError(error: unknown): string {
             "Invalid currency code",
             "CSRF token",
             "Monthly AI usage limit exceeded",
+            "AI service temporarily unavailable. Please try again.",
+            "Operation failed. Please try again.",
         ]
         for (const safe of safeMessages) {
             if (error.message.includes(safe)) return error.message
@@ -172,11 +220,18 @@ export function sanitizeError(error: unknown): string {
 
 /**
  * Get client IP address from request
+ * Checks cf-connecting-ip first (Cloudflare Workers), then x-forwarded-for, then x-real-ip
  */
 export function getClientIP(request: Request): string {
     const headers = request.headers
     
-    // Check common proxy headers
+    // Cloudflare Workers: most reliable source
+    const cfConnectingIP = headers.get("cf-connecting-ip")
+    if (cfConnectingIP) {
+        return cfConnectingIP
+    }
+    
+    // Standard proxy header
     const forwarded = headers.get("x-forwarded-for")
     if (forwarded) {
         return forwarded.split(",")[0].trim()
@@ -187,44 +242,75 @@ export function getClientIP(request: Request): string {
         return realIP
     }
     
-    const cfConnectingIP = headers.get("cf-connecting-ip") // Cloudflare
-    if (cfConnectingIP) {
-        return cfConnectingIP
-    }
-    
     return "unknown"
 }
 
 /**
- * Validate request origin against allowed origins
+ * Validate request origin against allowed origins.
+ * - For GET/HEAD/OPTIONS: missing Origin+Referer is allowed (same-origin browser behavior)
+ * - For POST/PUT/DELETE: missing both Origin and Referer is suspicious → reject with 403
+ * - Localhost origins are only allowed when NODE_ENV !== 'production'
  */
 export function validateOrigin(request: Request): NextResponse | null {
     const origin = request.headers.get("origin")
     const referer = request.headers.get("referer")
+    const method = request.method.toUpperCase()
     
-    // Allow same-origin requests (no origin header)
+    const stateChangingMethods = ["POST", "PUT", "DELETE", "PATCH"]
+    const isStateChanging = stateChangingMethods.includes(method)
+    
+    // For state-changing requests, reject when both Origin and Referer are absent
     if (!origin && !referer) {
+        if (isStateChanging) {
+            // Fire-and-forget audit log for origin failure
+            fireAndForgetAuditLog(
+                "security.origin_failure",
+                { reason: "missing_origin_and_referer", method, path: new URL(request.url).pathname },
+                request
+            )
+            return NextResponse.json(
+                { error: "Invalid origin" },
+                { status: 403 }
+            )
+        }
+        // Allow same-origin GET/HEAD/OPTIONS (browsers may omit Origin)
         return null
     }
     
-    const allowedOrigins = [
+    const allowedOrigins: string[] = [
         process.env.NEXT_PUBLIC_APP_URL,
         process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
         "https://clorefy.com",
-        "http://localhost:3000",
-        "http://localhost:3001",
+        // Only include localhost origins in non-production environments
+        ...(process.env.NODE_ENV !== "production"
+            ? ["http://localhost:3000", "http://localhost:3001"]
+            : []),
     ].filter(Boolean) as string[]
     
-    // Check origin
-    if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+    // Check origin (Origin header is always scheme+host+port, no path)
+    if (origin && !allowedOrigins.some(allowed => origin === allowed)) {
+        // Fire-and-forget audit log for origin failure
+        fireAndForgetAuditLog(
+            "security.origin_failure",
+            { reason: "disallowed_origin", origin, method, path: new URL(request.url).pathname },
+            request
+        )
         return NextResponse.json(
             { error: "Invalid origin" },
             { status: 403 }
         )
     }
     
-    // Check referer as fallback
-    if (!origin && referer && !allowedOrigins.some(allowed => referer.startsWith(allowed))) {
+    // Check referer as fallback (Referer includes path, so check prefix + boundary)
+    if (!origin && referer && !allowedOrigins.some(allowed =>
+        referer === allowed || referer.startsWith(allowed + "/")
+    )) {
+        // Fire-and-forget audit log for referer failure
+        fireAndForgetAuditLog(
+            "security.origin_failure",
+            { reason: "disallowed_referer", referer, method, path: new URL(request.url).pathname },
+            request
+        )
         return NextResponse.json(
             { error: "Invalid referer" },
             { status: 403 }

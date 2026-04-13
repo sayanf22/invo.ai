@@ -15,14 +15,16 @@ export function sanitizeHTML(input: string): string {
 }
 
 /**
- * Sanitize plain text - removes control characters and normalizes whitespace
+ * Sanitize plain text - strips HTML tags, removes control characters (U+0000–U+001F)
+ * except tab (U+0009), newline (U+000A), and carriage return (U+000D), and normalizes whitespace.
  */
 export function sanitizeText(input: string): string {
     if (!input || typeof input !== "string") return ""
     
     return input
-        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // Remove control chars
-        .replace(/\s+/g, " ") // Normalize whitespace
+        .replace(/<[^>]*>/g, "")                              // Strip HTML tags
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")   // Remove control chars except \t \n \r
+        .replace(/[^\S\t\n\r]+/g, " ")                        // Normalize non-tab/newline/CR whitespace to single space
         .trim()
 }
 
@@ -41,7 +43,7 @@ export function sanitizeEmail(input: string): string {
     }
     
     // Check for suspicious patterns
-    if (sanitized.includes("..") || sanitized.includes("@.")) {
+    if (sanitized.includes("..") || sanitized.includes("@.") || sanitized.startsWith(".")) {
         throw new Error("Invalid email format")
     }
     
@@ -185,13 +187,18 @@ export function sanitizeFileName(input: string): string {
         throw new Error("File name required")
     }
     
-    // Remove path traversal attempts
-    let sanitized = input.replace(/\.\./g, "")
+    // Remove null bytes explicitly
+    let sanitized = input.replace(/\0/g, "")
     
-    // Remove path separators
+    // Remove path separators first
     sanitized = sanitized.replace(/[/\\]/g, "")
     
-    // Remove dangerous characters
+    // Remove path traversal attempts (loop to handle cases where separator removal creates new ..)
+    while (sanitized.includes("..")) {
+        sanitized = sanitized.replace(/\.\./g, "")
+    }
+    
+    // Remove dangerous characters (control chars, special FS chars)
     sanitized = sanitized.replace(/[<>:"|?*\x00-\x1F]/g, "")
     
     // Limit length

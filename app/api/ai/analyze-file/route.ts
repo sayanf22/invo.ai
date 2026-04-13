@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { getSecret } from "@/lib/secrets"
+import { sanitizeText } from "@/lib/sanitize"
 
 /**
  * POST /api/ai/analyze-file
@@ -107,6 +108,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "No file provided" }, { status: 400 })
         }
 
+        // SECURITY: Validate prompt length (max 10,000 chars)
+        if (userMessage && userMessage.length > 10_000) {
+            return NextResponse.json({ error: "Message too long. Maximum 10,000 characters." }, { status: 400 })
+        }
+
+        // SECURITY: Sanitize user-provided text inputs
+        const sanitizedUserMessage = userMessage ? sanitizeText(userMessage) : null
+
+        // SECURITY: Truncate file context (businessContext) to 5,000 chars
+        const truncatedBusinessContext = businessContext
+            ? sanitizeText(businessContext).slice(0, 5_000)
+            : null
+
         // Validate file size (max 10MB)
         if (file.size > 10 * 1024 * 1024) {
             return NextResponse.json({ error: "File too large. Maximum 10MB." }, { status: 400 })
@@ -147,15 +161,15 @@ export async function POST(request: Request) {
             // GENERATION MODE: GPT reads the file and generates a complete document JSON
             const docType = documentType || "invoice"
             let businessInfo = ""
-            if (businessContext) {
-                try { businessInfo = `\n\nSENDER BUSINESS PROFILE (use as "Bill From"):\n${businessContext}` } catch {}
+            if (truncatedBusinessContext) {
+                try { businessInfo = `\n\nSENDER BUSINESS PROFILE (use as "Bill From"):\n${truncatedBusinessContext}` } catch {}
             }
 
             activePrompt = `You are a professional document generator. Analyze the attached document and generate a complete ${docType}.
 
 The attached document contains CLIENT/RECIPIENT information. Extract their details and use them as the "Bill To" / recipient.${businessInfo}
 
-${userMessage ? `User's instruction: "${userMessage}"` : `Generate a ${docType} based on the information in the attached document.`}
+${sanitizedUserMessage ? `User's instruction: "${sanitizedUserMessage}"` : `Generate a ${docType} based on the information in the attached document.`}
 
 Return ONLY valid JSON in this exact format:
 {
@@ -192,8 +206,8 @@ RULES:
 - Return ONLY valid JSON, no markdown`
         } else {
             // EXTRACTION MODE (default): just extract business info
-            activePrompt = userMessage
-                ? `${EXTRACTION_PROMPT}\n\nAdditional context from the user: "${userMessage}"`
+            activePrompt = sanitizedUserMessage
+                ? `${EXTRACTION_PROMPT}\n\nAdditional context from the user: "${sanitizedUserMessage}"`
                 : EXTRACTION_PROMPT
         }
 
@@ -239,8 +253,7 @@ RULES:
             if (response.status === 429) {
                 return NextResponse.json({ error: "AI service is busy. Please wait a moment and try again." }, { status: 429 })
             }
-            const msg = err.error?.message || "Failed to analyze file"
-            return NextResponse.json({ error: msg }, { status: 500 })
+            return NextResponse.json({ error: "AI service temporarily unavailable. Please try again." }, { status: 500 })
         }
 
         const data = await response.json()
@@ -289,6 +302,6 @@ RULES:
         })
     } catch (error: any) {
         console.error("File analysis error:", error?.message || error)
-        return NextResponse.json({ error: error?.message || "Failed to process file" }, { status: 500 })
+        return NextResponse.json({ error: "Operation failed. Please try again." }, { status: 500 })
     }
 }

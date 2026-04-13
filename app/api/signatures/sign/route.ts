@@ -77,6 +77,34 @@ export async function POST(request: NextRequest) {
             )
         }
 
+        // Validate decoded signature image size (≤ 500KB)
+        const MAX_DECODED_IMAGE_SIZE = 500 * 1024 // 500KB
+        try {
+            const commaIndex = signatureDataUrl.indexOf(",")
+            if (commaIndex === -1) {
+                return NextResponse.json(
+                    { error: "Invalid signature data URL format" },
+                    { status: 400 }
+                )
+            }
+            const base64Part = signatureDataUrl.substring(commaIndex + 1)
+            // Calculate decoded size: base64 encodes 3 bytes into 4 chars
+            // Account for padding characters
+            const padding = (base64Part.match(/=+$/) || [""])[0].length
+            const decodedSize = Math.floor((base64Part.length * 3) / 4) - padding
+            if (decodedSize > MAX_DECODED_IMAGE_SIZE) {
+                return NextResponse.json(
+                    { error: "Signature image too large. Maximum 500KB allowed." },
+                    { status: 400 }
+                )
+            }
+        } catch {
+            return NextResponse.json(
+                { error: "Invalid signature data URL encoding" },
+                { status: 400 }
+            )
+        }
+
         // Create server-side Supabase client
         const supabase = await createServerSupabaseClient()
 

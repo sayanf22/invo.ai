@@ -32,6 +32,14 @@ export async function POST(request: NextRequest) {
             )
         }
 
+        // SECURITY: Validate prompt length (max 10,000 chars)
+        if (body.prompt.length > 10_000) {
+            return NextResponse.json(
+                { error: "Prompt too long. Maximum 10,000 characters." },
+                { status: 400 }
+            )
+        }
+
         // SECURITY: Sanitize prompt input
         const sanitizedPrompt = sanitizeText(body.prompt)
 

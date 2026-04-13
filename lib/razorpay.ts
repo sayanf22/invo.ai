@@ -46,6 +46,17 @@ export const PLANS = {
 
 export type PlanId = keyof typeof PLANS
 
+/** Known valid plan IDs for validation */
+export const VALID_PLAN_IDS: readonly string[] = ["free", "starter", "pro", "agency"] as const
+
+/**
+ * Validate that a plan ID is one of the known plans.
+ * Returns true only for: free, starter, pro, agency
+ */
+export function isValidPlanId(plan: unknown): plan is PlanId {
+    return typeof plan === "string" && VALID_PLAN_IDS.includes(plan)
+}
+
 /**
  * Create a Razorpay order for a subscription payment.
  * This is called server-side only — the client never sets the amount.

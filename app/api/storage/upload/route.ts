@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { checkRateLimit } from "@/lib/rate-limiter"
 import { generatePresignedPutUrl } from "@/lib/r2"
+import { sanitizeFileName } from "@/lib/sanitize"
 
 // ── Validation constants ───────────────────────────────────────────────
 
@@ -104,8 +105,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 8. Generate object key: {category}/{userId}/{uuid}.{ext}
-    const ext = extractExtension(fileName, contentType)
+    // 8. Sanitize file name and generate object key: {category}/{userId}/{uuid}.{ext}
+    const safeName = sanitizeFileName(fileName)
+    const ext = extractExtension(safeName, contentType)
     const objectKey = `${category}/${auth.user.id}/${crypto.randomUUID()}.${ext}`
 
     // 9. Generate presigned PUT URL with content type restriction

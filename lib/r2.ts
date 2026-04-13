@@ -40,14 +40,16 @@ export async function generatePresignedPutUrl(
     ContentType: contentType,
     ...(maxSizeBytes ? { ContentLength: maxSizeBytes } : {}),
   })
-  return getSignedUrl(client, command, { expiresIn: 300 }) // 5 minutes
+  // Security: PUT URL expires in 5 minutes (≤ 15 min max per Requirement 6.5 — compliant)
+  return getSignedUrl(client, command, { expiresIn: 300 })
 }
 
 export async function generatePresignedGetUrl(objectKey: string): Promise<string> {
   const client = await getR2Client()
   const bucket = await getBucketName()
   const command = new GetObjectCommand({ Bucket: bucket, Key: objectKey })
-  return getSignedUrl(client, command, { expiresIn: 3600 }) // 1 hour
+  // Security: GET URL expires in 1 hour (≤ 1 hour max per Requirement 6.6 — compliant)
+  return getSignedUrl(client, command, { expiresIn: 3600 })
 }
 
 export async function deleteObject(objectKey: string): Promise<void> {

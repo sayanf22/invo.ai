@@ -58,6 +58,6 @@ export async function POST(request: Request) {
         })
     } catch (error: any) {
         console.error("Create order error:", error)
-        return NextResponse.json({ error: error.message || "Failed to create order" }, { status: 500 })
+        return NextResponse.json({ error: "Operation failed. Please try again." }, { status: 500 })
     }
 }

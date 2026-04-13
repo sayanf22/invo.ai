@@ -25,6 +25,14 @@ export type AuditAction =
     | "compliance.query"
     | "ai.generate"
     | "ai.onboarding"
+    | "payment.verify"
+    | "payment.webhook"
+    | "security.csrf_failure"
+    | "security.rate_limit"
+    | "security.auth_failure"
+    | "security.origin_failure"
+    | "security.payment_failure"
+    | "security.brute_force_block"
 
 export type ResourceType =
     | "document"
@@ -45,9 +53,16 @@ interface AuditLogEntry {
 
 /**
  * Extract IP address from request
+ * Checks cf-connecting-ip first (Cloudflare Workers), then x-forwarded-for, then x-real-ip
  */
-function getIPAddress(request: NextRequest): string {
-    // Check common proxy headers
+export function getIPAddress(request: NextRequest): string {
+    // Cloudflare Workers: most reliable source
+    const cfConnectingIP = request.headers.get("cf-connecting-ip")
+    if (cfConnectingIP) {
+        return cfConnectingIP
+    }
+
+    // Standard proxy header
     const forwarded = request.headers.get("x-forwarded-for")
     if (forwarded) {
         return forwarded.split(",")[0].trim()
@@ -58,7 +73,7 @@ function getIPAddress(request: NextRequest): string {
         return realIP
     }
 
-    // Fallback to connection IP (may not be available in serverless)
+    // Fallback (may not be available in serverless)
     return "unknown"
 }
 

@@ -10,7 +10,8 @@ import { createClient } from "@supabase/supabase-js"
  * - Verifies webhook signature using HMAC-SHA256
  * - Uses service role client (webhooks don't have user context)
  * - No authentication required (Razorpay calls this directly)
- * - Idempotent — safe to receive duplicate events
+ * - Idempotent — checks for existing payment_history record before inserting
+ * - Rate limited at 30/min per IP via middleware
  */
 export async function POST(request: Request) {
     try {
@@ -45,18 +46,26 @@ export async function POST(request: Request) {
                 const payment = event.payload.payment.entity
                 console.log("Payment failed:", payment.id, payment.error_description)
                 
-                // Log failed payment
+                // Log failed payment with idempotency check
                 if (payment.notes?.plan) {
-                    await supabase.from("payment_history" as any).insert({
-                        user_id: payment.notes.user_id || null,
-                        razorpay_payment_id: payment.id,
-                        razorpay_order_id: payment.order_id,
-                        amount: payment.amount,
-                        currency: payment.currency,
-                        status: "failed",
-                        plan: payment.notes.plan,
-                        metadata: { error: payment.error_description },
-                    })
+                    const existing = await supabase
+                        .from("payment_history" as any)
+                        .select("id")
+                        .eq("razorpay_payment_id", payment.id)
+                        .maybeSingle()
+
+                    if (!existing.data) {
+                        await supabase.from("payment_history" as any).insert({
+                            user_id: payment.notes.user_id || null,
+                            razorpay_payment_id: payment.id,
+                            razorpay_order_id: payment.order_id,
+                            amount: payment.amount,
+                            currency: payment.currency,
+                            status: "failed",
+                            plan: payment.notes.plan,
+                            metadata: { error: payment.error_description },
+                        })
+                    }
                 }
                 break
             }
