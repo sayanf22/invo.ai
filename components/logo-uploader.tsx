@@ -67,23 +67,8 @@ export function LogoUploader({
       return
     }
 
-    let cancelled = false
-
-    async function fetchLogoUrl() {
-      try {
-        const res = await fetch(`/api/storage/url?key=${encodeURIComponent(currentLogoKey!)}`)
-        if (!res.ok) return
-        const data = await res.json()
-        if (!cancelled && data.url) {
-          setCurrentDisplayUrl(data.url)
-        }
-      } catch {
-        // Silently fail — logo just won't display
-      }
-    }
-
-    fetchLogoUrl()
-    return () => { cancelled = true }
+    // The download API now streams the file directly
+    setCurrentDisplayUrl(`/api/storage/url?key=${encodeURIComponent(currentLogoKey)}`)
   }, [currentLogoKey])
 
   // ── Cleanup preview URL on unmount ───────────────────────────────────
@@ -120,37 +105,22 @@ export function LogoUploader({
     setState("uploading")
 
     try {
-      // Step 1: Get presigned PUT URL
+      const formData = new FormData()
+      formData.append("file", selectedFile)
+      formData.append("category", "logos")
+
       const uploadRes = await fetch("/api/storage/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size,
-          contentType: selectedFile.type,
-          category: "logos",
-        }),
+        body: formData,
       })
 
       if (!uploadRes.ok) {
         const err = await uploadRes.json().catch(() => ({}))
-        throw new Error(err.error || "Failed to get upload URL.")
+        throw new Error(err.error || "Upload failed.")
       }
 
-      const { uploadUrl, objectKey } = await uploadRes.json()
+      const { objectKey } = await uploadRes.json()
 
-      // Step 2: PUT file directly to R2
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: selectedFile,
-        headers: { "Content-Type": selectedFile.type },
-      })
-
-      if (!putRes.ok) {
-        throw new Error("Upload to storage failed.")
-      }
-
-      // Step 3: Notify parent
       setState("complete")
       setCurrentDisplayUrl(previewUrl)
       setSelectedFile(null)

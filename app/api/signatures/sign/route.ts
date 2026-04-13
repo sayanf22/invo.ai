@@ -17,7 +17,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerSupabaseClient } from "@/lib/supabase-server"
 import { getClientIP, sanitizeError } from "@/lib/api-auth"
-import { generatePresignedPutUrl } from "@/lib/r2"
+import { putObject } from "@/lib/r2"
 
 // Max request body size: 500KB (base64 signature image)
 const MAX_BODY_SIZE = 500 * 1024
@@ -122,20 +122,8 @@ export async function POST(request: NextRequest) {
                 }
 
                 const objectKey = `signatures/${signature.id}_${Date.now()}.png`
-                const presignedUrl = await generatePresignedPutUrl(objectKey, "image/png")
-
-                const uploadResponse = await fetch(presignedUrl, {
-                    method: "PUT",
-                    body: bytes,
-                    headers: { "Content-Type": "image/png" },
-                })
-
-                if (uploadResponse.ok) {
-                    signatureUrl = objectKey
-                } else {
-                    console.error("R2 signature upload failed:", uploadResponse.status, uploadResponse.statusText)
-                    // Continue with data URL fallback
-                }
+                await putObject(objectKey, bytes, "image/png")
+                signatureUrl = objectKey
             }
         } catch (uploadErr) {
             console.error("Signature upload failed:", uploadErr)
