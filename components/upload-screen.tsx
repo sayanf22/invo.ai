@@ -56,7 +56,7 @@ export function validateFile(file: { type: string; size: number }): { valid: boo
 export function generateStoragePath(userId: string, fileName: string): string {
     const ext = fileName.split(".").pop()?.toLowerCase() || "bin"
     const uuid = crypto.randomUUID()
-    return `onboarding-uploads/${userId}/${uuid}.${ext}`
+    return `documents/${userId}/${uuid}.${ext}`
 }
 
 export function mergeExtractedData(
@@ -149,19 +149,42 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
     const processFile = useCallback(async (uploadedFile: UploadedFile) => {
         if (!user) return
 
-        // Step 1: Upload to Supabase Storage
+        // Step 1: Upload to R2 via presigned URL
         setFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, status: "uploading" as const } : f))
 
         try {
-            const { createClient } = await import("@/lib/supabase")
-            const supabase = createClient()
-            const storagePath = generateStoragePath(user.id, uploadedFile.file.name)
+            // Get presigned PUT URL from Upload API
+            const uploadRes = await fetch("/api/storage/upload", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    fileName: uploadedFile.file.name,
+                    fileSize: uploadedFile.file.size,
+                    contentType: uploadedFile.file.type,
+                    category: "documents",
+                }),
+            })
 
-            const { error: uploadError } = await supabase.storage
-                .from("onboarding-uploads")
-                .upload(storagePath, uploadedFile.file)
+            if (!uploadRes.ok) {
+                const err = await uploadRes.json().catch(() => ({}))
+                setFiles(prev => prev.map(f =>
+                    f.id === uploadedFile.id
+                        ? { ...f, status: "failed" as const, error: err.error || "Upload failed. Tap to retry." }
+                        : f
+                ))
+                return
+            }
 
-            if (uploadError) {
+            const { uploadUrl, objectKey } = await uploadRes.json()
+
+            // PUT file directly to R2
+            const putRes = await fetch(uploadUrl, {
+                method: "PUT",
+                body: uploadedFile.file,
+                headers: { "Content-Type": uploadedFile.file.type },
+            })
+
+            if (!putRes.ok) {
                 setFiles(prev => prev.map(f =>
                     f.id === uploadedFile.id
                         ? { ...f, status: "failed" as const, error: "Upload failed. Tap to retry." }
@@ -172,20 +195,16 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
 
             setFiles(prev => prev.map(f =>
                 f.id === uploadedFile.id
-                    ? { ...f, status: "analyzing" as const, storagePath }
+                    ? { ...f, status: "analyzing" as const, storagePath: objectKey }
                     : f
             ))
 
-            // Step 2: Analyze via /api/ai/analyze-file
-            const { data: { session } } = await supabase.auth.getSession()
-            const accessToken = session?.access_token || ""
-
+            // Step 2: Analyze via /api/ai/analyze-file (unchanged)
             const formData = new FormData()
             formData.append("file", uploadedFile.file)
 
             let res = await fetch("/api/ai/analyze-file", {
                 method: "POST",
-                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
                 body: formData,
             })
 
@@ -194,7 +213,6 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                 await new Promise(resolve => setTimeout(resolve, 5000))
                 res = await fetch("/api/ai/analyze-file", {
                     method: "POST",
-                    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
                     body: formData,
                 })
                 if (!res.ok) {
@@ -229,7 +247,7 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
             ))
 
             toast.success(`${fieldsFound} field${fieldsFound !== 1 ? "s" : ""} extracted!`, { duration: 2000 })
-        } catch (err: any) {
+        } catch (err: unknown) {
             setFiles(prev => prev.map(f =>
                 f.id === uploadedFile.id
                     ? { ...f, status: "failed" as const, error: "Connection issue. Check your internet and try again." }

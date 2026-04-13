@@ -5,8 +5,8 @@
  * 
  * Handles the entire signing flow server-side:
  * 1. Validates signing token and checks expiry
- * 2. Uploads signature image to Supabase Storage
- * 3. Updates signature record with image URL, timestamp, IP, user-agent
+ * 2. Uploads signature image to Cloudflare R2 (falls back to base64 data URL)
+ * 3. Updates signature record with image key/URL, timestamp, IP, user-agent
  * 4. Checks if all signatures for the document are complete
  * 5. Updates document status if fully signed
  * 
@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerSupabaseClient } from "@/lib/supabase-server"
 import { getClientIP, sanitizeError } from "@/lib/api-auth"
+import { generatePresignedPutUrl } from "@/lib/r2"
 
 // Max request body size: 500KB (base64 signature image)
 const MAX_BODY_SIZE = 500 * 1024
@@ -109,28 +110,30 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // 4. Upload signature image to Supabase Storage
+        // 4. Upload signature image to R2
         let signatureUrl = signatureDataUrl // fallback to data URL
         try {
             const base64Data = signatureDataUrl.split(",")[1]
             if (base64Data) {
-                const buffer = Buffer.from(base64Data, "base64")
-                const fileName = `signatures/${signature.id}_${Date.now()}.png`
+                const binaryStr = atob(base64Data)
+                const bytes = new Uint8Array(binaryStr.length)
+                for (let i = 0; i < binaryStr.length; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i)
+                }
 
-                const { error: uploadError } = await supabase.storage
-                    .from("business-assets")
-                    .upload(fileName, buffer, {
-                        contentType: "image/png",
-                        upsert: false,
-                    })
+                const objectKey = `signatures/${signature.id}_${Date.now()}.png`
+                const presignedUrl = await generatePresignedPutUrl(objectKey, "image/png")
 
-                if (!uploadError) {
-                    const { data: urlData } = supabase.storage
-                        .from("business-assets")
-                        .getPublicUrl(fileName)
-                    signatureUrl = urlData.publicUrl
+                const uploadResponse = await fetch(presignedUrl, {
+                    method: "PUT",
+                    body: bytes,
+                    headers: { "Content-Type": "image/png" },
+                })
+
+                if (uploadResponse.ok) {
+                    signatureUrl = objectKey
                 } else {
-                    console.error("Signature upload error:", uploadError)
+                    console.error("R2 signature upload failed:", uploadResponse.status, uploadResponse.statusText)
                     // Continue with data URL fallback
                 }
             }

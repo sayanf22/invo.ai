@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useEffect, useCallback } from "react"
 import {
   FileText,
   ScrollText,
@@ -15,8 +15,9 @@ import {
   Trash2,
   ImageIcon,
   X,
+  Loader2,
 } from "lucide-react"
-import Image from "next/image"
+import { toast } from "sonner"
 import type { InvoiceData, LineItem } from "@/lib/invoice-types"
 import {
   CURRENCIES,
@@ -33,6 +34,17 @@ const documentTypes = [
   { label: "Quotation", icon: ClipboardList, description: "Price quotes & estimates" },
   { label: "Proposal", icon: Lightbulb, description: "Business proposals" },
 ]
+
+// ── Logo upload constants ──────────────────────────────────────────────
+
+const ALLOWED_LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const
+const MAX_LOGO_SIZE_MB = 5
+const MAX_LOGO_SIZE_BYTES = MAX_LOGO_SIZE_MB * 1024 * 1024
+
+/** Returns true if the value looks like an R2 object key (not a data URL or http URL) */
+function isR2ObjectKey(value: string): boolean {
+  return value.length > 0 && !value.startsWith("data:") && !value.startsWith("http")
+}
 
 interface EditorPanelProps {
   data: InvoiceData
@@ -179,6 +191,8 @@ function SelectField({
 export function EditorPanel({ data, onChange }: EditorPanelProps) {
   const [openStep, setOpenStep] = useState(1)
   const logoInputRef = useRef<HTMLInputElement>(null)
+  const [logoDisplayUrl, setLogoDisplayUrl] = useState<string | null>(null)
+  const [isLogoUploading, setIsLogoUploading] = useState(false)
 
   const isInvoice = data.documentType === "Invoice"
   const isContract = data.documentType === "Contract"
@@ -227,16 +241,87 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
     })
   }
 
-  /* ── Logo upload ── */
-  function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  /* ── Resolve logo display URL from R2 object key ── */
+  useEffect(() => {
+    if (!data.fromLogo) {
+      setLogoDisplayUrl(null)
+      return
+    }
+    // If it's a data URL or http URL, use it directly
+    if (!isR2ObjectKey(data.fromLogo)) {
+      setLogoDisplayUrl(data.fromLogo)
+      return
+    }
+    // It's an R2 object key — fetch a presigned GET URL
+    let cancelled = false
+    async function fetchUrl() {
+      try {
+        const res = await fetch(`/api/storage/url?key=${encodeURIComponent(data.fromLogo)}`)
+        if (!res.ok) return
+        const json = await res.json()
+        if (!cancelled && json.url) setLogoDisplayUrl(json.url)
+      } catch {
+        // Silently fail — logo just won't display
+      }
+    }
+    fetchUrl()
+    return () => { cancelled = true }
+  }, [data.fromLogo])
+
+  /* ── Logo upload via R2 ── */
+  const handleLogoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      onChange({ fromLogo: ev.target?.result as string })
+    // Reset input so the same file can be re-selected
+    e.target.value = ""
+
+    // Validate file type
+    if (!(ALLOWED_LOGO_TYPES as readonly string[]).includes(file.type)) {
+      toast.error("Invalid file type. Please upload PNG, JPEG, WebP, or GIF.")
+      return
     }
-    reader.readAsDataURL(file)
-  }
+    // Validate file size
+    if (file.size > MAX_LOGO_SIZE_BYTES) {
+      toast.error(`File too large. Maximum size is ${MAX_LOGO_SIZE_MB}MB.`)
+      return
+    }
+
+    setIsLogoUploading(true)
+    try {
+      // Step 1: Get presigned PUT URL from upload API
+      const uploadRes = await fetch("/api/storage/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileSize: file.size,
+          contentType: file.type,
+          category: "logos",
+        }),
+      })
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to get upload URL.")
+      }
+      const { uploadUrl, objectKey } = await uploadRes.json()
+
+      // Step 2: PUT file directly to R2
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      })
+      if (!putRes.ok) throw new Error("Upload to storage failed.")
+
+      // Step 3: Update fromLogo with the R2 object key
+      onChange({ fromLogo: objectKey })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Logo upload failed. Please try again."
+      toast.error(message)
+    } finally {
+      setIsLogoUploading(false)
+    }
+  }, [onChange])
 
   const currencyObj =
     CURRENCIES.find((c) => c.code === data.currency) ?? CURRENCIES[0]
@@ -332,13 +417,20 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
               </label>
               {data.fromLogo ? (
                 <div className="flex items-center gap-3 p-2 rounded-xl border border-border bg-background">
-                  <Image
-                    src={data.fromLogo || "/placeholder.svg"}
-                    alt="Business logo"
-                    width={40}
-                    height={40}
-                    className="w-10 h-10 rounded-lg object-contain bg-secondary"
-                  />
+                  {logoDisplayUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={logoDisplayUrl}
+                      alt="Business logo"
+                      width={40}
+                      height={40}
+                      className="w-10 h-10 rounded-lg object-contain bg-secondary"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
                   <span className="text-xs text-muted-foreground flex-1 truncate">
                     Logo uploaded
                   </span>
@@ -350,6 +442,11 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
+                </div>
+              ) : isLogoUploading ? (
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Uploading logo…</span>
                 </div>
               ) : (
                 <button
@@ -364,7 +461,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
               <input
                 ref={logoInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/webp,image/gif"
                 onChange={handleLogoUpload}
                 className="hidden"
                 aria-label="Upload business logo"

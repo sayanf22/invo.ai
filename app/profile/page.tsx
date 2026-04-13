@@ -18,6 +18,7 @@ import { getTaxIdFieldName } from "@/lib/countries"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ProfileUpdateChat } from "@/components/profile-update-chat"
+import { LogoUploader } from "@/components/logo-uploader"
 import { authFetch } from "@/lib/auth-fetch"
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ interface BusinessProfile {
     default_payment_instructions: string
     additional_notes: string
     payment_methods: Record<string, unknown>
+    logo_url: string | null
     created_at: string
     updated_at: string
 }
@@ -388,6 +390,53 @@ export default function ProfilePage() {
         setEditData(prev => ({ ...prev, ...fields }))
     }, [])
 
+    // ── Logo upload handlers ───────────────────────────────────────────
+
+    const handleLogoUploadComplete = useCallback(async (objectKey: string) => {
+        if (!user || !profile) return
+        try {
+            // Delete old logo from R2 if one exists
+            const oldLogoKey = profile.logo_url
+            if (oldLogoKey) {
+                try {
+                    await fetch(`/api/storage/url?key=${encodeURIComponent(oldLogoKey)}`, { method: "DELETE" })
+                } catch {
+                    // Non-blocking — old file may be orphaned
+                }
+            }
+            // Update DB with new logo key
+            const { createClient } = await import("@/lib/supabase")
+            const sb = createClient()
+            const { error } = await sb.from("businesses").update({ logo_url: objectKey }).eq("user_id", user.id)
+            if (error) throw error
+            toast.success("Logo updated!")
+            await loadProfile()
+        } catch {
+            toast.error("Failed to save logo. Please try again.")
+        }
+    }, [user, profile, loadProfile])
+
+    const handleLogoRemove = useCallback(async () => {
+        if (!user || !profile?.logo_url) return
+        try {
+            // Delete from R2
+            try {
+                await fetch(`/api/storage/url?key=${encodeURIComponent(profile.logo_url)}`, { method: "DELETE" })
+            } catch {
+                // Non-blocking
+            }
+            // Clear DB
+            const { createClient } = await import("@/lib/supabase")
+            const sb = createClient()
+            const { error } = await sb.from("businesses").update({ logo_url: null }).eq("user_id", user.id)
+            if (error) throw error
+            toast.success("Logo removed.")
+            await loadProfile()
+        } catch {
+            toast.error("Failed to remove logo.")
+        }
+    }, [user, profile, loadProfile])
+
     if (authLoading || isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
     if (!profile) return null
 
@@ -446,6 +495,14 @@ export default function ProfilePage() {
                                     </Select>
                                 </div>
                             ) : <EditableField label="Country" value={COUNTRY_FLAGS[profile.country] || profile.country} field="country" editing={false} editData={editData} onChange={handleChange} />}
+                        </div>
+                        <div className="mt-6 pt-6 border-t border-border">
+                            <label className="text-[13px] font-medium text-muted-foreground mb-2 block">Business Logo</label>
+                            <LogoUploader
+                                currentLogoKey={profile.logo_url}
+                                onUploadComplete={handleLogoUploadComplete}
+                                onRemove={handleLogoRemove}
+                            />
                         </div>
                         {isEditing("business") && userTier !== "free" && <SectionChatBar section="business" sectionTitle="business info" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
                     </Card>

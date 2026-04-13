@@ -6,14 +6,16 @@ import { useAuth } from "@/components/auth-provider"
 import { InvoLogo } from "@/components/invo-logo"
 import { OnboardingChat, type CollectedData } from "@/components/onboarding-chat"
 import { UploadScreen } from "@/components/upload-screen"
+import { LogoUploader } from "@/components/logo-uploader"
 import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
+import { Loader2, ImageIcon, ArrowRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { getTaxIdFieldName } from "@/lib/countries"
 
 export default function OnboardingPage() {
     const router = useRouter()
     const { supabase, user, isLoading } = useAuth()
-    const [phase, setPhase] = useState<"upload" | "chat">("upload")
+    const [phase, setPhase] = useState<"upload" | "chat" | "logo">("upload")
     const [extractedData, setExtractedData] = useState<CollectedData>({})
 
     // Redirect if not logged in, or if plan not selected, or if onboarding already complete
@@ -45,7 +47,14 @@ export default function OnboardingPage() {
         }
     }, [isLoading, user, router, supabase])
 
-    const handleComplete = async (data: CollectedData) => {
+    // Called when the chat phase completes — transition to logo upload step
+    const handleChatComplete = (data: CollectedData) => {
+        setExtractedData(prev => ({ ...prev, ...data }))
+        setPhase("logo")
+    }
+
+    // Called when logo upload completes or user skips — saves everything to DB
+    const handleFinalSave = async (data: CollectedData) => {
         if (!user) return
 
         try {
@@ -154,7 +163,7 @@ export default function OnboardingPage() {
                 </button>
             </header>
 
-            {/* Main — Upload or Chat */}
+            {/* Main — Upload, Chat, or Logo */}
             <main className="flex-1 overflow-hidden">
                 {phase === "upload" ? (
                     <UploadScreen
@@ -167,12 +176,52 @@ export default function OnboardingPage() {
                             setPhase("chat")
                         }}
                     />
-                ) : (
+                ) : phase === "chat" ? (
                     <OnboardingChat
-                        onComplete={handleComplete}
+                        onComplete={handleChatComplete}
                         userEmail={user?.email || ""}
                         initialData={extractedData}
                     />
+                ) : (
+                    <div className="flex items-center justify-center h-full p-6">
+                        <div className="w-full max-w-md space-y-6">
+                            <div className="text-center space-y-2">
+                                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                                    <ImageIcon className="w-6 h-6 text-primary" />
+                                </div>
+                                <h2 className="text-xl font-semibold text-foreground">Add your business logo</h2>
+                                <p className="text-sm text-muted-foreground">
+                                    Your logo will appear on invoices, contracts, and other documents you generate.
+                                </p>
+                            </div>
+
+                            <LogoUploader
+                                onUploadComplete={(objectKey) => {
+                                    setExtractedData(prev => ({ ...prev, logoUrl: objectKey }))
+                                }}
+                                onRemove={() => {
+                                    setExtractedData(prev => ({ ...prev, logoUrl: null }))
+                                }}
+                            />
+
+                            <div className="flex flex-col gap-3">
+                                <Button
+                                    onClick={() => handleFinalSave(extractedData)}
+                                    className="w-full gap-2 h-11"
+                                >
+                                    Complete Setup
+                                    <ArrowRight className="w-4 h-4" />
+                                </Button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleFinalSave(extractedData)}
+                                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    Skip — I&apos;ll add a logo later
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </main>
         </div>
