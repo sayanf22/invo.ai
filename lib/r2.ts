@@ -1,62 +1,57 @@
-/**
- * R2 Storage Service — Native Cloudflare R2 Bindings
- *
- * Uses Cloudflare Workers native R2 bindings (zero external dependencies).
- * The R2 bucket is bound as `R2_BUCKET` in wrangler.json.
- *
- * In the Workers runtime, bindings are available on `process.env` (via OpenNext)
- * or `globalThis`. This module abstracts the binding lookup.
- */
+// lib/r2.ts
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { getSecret } from "@/lib/secrets"
 
-// ── R2 Bucket Binding ──────────────────────────────────────────────────
+let _client: S3Client | null = null
 
-/**
- * Retrieve the R2 bucket binding from the Workers runtime.
- * OpenNext exposes Cloudflare bindings on process.env at runtime.
- */
-function getR2Bucket(): R2Bucket {
-  // OpenNext / Cloudflare Workers expose bindings on process.env
-  const bucket = (process.env as any).R2_BUCKET ?? (globalThis as any).R2_BUCKET
-  if (!bucket || typeof bucket.put !== "function") {
-    throw new Error(
-      "R2_BUCKET binding not found. Ensure the R2 bucket is bound in wrangler.json."
-    )
+async function getR2Client(): Promise<S3Client> {
+  if (_client) return _client
+  const accountId = await getSecret("R2_ACCOUNT_ID")
+  const accessKeyId = await getSecret("R2_ACCESS_KEY_ID")
+  const secretAccessKey = await getSecret("R2_SECRET_ACCESS_KEY")
+  if (!accountId || !accessKeyId || !secretAccessKey) {
+    throw new Error("Missing R2 credentials: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, or R2_SECRET_ACCESS_KEY")
   }
-  return bucket as R2Bucket
-}
-
-// ── Public API ─────────────────────────────────────────────────────────
-
-/**
- * Upload a file to R2.
- * Called server-side from API routes — the file body is passed directly.
- */
-export async function putObject(
-  objectKey: string,
-  body: ReadableStream | ArrayBuffer | Uint8Array | string,
-  contentType: string
-): Promise<void> {
-  const bucket = getR2Bucket()
-  await bucket.put(objectKey, body, {
-    httpMetadata: { contentType },
+  _client = new S3Client({
+    region: "auto",
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId, secretAccessKey },
   })
+  return _client
 }
 
-/**
- * Get an object from R2.
- * Returns the R2ObjectBody (with .body ReadableStream) or null if not found.
- */
-export async function getObject(
-  objectKey: string
-): Promise<R2ObjectBody | null> {
-  const bucket = getR2Bucket()
-  return bucket.get(objectKey)
+export async function getBucketName(): Promise<string> {
+  const bucket = await getSecret("R2_BUCKET_NAME")
+  if (!bucket) throw new Error("Missing R2_BUCKET_NAME environment variable")
+  return bucket
 }
 
-/**
- * Delete an object from R2.
- */
+export async function generatePresignedPutUrl(
+  objectKey: string,
+  contentType: string,
+  maxSizeBytes?: number
+): Promise<string> {
+  const client = await getR2Client()
+  const bucket = await getBucketName()
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: objectKey,
+    ContentType: contentType,
+    ...(maxSizeBytes ? { ContentLength: maxSizeBytes } : {}),
+  })
+  return getSignedUrl(client, command, { expiresIn: 300 }) // 5 minutes
+}
+
+export async function generatePresignedGetUrl(objectKey: string): Promise<string> {
+  const client = await getR2Client()
+  const bucket = await getBucketName()
+  const command = new GetObjectCommand({ Bucket: bucket, Key: objectKey })
+  return getSignedUrl(client, command, { expiresIn: 3600 }) // 1 hour
+}
+
 export async function deleteObject(objectKey: string): Promise<void> {
-  const bucket = getR2Bucket()
-  await bucket.delete(objectKey)
+  const client = await getR2Client()
+  const bucket = await getBucketName()
+  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }))
 }

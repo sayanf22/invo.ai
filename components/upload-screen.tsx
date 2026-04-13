@@ -149,17 +149,20 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
     const processFile = useCallback(async (uploadedFile: UploadedFile) => {
         if (!user) return
 
-        // Step 1: Upload to R2 via server proxy
+        // Step 1: Upload to R2 via presigned URL
         setFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, status: "uploading" as const } : f))
 
         try {
-            const formData = new FormData()
-            formData.append("file", uploadedFile.file)
-            formData.append("category", "documents")
-
+            // Get presigned PUT URL from Upload API
             const uploadRes = await fetch("/api/storage/upload", {
                 method: "POST",
-                body: formData,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    fileName: uploadedFile.file.name,
+                    fileSize: uploadedFile.file.size,
+                    contentType: uploadedFile.file.type,
+                    category: "documents",
+                }),
             })
 
             if (!uploadRes.ok) {
@@ -172,7 +175,23 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                 return
             }
 
-            const { objectKey } = await uploadRes.json()
+            const { uploadUrl, objectKey } = await uploadRes.json()
+
+            // PUT file directly to R2
+            const putRes = await fetch(uploadUrl, {
+                method: "PUT",
+                body: uploadedFile.file,
+                headers: { "Content-Type": uploadedFile.file.type },
+            })
+
+            if (!putRes.ok) {
+                setFiles(prev => prev.map(f =>
+                    f.id === uploadedFile.id
+                        ? { ...f, status: "failed" as const, error: "Upload failed. Tap to retry." }
+                        : f
+                ))
+                return
+            }
 
             setFiles(prev => prev.map(f =>
                 f.id === uploadedFile.id

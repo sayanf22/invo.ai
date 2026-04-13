@@ -1,18 +1,19 @@
 /**
- * Upload API — Server-Side Proxy Upload to R2
+ * Upload API — Presigned PUT URL Generation
  *
- * SECURITY: Authenticates user, validates input, uploads file directly
- * to R2 via native Cloudflare bindings. No credentials exposed to client.
+ * SECURITY: Authenticates user, validates input, generates a short-lived
+ * presigned PUT URL so the browser uploads directly to R2.
+ * Credentials never leave the server.
  *
  * POST /api/storage/upload
- * Body: FormData with `file` field + `category` field
- * Response: { objectKey }
+ * Request:  { fileName, fileSize, contentType, category }
+ * Response: { uploadUrl, objectKey }
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { checkRateLimit } from "@/lib/rate-limiter"
-import { putObject } from "@/lib/r2"
+import { generatePresignedPutUrl } from "@/lib/r2"
 
 // ── Validation constants ───────────────────────────────────────────────
 
@@ -28,8 +29,11 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
 const VALID_CATEGORIES = ["logos", "documents", "signatures", "uploads"] as const
 
+type AllowedCategory = (typeof VALID_CATEGORIES)[number]
+
 // ── Helpers ────────────────────────────────────────────────────────────
 
+/** Map MIME type → common file extension */
 const MIME_TO_EXT: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
@@ -43,6 +47,7 @@ function extractExtension(fileName: string, contentType: string): string {
   if (dotIndex !== -1 && dotIndex < fileName.length - 1) {
     return fileName.slice(dotIndex + 1).toLowerCase()
   }
+  // Fallback to MIME-based extension
   return MIME_TO_EXT[contentType] ?? "bin"
 }
 
@@ -58,30 +63,25 @@ export async function POST(request: NextRequest) {
     const rateLimitError = await checkRateLimit(auth.user.id, "general")
     if (rateLimitError) return rateLimitError
 
-    // 3. Parse FormData
-    let formData: FormData
-    try {
-      formData = await request.formData()
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid request. Expected multipart form data." },
-        { status: 400 },
-      )
+    // 3. Parse body
+    const body = await request.json()
+    const { fileName, fileSize, contentType, category } = body as {
+      fileName?: string
+      fileSize?: number
+      contentType?: string
+      category?: string
     }
 
-    const file = formData.get("file") as File | null
-    const category = formData.get("category") as string | null
-
-    // 4. Validate file exists
-    if (!file || !(file instanceof File)) {
+    // 4. Validate required fields
+    if (!fileName || fileSize == null || !contentType) {
       return NextResponse.json(
-        { error: "Missing required field: file." },
+        { error: "Missing required fields: fileName, fileSize, contentType." },
         { status: 400 },
       )
     }
 
     // 5. Validate content type
-    if (!(ALLOWED_CONTENT_TYPES as readonly string[]).includes(file.type)) {
+    if (!(ALLOWED_CONTENT_TYPES as readonly string[]).includes(contentType)) {
       return NextResponse.json(
         { error: "Unsupported file type. Allowed: PNG, JPEG, WebP, GIF, PDF." },
         { status: 400 },
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Validate file size
-    if (file.size <= 0 || file.size > MAX_FILE_SIZE) {
+    if (typeof fileSize !== "number" || fileSize <= 0 || fileSize > MAX_FILE_SIZE) {
       return NextResponse.json(
         { error: "File too large. Maximum 10MB." },
         { status: 400 },
@@ -105,18 +105,17 @@ export async function POST(request: NextRequest) {
     }
 
     // 8. Generate object key: {category}/{userId}/{uuid}.{ext}
-    const ext = extractExtension(file.name, file.type)
+    const ext = extractExtension(fileName, contentType)
     const objectKey = `${category}/${auth.user.id}/${crypto.randomUUID()}.${ext}`
 
-    // 9. Upload to R2 via native binding
-    const arrayBuffer = await file.arrayBuffer()
-    await putObject(objectKey, arrayBuffer, file.type)
+    // 9. Generate presigned PUT URL with content type restriction
+    const uploadUrl = await generatePresignedPutUrl(objectKey, contentType)
 
-    return NextResponse.json({ objectKey })
+    return NextResponse.json({ uploadUrl, objectKey })
   } catch (error) {
     console.error("Upload API error:", error)
     return NextResponse.json(
-      { error: "Failed to upload file. Please try again." },
+      { error: "Failed to generate upload URL. Please try again." },
       { status: 500 },
     )
   }
