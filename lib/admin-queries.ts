@@ -541,7 +541,7 @@ export async function getSubscriptions(
 
   let query = supabase
     .from("subscriptions")
-    .select("*, profiles!inner(email, full_name), businesses(country)", { count: "exact" })
+    .select("*", { count: "exact" })
 
   if (plan && plan !== 'all') query = query.eq("plan", plan)
   if (status && status !== 'all') query = query.eq("status", status)
@@ -556,8 +556,27 @@ export async function getSubscriptions(
     return { subscriptions: [], total: 0, page, pageSize }
   }
 
+  // Enrich with profile and business data (manual join — more reliable than PostgREST !inner)
+  const enriched = data ?? []
+  if (enriched.length > 0) {
+    const userIds = [...new Set(enriched.map((s: any) => s.user_id))]
+    const { data: profiles } = await supabase.from("profiles").select("id, email, full_name").in("id", userIds)
+    const { data: businesses } = await supabase.from("businesses").select("user_id, country").in("user_id", userIds)
+
+    const profileMap: Record<string, { email: string; full_name: string | null }> = {}
+    for (const p of profiles ?? []) profileMap[p.id] = { email: p.email, full_name: p.full_name }
+
+    const bizMap: Record<string, string> = {}
+    for (const b of businesses ?? []) bizMap[b.user_id] = b.country ?? '—'
+
+    for (const s of enriched as any[]) {
+      s.profiles = profileMap[s.user_id] ?? { email: '—', full_name: '—' }
+      s.businesses = { country: bizMap[s.user_id] ?? '—' }
+    }
+  }
+
   return {
-    subscriptions: (data ?? []) as Array<Record<string, unknown>>,
+    subscriptions: enriched as Array<Record<string, unknown>>,
     total: count ?? 0,
     page,
     pageSize,
