@@ -12,6 +12,7 @@ import {
 } from "@/lib/middleware-security"
 import { isMisspellingPath } from "@/lib/misspelling-data"
 import { normalizePathname } from "@/lib/url-utils"
+import { verifyAdminSession } from "@/lib/admin-auth"
 
 /**
  * Server-side middleware for Supabase auth + IP-based rate limiting + brute force protection.
@@ -23,6 +24,10 @@ import { normalizePathname } from "@/lib/url-utils"
  * 5. Redirects authenticated users away from auth pages (login/signup)
  * 6. Edge-runtime compatible (works on Cloudflare Workers)
  */
+
+// ── last_active_at throttle (fire-and-forget, 5-min window) ────────────
+const lastActiveCache = new Map<string, number>()
+const LAST_ACTIVE_THROTTLE = 5 * 60 * 1000 // 5 minutes
 
 function getClientIP(request: NextRequest): string {
   // Cloudflare provides the real IP
@@ -56,6 +61,7 @@ const PUBLIC_PATHS = [
   "/business",
   "/tools",
   "/clorefy-alternative-spellings",
+  "/clorefy-ctrl-8x2m/login",
 ]
 
 function isPublicPath(pathname: string): boolean {
@@ -112,6 +118,19 @@ function parseAuthToken(raw: string): { access_token?: string; refresh_token?: s
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // ── Admin route protection ────────────────────────────────────────────
+  // Must run before all other middleware logic.
+  // All /clorefy-ctrl-8x2m/* paths (except /login) require a valid admin session.
+  if (
+    pathname.startsWith("/clorefy-ctrl-8x2m") &&
+    pathname !== "/clorefy-ctrl-8x2m/login"
+  ) {
+    const adminEmail = await verifyAdminSession(request)
+    if (!adminEmail) {
+      return new NextResponse(null, { status: 404 })
+    }
+  }
 
   // SECURITY: Strip x-middleware-subrequest header to prevent CVE-2025-29927 bypass
   // Even though Next.js 16.x is patched, this is defense-in-depth
@@ -208,6 +227,19 @@ export async function middleware(request: NextRequest) {
 
       if (exp > now + 60_000) {
         isAuthenticated = true
+
+        // Update last_active_at (fire-and-forget, non-blocking)
+        if (accessToken) {
+          const userId = getUserIdFromToken(accessToken)
+          if (userId) {
+            const nowMs = Date.now()
+            const lastUpdate = lastActiveCache.get(userId) ?? 0
+            if (nowMs - lastUpdate > LAST_ACTIVE_THROTTLE) {
+              lastActiveCache.set(userId, nowMs)
+              updateLastActive(userId).catch(() => {})
+            }
+          }
+        }
       } else if (refreshToken) {
         const refreshed = await refreshSession(accessToken, refreshToken)
         if (refreshed) {
@@ -332,6 +364,28 @@ function getUserIdFromToken(token: string): string | null {
   }
 }
 
+/** Update last_active_at for the user — fire-and-forget */
+async function updateLastActive(userId: string): Promise<void> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseKey) return
+
+    await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ last_active_at: new Date().toISOString() }),
+    })
+  } catch {
+    // Non-blocking
+  }
+}
+
 // ── Refresh session via Supabase REST API (edge-compatible) ────────────
 async function refreshSession(
   _accessToken: string,
@@ -415,5 +469,6 @@ function writeAuthCookies(response: NextResponse, rawJson: string, request: Next
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot)).*)",
+    "/clorefy-ctrl-8x2m/:path*",
   ],
 }

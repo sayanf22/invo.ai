@@ -33,6 +33,19 @@ export type AuditAction =
     | "security.origin_failure"
     | "security.payment_failure"
     | "security.brute_force_block"
+    | "admin.login"
+    | "admin.logout"
+    | "admin.pin_lockout"
+    | "admin.tier_change"
+    | "admin.user_suspend"
+    | "admin.user_unsuspend"
+    | "admin.usage_reset"
+    | "admin.announcement_create"
+    | "admin.ip_block"
+    | "admin.ip_unblock"
+    | "admin.pin_change"
+    | "admin.maintenance_enable"
+    | "admin.maintenance_disable"
 
 export type ResourceType =
     | "document"
@@ -98,7 +111,7 @@ export async function logAudit(
             action: entry.action,
             resource_type: entry.resource_type || null,
             resource_id: entry.resource_id || null,
-            ip_address: request ? getIPAddress(request) : null,
+            ip_address: request ? getIPAddress(request) : (entry.ip_address || null),
             user_agent: request ? getUserAgent(request) : null,
             metadata: entry.metadata || null,
         }

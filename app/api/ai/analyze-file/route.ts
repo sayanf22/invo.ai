@@ -6,7 +6,7 @@ import { checkCostLimit, trackUsage, type UserTier } from "@/lib/cost-protection
 
 /**
  * POST /api/ai/analyze-file
- * Analyzes uploaded files (images, PDFs) using OpenAI GPT-5.4 to extract business information.
+ * Analyzes uploaded files (images, PDFs) using OpenAI GPT-5.4 mini to extract business information.
  * 
  * MODEL ROUTING STRATEGY:
  * - This endpoint uses GPT (OpenAI) EXCLUSIVELY for file analysis/extraction
@@ -239,7 +239,7 @@ RULES:
             return NextResponse.json({ error: "Unsupported file type" }, { status: 400 })
         }
 
-        // Call OpenAI API with gpt-5.4 (supports images + PDFs natively)
+        // Call OpenAI API with gpt-5.4-mini (supports images + PDFs natively, 3x cheaper than gpt-5.4)
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -247,7 +247,7 @@ RULES:
                 Authorization: `Bearer ${openaiKey}`,
             },
             body: JSON.stringify({
-                model: "gpt-5.4",
+                model: "gpt-5.4-mini",
                 messages: [
                     {
                         role: "user",

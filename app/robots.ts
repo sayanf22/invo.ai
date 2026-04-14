@@ -7,6 +7,8 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: "/",
         disallow: [
+          "/clorefy-ctrl-8x2m",
+          "/clorefy-ctrl-8x2m/",
           "/api/",
           "/auth/callback",
           "/auth/confirm",
