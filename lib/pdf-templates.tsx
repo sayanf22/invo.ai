@@ -5,6 +5,7 @@ import {
     View,
     StyleSheet,
     Font,
+    Image,
 } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 
@@ -112,7 +113,7 @@ function getTpl(data: InvoiceData): Tpl {
     return "modern"
 }
 
-interface Props { data: InvoiceData }
+interface Props { data: InvoiceData; logoUrl?: string | null }
 
 // ─── Theme palettes per template ───
 function getTheme(tpl: Tpl, data: InvoiceData) {
@@ -216,11 +217,22 @@ function getItemDiscountTotal(data: InvoiceData): number {
 }
 
 
+// ─── Logo helper for PDF headers ───
+function PdfLogo({ url }: { url?: string | null }) {
+    if (!url) return null
+    return (
+        <Image
+            src={url}
+            style={{ maxHeight: 60, maxWidth: 120, objectFit: "contain", marginBottom: 6 }}
+        />
+    )
+}
+
 // ═══════════════════════════════════════════════════════
 // INVOICE PDF
 // ═══════════════════════════════════════════════════════
 
-export function InvoicePDF({ data }: Props) {
+export function InvoicePDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
@@ -260,6 +272,7 @@ export function InvoicePDF({ data }: Props) {
                 {tpl === "bold" && (
                     <View style={s.boldHeader} fixed>
                         <View style={s.boldShape} />
+                        <PdfLogo url={logoUrl} />
                         <Text style={{ fontSize: 32, color: "#fff", letterSpacing: 2, ...bold(c) }}>INVOICE</Text>
                         <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>{data.invoiceNumber || "INV-0000"}</Text>
                     </View>
@@ -268,6 +281,7 @@ export function InvoicePDF({ data }: Props) {
                 {tpl !== "bold" && (
                     <View style={s.hWrap} wrap={false}>
                         <View>
+                            <PdfLogo url={logoUrl} />
                             <Text style={{ fontSize: tpl === "classic" ? 26 : 30, color: c.pri, letterSpacing: tpl === "classic" ? 0 : 2, ...bold(c) }}>INVOICE</Text>
                             <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.invoiceNumber || "INV-0000"}</Text>
                         </View>
@@ -358,7 +372,7 @@ export function InvoicePDF({ data }: Props) {
 // CONTRACT PDF
 // ═══════════════════════════════════════════════════════
 
-export function ContractPDF({ data }: Props) {
+export function ContractPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const hasItems = data.items.some(i => i.description.trim().length > 0 || i.rate > 0)
@@ -402,6 +416,7 @@ export function ContractPDF({ data }: Props) {
                 {tpl === "bold" && (
                     <View style={s.boldHeader} fixed>
                         <View style={s.boldCircle} />
+                        <PdfLogo url={logoUrl} />
                         <Text style={{ fontSize: 30, color: "#fff", letterSpacing: 1, ...bold(c) }}>CONTRACT</Text>
                         <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "CTR-0000"}</Text>
                     </View>
@@ -410,6 +425,7 @@ export function ContractPDF({ data }: Props) {
                 {tpl !== "bold" && (
                     <View style={s.hWrap} wrap={false}>
                         <View>
+                            <PdfLogo url={logoUrl} />
                             <Text style={{ fontSize: tpl === "classic" ? 24 : 28, color: c.pri, letterSpacing: tpl === "classic" ? 0 : 1, ...bold(c) }}>CONTRACT</Text>
                             <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "CTR-0000"}</Text>
                         </View>
@@ -513,7 +529,7 @@ export function ContractPDF({ data }: Props) {
 // QUOTATION PDF
 // ═══════════════════════════════════════════════════════
 
-export function QuotationPDF({ data }: Props) {
+export function QuotationPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
@@ -553,6 +569,7 @@ export function QuotationPDF({ data }: Props) {
                 {tpl === "bold" && (
                     <View style={s.boldHeader} fixed>
                         <View style={s.boldShape} />
+                        <PdfLogo url={logoUrl} />
                         <Text style={{ fontSize: 30, color: "#fff", letterSpacing: 1.5, ...bold(c) }}>QUOTATION</Text>
                         <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "QUO-0000"}</Text>
                     </View>
@@ -561,6 +578,7 @@ export function QuotationPDF({ data }: Props) {
                 {tpl !== "bold" && (
                     <View style={s.hWrap} wrap={false}>
                         <View>
+                            <PdfLogo url={logoUrl} />
                             <Text style={{ fontSize: tpl === "classic" ? 24 : 28, color: c.pri, letterSpacing: tpl === "classic" ? 0 : 1.5, ...bold(c) }}>QUOTATION</Text>
                             <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "QUO-0000"}</Text>
                         </View>
@@ -643,7 +661,7 @@ export function QuotationPDF({ data }: Props) {
 // PROPOSAL PDF
 // ═══════════════════════════════════════════════════════
 
-export function ProposalPDF({ data }: Props) {
+export function ProposalPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const hasItems = data.items.some(i => i.description.trim().length > 0 || i.rate > 0)
@@ -688,6 +706,7 @@ export function ProposalPDF({ data }: Props) {
                     <View style={s.boldHeader} fixed>
                         <View style={s.boldShape} />
                         <View style={s.boldCircle} />
+                        <PdfLogo url={logoUrl} />
                         <Text style={{ fontSize: 32, color: "#fff", letterSpacing: 2, ...bold(c) }}>PROPOSAL</Text>
                         <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "PROP-0000"}</Text>
                         <View style={s.hMeta}>
@@ -714,6 +733,7 @@ export function ProposalPDF({ data }: Props) {
                 {tpl !== "bold" && (
                     <View style={s.hWrap} wrap={false}>
                         <View>
+                            <PdfLogo url={logoUrl} />
                             <Text style={{ fontSize: tpl === "classic" ? 26 : 30, color: c.pri, letterSpacing: tpl === "classic" ? 0 : 2, ...bold(c) }}>PROPOSAL</Text>
                             <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "PROP-0000"}</Text>
                         </View>

@@ -5,6 +5,7 @@ import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printe
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
+import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { PDFDownloadButton } from "@/components/pdf-download-button"
 import { TemplatePicker } from "@/components/template-picker"
 import { ShareButton } from "@/components/share-button"
@@ -94,7 +95,10 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
       const templates = await import("@/lib/pdf-templates")
       const docType = (docData.documentType || "").toLowerCase()
 
-      let PdfComponent: React.ComponentType<{ data: InvoiceData }>
+      // Resolve logo URL from R2 key
+      const logoUrl = await resolveLogoUrl(docData.fromLogo)
+
+      let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
       switch (docType) {
         case "contract":
           PdfComponent = templates.ContractPDF
@@ -110,7 +114,7 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
           break
       }
 
-      const instance = pdf(<PdfComponent data={docData} />)
+      const instance = pdf(<PdfComponent data={docData} logoUrl={logoUrl} />)
       const blob = await instance.toBlob()
 
       if (!mountedRef.current) return
@@ -306,10 +310,11 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
   const handlePrint = useCallback(async () => {
     try {
       const cleanedData = cleanDataForExport(data)
+      const logoUrl = await resolveLogoUrl(cleanedData.fromLogo)
       const templates = await import("@/lib/pdf-templates")
       const docType = (cleanedData.documentType || "").toLowerCase()
 
-      let PdfComponent: React.ComponentType<{ data: InvoiceData }>
+      let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
       switch (docType) {
         case "contract": PdfComponent = templates.ContractPDF; break
         case "quotation": PdfComponent = templates.QuotationPDF; break
@@ -317,7 +322,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
         default: PdfComponent = templates.InvoicePDF; break
       }
 
-      const blob = await pdf(<PdfComponent data={cleanedData} />).toBlob()
+      const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
       const url = URL.createObjectURL(blob)
       const printWindow = window.open(url)
       if (printWindow) {

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
+import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { toast } from "sonner"
 
 interface PDFDownloadButtonProps {
@@ -30,11 +31,14 @@ export function PDFDownloadButton({
             // Clean placeholder text before generating PDF
             const cleanedData = cleanDataForExport(data)
 
+            // Resolve logo URL from R2 key before PDF generation
+            const logoUrl = await resolveLogoUrl(cleanedData.fromLogo)
+
             // Dynamically import templates
             const templates = await import("@/lib/pdf-templates")
 
             // Select the correct PDF component based on document type
-            let PdfComponent: React.ComponentType<{ data: typeof data }>
+            let PdfComponent: React.ComponentType<{ data: typeof data; logoUrl?: string | null }>
             let filePrefix: string
 
             switch ((cleanedData.documentType || "").toLowerCase()) {
@@ -57,7 +61,7 @@ export function PDFDownloadButton({
             }
 
             // Generate the PDF blob
-            const blob = await pdf(<PdfComponent data={cleanedData} />).toBlob()
+            const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
 
             // Create download link with timestamp to avoid caching
             const url = URL.createObjectURL(blob)

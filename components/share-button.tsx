@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
+import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 
 interface ShareButtonProps {
   data: InvoiceData
@@ -35,8 +36,9 @@ async function generatePdfBlob(data: InvoiceData): Promise<Blob> {
   const cleaned = cleanDataForShare(data)
   const templates = await import("@/lib/pdf-templates")
   const docType = (cleaned.documentType || "").toLowerCase()
+  const logoUrl = await resolveLogoUrl(cleaned.fromLogo)
 
-  let PdfComponent: React.ComponentType<{ data: InvoiceData }>
+  let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
   switch (docType) {
     case "contract": PdfComponent = templates.ContractPDF; break
     case "quotation": PdfComponent = templates.QuotationPDF; break
@@ -44,7 +46,7 @@ async function generatePdfBlob(data: InvoiceData): Promise<Blob> {
     default: PdfComponent = templates.InvoicePDF; break
   }
 
-  return pdf(<PdfComponent data={cleaned} />).toBlob()
+  return pdf(<PdfComponent data={cleaned} logoUrl={logoUrl} />).toBlob()
 }
 
 function getFileName(data: InvoiceData): string {
