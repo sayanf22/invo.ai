@@ -24,12 +24,13 @@ import { cookies } from "next/headers"
 
 // ── Configuration ──────────────────────────────────────────────────────
 
-type RouteCategory = "ai" | "export" | "general"
+type RouteCategory = "ai" | "export" | "general" | "storage"
 
 const RATE_LIMITS: Record<RouteCategory, { maxRequests: number; windowSeconds: number }> = {
     ai: { maxRequests: 50, windowSeconds: 60 },       // 50 req/min for AI calls (increased for onboarding)
     export: { maxRequests: 20, windowSeconds: 60 },    // 20 req/min for exports
-    general: { maxRequests: 30, windowSeconds: 60 },   // 30 req/min for other
+    storage: { maxRequests: 30, windowSeconds: 60 },   // 30 req/min for file uploads
+    general: { maxRequests: 60, windowSeconds: 60 },   // 60 req/min for other API calls
 }
 
 // ── Helper: Extract access token from cookies ──────────────────────────
