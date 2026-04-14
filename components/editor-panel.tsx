@@ -405,7 +405,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 </span>
               </label>
               {data.fromLogo ? (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   <div className="flex items-center gap-3 p-2 rounded-xl border border-border bg-background">
                     {logoDisplayUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
@@ -414,10 +414,10 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                         alt="Business logo"
                         width={40}
                         height={40}
-                        className="w-10 h-10 rounded-lg object-contain bg-secondary"
+                        className={`w-10 h-10 object-cover bg-secondary ${data.logoShape === "circle" ? "rounded-full" : "rounded-lg"}`}
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                      <div className={`w-10 h-10 bg-secondary flex items-center justify-center ${data.logoShape === "circle" ? "rounded-full" : "rounded-lg"}`}>
                         <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                       </div>
                     )}
@@ -431,6 +431,28 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                       aria-label="Remove logo"
                     >
                       <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {/* Logo shape selector */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">Shape:</span>
+                    <button
+                      type="button"
+                      onClick={() => onChange({ logoShape: "rounded" })}
+                      className={`w-7 h-7 rounded-md border-2 transition-all ${data.logoShape !== "circle" ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"}`}
+                      aria-label="Rounded square logo"
+                      title="Rounded square"
+                    >
+                      <div className="w-full h-full rounded-[3px] bg-muted" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onChange({ logoShape: "circle" })}
+                      className={`w-7 h-7 rounded-md border-2 transition-all flex items-center justify-center ${data.logoShape === "circle" ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"}`}
+                      aria-label="Circle logo"
+                      title="Circle"
+                    >
+                      <div className="w-5 h-5 rounded-full bg-muted" />
                     </button>
                   </div>
                   {/* Show on document toggle */}

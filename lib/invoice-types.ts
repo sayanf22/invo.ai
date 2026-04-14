@@ -27,6 +27,7 @@ export interface InvoiceData {
   fromWebsite: string
   fromLogo: string // R2 object key, base64, or URL
   showLogo: boolean // whether to display logo on the document
+  logoShape: "rounded" | "circle" // logo display shape on the document
 
   // Buyer / To
   toName: string
@@ -140,6 +141,7 @@ export function getInitialInvoiceData(): InvoiceData {
     fromWebsite: "",
     fromLogo: "",
     showLogo: true,
+    logoShape: "rounded",
     toName: "",
     toEmail: "",
     toAddress: "",
