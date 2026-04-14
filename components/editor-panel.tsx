@@ -257,7 +257,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
     let cancelled = false
     async function fetchUrl() {
       try {
-        const res = await fetch(`/api/storage/url?key=${encodeURIComponent(data.fromLogo)}`)
+        const res = await authFetch(`/api/storage/url?key=${encodeURIComponent(data.fromLogo)}`)
         if (!res.ok) return
         const json = await res.json()
         if (!cancelled && json.url) setLogoDisplayUrl(json.url)

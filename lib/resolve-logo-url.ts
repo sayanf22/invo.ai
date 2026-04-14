@@ -3,8 +3,10 @@
  *
  * - Returns null if the value is empty.
  * - Returns the value as-is if it's already a URL (http/data:).
- * - Otherwise fetches a presigned GET URL from /api/storage/url.
+ * - Otherwise fetches a presigned GET URL from /api/storage/url using authFetch.
  */
+import { authFetch } from "@/lib/auth-fetch"
+
 export async function resolveLogoUrl(fromLogo: string): Promise<string | null> {
   if (!fromLogo) return null
 
@@ -13,9 +15,9 @@ export async function resolveLogoUrl(fromLogo: string): Promise<string | null> {
     return fromLogo
   }
 
-  // R2 object key — fetch presigned URL
+  // R2 object key — fetch presigned URL with auth
   try {
-    const res = await fetch(`/api/storage/url?key=${encodeURIComponent(fromLogo)}`)
+    const res = await authFetch(`/api/storage/url?key=${encodeURIComponent(fromLogo)}`)
     if (!res.ok) return null
     const json = await res.json()
     return json.url || null

@@ -72,7 +72,7 @@ export function LogoUploader({
 
     async function fetchLogoUrl() {
       try {
-        const res = await fetch(`/api/storage/url?key=${encodeURIComponent(currentLogoKey!)}`)
+        const res = await authFetch(`/api/storage/url?key=${encodeURIComponent(currentLogoKey!)}`)
         if (!res.ok) return
         const data = await res.json()
         if (!cancelled && data.url) {

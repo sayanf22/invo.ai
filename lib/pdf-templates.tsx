@@ -223,7 +223,7 @@ function PdfLogo({ url }: { url?: string | null }) {
     return (
         <Image
             src={url}
-            style={{ maxHeight: 60, maxWidth: 120, objectFit: "contain", marginBottom: 6 }}
+            style={{ height: 40, width: 100, objectFit: "contain" as any, marginBottom: 8 }}
         />
     )
 }
