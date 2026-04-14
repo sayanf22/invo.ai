@@ -54,6 +54,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Security: prevent path traversal attacks
+    if (key.includes("..") || key.startsWith("/") || key.startsWith("\\")) {
+      return NextResponse.json({ error: "Invalid key." }, { status: 400 })
+    }
+
     // 3. Verify ownership (skip for signature keys)
     if (!isSignatureKey(key)) {
       const keyUserId = extractUserIdFromKey(key)
@@ -98,6 +103,11 @@ export async function DELETE(request: NextRequest) {
         { error: "Missing required parameter: key" },
         { status: 400 },
       )
+    }
+
+    // Security: prevent path traversal attacks
+    if (key.includes("..") || key.startsWith("/") || key.startsWith("\\")) {
+      return NextResponse.json({ error: "Invalid key." }, { status: 400 })
     }
 
     // 3. Verify ownership (skip for signature keys)

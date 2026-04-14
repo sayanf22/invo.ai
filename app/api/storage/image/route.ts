@@ -42,6 +42,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Missing key parameter" }, { status: 400 })
     }
 
+    // Security: prevent path traversal attacks
+    if (key.includes("..") || key.startsWith("/") || key.startsWith("\\")) {
+      return NextResponse.json({ error: "Invalid key" }, { status: 400 })
+    }
+
     // Verify ownership
     if (!isSignatureKey(key)) {
       const keyUserId = extractUserIdFromKey(key)

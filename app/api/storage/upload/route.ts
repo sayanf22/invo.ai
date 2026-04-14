@@ -27,6 +27,26 @@ const MIME_TO_EXT: Record<string, string> = {
   "image/gif": "gif", "application/pdf": "pdf",
 }
 
+// ── Magic bytes validation (OWASP File Upload Cheat Sheet) ─────────
+// Validates actual file content matches claimed Content-Type.
+// Prevents attackers from uploading malicious files with spoofed MIME types.
+const MAGIC_BYTES: Record<string, number[][]> = {
+  "image/png":  [[0x89, 0x50, 0x4E, 0x47]],                          // ‰PNG
+  "image/jpeg": [[0xFF, 0xD8, 0xFF]],                                  // ÿØÿ
+  "image/webp": [[0x52, 0x49, 0x46, 0x46]],                           // RIFF (WebP starts with RIFF....WEBP)
+  "image/gif":  [[0x47, 0x49, 0x46, 0x38, 0x37], [0x47, 0x49, 0x46, 0x38, 0x39]], // GIF87a, GIF89a
+  "application/pdf": [[0x25, 0x50, 0x44, 0x46]],                      // %PDF
+}
+
+function validateMagicBytes(buffer: ArrayBuffer, contentType: string): boolean {
+  const signatures = MAGIC_BYTES[contentType]
+  if (!signatures) return false // unknown type = reject
+  const bytes = new Uint8Array(buffer.slice(0, 8))
+  return signatures.some(sig =>
+    sig.every((byte, i) => bytes[i] === byte)
+  )
+}
+
 function extractExtension(fileName: string, contentType: string): string {
   const dotIndex = fileName.lastIndexOf(".")
   if (dotIndex !== -1 && dotIndex < fileName.length - 1) {
@@ -67,8 +87,17 @@ export async function POST(request: NextRequest) {
     const ext = extractExtension(safeName, file.type)
     const objectKey = `${category}/${auth.user.id}/${crypto.randomUUID()}.${ext}`
 
-    // Upload to R2 server-side via S3 SDK (no CORS, no presigned URLs)
+    // Upload to R2 server-side (native binding on Workers, S3 SDK locally)
     const arrayBuffer = await file.arrayBuffer()
+
+    // OWASP: Validate magic bytes — don't trust Content-Type header alone
+    if (!validateMagicBytes(arrayBuffer, file.type)) {
+      return NextResponse.json(
+        { error: "File content does not match its declared type." },
+        { status: 400 },
+      )
+    }
+
     await uploadToR2(objectKey, arrayBuffer, file.type)
 
     return NextResponse.json({ objectKey })
