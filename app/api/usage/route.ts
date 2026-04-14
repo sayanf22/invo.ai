@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { PLANS, type PlanId } from "@/lib/razorpay"
+import { getTierLimits, type UserTier } from "@/lib/cost-protection"
 
 /**
  * GET /api/usage
@@ -48,6 +49,9 @@ export async function GET(request: Request) {
         const documentsLimit = planConfig.documentsPerMonth
         const aiRequests = (usage as any)?.ai_requests_count || 0
 
+        // Get tier limits for message caps
+        const tierLimits = getTierLimits(plan as UserTier)
+
         return NextResponse.json({
             plan,
             planName: planConfig.name,
@@ -57,6 +61,8 @@ export async function GET(request: Request) {
                 documentsLimit,
                 documentsPercent: documentsLimit > 0 ? Math.min(Math.round((documentsUsed / documentsLimit) * 100), 100) : 0,
                 aiRequests,
+                messagesPerSession: tierLimits.messagesPerSession,
+                messagesLimit: tierLimits.messagesPerSession,
                 currentMonth: monthKey,
             },
         })

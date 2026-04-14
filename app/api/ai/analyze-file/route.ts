@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { getSecret } from "@/lib/secrets"
 import { sanitizeText } from "@/lib/sanitize"
+import { checkCostLimit, trackUsage, type UserTier } from "@/lib/cost-protection"
 
 /**
  * POST /api/ai/analyze-file
@@ -93,6 +94,17 @@ function buildFileContextSummary(extracted: any): string {
 export async function POST(request: Request) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
+
+    // SECURITY: Fetch user tier and check cost limit BEFORE any AI call
+    const { data: sub } = await (auth.supabase as any)
+        .from("subscriptions")
+        .select("plan")
+        .eq("user_id", auth.user.id)
+        .single()
+    const userTier = ((sub as any)?.plan || "free") as UserTier
+
+    const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
+    if (costError) return costError
 
     // Authentication is sufficient protection — OpenAI has its own rate limits
 
@@ -283,6 +295,9 @@ RULES:
         const sanitized = sanitize(parsed)
 
         if (mode === "generate") {
+            // Track usage after successful AI call
+            await trackUsage(auth.supabase, auth.user.id, "generation", 0)
+
             // Return the full generated document
             return NextResponse.json({
                 success: true,
@@ -291,6 +306,9 @@ RULES:
                 message: sanitized.message || "Document generated from file.",
             })
         }
+
+        // Track usage after successful AI call
+        await trackUsage(auth.supabase, auth.user.id, "generation", 0)
 
         // Default: return extracted data
         return NextResponse.json({

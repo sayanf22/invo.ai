@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
 import { sanitizeText } from "@/lib/sanitize"
 import { detectDocumentType, getDetectionMessage } from "@/lib/server/document-type-detector"
+import { checkCostLimit, type UserTier } from "@/lib/cost-protection"
 
 interface DetectTypeRequest {
     prompt: string
@@ -18,6 +19,17 @@ export async function POST(request: NextRequest) {
         // SECURITY: Authenticate user
         const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
+
+        // SECURITY: Check cost limit before processing
+        const { data: sub } = await (auth.supabase as any)
+            .from("subscriptions")
+            .select("plan")
+            .eq("user_id", auth.user.id)
+            .single()
+        const userTier = ((sub as any)?.plan || "free") as UserTier
+
+        const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
+        if (costError) return costError
 
         const body: DetectTypeRequest = await request.json()
 

@@ -301,13 +301,35 @@ export async function incrementDocumentCount(
     try {
         const month = getCurrentMonth()
 
+        // Try RPC first (atomic increment)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase.rpc as any)("increment_document_count", {
             p_user_id: userId,
             p_month: month,
         })
 
-        if (error) console.error("Error incrementing doc count:", error)
+        if (error) {
+            console.error("RPC increment_document_count failed, using upsert fallback:", error)
+            // Fallback: direct upsert on user_usage table
+            const { data: existing } = await supabase
+                .from("user_usage")
+                .select("documents_count")
+                .eq("user_id", userId)
+                .eq("month", month)
+                .single()
+
+            if (existing) {
+                await supabase
+                    .from("user_usage")
+                    .update({ documents_count: (existing.documents_count || 0) + 1 })
+                    .eq("user_id", userId)
+                    .eq("month", month)
+            } else {
+                await supabase
+                    .from("user_usage")
+                    .insert({ user_id: userId, month, documents_count: 1 })
+            }
+        }
     } catch (error) {
         console.error("Document count increment failed:", error)
     }
