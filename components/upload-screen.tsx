@@ -13,6 +13,7 @@ import {
     SkipForward,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { authFetch } from "@/lib/auth-fetch"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth-provider"
@@ -157,7 +158,7 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
             formData.append("file", uploadedFile.file)
             formData.append("category", "documents")
 
-            const uploadRes = await fetch("/api/storage/upload", {
+            const uploadRes = await authFetch("/api/storage/upload", {
                 method: "POST",
                 body: formData,
             })

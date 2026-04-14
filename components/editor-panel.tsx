@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import type { InvoiceData, LineItem } from "@/lib/invoice-types"
+import { authFetch } from "@/lib/auth-fetch"
 import {
   CURRENCIES,
   PAYMENT_TERMS,
@@ -292,7 +293,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
       formData.append("file", file)
       formData.append("category", "logos")
 
-      const res = await fetch("/api/storage/upload", {
+      const res = await authFetch("/api/storage/upload", {
         method: "POST",
         body: formData,
       })

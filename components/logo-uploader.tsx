@@ -5,6 +5,7 @@ import { Upload, X, Loader2, ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { authFetch } from "@/lib/auth-fetch"
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -124,7 +125,7 @@ export function LogoUploader({
       formData.append("file", selectedFile)
       formData.append("category", "logos")
 
-      const res = await fetch("/api/storage/upload", {
+      const res = await authFetch("/api/storage/upload", {
         method: "POST",
         body: formData,
       })
