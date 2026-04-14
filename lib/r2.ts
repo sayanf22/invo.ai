@@ -57,3 +57,22 @@ export async function deleteObject(objectKey: string): Promise<void> {
   const bucket = await getBucketName()
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }))
 }
+
+/**
+ * Upload a file directly to R2 from the server (no presigned URL needed).
+ * This avoids CORS issues since the browser never talks to R2 directly.
+ */
+export async function uploadToR2(
+  objectKey: string,
+  body: Buffer | Uint8Array,
+  contentType: string
+): Promise<void> {
+  const client = await getR2Client()
+  const bucket = await getBucketName()
+  await client.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: objectKey,
+    Body: body,
+    ContentType: contentType,
+  }))
+}
