@@ -25,7 +25,8 @@ export interface InvoiceData {
   fromPhone: string
   fromTaxId: string
   fromWebsite: string
-  fromLogo: string // base64 or URL
+  fromLogo: string // R2 object key, base64, or URL
+  showLogo: boolean // whether to display logo on the document
 
   // Buyer / To
   toName: string
@@ -138,6 +139,7 @@ export function getInitialInvoiceData(): InvoiceData {
     fromTaxId: "",
     fromWebsite: "",
     fromLogo: "",
+    showLogo: true,
     toName: "",
     toEmail: "",
     toAddress: "",

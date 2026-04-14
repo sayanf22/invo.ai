@@ -242,25 +242,25 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
     })
   }
 
-  /* ── Resolve logo display URL from R2 object key ── */
+  /* ── Resolve logo display URL from R2 object key via base64 proxy ── */
   useEffect(() => {
     if (!data.fromLogo) {
       setLogoDisplayUrl(null)
       return
     }
-    // If it's a data URL or http URL, use it directly
+    // If it's already a data URL or http URL, use directly
     if (!isR2ObjectKey(data.fromLogo)) {
       setLogoDisplayUrl(data.fromLogo)
       return
     }
-    // It's an R2 object key — fetch a presigned GET URL
+    // Fetch as base64 data URL via server proxy (avoids CORS)
     let cancelled = false
     async function fetchUrl() {
       try {
-        const res = await authFetch(`/api/storage/url?key=${encodeURIComponent(data.fromLogo)}`)
+        const res = await authFetch(`/api/storage/image?key=${encodeURIComponent(data.fromLogo)}`)
         if (!res.ok) return
         const json = await res.json()
-        if (!cancelled && json.url) setLogoDisplayUrl(json.url)
+        if (!cancelled && json.dataUrl) setLogoDisplayUrl(json.dataUrl)
       } catch {
         // Silently fail — logo just won't display
       }
@@ -405,32 +405,44 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 </span>
               </label>
               {data.fromLogo ? (
-                <div className="flex items-center gap-3 p-2 rounded-xl border border-border bg-background">
-                  {logoDisplayUrl ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={logoDisplayUrl}
-                      alt="Business logo"
-                      width={40}
-                      height={40}
-                      className="w-10 h-10 rounded-lg object-contain bg-secondary"
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 p-2 rounded-xl border border-border bg-background">
+                    {logoDisplayUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={logoDisplayUrl}
+                        alt="Business logo"
+                        width={40}
+                        height={40}
+                        className="w-10 h-10 rounded-lg object-contain bg-secondary"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+                    <span className="text-xs text-muted-foreground flex-1 truncate">
+                      Logo uploaded
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onChange({ fromLogo: "" })}
+                      className="w-6 h-6 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive transition-colors"
+                      aria-label="Remove logo"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {/* Show on document toggle */}
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={data.showLogo !== false}
+                      onChange={(e) => onChange({ showLogo: e.target.checked })}
+                      className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                     />
-                  ) : (
-                    <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-                  <span className="text-xs text-muted-foreground flex-1 truncate">
-                    Logo uploaded
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onChange({ fromLogo: "" })}
-                    className="w-6 h-6 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive transition-colors"
-                    aria-label="Remove logo"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                    <span className="text-xs text-muted-foreground">Show logo on document</span>
+                  </label>
                 </div>
               ) : isLogoUploading ? (
                 <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-muted-foreground">

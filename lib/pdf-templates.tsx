@@ -218,8 +218,8 @@ function getItemDiscountTotal(data: InvoiceData): number {
 
 
 // ─── Logo helper for PDF headers ───
-function PdfLogo({ url }: { url?: string | null }) {
-    if (!url) return null
+function PdfLogo({ url, show }: { url?: string | null; show?: boolean }) {
+    if (!url || show === false) return null
     return (
         <Image
             src={url}
@@ -272,7 +272,7 @@ export function InvoicePDF({ data, logoUrl }: Props) {
                 {tpl === "bold" && (
                     <View style={s.boldHeader} fixed>
                         <View style={s.boldShape} />
-                        <PdfLogo url={logoUrl} />
+                        <PdfLogo url={logoUrl} show={data.showLogo} />
                         <Text style={{ fontSize: 32, color: "#fff", letterSpacing: 2, ...bold(c) }}>INVOICE</Text>
                         <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>{data.invoiceNumber || "INV-0000"}</Text>
                     </View>
@@ -281,7 +281,7 @@ export function InvoicePDF({ data, logoUrl }: Props) {
                 {tpl !== "bold" && (
                     <View style={s.hWrap} wrap={false}>
                         <View>
-                            <PdfLogo url={logoUrl} />
+                            <PdfLogo url={logoUrl} show={data.showLogo} />
                             <Text style={{ fontSize: tpl === "classic" ? 26 : 30, color: c.pri, letterSpacing: tpl === "classic" ? 0 : 2, ...bold(c) }}>INVOICE</Text>
                             <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.invoiceNumber || "INV-0000"}</Text>
                         </View>
@@ -416,7 +416,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                 {tpl === "bold" && (
                     <View style={s.boldHeader} fixed>
                         <View style={s.boldCircle} />
-                        <PdfLogo url={logoUrl} />
+                        <PdfLogo url={logoUrl} show={data.showLogo} />
                         <Text style={{ fontSize: 30, color: "#fff", letterSpacing: 1, ...bold(c) }}>CONTRACT</Text>
                         <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "CTR-0000"}</Text>
                     </View>
@@ -425,7 +425,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                 {tpl !== "bold" && (
                     <View style={s.hWrap} wrap={false}>
                         <View>
-                            <PdfLogo url={logoUrl} />
+                            <PdfLogo url={logoUrl} show={data.showLogo} />
                             <Text style={{ fontSize: tpl === "classic" ? 24 : 28, color: c.pri, letterSpacing: tpl === "classic" ? 0 : 1, ...bold(c) }}>CONTRACT</Text>
                             <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "CTR-0000"}</Text>
                         </View>
@@ -569,7 +569,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                 {tpl === "bold" && (
                     <View style={s.boldHeader} fixed>
                         <View style={s.boldShape} />
-                        <PdfLogo url={logoUrl} />
+                        <PdfLogo url={logoUrl} show={data.showLogo} />
                         <Text style={{ fontSize: 30, color: "#fff", letterSpacing: 1.5, ...bold(c) }}>QUOTATION</Text>
                         <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "QUO-0000"}</Text>
                     </View>
@@ -578,7 +578,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                 {tpl !== "bold" && (
                     <View style={s.hWrap} wrap={false}>
                         <View>
-                            <PdfLogo url={logoUrl} />
+                            <PdfLogo url={logoUrl} show={data.showLogo} />
                             <Text style={{ fontSize: tpl === "classic" ? 24 : 28, color: c.pri, letterSpacing: tpl === "classic" ? 0 : 1.5, ...bold(c) }}>QUOTATION</Text>
                             <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "QUO-0000"}</Text>
                         </View>
@@ -706,7 +706,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     <View style={s.boldHeader} fixed>
                         <View style={s.boldShape} />
                         <View style={s.boldCircle} />
-                        <PdfLogo url={logoUrl} />
+                        <PdfLogo url={logoUrl} show={data.showLogo} />
                         <Text style={{ fontSize: 32, color: "#fff", letterSpacing: 2, ...bold(c) }}>PROPOSAL</Text>
                         <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "PROP-0000"}</Text>
                         <View style={s.hMeta}>
@@ -733,7 +733,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 {tpl !== "bold" && (
                     <View style={s.hWrap} wrap={false}>
                         <View>
-                            <PdfLogo url={logoUrl} />
+                            <PdfLogo url={logoUrl} show={data.showLogo} />
                             <Text style={{ fontSize: tpl === "classic" ? 26 : 30, color: c.pri, letterSpacing: tpl === "classic" ? 0 : 2, ...bold(c) }}>PROPOSAL</Text>
                             <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "PROP-0000"}</Text>
                         </View>
