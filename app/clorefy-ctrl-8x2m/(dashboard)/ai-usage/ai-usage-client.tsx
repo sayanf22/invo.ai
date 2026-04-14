@@ -171,7 +171,7 @@ export default function AIUsageClient() {
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie data={data?.docTypeBreakdown ?? []} nameKey="type" dataKey="count" cx="50%" cy="50%" outerRadius={70}
-                  label={({ type, percent }) => `${type} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                  label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
                   {(data?.docTypeBreakdown ?? []).map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}

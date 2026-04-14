@@ -277,7 +277,7 @@ export default function AdminOverviewPage() {
                   cx="50%"
                   cy="50%"
                   outerRadius={70}
-                  label={({ tier, percent }) => `${tier} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
                   labelLine={false}
                 >
                   {(data?.tierDistribution ?? []).map((_, i) => (
