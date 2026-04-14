@@ -7,8 +7,8 @@ if (process.env.NODE_ENV === "development") {
 // Environment-aware CSP: allow unsafe-eval in dev for hot reload, block in prod
 const isDev = process.env.NODE_ENV === "development";
 const scriptSrc = isDev
-  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com"
-  : "script-src 'self' 'unsafe-inline' blob: https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com";
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com"
+  : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

@@ -13,8 +13,8 @@ import { describe, it, expect } from "vitest"
 function buildHeaders(nodeEnv: string) {
   const isDev = nodeEnv === "development"
   const scriptSrc = isDev
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com"
-    : "script-src 'self' 'unsafe-inline' blob: https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com"
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com"
+    : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://checkout.razorpay.com https://cdn.razorpay.com https://static.cloudflareinsights.com"
 
   return [
     { key: "X-Frame-Options", value: "DENY" },
@@ -79,9 +79,11 @@ describe("Security Headers Configuration", () => {
       expect(csp!.value).toContain("default-src 'self'")
     })
 
-    it("should NOT include unsafe-eval in production", () => {
+    it("should NOT include unsafe-eval in production (wasm-unsafe-eval is allowed)", () => {
       const csp = findHeader(prodHeaders, "Content-Security-Policy")
-      expect(csp!.value).not.toContain("unsafe-eval")
+      // wasm-unsafe-eval is allowed (for WebAssembly), but plain unsafe-eval is not
+      expect(csp!.value).not.toContain("'unsafe-eval'")
+      expect(csp!.value).toContain("'wasm-unsafe-eval'")
     })
 
     it("should include unsafe-eval in development for hot reload", () => {
