@@ -107,16 +107,21 @@ export async function generatePresignedPutUrl(
  * This eliminates the need for presigned GET URLs in production.
  */
 export async function getObject(objectKey: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
-  const nativeBucket = await getNativeR2Bucket()
-  if (nativeBucket) {
-    const obj = await nativeBucket.get(objectKey)
-    if (!obj) return null
-    const body = await obj.arrayBuffer()
-    const contentType = obj.httpMetadata?.contentType || "application/octet-stream"
-    return { body, contentType }
+  // Try native R2 binding first (Cloudflare Workers)
+  try {
+    const nativeBucket = await getNativeR2Bucket()
+    if (nativeBucket) {
+      const obj = await nativeBucket.get(objectKey)
+      if (!obj) return null
+      const body = await obj.arrayBuffer()
+      const contentType = obj.httpMetadata?.contentType || "application/octet-stream"
+      return { body, contentType }
+    }
+  } catch (err) {
+    console.error("Native R2 getObject failed, falling back to S3 SDK:", err instanceof Error ? err.message : err)
   }
 
-  // S3 SDK fallback (local dev)
+  // S3 SDK fallback (local dev or native binding failure)
   const { GetObjectCommand } = await import("@aws-sdk/client-s3")
   const client = await getS3Client()
   const bucket = await getBucketName()

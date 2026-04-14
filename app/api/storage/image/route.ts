@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ dataUrl })
   } catch (error) {
-    console.error("Image proxy error:", error)
+    console.error("Image proxy error:", error instanceof Error ? `${error.name}: ${error.message}\n${error.stack}` : error)
     return NextResponse.json({ error: "Failed to load image" }, { status: 500 })
   }
 }
