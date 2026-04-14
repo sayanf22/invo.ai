@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     // 5. Upload to R2 server-side (no CORS, no presigned URL exposed)
     try {
       const arrayBuffer = await file.arrayBuffer()
-      await uploadToR2(objectKey, Buffer.from(arrayBuffer), file.type)
+      await uploadToR2(objectKey, new Uint8Array(arrayBuffer), file.type)
     } catch (r2Error) {
       console.error("R2 upload failed:", r2Error instanceof Error ? r2Error.message : r2Error)
       return NextResponse.json(
