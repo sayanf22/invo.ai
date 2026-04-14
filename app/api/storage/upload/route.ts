@@ -12,7 +12,6 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
-import { checkRateLimit } from "@/lib/rate-limiter"
 import { generatePresignedPutUrl } from "@/lib/r2"
 import { sanitizeFileName } from "@/lib/sanitize"
 
@@ -60,11 +59,7 @@ export async function POST(request: NextRequest) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    // 2. Rate limit (storage category — separate from general API limits)
-    const rateLimitError = await checkRateLimit(auth.user.id, "storage")
-    if (rateLimitError) return rateLimitError
-
-    // 3. Parse body
+    // 2. Parse body
     const body = await request.json()
     const { fileName, fileSize, contentType, category } = body as {
       fileName?: string
@@ -73,7 +68,7 @@ export async function POST(request: NextRequest) {
       category?: string
     }
 
-    // 4. Validate required fields
+    // 3. Validate required fields
     if (!fileName || fileSize == null || !contentType) {
       return NextResponse.json(
         { error: "Missing required fields: fileName, fileSize, contentType." },
@@ -81,7 +76,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 5. Validate content type
+    // 4. Validate content type
     if (!(ALLOWED_CONTENT_TYPES as readonly string[]).includes(contentType)) {
       return NextResponse.json(
         { error: "Unsupported file type. Allowed: PNG, JPEG, WebP, GIF, PDF." },
@@ -89,7 +84,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 6. Validate file size
+    // 5. Validate file size
     if (typeof fileSize !== "number" || fileSize <= 0 || fileSize > MAX_FILE_SIZE) {
       return NextResponse.json(
         { error: "File too large. Maximum 10MB." },
@@ -97,7 +92,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 7. Validate category
+    // 6. Validate category
     if (!category || !(VALID_CATEGORIES as readonly string[]).includes(category)) {
       return NextResponse.json(
         { error: "Invalid upload category." },
@@ -105,12 +100,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 8. Sanitize file name and generate object key: {category}/{userId}/{uuid}.{ext}
+    // 7. Sanitize file name and generate object key: {category}/{userId}/{uuid}.{ext}
     const safeName = sanitizeFileName(fileName)
     const ext = extractExtension(safeName, contentType)
     const objectKey = `${category}/${auth.user.id}/${crypto.randomUUID()}.${ext}`
 
-    // 9. Generate presigned PUT URL with content type restriction
+    // 8. Generate presigned PUT URL with content type restriction
     const uploadUrl = await generatePresignedPutUrl(objectKey, contentType)
 
     return NextResponse.json({ uploadUrl, objectKey })
