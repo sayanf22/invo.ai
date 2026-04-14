@@ -43,7 +43,10 @@ async function generatePdfBlob(data: InvoiceData): Promise<Blob> {
     case "contract": PdfComponent = templates.ContractPDF; break
     case "quotation": PdfComponent = templates.QuotationPDF; break
     case "proposal": PdfComponent = templates.ProposalPDF; break
-    default: PdfComponent = templates.InvoicePDF; break
+    case "receipt": PdfComponent = templates.ReceiptPDF; break
+    default: PdfComponent = (cleaned.design?.layout === "receipt" || cleaned.design?.templateId === "receipt")
+      ? templates.ReceiptPDF
+      : templates.InvoicePDF; break
   }
 
   return pdf(<PdfComponent data={cleaned} logoUrl={logoUrl} />).toBlob()

@@ -65,7 +65,7 @@ export interface InvoiceData {
     font: "Helvetica" | "Times-Roman" | "Courier" | "Inter" | "Playfair" | "Roboto Mono" | "Lora"
     headerColor: string // hex code
     tableColor: string // hex code
-    layout: "classic" | "modern" | "bold" | "minimal" | "elegant" | "corporate" | "creative" | "warm" | "geometric"
+    layout: "classic" | "modern" | "bold" | "minimal" | "elegant" | "corporate" | "creative" | "warm" | "geometric" | "receipt"
   }
 }
 

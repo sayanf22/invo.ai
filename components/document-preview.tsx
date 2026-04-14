@@ -109,8 +109,13 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
         case "proposal":
           PdfComponent = templates.ProposalPDF
           break
+        case "receipt":
+          PdfComponent = templates.ReceiptPDF
+          break
         default:
-          PdfComponent = templates.InvoicePDF
+          PdfComponent = (docData.design?.layout === "receipt" || docData.design?.templateId === "receipt")
+            ? templates.ReceiptPDF
+            : templates.InvoicePDF
           break
       }
 
@@ -319,7 +324,10 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
         case "contract": PdfComponent = templates.ContractPDF; break
         case "quotation": PdfComponent = templates.QuotationPDF; break
         case "proposal": PdfComponent = templates.ProposalPDF; break
-        default: PdfComponent = templates.InvoicePDF; break
+        case "receipt": PdfComponent = templates.ReceiptPDF; break
+        default: PdfComponent = (cleanedData.design?.layout === "receipt" || cleanedData.design?.templateId === "receipt")
+          ? templates.ReceiptPDF
+          : templates.InvoicePDF; break
       }
 
       const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()

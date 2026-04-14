@@ -54,8 +54,14 @@ export function PDFDownloadButton({
                     PdfComponent = templates.ProposalPDF
                     filePrefix = cleanedData.referenceNumber || cleanedData.invoiceNumber || "proposal"
                     break
+                case "receipt":
+                    PdfComponent = templates.ReceiptPDF
+                    filePrefix = cleanedData.invoiceNumber || "receipt"
+                    break
                 default:
-                    PdfComponent = templates.InvoicePDF
+                    PdfComponent = (cleanedData.design?.layout === "receipt" || cleanedData.design?.templateId === "receipt")
+                        ? templates.ReceiptPDF
+                        : templates.InvoicePDF
                     filePrefix = cleanedData.invoiceNumber || "invoice"
                     break
             }

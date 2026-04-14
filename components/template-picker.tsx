@@ -21,6 +21,7 @@ const TEMPLATES = [
   { id: "creative",  name: "Creative",  desc: "Rose & playful",       hc: "#e11d48", tc: "#fff1f2",  font: "Lora" as FontId,         accent: "#e11d48", bg: "#fff1f2" },
   { id: "warm",      name: "Warm",      desc: "Earthy terracotta",    hc: "#c2410c", tc: "#fff7ed",  font: "Lora" as FontId,         accent: "#c2410c", bg: "#fff7ed" },
   { id: "geometric", name: "Geometric", desc: "Shapes & angles",      hc: "#0d9488", tc: "#f0fdfa",  font: "Roboto Mono" as FontId,  accent: "#0d9488", bg: "#f0fdfa" },
+  { id: "receipt",   name: "Receipt",   desc: "Clean & structured",   hc: "#f6821f", tc: "#fff7ed",  font: "Helvetica" as FontId,    accent: "#f6821f", bg: "#fafafa" },
 ] as const
 
 const COLORS = [
@@ -46,6 +47,7 @@ function MiniPreview({ tpl, active }: { tpl: typeof TEMPLATES[number]; active: b
   const isGeo = tpl.id === "geometric"
   const isBold = tpl.id === "bold" || tpl.id === "creative"
   const isMinimal = tpl.id === "minimal"
+  const isReceipt = tpl.id === "receipt"
 
   return (
     <svg viewBox="0 0 80 100" className={cn(
@@ -53,7 +55,28 @@ function MiniPreview({ tpl, active }: { tpl: typeof TEMPLATES[number]; active: b
       active ? "border-primary shadow-md" : "border-border/60"
     )}>
       <rect width="80" height="100" fill={tpl.bg} rx="3" />
-      {isBold ? (
+      {isReceipt ? (
+        <>
+          <rect x="0" y="0" width="80" height="4" fill={c} rx="1.5" />
+          <rect x="8" y="12" width="28" height="5" fill="#1a1a1a" rx="1" />
+          <rect x="8" y="21" width="22" height="1.5" fill="#d1d5db" rx="0.5" />
+          <rect x="8" y="25" width="18" height="1.5" fill="#d1d5db" rx="0.5" />
+          <line x1="8" y1="32" x2="72" y2="32" stroke="#e5e5e5" strokeWidth="0.5" />
+          <rect x="8" y="36" width="40" height="4" fill="#1a1a1a" rx="1" />
+          <line x1="8" y1="44" x2="72" y2="44" stroke="#e5e5e5" strokeWidth="0.5" />
+          {[48, 55, 62].map(y => (
+            <g key={y}>
+              <rect x="8" y={y} width="32" height="2" fill="#cbd5e1" rx="0.5" opacity="0.6" />
+              <rect x="50" y={y} width="10" height="2" fill="#cbd5e1" rx="0.5" opacity="0.4" />
+              <rect x="64" y={y} width="8" height="2" fill="#cbd5e1" rx="0.5" opacity="0.5" />
+            </g>
+          ))}
+          <rect x="42" y="70" width="30" height="2" fill="#e5e5e5" rx="0.5" />
+          <rect x="42" y="75" width="30" height="2" fill="#e5e5e5" rx="0.5" />
+          <rect x="42" y="80" width="30" height="3" fill={c} rx="0.5" opacity="0.7" />
+          <rect x="42" y="85" width="30" height="3" fill="#f0f0f0" rx="1" />
+        </>
+      ) : isBold ? (
         <rect x="0" y="0" width="80" height="28" fill={c} rx="3" />
       ) : isGeo ? (
         <>
@@ -177,7 +200,7 @@ export function TemplatePicker({ data, onChange }: TemplatePickerProps) {
             </button>
           </div>
 
-          <div className="p-3 max-h-80 overflow-y-auto">
+          <div className="p-3 max-h-[420px] overflow-y-auto">
             {tab === "templates" && (
               <div className="grid grid-cols-3 gap-2.5">
                 {TEMPLATES.map(t => (
