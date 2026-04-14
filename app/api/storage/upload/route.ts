@@ -1,37 +1,30 @@
 /**
- * Upload API — Presigned PUT URL Generation
+ * Upload API — Server-Side File Upload to R2
  *
- * Returns a short-lived presigned PUT URL so the browser uploads directly to R2.
- * The R2 credentials never leave the server. The browser only gets a temporary
- * signed URL that expires in 5 minutes.
+ * The browser sends the file to this API via FormData.
+ * The server uploads it to R2 using the S3 SDK (no presigned URLs, no CORS).
+ * R2 credentials never leave the server.
  *
  * POST /api/storage/upload
- * Request:  { fileName, fileSize, contentType, category }
- * Response: { uploadUrl, objectKey }
+ * Request:  FormData with { file, category }
+ * Response: { objectKey }
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
-import { generatePresignedPutUrl } from "@/lib/r2"
+import { uploadToR2 } from "@/lib/r2"
 import { sanitizeFileName } from "@/lib/sanitize"
 
 const ALLOWED_CONTENT_TYPES = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "application/pdf",
+  "image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf",
 ] as const
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const VALID_CATEGORIES = ["logos", "documents", "signatures", "uploads"] as const
 
 const MIME_TO_EXT: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-  "image/gif": "gif",
-  "application/pdf": "pdf",
+  "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp",
+  "image/gif": "gif", "application/pdf": "pdf",
 }
 
 function extractExtension(fileName: string, contentType: string): string {
@@ -47,47 +40,42 @@ export async function POST(request: NextRequest) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    const body = await request.json()
-    const { fileName, fileSize, contentType, category } = body as {
-      fileName?: string
-      fileSize?: number
-      contentType?: string
-      category?: string
+    const formData = await request.formData()
+    const file = formData.get("file") as File | null
+    const category = (formData.get("category") as string) || "uploads"
+
+    if (!file) {
+      return NextResponse.json({ error: "No file provided." }, { status: 400 })
     }
 
-    if (!fileName || fileSize == null || !contentType) {
-      return NextResponse.json(
-        { error: "Missing required fields: fileName, fileSize, contentType." },
-        { status: 400 },
-      )
-    }
-
-    if (!(ALLOWED_CONTENT_TYPES as readonly string[]).includes(contentType as any)) {
+    if (!(ALLOWED_CONTENT_TYPES as readonly string[]).includes(file.type as any)) {
       return NextResponse.json(
         { error: "Unsupported file type. Allowed: PNG, JPEG, WebP, GIF, PDF." },
         { status: 400 },
       )
     }
 
-    if (typeof fileSize !== "number" || fileSize <= 0 || fileSize > MAX_FILE_SIZE) {
+    if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json({ error: "File too large. Maximum 10MB." }, { status: 400 })
     }
 
-    if (!category || !(VALID_CATEGORIES as readonly string[]).includes(category as any)) {
+    if (!(VALID_CATEGORIES as readonly string[]).includes(category as any)) {
       return NextResponse.json({ error: "Invalid upload category." }, { status: 400 })
     }
 
-    const safeName = sanitizeFileName(fileName)
-    const ext = extractExtension(safeName, contentType)
+    const safeName = sanitizeFileName(file.name)
+    const ext = extractExtension(safeName, file.type)
     const objectKey = `${category}/${auth.user.id}/${crypto.randomUUID()}.${ext}`
 
-    const uploadUrl = await generatePresignedPutUrl(objectKey, contentType)
+    // Upload to R2 server-side via S3 SDK (no CORS, no presigned URLs)
+    const arrayBuffer = await file.arrayBuffer()
+    await uploadToR2(objectKey, arrayBuffer, file.type)
 
-    return NextResponse.json({ uploadUrl, objectKey })
+    return NextResponse.json({ objectKey })
   } catch (error) {
-    console.error("Upload API error:", error)
+    console.error("Upload API error:", error instanceof Error ? `${error.message}\n${error.stack}` : error)
     return NextResponse.json(
-      { error: "Failed to generate upload URL. Please try again." },
+      { error: "Failed to upload file. Please try again." },
       { status: 500 },
     )
   }

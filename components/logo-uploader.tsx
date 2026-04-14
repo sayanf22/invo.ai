@@ -120,37 +120,22 @@ export function LogoUploader({
     setState("uploading")
 
     try {
-      // Step 1: Get presigned PUT URL from server
-      const uploadRes = await fetch("/api/storage/upload", {
+      const formData = new FormData()
+      formData.append("file", selectedFile)
+      formData.append("category", "logos")
+
+      const res = await fetch("/api/storage/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size,
-          contentType: selectedFile.type,
-          category: "logos",
-        }),
+        body: formData,
       })
 
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json().catch(() => ({}))
-        throw new Error(err.error || "Failed to get upload URL.")
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Upload failed.")
       }
 
-      const { uploadUrl, objectKey } = await uploadRes.json()
+      const { objectKey } = await res.json()
 
-      // Step 2: PUT file directly to R2 via presigned URL
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: selectedFile,
-        headers: { "Content-Type": selectedFile.type },
-      })
-
-      if (!putRes.ok) {
-        throw new Error("Upload to storage failed.")
-      }
-
-      // Step 3: Notify parent
       setState("complete")
       setCurrentDisplayUrl(previewUrl)
       setSelectedFile(null)

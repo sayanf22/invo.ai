@@ -64,27 +64,20 @@ export async function deleteObject(objectKey: string): Promise<void> {
 }
 
 /**
- * Upload a file directly to R2 from the server.
- * Uses presigned URL + fetch PUT internally — more reliable across runtimes
- * than the S3 SDK PutObjectCommand with Body.
+ * Upload a file directly to R2 from the server using the S3 SDK.
+ * No presigned URLs, no CORS — the server handles everything.
  */
 export async function uploadToR2(
   objectKey: string,
   body: Uint8Array | ArrayBuffer,
   contentType: string
 ): Promise<void> {
-  // Generate a short-lived presigned PUT URL
-  const uploadUrl = await generatePresignedPutUrl(objectKey, contentType)
-  
-  // PUT the file to R2 via the presigned URL (server-side, no CORS needed)
-  const response = await fetch(uploadUrl, {
-    method: "PUT",
-    body: body,
-    headers: { "Content-Type": contentType },
-  })
-  
-  if (!response.ok) {
-    const text = await response.text().catch(() => "")
-    throw new Error(`R2 upload failed: ${response.status} ${response.statusText} ${text}`)
-  }
+  const client = await getR2Client()
+  const bucket = await getBucketName()
+  await client.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: objectKey,
+    Body: new Uint8Array(body instanceof ArrayBuffer ? body : body),
+    ContentType: contentType,
+  }))
 }

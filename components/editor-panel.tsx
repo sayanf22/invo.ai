@@ -288,32 +288,20 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
 
     setIsLogoUploading(true)
     try {
-      // Step 1: Get presigned PUT URL
-      const uploadRes = await fetch("/api/storage/upload", {
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("category", "logos")
+
+      const res = await fetch("/api/storage/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileSize: file.size,
-          contentType: file.type,
-          category: "logos",
-        }),
+        body: formData,
       })
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json().catch(() => ({}))
-        throw new Error(err.error || "Failed to get upload URL.")
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Upload failed.")
       }
-      const { uploadUrl, objectKey } = await uploadRes.json()
+      const { objectKey } = await res.json()
 
-      // Step 2: PUT file directly to R2
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
-      })
-      if (!putRes.ok) throw new Error("Upload to storage failed.")
-
-      // Update fromLogo with the R2 object key
       onChange({ fromLogo: objectKey })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Logo upload failed. Please try again."
