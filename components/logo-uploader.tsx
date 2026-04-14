@@ -73,13 +73,20 @@ export function LogoUploader({
     async function fetchLogoUrl() {
       try {
         const res = await authFetch(`/api/storage/image?key=${encodeURIComponent(currentLogoKey!)}`)
-        if (!res.ok) return
+        if (!res.ok) {
+          // Fetch failed — show upload UI so user can re-upload
+          if (!cancelled) setState("idle")
+          return
+        }
         const data = await res.json()
         if (!cancelled && data.dataUrl) {
           setCurrentDisplayUrl(data.dataUrl)
+        } else if (!cancelled) {
+          setState("idle")
         }
       } catch {
-        // Silently fail — logo just won't display
+        // Fetch failed — show upload UI instead of blank state
+        if (!cancelled) setState("idle")
       }
     }
 
