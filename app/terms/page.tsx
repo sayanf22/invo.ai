@@ -45,7 +45,7 @@ export default function TermsPage() {
             <h2>6. Subscription Plans and Billing</h2>
             <p>Clorefy offers the following subscription tiers:</p>
             <ul>
-                <li><strong>Free:</strong> 3 documents/month, 10 messages/document, Invoice and Contract types only</li>
+                <li><strong>Free:</strong> 5 documents/month, 10 messages/document, Invoice and Contract types only</li>
                 <li><strong>Starter (₹749/month or ₹599/month billed yearly):</strong> 50 documents/month, 25 messages/document, all document types</li>
                 <li><strong>Pro (₹1,999/month or ₹1,599/month billed yearly):</strong> 150 documents/month, 30 messages/document, all document types, priority support</li>
                 <li><strong>Agency (Coming Soon):</strong> Unlimited documents and messages</li>

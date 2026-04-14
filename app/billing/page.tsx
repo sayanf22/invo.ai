@@ -17,7 +17,7 @@ import Link from "next/link"
 const plans = [
     {
         id: "free", name: "Free",
-        features: ["3 documents/month", "Invoice + Contract only", "3 PDF templates", "3 countries (IN, US, UK)", "PDF export only", "7-day session history"],
+        features: ["5 documents/month", "Invoice + Contract only", "3 PDF templates", "3 countries (IN, US, UK)", "PDF export only", "7-day session history"],
     },
     {
         id: "starter", name: "Starter", popular: true,
@@ -89,7 +89,7 @@ export default function BillingPage() {
 
     const usage = data?.usage
     const docsUsed = usage?.documentsUsed || 0
-    const docsLimit = usage?.documentsLimit || 3
+    const docsLimit = usage?.documentsLimit || 5
     const docsPercent = usage?.documentsPercent || 0
 
     return (

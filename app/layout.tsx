@@ -218,7 +218,7 @@ export default function RootLayout({
                   "name": "Is Clorefy free to use?",
                   "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Yes, Clorefy offers a free plan with 3 documents per month. Paid plans start at $9.99/month for 50 documents with all features.",
+                    "text": "Yes, Clorefy offers a free plan with 5 documents per month. Paid plans start at $9.99/month for 50 documents with all features.",
                   },
                 },
                 {

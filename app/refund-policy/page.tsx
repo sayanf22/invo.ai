@@ -12,7 +12,7 @@ export default function RefundPolicyPage() {
             <p>Clorefy is a digital service delivered instantly upon subscription activation. There is no physical product or shipping involved. Access to the Service is granted immediately upon successful payment.</p>
 
             <h2>3. Free Tier</h2>
-            <p>The Free tier requires no payment and can be used indefinitely within its limits (3 documents/month). No refund applies to the Free tier.</p>
+            <p>The Free tier requires no payment and can be used indefinitely within its limits (5 documents/month). No refund applies to the Free tier.</p>
 
             <h2>4. Subscription Cancellation</h2>
             <ul>

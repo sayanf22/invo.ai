@@ -126,8 +126,16 @@ export async function POST(request: NextRequest) {
     const objectKey = `${category}/${auth.user.id}/${crypto.randomUUID()}.${ext}`
 
     // 5. Upload to R2 server-side (no CORS, no presigned URL exposed)
-    const arrayBuffer = await file.arrayBuffer()
-    await uploadToR2(objectKey, Buffer.from(arrayBuffer), file.type)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      await uploadToR2(objectKey, Buffer.from(arrayBuffer), file.type)
+    } catch (r2Error) {
+      console.error("R2 upload failed:", r2Error instanceof Error ? r2Error.message : r2Error)
+      return NextResponse.json(
+        { error: "Storage upload failed. Please try again." },
+        { status: 502 },
+      )
+    }
 
     return NextResponse.json({ objectKey })
   } catch (error) {

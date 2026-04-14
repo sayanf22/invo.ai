@@ -14,7 +14,7 @@ export const PLANS = {
         name: "Free",
         monthlyPrice: 0,
         yearlyPrice: 0,
-        documentsPerMonth: 3,
+        documentsPerMonth: 5,
         messagesPerSession: 10,
         features: ["Invoice + Contract", "3 PDF templates", "3 countries", "PDF export", "7-day history"],
     },
