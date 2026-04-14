@@ -42,6 +42,22 @@ const footerLinks = {
     ],
 }
 
+// Top cities per country for the Locations section (representative set)
+const locationLinks = [
+    { label: "Mumbai", href: "/tools/invoice-generator/india/mumbai" },
+    { label: "Delhi", href: "/tools/invoice-generator/india/delhi" },
+    { label: "Bangalore", href: "/tools/invoice-generator/india/bangalore" },
+    { label: "New York", href: "/tools/invoice-generator/usa/new-york" },
+    { label: "Los Angeles", href: "/tools/invoice-generator/usa/los-angeles" },
+    { label: "London", href: "/tools/invoice-generator/uk/london" },
+    { label: "Manchester", href: "/tools/invoice-generator/uk/manchester" },
+    { label: "Toronto", href: "/tools/invoice-generator/canada/toronto" },
+    { label: "Sydney", href: "/tools/invoice-generator/australia/sydney" },
+    { label: "Dubai", href: "/tools/invoice-generator/uae/dubai" },
+    { label: "Singapore", href: "/tools/invoice-generator/singapore/central" },
+    { label: "Berlin", href: "/tools/invoice-generator/germany/berlin" },
+]
+
 export function LandingFooter() {
 
     return (
@@ -67,7 +83,7 @@ export function LandingFooter() {
                 </div>
 
                 {/* Links Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-10 mb-16">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-10 mb-12">
                     {Object.entries(footerLinks).map(([group, links]) => (
                         <div key={group}>
                             <h4 className="text-xs uppercase tracking-widest font-bold text-white/40 mb-6">{group}</h4>
@@ -87,6 +103,22 @@ export function LandingFooter() {
                     ))}
                 </div>
 
+                {/* Locations section */}
+                <div className="mb-12 pt-10 border-t border-white/10">
+                    <h4 className="text-xs uppercase tracking-widest font-bold text-white/40 mb-6">Locations</h4>
+                    <div className="flex flex-wrap gap-x-6 gap-y-3">
+                        {locationLinks.map((link) => (
+                            <Link
+                                key={link.label}
+                                href={link.href}
+                                className="text-sm text-[var(--landing-text-dim)] hover:text-[var(--landing-cream)] transition-colors duration-200"
+                            >
+                                {link.label}
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+
                 {/* Bottom */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-white/10">
                     <div className="flex items-center gap-2.5">
@@ -96,6 +128,12 @@ export function LandingFooter() {
                     <p className="text-xs text-white/30">
                         © {new Date().getFullYear()} Clorefy. All rights reserved.
                     </p>
+                    <Link
+                        href="/clorefy-alternative-spellings"
+                        className="text-xs text-white/20 hover:text-white/40 transition-colors duration-200"
+                    >
+                        Alternative spellings
+                    </Link>
                 </div>
             </div>
         </footer>

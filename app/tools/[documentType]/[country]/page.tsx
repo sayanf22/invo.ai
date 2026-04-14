@@ -5,12 +5,14 @@ import {
   getAllProgrammaticPages,
   getProgrammaticPageData,
 } from "@/lib/seo-data"
+import { getCitiesForCountry } from "@/lib/city-data"
+import { getCountryHreflangTags } from "@/lib/hreflang"
 import { LandingLayout } from "@/components/landing/landing-layout"
 import { Breadcrumbs } from "@/components/seo/breadcrumbs"
 import { RelatedLinks } from "@/components/seo/related-links"
 import { JsonLd } from "@/components/seo/json-ld"
 import { AnimatedCard } from "@/components/landing/animated-card"
-import { CheckCircle, ArrowRight } from "lucide-react"
+import { CheckCircle, ArrowRight, MapPin } from "lucide-react"
 
 const BASE_URL = "https://clorefy.com"
 
@@ -38,11 +40,13 @@ export async function generateMetadata({
   }
 
   const url = `${BASE_URL}/tools/${documentType}/${country}`
+  const hreflangTags = getCountryHreflangTags(documentType)
+  const languages = Object.fromEntries(hreflangTags.map((t) => [t.hrefLang, t.href]))
 
   return {
     title: data.title,
     description: data.metaDescription,
-    alternates: { canonical: url },
+    alternates: { canonical: url, languages },
     openGraph: {
       title: data.title,
       description: data.metaDescription,
@@ -71,6 +75,7 @@ export default async function ToolPage({
   if (!data) return notFound()
 
   const pageUrl = `${BASE_URL}/tools/${documentType}/${country}`
+  const cities = getCitiesForCountry(country)
 
   const breadcrumbItems = [
     { label: "Home", href: "/" },
@@ -212,6 +217,27 @@ export default async function ToolPage({
             relatedBlogSlugs={data.relatedBlogSlugs}
           />
         </AnimatedCard>
+
+        {/* Available Cities */}
+        {cities.length > 0 && (
+          <AnimatedCard delay={0.4} className="mt-12">
+            <h2 className="text-2xl font-semibold mb-6">
+              Available Cities in {data.country.name}
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {cities.map((city) => (
+                <Link
+                  key={city.slug}
+                  href={`/tools/${documentType}/${country}/${city.slug}`}
+                  className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-amber-300 dark:hover:border-amber-700 transition-colors"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                  {city.name}
+                </Link>
+              ))}
+            </div>
+          </AnimatedCard>
+        )}
       </div>
     </LandingLayout>
   )

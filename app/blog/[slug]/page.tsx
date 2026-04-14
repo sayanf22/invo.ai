@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 import { getPostBySlug, getRelatedPosts, getPostsByHub, getAllSlugs } from "@/lib/blog-data"
 import { Breadcrumbs } from "@/components/seo/breadcrumbs"
 import { ArrowLeft, Clock, ArrowRight } from "lucide-react"
+import { generateArticleSchema } from "@/lib/structured-data"
 
 // Static generation — all blog posts are pre-rendered at build time
 export function generateStaticParams() {
@@ -53,22 +54,13 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     }
 
     // JSON-LD structured data for Article
-    const jsonLd = {
-        "@context": "https://schema.org",
-        "@type": "Article",
+    const jsonLd = generateArticleSchema({
         headline: post.title,
         description: post.description,
+        url: `https://clorefy.com/blog/${post.slug}`,
         datePublished: post.publishedAt,
         dateModified: post.updatedAt,
-        author: { "@type": "Organization", name: "Clorefy", url: "https://clorefy.com" },
-        publisher: {
-            "@type": "Organization",
-            name: "Clorefy",
-            url: "https://clorefy.com",
-            logo: { "@type": "ImageObject", url: "https://clorefy.com/favicon.png" },
-        },
-        mainEntityOfPage: { "@type": "WebPage", "@id": `https://clorefy.com/blog/${post.slug}` },
-    }
+    })
 
     return (
         <>

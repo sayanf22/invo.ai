@@ -10,6 +10,8 @@ import {
   recordFailedLogin,
   resetBruteForce,
 } from "@/lib/middleware-security"
+import { isMisspellingPath } from "@/lib/misspelling-data"
+import { normalizePathname } from "@/lib/url-utils"
 
 /**
  * Server-side middleware for Supabase auth + IP-based rate limiting + brute force protection.
@@ -52,12 +54,17 @@ const PUBLIC_PATHS = [
   "/privacy",
   "/refund-policy",
   "/business",
+  "/tools",
+  "/clorefy-alternative-spellings",
 ]
 
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/") return true // Landing page is public — app/page.tsx handles auth check
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p))
 }
+
+// ── URL Normalization ──────────────────────────────────────────────────
+// normalizePathname is imported from @/lib/url-utils
 
 // ── Cookie helpers (same chunked format as lib/supabase.ts) ────────────
 function getAuthTokenFromCookies(request: NextRequest): string | null {
@@ -122,6 +129,22 @@ export async function middleware(request: NextRequest) {
     pathname.includes(".")
   ) {
     return response
+  }
+
+  // ── URL Normalization (301 redirect to canonical form) ───────────────
+  const normalizedPath = normalizePathname(pathname)
+  if (normalizedPath !== null) {
+    const redirectUrl = new URL(request.url)
+    redirectUrl.pathname = normalizedPath
+    return NextResponse.redirect(redirectUrl, { status: 301 })
+  }
+
+  // ── Misspelling Redirects (301 redirect to corrected URL) ────────────
+  const correctedPath = isMisspellingPath(pathname)
+  if (correctedPath !== null) {
+    const redirectUrl = new URL(request.url)
+    redirectUrl.pathname = correctedPath
+    return NextResponse.redirect(redirectUrl, { status: 301 })
   }
 
   // ── IP-Based Rate Limiting ───────────────────────────────────────────

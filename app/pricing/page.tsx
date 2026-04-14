@@ -5,6 +5,7 @@ import { FaqAccordion, type FaqItem } from "@/components/landing/faq-accordion"
 import { AnimatedHero } from "@/components/landing/animated-hero"
 import { AnimatedCard } from "@/components/landing/animated-card"
 import { Breadcrumbs } from "@/components/seo/breadcrumbs"
+import { generateProductSchema, type PricingPlan } from "@/lib/structured-data"
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
 
@@ -150,11 +151,50 @@ const faqs: FaqItem[] = [
   },
 ]
 
+// ─── Structured data (Product schema) ────────────────────────────────────────
+
+const pricingPlans: PricingPlan[] = [
+  {
+    name: "Free",
+    price: 0,
+    currency: "USD",
+    description: "5 documents/month, Invoice + Contract, all 11 countries, PDF export. No credit card required.",
+    billingPeriod: "P1M",
+  },
+  {
+    name: "Starter",
+    price: 9,
+    currency: "USD",
+    description: "50 documents/month, all 4 document types, all 9 templates, PDF + DOCX export, 30-day history.",
+    billingPeriod: "P1M",
+  },
+  {
+    name: "Pro",
+    price: 24,
+    currency: "USD",
+    description: "150 documents/month, all document types and templates, PDF + DOCX + Image export, digital signatures, custom branding.",
+    billingPeriod: "P1M",
+  },
+  {
+    name: "Agency",
+    price: 59,
+    currency: "USD",
+    description: "Unlimited documents, all features, 3 team members, priority support, forever history.",
+    billingPeriod: "P1M",
+  },
+]
+
+const productJsonLd = generateProductSchema(pricingPlans)
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PricingPage() {
   return (
     <LandingLayout>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
       <div className="min-h-screen" style={{ backgroundColor: "#faf8f5" }}>
 
         {/* ── Breadcrumbs ── */}
