@@ -1,12 +1,40 @@
 // lib/r2.ts
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+//
+// R2 storage operations with dual strategy:
+// 1. Native R2 binding via getCloudflareContext() — used in production (Cloudflare Workers)
+// 2. S3 SDK fallback — used in local development (next dev)
+//
+// The native binding avoids the @aws-sdk __name issue on Workers runtime.
+
 import { getSecret } from "@/lib/secrets"
 
-let _client: S3Client | null = null
+// ── Polyfill __name for Cloudflare Workers ──────────────────────────
+// esbuild's --keep-names injects __name() calls but Workers doesn't define it.
+// This must run before any @aws-sdk import.
+if (typeof globalThis.__name === "undefined") {
+  (globalThis as any).__name = (fn: any, _name: string) => fn
+}
 
-async function getR2Client(): Promise<S3Client> {
+// ── Native R2 binding (Cloudflare Workers) ──────────────────────────
+
+async function getNativeR2Bucket(): Promise<R2Bucket | null> {
+  try {
+    const { getCloudflareContext } = await import("@opennextjs/cloudflare")
+    const ctx = await getCloudflareContext()
+    const bucket = (ctx.env as any).R2_BUCKET as R2Bucket | undefined
+    return bucket ?? null
+  } catch {
+    return null
+  }
+}
+
+// ── S3 SDK fallback (local development) ─────────────────────────────
+
+let _client: any = null
+
+async function getS3Client() {
   if (_client) return _client
+  const { S3Client } = await import("@aws-sdk/client-s3")
   const accountId = await getSecret("R2_ACCOUNT_ID")
   const accessKeyId = await getSecret("R2_ACCESS_KEY_ID")
   const secretAccessKey = await getSecret("R2_SECRET_ACCESS_KEY")
@@ -17,9 +45,6 @@ async function getR2Client(): Promise<S3Client> {
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
     credentials: { accessKeyId, secretAccessKey },
-    // Disable automatic CRC32 checksums — R2 doesn't support them and they
-    // break presigned URLs (the browser won't send the checksum headers,
-    // causing a signature mismatch → 403 Forbidden)
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
   })
@@ -32,47 +57,27 @@ export async function getBucketName(): Promise<string> {
   return bucket
 }
 
-export async function generatePresignedPutUrl(
-  objectKey: string,
-  contentType: string,
-  maxSizeBytes?: number
-): Promise<string> {
-  const client = await getR2Client()
-  const bucket = await getBucketName()
-  const command = new PutObjectCommand({
-    Bucket: bucket,
-    Key: objectKey,
-    ContentType: contentType,
-    ...(maxSizeBytes ? { ContentLength: maxSizeBytes } : {}),
-  })
-  // Security: PUT URL expires in 5 minutes (≤ 15 min max per Requirement 6.5 — compliant)
-  return getSignedUrl(client, command, { expiresIn: 300 })
-}
-
-export async function generatePresignedGetUrl(objectKey: string): Promise<string> {
-  const client = await getR2Client()
-  const bucket = await getBucketName()
-  const command = new GetObjectCommand({ Bucket: bucket, Key: objectKey })
-  // Security: GET URL expires in 1 hour (≤ 1 hour max per Requirement 6.6 — compliant)
-  return getSignedUrl(client, command, { expiresIn: 3600 })
-}
-
-export async function deleteObject(objectKey: string): Promise<void> {
-  const client = await getR2Client()
-  const bucket = await getBucketName()
-  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }))
-}
+// ── Public API ──────────────────────────────────────────────────────
 
 /**
- * Upload a file directly to R2 from the server using the S3 SDK.
- * No presigned URLs, no CORS — the server handles everything.
+ * Upload a file to R2.
+ * Uses native binding on Workers, S3 SDK locally.
  */
 export async function uploadToR2(
   objectKey: string,
   body: Uint8Array | ArrayBuffer,
   contentType: string
 ): Promise<void> {
-  const client = await getR2Client()
+  const nativeBucket = await getNativeR2Bucket()
+  if (nativeBucket) {
+    await nativeBucket.put(objectKey, body, {
+      httpMetadata: { contentType },
+    })
+    return
+  }
+
+  const { PutObjectCommand } = await import("@aws-sdk/client-s3")
+  const client = await getS3Client()
   const bucket = await getBucketName()
   await client.send(new PutObjectCommand({
     Bucket: bucket,
@@ -80,4 +85,54 @@ export async function uploadToR2(
     Body: new Uint8Array(body instanceof ArrayBuffer ? body : body),
     ContentType: contentType,
   }))
+}
+
+/**
+ * Generate a presigned PUT URL for direct browser upload.
+ */
+export async function generatePresignedPutUrl(
+  objectKey: string,
+  contentType: string,
+  maxSizeBytes?: number
+): Promise<string> {
+  const { PutObjectCommand } = await import("@aws-sdk/client-s3")
+  const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner")
+  const client = await getS3Client()
+  const bucket = await getBucketName()
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: objectKey,
+    ContentType: contentType,
+    ...(maxSizeBytes ? { ContentLength: maxSizeBytes } : {}),
+  })
+  return getSignedUrl(client, command, { expiresIn: 300 })
+}
+
+/**
+ * Generate a presigned GET URL for downloading a file.
+ */
+export async function generatePresignedGetUrl(objectKey: string): Promise<string> {
+  const { GetObjectCommand } = await import("@aws-sdk/client-s3")
+  const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner")
+  const client = await getS3Client()
+  const bucket = await getBucketName()
+  const command = new GetObjectCommand({ Bucket: bucket, Key: objectKey })
+  return getSignedUrl(client, command, { expiresIn: 3600 })
+}
+
+/**
+ * Delete an object from R2.
+ * Uses native binding on Workers, S3 SDK locally.
+ */
+export async function deleteObject(objectKey: string): Promise<void> {
+  const nativeBucket = await getNativeR2Bucket()
+  if (nativeBucket) {
+    await nativeBucket.delete(objectKey)
+    return
+  }
+
+  const { DeleteObjectCommand } = await import("@aws-sdk/client-s3")
+  const client = await getS3Client()
+  const bucket = await getBucketName()
+  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }))
 }
