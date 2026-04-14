@@ -153,14 +153,16 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
         setFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, status: "uploading" as const } : f))
 
         try {
-            // Upload file server-side via FormData (no CORS needed)
-            const formData = new FormData()
-            formData.append("file", uploadedFile.file)
-            formData.append("category", "documents")
-
+            // Step 1: Get presigned PUT URL
             const uploadRes = await fetch("/api/storage/upload", {
                 method: "POST",
-                body: formData,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    fileName: uploadedFile.file.name,
+                    fileSize: uploadedFile.file.size,
+                    contentType: uploadedFile.file.type,
+                    category: "documents",
+                }),
             })
 
             if (!uploadRes.ok) {
@@ -173,7 +175,23 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                 return
             }
 
-            const { objectKey } = await uploadRes.json()
+            const { uploadUrl, objectKey } = await uploadRes.json()
+
+            // Step 2: PUT file directly to R2
+            const putRes = await fetch(uploadUrl, {
+                method: "PUT",
+                body: uploadedFile.file,
+                headers: { "Content-Type": uploadedFile.file.type },
+            })
+
+            if (!putRes.ok) {
+                setFiles(prev => prev.map(f =>
+                    f.id === uploadedFile.id
+                        ? { ...f, status: "failed" as const, error: "Upload failed. Tap to retry." }
+                        : f
+                ))
+                return
+            }
 
             setFiles(prev => prev.map(f =>
                 f.id === uploadedFile.id

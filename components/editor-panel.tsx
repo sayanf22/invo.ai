@@ -288,20 +288,30 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
 
     setIsLogoUploading(true)
     try {
-      // Upload file server-side via FormData (no CORS needed)
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("category", "logos")
-
+      // Step 1: Get presigned PUT URL
       const uploadRes = await fetch("/api/storage/upload", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileSize: file.size,
+          contentType: file.type,
+          category: "logos",
+        }),
       })
       if (!uploadRes.ok) {
         const err = await uploadRes.json().catch(() => ({}))
-        throw new Error(err.error || "Upload failed.")
+        throw new Error(err.error || "Failed to get upload URL.")
       }
-      const { objectKey } = await uploadRes.json()
+      const { uploadUrl, objectKey } = await uploadRes.json()
+
+      // Step 2: PUT file directly to R2
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      })
+      if (!putRes.ok) throw new Error("Upload to storage failed.")
 
       // Update fromLogo with the R2 object key
       onChange({ fromLogo: objectKey })
