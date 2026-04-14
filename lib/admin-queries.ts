@@ -739,23 +739,52 @@ export async function getRevenue(): Promise<RevenueData> {
   const supabase = getAdminClient()
   const now = new Date()
   const monthISO = startOfMonth(now).toISOString()
+  const USD_TO_INR = 93 // Current approximate rate (April 2026)
 
-  // MRR from subscriptions (amount_paid is in paise)
-  const { data: activeSubs } = await supabase
+  // Get ALL subscriptions (not just active) for payment history
+  const { data: allSubs } = await supabase
     .from("subscriptions")
-    .select("amount_paid, plan, currency, user_id, profiles!inner(email)")
-    .eq("status", "active")
-    .neq("plan", "free")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(100)
 
+  // Enrich with profile emails and business country
+  const userIds = [...new Set((allSubs ?? []).map((s: any) => s.user_id))]
+  let profileMap: Record<string, { email: string; full_name: string | null }> = {}
+  let businessMap: Record<string, string> = {}
+
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, email, full_name")
+      .in("id", userIds)
+    for (const p of profiles ?? []) {
+      profileMap[p.id] = { email: p.email ?? '—', full_name: p.full_name }
+    }
+
+    const { data: businesses } = await supabase
+      .from("businesses")
+      .select("user_id, country")
+      .in("user_id", userIds)
+    for (const b of businesses ?? []) {
+      businessMap[b.user_id] = b.country ?? '—'
+    }
+  }
+
+  // MRR from active paid subscriptions
+  const activePaid = (allSubs ?? []).filter((s: any) => s.status === 'active' && s.plan !== 'free')
   let mrr = 0
   const planCounts: Record<string, number> = {}
   const planRevenue: Record<string, number> = {}
-  for (const s of activeSubs ?? []) {
-    const amount = (s.amount_paid ?? 0) / 100 // paise to rupees
-    mrr += amount
+
+  for (const s of activePaid) {
+    const amountInr = (s.amount_paid ?? 0) / 100
+    // If currency is USD, convert to INR for dashboard display
+    const displayAmount = s.currency === 'USD' ? amountInr * USD_TO_INR : amountInr
+    mrr += displayAmount
     const plan = s.plan ?? 'unknown'
     planCounts[plan] = (planCounts[plan] ?? 0) + 1
-    planRevenue[plan] = (planRevenue[plan] ?? 0) + amount
+    planRevenue[plan] = (planRevenue[plan] ?? 0) + displayAmount
   }
 
   const arr = mrr * 12
@@ -765,51 +794,62 @@ export async function getRevenue(): Promise<RevenueData> {
     revenue: planRevenue[plan] ?? 0,
   }))
 
-  // Payment history from subscriptions table
-  const { data: allSubs, count: paymentHistoryTotal } = await supabase
-    .from("subscriptions")
-    .select("*, profiles!inner(email, full_name)", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .limit(100)
+  // Payment history with full details
+  const paymentHistory = (allSubs ?? []).map((s: any) => {
+    const amountRaw = (s.amount_paid ?? 0) / 100
+    const currency = s.currency ?? 'INR'
+    const country = businessMap[s.user_id] ?? '—'
+    const profile = profileMap[s.user_id]
 
-  const paymentHistory = (allSubs ?? []).map((s: any) => ({
-    id: s.id,
-    user_email: s.profiles?.email ?? '—',
-    amount: (s.amount_paid ?? 0) / 100,
-    plan: s.plan,
-    date: s.created_at,
-    payment_id: s.razorpay_payment_id ?? '—',
-    status: s.status === 'active' ? 'paid' : s.status,
-  }))
+    return {
+      id: s.id,
+      user_email: profile?.email ?? '—',
+      user_name: profile?.full_name ?? '—',
+      amount: amountRaw,
+      amount_inr: currency === 'USD' ? Math.round(amountRaw * USD_TO_INR) : amountRaw,
+      currency,
+      plan: s.plan,
+      billing_cycle: s.billing_cycle ?? '—',
+      date: s.created_at,
+      payment_id: s.razorpay_payment_id ?? '—',
+      subscription_id: s.razorpay_subscription_id ?? '—',
+      country,
+      status: s.status === 'active' && s.plan !== 'free' ? 'paid' : s.status,
+      period_start: s.current_period_start,
+      period_end: s.current_period_end,
+    }
+  })
 
-  // New revenue this month — subscriptions created this month
+  // New revenue this month
   const { data: newSubsThisMonth } = await supabase
     .from("subscriptions")
-    .select("amount_paid")
+    .select("amount_paid, currency")
     .gte("created_at", monthISO)
     .neq("plan", "free")
 
-  const newRevenueThisMonth = (newSubsThisMonth ?? []).reduce(
-    (sum, s) => sum + ((s.amount_paid ?? 0) / 100), 0
-  )
+  const newRevenueThisMonth = (newSubsThisMonth ?? []).reduce((sum, s) => {
+    const amt = (s.amount_paid ?? 0) / 100
+    return sum + (s.currency === 'USD' ? amt * USD_TO_INR : amt)
+  }, 0)
 
-  // MoM change — compare with previous month subscriptions
+  // MoM change
   const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const prevMonthISO = prevDate.toISOString()
   const { data: prevMonthSubs } = await supabase
     .from("subscriptions")
-    .select("amount_paid")
+    .select("amount_paid, currency")
     .gte("created_at", prevMonthISO)
     .lt("created_at", monthISO)
     .neq("plan", "free")
 
-  const prevMonthRevenue = (prevMonthSubs ?? []).reduce(
-    (sum, s) => sum + ((s.amount_paid ?? 0) / 100), 0
-  )
-  const momChange =
-    prevMonthRevenue > 0
-      ? ((newRevenueThisMonth - prevMonthRevenue) / prevMonthRevenue) * 100
-      : 0
+  const prevMonthRevenue = (prevMonthSubs ?? []).reduce((sum, s) => {
+    const amt = (s.amount_paid ?? 0) / 100
+    return sum + (s.currency === 'USD' ? amt * USD_TO_INR : amt)
+  }, 0)
+
+  const momChange = prevMonthRevenue > 0
+    ? ((newRevenueThisMonth - prevMonthRevenue) / prevMonthRevenue) * 100
+    : 0
 
   return {
     mrr,

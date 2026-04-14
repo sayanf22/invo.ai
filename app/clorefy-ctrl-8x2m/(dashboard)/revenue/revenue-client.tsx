@@ -12,11 +12,19 @@ import { useAdminTheme } from '@/components/admin/admin-theme-provider'
 interface PaymentRow extends Record<string, unknown> {
   id: string
   user_email: string | null
+  user_name: string | null
   amount: number | null
+  amount_inr: number | null
+  currency: string | null
   plan: string | null
+  billing_cycle: string | null
   date: string | null
   payment_id: string | null
+  subscription_id: string | null
+  country: string | null
   status: string | null
+  period_start: string | null
+  period_end: string | null
 }
 
 interface PlanRevRow extends Record<string, unknown> {
@@ -30,10 +38,10 @@ interface RevenueData {
   mrr: number
   arr: number
   newRevenueThisMonth: number
-  momChangePercent: number
-  byPlan: PlanRevRow[]
-  payments: PaymentRow[]
-  total: number
+  momChange: number
+  revenueByPlan: Array<{ plan: string; count: number; revenue: number }>
+  paymentHistory: PaymentRow[]
+  paymentHistoryTotal: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -63,19 +71,47 @@ export default function RevenueClient() {
     )
   }
 
+  const COUNTRY_FLAGS: Record<string, string> = {
+    IN: '🇮🇳', US: '🇺🇸', GB: '🇬🇧', DE: '🇩🇪', CA: '🇨🇦', AU: '🇦🇺',
+    SG: '🇸🇬', AE: '🇦🇪', PH: '🇵🇭', FR: '🇫🇷', NL: '🇳🇱',
+  }
+
   const paymentColumns = [
-    { key: 'user_email', header: 'User', render: (r: PaymentRow) => <span className="text-xs" style={{ color: '#71717A' }}>{r.user_email ?? '—'}</span> },
-    { key: 'amount', header: 'Amount', render: (r: PaymentRow) => <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{r.amount != null ? `₹${r.amount}` : '—'}</span> },
-    { key: 'plan', header: 'Plan', render: (r: PaymentRow) => <span className="capitalize" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{r.plan ?? '—'}</span> },
-    { key: 'date', header: 'Date', render: (r: PaymentRow) => <span className="text-sm" style={{ color: '#71717A' }}>{formatDate(r.date)}</span> },
+    { key: 'user_name', header: 'User', render: (r: PaymentRow) => (
+      <div>
+        <span className="text-sm font-medium block" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{r.user_name ?? '—'}</span>
+        <span className="text-xs" style={{ color: '#71717A' }}>{r.user_email ?? '—'}</span>
+      </div>
+    )},
+    { key: 'amount', header: 'Amount', render: (r: PaymentRow) => {
+      const curr = r.currency ?? 'INR'
+      const symbol = curr === 'USD' ? '$' : '₹'
+      const raw = r.amount ?? 0
+      return (
+        <div>
+          <span className="text-sm font-medium" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{symbol}{raw.toLocaleString()}</span>
+          {curr === 'USD' && r.amount_inr != null && (
+            <span className="text-xs block" style={{ color: '#71717A' }}>≈ ₹{r.amount_inr.toLocaleString()}</span>
+          )}
+        </div>
+      )
+    }},
+    { key: 'plan', header: 'Plan', render: (r: PaymentRow) => <span className="capitalize text-sm" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{r.plan ?? '—'}</span> },
+    { key: 'country', header: 'Country', render: (r: PaymentRow) => {
+      const c = (r.country ?? '').toUpperCase()
+      const flag = COUNTRY_FLAGS[c] ?? ''
+      return <span className="text-sm" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{flag} {c || '—'}</span>
+    }},
+    { key: 'billing_cycle', header: 'Cycle', render: (r: PaymentRow) => <span className="text-xs capitalize" style={{ color: '#71717A' }}>{r.billing_cycle ?? '—'}</span> },
     { key: 'payment_id', header: 'Payment ID', render: (r: PaymentRow) => <span className="text-xs font-mono" style={{ color: '#71717A' }}>{r.payment_id ?? '—'}</span> },
+    { key: 'date', header: 'Date', render: (r: PaymentRow) => <span className="text-xs" style={{ color: '#71717A' }}>{formatDate(r.date)}</span> },
     { key: 'status', header: 'Status', render: (r: PaymentRow) => <StatusBadge status={r.status} /> },
   ]
 
   const planColumns = [
     { key: 'plan', header: 'Plan', render: (r: PlanRevRow) => <span className="capitalize font-medium" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{r.plan}</span> },
-    { key: 'subscribers', header: 'Subscribers', render: (r: PlanRevRow) => <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{r.subscribers.toLocaleString()}</span> },
-    { key: 'revenue', header: 'Revenue', render: (r: PlanRevRow) => <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>₹{r.revenue.toLocaleString()}</span> },
+    { key: 'subscribers', header: 'Subscribers', render: (r: PlanRevRow) => <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{(r.count ?? r.subscribers ?? 0).toLocaleString()}</span> },
+    { key: 'revenue', header: 'Revenue', render: (r: PlanRevRow) => <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>₹{(r.revenue ?? 0).toLocaleString()}</span> },
   ]
 
   const [data, setData] = useState<RevenueData | null>(null)
@@ -109,11 +145,12 @@ export default function RevenueClient() {
       if (statusFilter) params.set('status', statusFilter)
       const res = await fetch(`/api/admin/revenue?${params}`)
       if (!res.ok) throw new Error('Failed')
-      const json: RevenueData = await res.json()
-      const rows = json.payments ?? []
-      const header = 'User,Amount,Plan,Date,Payment ID,Status'
+      const json = await res.json()
+      const rows = (json.paymentHistory ?? []) as PaymentRow[]
+      const header = 'User Name,Email,Amount,Currency,Amount INR,Plan,Country,Billing Cycle,Payment ID,Date,Status'
       const csv = [header, ...rows.map(r =>
-        [r.user_email ?? '', r.amount ?? '', r.plan ?? '', r.date ?? '', r.payment_id ?? '', r.status ?? ''].join(',')
+        [r.user_name ?? '', r.user_email ?? '', r.amount ?? '', r.currency ?? '', r.amount_inr ?? '',
+         r.plan ?? '', r.country ?? '', r.billing_cycle ?? '', r.payment_id ?? '', r.date ?? '', r.status ?? ''].join(',')
       )].join('\n')
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
@@ -126,8 +163,8 @@ export default function RevenueClient() {
   }
 
   const filteredPayments = statusFilter
-    ? (data?.payments ?? []).filter(p => p.status === statusFilter)
-    : (data?.payments ?? [])
+    ? (data?.paymentHistory ?? []).filter(p => p.status === statusFilter)
+    : (data?.paymentHistory ?? [])
 
   return (
     <div className="space-y-6">
@@ -145,7 +182,7 @@ export default function RevenueClient() {
         <KpiCard title="MRR" value={data?.mrr ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
         <KpiCard title="ARR" value={data?.arr ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
         <KpiCard title="New Revenue This Month" value={data?.newRevenueThisMonth ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
-        <KpiCard title="MoM Change" value={data?.momChangePercent ?? 0} suffix="%" loading={loading} error={error} onRetry={fetchData} />
+        <KpiCard title="MoM Change" value={data?.momChange ?? 0} suffix="%" loading={loading} error={error} onRetry={fetchData} />
       </div>
 
       {/* Revenue by Plan */}
@@ -153,7 +190,7 @@ export default function RevenueClient() {
         <h2 className="text-base font-semibold mb-3" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Revenue by Plan</h2>
         <DataTable
           columns={planColumns as Parameters<typeof DataTable>[0]['columns']}
-          data={(data?.byPlan ?? []) as Record<string, unknown>[]}
+          data={(data?.revenueByPlan ?? []).map((r, i) => ({ ...r, id: String(i) })) as Record<string, unknown>[]}
           loading={loading}
           emptyState={<p style={{ color: '#71717A' }} className="text-sm">No plan data</p>}
         />
@@ -186,7 +223,7 @@ export default function RevenueClient() {
           loading={loading}
           page={page}
           pageSize={pageSize}
-          total={data?.total ?? 0}
+          total={data?.paymentHistoryTotal ?? 0}
           onPageChange={setPage}
           onPageSizeChange={s => { setPageSize(s); setPage(1) }}
           emptyState={<p style={{ color: '#71717A' }} className="text-sm">No payments found</p>}
