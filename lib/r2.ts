@@ -109,7 +109,35 @@ export async function generatePresignedPutUrl(
 }
 
 /**
+ * Get an object from R2 as an ArrayBuffer + content type.
+ * Uses native binding on Workers, S3 SDK locally.
+ * This eliminates the need for presigned GET URLs in production.
+ */
+export async function getObject(objectKey: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
+  const nativeBucket = await getNativeR2Bucket()
+  if (nativeBucket) {
+    const obj = await nativeBucket.get(objectKey)
+    if (!obj) return null
+    const body = await obj.arrayBuffer()
+    const contentType = obj.httpMetadata?.contentType || "application/octet-stream"
+    return { body, contentType }
+  }
+
+  // S3 SDK fallback (local dev)
+  const { GetObjectCommand } = await import("@aws-sdk/client-s3")
+  const client = await getS3Client()
+  const bucket = await getBucketName()
+  const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: objectKey }))
+  if (!res.Body) return null
+  const body = await res.Body.transformToByteArray()
+  const contentType = res.ContentType || "application/octet-stream"
+  return { body: body.buffer as ArrayBuffer, contentType }
+}
+
+/**
  * Generate a presigned GET URL for downloading a file.
+ * @deprecated Use getObject() instead — avoids S3 SDK on Workers.
+ * Kept for backward compatibility with tests.
  */
 export async function generatePresignedGetUrl(objectKey: string): Promise<string> {
   const { GetObjectCommand } = await import("@aws-sdk/client-s3")

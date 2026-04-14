@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
-import { generatePresignedGetUrl, deleteObject } from "@/lib/r2"
+import { deleteObject } from "@/lib/r2"
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -65,8 +65,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 4. Generate presigned GET URL (1 hour TTL)
-    const url = await generatePresignedGetUrl(key)
+    // 4. Return self-hosted image URL (served via /api/storage/image)
+    // This avoids presigned URLs and S3 SDK entirely in production.
+    const origin = new URL(request.url).origin
+    const url = `${origin}/api/storage/image?key=${encodeURIComponent(key)}`
 
     return NextResponse.json({ url })
   } catch (error) {

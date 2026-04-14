@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
-import { generatePresignedGetUrl } from "@/lib/r2"
+import { getObject } from "@/lib/r2"
 
 const MIME_MAP: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
@@ -50,18 +50,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get presigned URL and fetch the image server-side
-    const presignedUrl = await generatePresignedGetUrl(key)
-    const imageRes = await fetch(presignedUrl)
+    // Read object directly from R2 (native binding on Workers, S3 SDK locally)
+    const obj = await getObject(key)
 
-    if (!imageRes.ok) {
+    if (!obj) {
       return NextResponse.json({ error: "Image not found" }, { status: 404 })
     }
 
     // Convert to base64 data URL
-    const arrayBuffer = await imageRes.arrayBuffer()
-    const base64 = Buffer.from(arrayBuffer).toString("base64")
-    const mime = getMimeFromKey(key)
+    const base64 = Buffer.from(obj.body).toString("base64")
+    const mime = obj.contentType !== "application/octet-stream" ? obj.contentType : getMimeFromKey(key)
     const dataUrl = `data:${mime};base64,${base64}`
 
     return NextResponse.json({ dataUrl })
