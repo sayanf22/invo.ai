@@ -399,7 +399,7 @@ export default function ProfilePage() {
             const oldLogoKey = profile.logo_url
             if (oldLogoKey) {
                 try {
-                    await fetch(`/api/storage/url?key=${encodeURIComponent(oldLogoKey)}`, { method: "DELETE" })
+                    await authFetch(`/api/storage/url?key=${encodeURIComponent(oldLogoKey)}`, { method: "DELETE" })
                 } catch {
                     // Non-blocking — old file may be orphaned
                 }
@@ -421,7 +421,7 @@ export default function ProfilePage() {
         try {
             // Delete from R2
             try {
-                await fetch(`/api/storage/url?key=${encodeURIComponent(profile.logo_url)}`, { method: "DELETE" })
+                await authFetch(`/api/storage/url?key=${encodeURIComponent(profile.logo_url)}`, { method: "DELETE" })
             } catch {
                 // Non-blocking
             }
