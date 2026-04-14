@@ -8,13 +8,6 @@
 
 import { getSecret } from "@/lib/secrets"
 
-// ── Polyfill __name for Cloudflare Workers ──────────────────────────
-// esbuild's --keep-names injects __name() calls but Workers doesn't define it.
-// This must run before any @aws-sdk import.
-if (typeof globalThis.__name === "undefined") {
-  (globalThis as any).__name = (fn: any, _name: string) => fn
-}
-
 // ── Native R2 binding (Cloudflare Workers) ──────────────────────────
 
 async function getNativeR2Bucket(): Promise<R2Bucket | null> {

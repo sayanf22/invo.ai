@@ -35,6 +35,3 @@ interface R2ObjectBody extends R2Object {
   json<T = unknown>(): Promise<T>
   blob(): Promise<Blob>
 }
-
-// Extend globalThis for __name polyfill
-declare var __name: ((fn: any, name: string) => any) | undefined
