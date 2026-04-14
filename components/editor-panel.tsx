@@ -329,7 +329,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
       </div>
 
       {/* Steps */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20 flex flex-col gap-3">
         {/* ═══ Step 1: Document Type, Currency, Branding ═══ */}
         <Step
           number={1}
