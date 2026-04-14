@@ -17,6 +17,11 @@ async function getR2Client(): Promise<S3Client> {
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
     credentials: { accessKeyId, secretAccessKey },
+    // Disable automatic CRC32 checksums — R2 doesn't support them and they
+    // break presigned URLs (the browser won't send the checksum headers,
+    // causing a signature mismatch → 403 Forbidden)
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   })
   return _client
 }
