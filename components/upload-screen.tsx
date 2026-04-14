@@ -182,12 +182,12 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
             ))
 
             // Step 2: Analyze via /api/ai/analyze-file (unchanged)
-            const formData = new FormData()
-            formData.append("file", uploadedFile.file)
+            const analyzeFormData = new FormData()
+            analyzeFormData.append("file", uploadedFile.file)
 
             let res = await fetch("/api/ai/analyze-file", {
                 method: "POST",
-                body: formData,
+                body: analyzeFormData,
             })
 
             // Handle 429 with retry
@@ -195,7 +195,7 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                 await new Promise(resolve => setTimeout(resolve, 5000))
                 res = await fetch("/api/ai/analyze-file", {
                     method: "POST",
-                    body: formData,
+                    body: analyzeFormData,
                 })
                 if (!res.ok) {
                     setFiles(prev => prev.map(f =>
