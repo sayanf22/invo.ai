@@ -877,7 +877,7 @@ export async function getRevenue(): Promise<RevenueData> {
     momChange,
     revenueByPlan,
     paymentHistory: paymentHistory as Array<Record<string, unknown>>,
-    paymentHistoryTotal: paymentHistoryTotal ?? 0,
+    paymentHistoryTotal: paymentHistory.length,
   }
 }
 
