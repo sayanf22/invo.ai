@@ -64,7 +64,7 @@ export async function deleteObject(objectKey: string): Promise<void> {
  */
 export async function uploadToR2(
   objectKey: string,
-  body: Buffer | Uint8Array,
+  body: Buffer | Uint8Array | ArrayBuffer,
   contentType: string
 ): Promise<void> {
   const client = await getR2Client()
@@ -72,7 +72,7 @@ export async function uploadToR2(
   await client.send(new PutObjectCommand({
     Bucket: bucket,
     Key: objectKey,
-    Body: body,
+    Body: body instanceof ArrayBuffer ? Buffer.from(body) : body,
     ContentType: contentType,
   }))
 }

@@ -126,12 +126,12 @@ export async function POST(request: NextRequest) {
     const objectKey = `${category}/${auth.user.id}/${crypto.randomUUID()}.${ext}`
 
     // 5. Upload to R2 server-side (no CORS, no presigned URL exposed)
-    const buffer = new Uint8Array(await file.arrayBuffer())
-    await uploadToR2(objectKey, buffer, file.type)
+    const arrayBuffer = await file.arrayBuffer()
+    await uploadToR2(objectKey, Buffer.from(arrayBuffer), file.type)
 
     return NextResponse.json({ objectKey })
   } catch (error) {
-    console.error("Upload API error:", error)
+    console.error("Upload API error:", error instanceof Error ? error.message : error, error instanceof Error ? error.stack : "")
     return NextResponse.json(
       { error: "Failed to upload file. Please try again." },
       { status: 500 },
