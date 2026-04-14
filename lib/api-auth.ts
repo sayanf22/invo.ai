@@ -93,7 +93,16 @@ async function getAccessTokenFromCookies(): Promise<string | undefined> {
             .map(c => c.value)
             .join("")
 
-        const parsed = JSON.parse(chunks)
+        let decoded = chunks
+        // Handle base64-prefixed cookies (from @supabase/ssr)
+        if (decoded.startsWith("base64-")) {
+            try { decoded = atob(decoded.slice(7)) } catch {}
+        }
+        // Handle URL-encoded cookies
+        if (decoded.startsWith("%7B") || decoded.startsWith("%5B")) {
+            try { decoded = decodeURIComponent(decoded) } catch {}
+        }
+        const parsed = JSON.parse(decoded)
         return parsed.access_token
     } catch (err) {
         console.error("[api-auth] Cookie extraction failed:", err)
