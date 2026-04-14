@@ -143,6 +143,29 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         }
     }, [messages, onMessageCountChange])
 
+    // Auto-populate fromLogo from business profile if not already set
+    useEffect(() => {
+        if (data.fromLogo) return // already has a logo
+        let cancelled = false
+        async function loadProfileLogo() {
+            try {
+                const supabase = createClient()
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user || cancelled) return
+                const { data: biz } = await supabase
+                    .from("businesses")
+                    .select("logo_url")
+                    .eq("user_id", user.id)
+                    .single()
+                if (!cancelled && biz?.logo_url) {
+                    onChange({ fromLogo: biz.logo_url })
+                }
+            } catch { /* ignore — logo is optional */ }
+        }
+        loadProfileLogo()
+        return () => { cancelled = true }
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
     // Handle document limit error from session creation
     useEffect(() => {
         if (limitError) {
