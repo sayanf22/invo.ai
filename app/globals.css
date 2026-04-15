@@ -390,6 +390,13 @@
   }
 }
 
+/* App shell rounded corners on desktop */
+@media (min-width: 768px) {
+  body {
+    background-color: hsl(var(--secondary));
+  }
+}
+
 /* Super rounded utility */
 .rounded-super {
   border-radius: 2.5rem;

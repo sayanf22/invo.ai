@@ -59,9 +59,9 @@ export function PromptScreen({
   const slideOffset = TAB_INDEX[mobileTab] * -100
 
   return (
-    <div className="h-dvh flex flex-col bg-background overflow-hidden">
+    <div className="h-dvh flex flex-col bg-background overflow-hidden rounded-none md:rounded-2xl md:shadow-2xl md:ring-1 md:ring-border/50">
       {/* ── Header ── */}
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card shadow-sm shrink-0">
+      <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card shadow-sm shrink-0 rounded-t-2xl">
         <button
           type="button"
           onClick={onBack}
@@ -179,7 +179,7 @@ export function PromptScreen({
         </div>
 
         {/* ── DESKTOP: chat+editor left panel ── */}
-        <div className="hidden md:flex w-[420px] lg:w-[460px] border-r border-border bg-card shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)] shrink-0 flex-col overflow-hidden">
+        <div className="hidden md:flex w-[420px] lg:w-[460px] border-r border-border bg-card shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)] shrink-0 flex-col overflow-hidden rounded-bl-2xl">
           <div className="flex flex-col flex-1 relative overflow-hidden">
             {/* Chat */}
             <div className={cn(
@@ -208,7 +208,7 @@ export function PromptScreen({
         </div>
 
         {/* ── DESKTOP: preview panel ── */}
-        <div className="hidden md:flex flex-1 bg-background overflow-hidden flex-col">
+        <div className="hidden md:flex flex-1 bg-background overflow-hidden flex-col rounded-br-2xl">
           <DocumentPreview data={data} onChange={handleChange} onToggleEditor={() => setShowEditor(e => !e)} showEditor={showEditor} />
         </div>
       </div>
