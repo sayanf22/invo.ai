@@ -59,9 +59,10 @@ export function PromptScreen({
   const slideOffset = TAB_INDEX[mobileTab] * -100
 
   return (
-    <div className="h-dvh flex flex-col bg-background overflow-hidden rounded-none md:rounded-2xl md:shadow-2xl md:ring-1 md:ring-border/50">
+    <div className="h-dvh flex flex-col bg-background overflow-hidden">
       {/* ── Header ── */}
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card shadow-sm shrink-0 rounded-t-2xl">
+      <header className="flex items-center px-4 py-3 border-b border-border bg-card shadow-sm shrink-0">
+        {/* Left: back */}
         <button
           type="button"
           onClick={onBack}
@@ -71,12 +72,12 @@ export function PromptScreen({
           <ArrowLeft className="w-4 h-4" />
         </button>
 
-        {/* Center logo */}
+        {/* Center logo — flex-1 so it truly centers */}
         <div className="flex-1 flex justify-center">
           <InvoLogo size={30} />
         </div>
 
-        {/* Mobile tab switcher — pill style with shadow */}
+        {/* Mobile tab switcher */}
         <div className="flex items-center gap-1 md:hidden shrink-0 bg-secondary/60 rounded-2xl p-1">
           {(["chat", "edit", "preview"] as MobileTab[]).map((tab) => {
             const icons = { chat: MessageSquare, edit: PenLine, preview: Eye }
@@ -108,20 +109,22 @@ export function PromptScreen({
           })}
         </div>
 
-        {/* Desktop controls */}
-        <div className="hidden md:flex items-center gap-2 shrink-0">
+        {/* Desktop controls — fixed width so they never overlap */}
+        <div className="hidden md:flex items-center gap-2 shrink-0 min-w-[140px] justify-end">
           <button
             type="button"
             onClick={() => setShowHistory(!showHistory)}
             className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap",
+              "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap shrink-0",
               showHistory ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-foreground hover:bg-secondary/50"
             )}
           >
             <HistoryIcon className="w-4 h-4 shrink-0" />
-            <span>{showHistory ? "Hide" : "History"}</span>
+            <span className="hidden lg:inline">{showHistory ? "Hide" : "History"}</span>
           </button>
-          <HamburgerMenu />
+          <div className="shrink-0">
+            <HamburgerMenu />
+          </div>
         </div>
       </header>
 
@@ -179,7 +182,7 @@ export function PromptScreen({
         </div>
 
         {/* ── DESKTOP: chat+editor left panel ── */}
-        <div className="hidden md:flex w-[420px] lg:w-[460px] border-r border-border bg-card shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)] shrink-0 flex-col overflow-hidden rounded-bl-2xl">
+        <div className="hidden md:flex w-[420px] lg:w-[460px] border-r border-border bg-card shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)] shrink-0 flex-col overflow-hidden">
           <div className="flex flex-col flex-1 relative overflow-hidden">
             {/* Chat */}
             <div className={cn(
@@ -208,7 +211,7 @@ export function PromptScreen({
         </div>
 
         {/* ── DESKTOP: preview panel ── */}
-        <div className="hidden md:flex flex-1 bg-background overflow-hidden flex-col rounded-br-2xl">
+        <div className="hidden md:flex flex-1 bg-background overflow-hidden flex-col">
           <DocumentPreview data={data} onChange={handleChange} onToggleEditor={() => setShowEditor(e => !e)} showEditor={showEditor} />
         </div>
       </div>
