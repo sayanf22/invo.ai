@@ -217,9 +217,6 @@ export default function BillingPage() {
                     <h2 className="text-base font-semibold mb-3">Payment History</h2>
                     <div className="rounded-2xl border bg-card divide-y divide-border overflow-hidden">
                         {payments.map((p) => {
-                            const amountDisplay = p.currency === "INR"
-                                ? `INR ${(p.amount / 100).toLocaleString("en-IN")}`
-                                : `${p.currency} ${(p.amount / 100).toFixed(2)}`
                             return (
                                 <div key={p.id} className="flex items-center gap-3 px-4 py-3">
                                     <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center shrink-0">
@@ -227,7 +224,7 @@ export default function BillingPage() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium">{PLAN_LABELS[p.plan] || p.plan} Plan</p>
-                                        <p className="text-xs text-muted-foreground capitalize">
+                                        <p className="text-xs text-muted-foreground">
                                             {format(new Date(p.created_at), "MMM dd, yyyy")}
                                         </p>
                                     </div>
