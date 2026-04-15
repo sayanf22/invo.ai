@@ -400,9 +400,13 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                         height={40}
                         className={`w-10 h-10 object-cover bg-secondary ${data.logoShape === "circle" ? "rounded-full" : "rounded-lg"}`}
                       />
-                    ) : (
+                    ) : logoLoading ? (
                       <div className={`w-10 h-10 bg-secondary flex items-center justify-center ${data.logoShape === "circle" ? "rounded-full" : "rounded-lg"}`}>
                         <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <div className={`w-10 h-10 bg-secondary flex items-center justify-center ${data.logoShape === "circle" ? "rounded-full" : "rounded-lg"}`}>
+                        <ImageIcon className="w-4 h-4 text-muted-foreground/50" />
                       </div>
                     )}
                     <span className="text-xs text-muted-foreground flex-1 truncate">
