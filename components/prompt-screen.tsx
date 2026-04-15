@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import { useState, useCallback } from "react"
-import { ArrowLeft, Eye, PenLine, MessageSquare, Edit3, History as HistoryIcon } from "lucide-react"
+import { ArrowLeft, Eye, PenLine, MessageSquare, History as HistoryIcon } from "lucide-react"
 import { EditorPanel } from "@/components/editor-panel"
 import { DocumentPreview } from "@/components/document-preview"
 import { InvoiceChat } from "@/components/invoice-chat"
@@ -121,6 +121,14 @@ export function PromptScreen({
         </div>
 
         <div className="hidden md:flex items-center gap-2.5">
+          {/* Message count badge — visible on desktop */}
+          {messageCount > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary text-sm text-muted-foreground">
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span className="font-medium text-foreground">{messageCount}</span>
+              <span className="text-xs">msg{messageCount !== 1 ? "s" : ""}</span>
+            </div>
+          )}
           <button
             type="button"
             onClick={() => setShowHistory(!showHistory)}
@@ -132,18 +140,6 @@ export function PromptScreen({
           >
             <HistoryIcon className="w-[18px] h-[18px]" />
             {showHistory ? "Hide History" : "Show History"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowEditor(!showEditor)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 btn-press ${
-              showEditor
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-secondary text-foreground hover:bg-secondary/50 hover:shadow-sm"
-            }`}
-          >
-            <Edit3 className="w-[18px] h-[18px]" />
-            {showEditor ? "Hide Editor" : "Show Editor"}
           </button>
           <HamburgerMenu />
         </div>
