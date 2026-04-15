@@ -76,8 +76,8 @@ export function PromptScreen({
           <InvoLogo size={30} />
         </div>
 
-        {/* Mobile tab switcher */}
-        <div className="flex items-center gap-0.5 md:hidden shrink-0">
+        {/* Mobile tab switcher — pill style with shadow */}
+        <div className="flex items-center gap-1 md:hidden shrink-0 bg-secondary/60 rounded-2xl p-1">
           {(["chat", "edit", "preview"] as MobileTab[]).map((tab) => {
             const icons = { chat: MessageSquare, edit: PenLine, preview: Eye }
             const labels = { chat: "Chat", edit: "Edit", preview: "View" }
@@ -89,16 +89,18 @@ export function PromptScreen({
                 type="button"
                 onClick={() => setMobileTab(tab)}
                 className={cn(
-                  "flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 active:scale-95",
-                  isActive ? "bg-foreground text-background shadow-sm" : "text-muted-foreground"
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 active:scale-95",
+                  isActive
+                    ? "bg-background text-foreground shadow-md"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 <Icon className="w-3.5 h-3.5" />
                 <span>{labels[tab]}</span>
                 {tab === "chat" && messageCount > 0 && (
                   <span className={cn(
-                    "text-[9px] font-bold px-1 py-0.5 rounded-full leading-none",
-                    isActive ? "bg-background/20 text-background" : "bg-muted text-muted-foreground"
+                    "text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none min-w-[16px] text-center",
+                    isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                   )}>{messageCount}</span>
                 )}
               </button>
@@ -148,7 +150,7 @@ export function PromptScreen({
             style={{ width: "300%", transform: `translateX(calc(${slideOffset}% / 3))` }}
           >
             {/* Each panel is 1/3 of the 300%-wide track = exactly 100vw wide and 100% tall */}
-            <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col overflow-hidden">
+            <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col">
               <InvoiceChat
                 data={data}
                 onChange={handleChange}
@@ -161,11 +163,11 @@ export function PromptScreen({
               />
             </div>
 
-            <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col overflow-hidden">
+            <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col">
               <EditorPanel data={data} onChange={handleChange} />
             </div>
 
-            <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col overflow-hidden">
+            <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col">
               <DocumentPreview
                 data={data}
                 onChange={handleChange}

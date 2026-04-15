@@ -10,7 +10,6 @@ import {
   Sparkles,
   Check,
   ChevronDown,
-  ChevronUp,
   Plus,
   Trash2,
   ImageIcon,
@@ -69,15 +68,15 @@ function Step({
   children: React.ReactNode
 }) {
   return (
-    <div className="border border-border rounded-2xl bg-card overflow-hidden transition-all">
+    <div className="border border-border rounded-2xl bg-card shadow-sm transition-all duration-200 hover:shadow-md">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-secondary/50 transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-secondary/40 active:bg-secondary/60 transition-all duration-150 rounded-2xl active:scale-[0.99]"
       >
         <span
-          className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold shrink-0 transition-colors ${isComplete
-            ? "bg-primary text-primary-foreground"
+          className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold shrink-0 transition-all duration-200 ${isComplete
+            ? "bg-primary text-primary-foreground shadow-sm"
             : "bg-secondary text-muted-foreground"
             }`}
         >
@@ -86,14 +85,12 @@ function Step({
         <span className="text-sm font-medium text-foreground flex-1">
           {title}
         </span>
-        {isOpen ? (
-          <ChevronUp className="w-4 h-4 text-muted-foreground" />
-        ) : (
+        <div className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
           <ChevronDown className="w-4 h-4 text-muted-foreground" />
-        )}
+        </div>
       </button>
       {isOpen && (
-        <div className="px-4 pb-4 pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="px-4 pb-4 pt-1 animate-in fade-in slide-in-from-top-1 duration-150">
           {children}
         </div>
       )}
@@ -317,9 +314,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Panel Header */}
-      <div className="px-5 py-4 border-b border-border flex items-center gap-2.5 shrink-0">
-        <Sparkles className="w-4 h-4 text-primary" />
+      {/* Panel Header — no icon, clean */}
+      <div className="px-5 py-4 border-b border-border flex items-center gap-2.5 shrink-0 bg-card">
         <span className="text-sm font-semibold text-foreground tracking-tight">
           Document Builder
         </span>
@@ -674,76 +670,67 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
             onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}
           >
             <div className="flex flex-col gap-3">
-              {/* Column headers */}
-              <div className="grid grid-cols-[1fr_50px_70px_56px_28px] gap-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                <span>Description</span>
-                <span>Qty</span>
-                <span>Rate ({currencyObj.symbol})</span>
-                <span>Disc %</span>
-                <span className="sr-only">Remove</span>
-              </div>
-
+              {/* Card-per-item layout — works on any screen width */}
               {data.items.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="grid grid-cols-[1fr_50px_70px_56px_28px] gap-2 items-start"
+                  className="rounded-xl border border-border bg-background p-3 flex flex-col gap-2 transition-shadow hover:shadow-sm active:scale-[0.995]"
                 >
-                  <input
-                    type="text"
-                    value={item.description}
-                    onChange={(e) =>
-                      updateItem(item.id, { description: e.target.value })
-                    }
-                    placeholder={`Item ${idx + 1}`}
-                    className="px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
-                  />
-                  <input
-                    type="number"
-                    min="1"
-                    value={item.quantity}
-                    onChange={(e) =>
-                      updateItem(item.id, {
-                        quantity: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                    className="px-2 py-2 rounded-xl border border-border bg-background text-sm text-foreground text-center outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.rate || ""}
-                    onChange={(e) =>
-                      updateItem(item.id, {
-                        rate: Number(e.target.value) || 0,
-                      })
-                    }
-                    placeholder="0.00"
-                    className="px-2 py-2 rounded-xl border border-border bg-background text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                    value={item.discount || ""}
-                    onChange={(e) =>
-                      updateItem(item.id, {
-                        discount: Number(e.target.value) || 0,
-                      })
-                    }
-                    placeholder="0"
-                    className="px-2 py-2 rounded-xl border border-border bg-background text-sm text-foreground text-center outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item.id)}
-                    disabled={data.items.length <= 1}
-                    className="flex items-center justify-center w-7 h-9 rounded-lg text-muted-foreground hover:text-destructive disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    aria-label={`Remove item ${idx + 1}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={item.description}
+                      onChange={(e) => updateItem(item.id, { description: e.target.value })}
+                      placeholder={`Item ${idx + 1} description`}
+                      className="flex-1 px-3 py-2 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.id)}
+                      disabled={data.items.length <= 1}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+                      aria-label={`Remove item ${idx + 1}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground font-medium mb-1 block">Qty</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => updateItem(item.id, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                        className="w-full px-2 py-1.5 rounded-lg border border-border bg-card text-sm text-foreground text-center outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground font-medium mb-1 block">Rate ({currencyObj.symbol})</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.rate || ""}
+                        onChange={(e) => updateItem(item.id, { rate: Number(e.target.value) || 0 })}
+                        placeholder="0.00"
+                        className="w-full px-2 py-1.5 rounded-lg border border-border bg-card text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground font-medium mb-1 block">Disc %</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={item.discount || ""}
+                        onChange={(e) => updateItem(item.id, { discount: Number(e.target.value) || 0 })}
+                        placeholder="0"
+                        className="w-full px-2 py-1.5 rounded-lg border border-border bg-card text-sm text-foreground text-center outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
 
