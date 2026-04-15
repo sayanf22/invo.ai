@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { authFetch } from "@/lib/auth-fetch"
 
 // Module-level cache — persists across component mounts for the session
-const logoCache = new Map<string, string>()
+export const logoCache = new Map<string, string>()
 // Track in-flight requests to avoid duplicate fetches
 const inFlight = new Map<string, Promise<string | null>>()
 
