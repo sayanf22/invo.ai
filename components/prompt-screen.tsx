@@ -160,12 +160,12 @@ export function PromptScreen({
 
         {/* Chat/Editor Panel — single instance of each, shared across mobile & desktop */}
         <div
-          className={`w-full md:w-[420px] lg:w-[460px] border-r border-border bg-card shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)] shrink-0 flex flex-col overflow-hidden ${
-            mobileTab === "chat" || mobileTab === "edit" ? "flex" : "hidden md:flex"
+          className={`w-full md:w-[420px] lg:w-[460px] border-r border-border bg-card shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)] shrink-0 flex flex-col ${
+            mobileTab === "chat" || mobileTab === "edit" ? "flex overflow-hidden" : "hidden md:flex overflow-hidden"
           }`}
         >
-          {/* Mobile: simple show/hide stacking — no absolute positioning so scroll works */}
-          <div className="md:hidden flex flex-col flex-1 overflow-hidden">
+          {/* Mobile: simple show/hide — overflow-y-auto so the panel scrolls end-to-end */}
+          <div className="md:hidden flex flex-col flex-1 min-h-0">
             {mobileTab === "chat" && (
               <InvoiceChat
                 data={data}
@@ -179,7 +179,9 @@ export function PromptScreen({
               />
             )}
             {mobileTab === "edit" && (
-              <EditorPanel data={data} onChange={handleChange} />
+              <div className="flex flex-col flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                <EditorPanel data={data} onChange={handleChange} />
+              </div>
             )}
           </div>
 
