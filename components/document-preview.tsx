@@ -35,6 +35,13 @@ function EmptyState() {
 const ZOOM_LEVELS = [50, 75, 100, 125, 150, 200]
 const DEFAULT_ZOOM = 100
 
+// Module-level constant — stable across HMR, never recreated
+const PDF_OPTIONS = {
+  standardFontDataUrl: "/standard_fonts/",
+  cMapUrl: "/cmaps/",
+  cMapPacked: true,
+} as const
+
 /* ─── Live PDF Preview ─── */
 function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: number; onPageCount: (n: number) => void }) {
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
@@ -169,11 +176,8 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
   const baseWidth = containerWidth > 0 ? Math.min(containerWidth - 48, 800) : 600
   const pageWidth = Math.round(baseWidth * (zoom / 100))
 
-  const pdfOptions = useMemo(() => ({
-    standardFontDataUrl: "/standard_fonts/",
-    cMapUrl: "/cmaps/",
-    cMapPacked: true,
-  }), [])
+  // Use module-level constant for options — avoids react-pdf "options changed" warning
+  const pdfOptions = PDF_OPTIONS
 
   const fileData = useMemo(() => {
     if (!pdfBytes) return null
