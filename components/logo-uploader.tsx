@@ -132,8 +132,12 @@ export function LogoUploader({
     setState("uploading")
 
     try {
+      // Compress before upload
+      const { compressImage } = await import("@/lib/compress-image")
+      const compressed = await compressImage(selectedFile)
+
       const formData = new FormData()
-      formData.append("file", selectedFile)
+      formData.append("file", compressed)
       formData.append("category", "logos")
 
       const res = await authFetch("/api/storage/upload", {
@@ -146,14 +150,15 @@ export function LogoUploader({
         throw new Error(err.error || "Upload failed.")
       }
 
-      const { objectKey } = await res.json()
+      const { objectKey, dataUrl } = await res.json()
 
       // Warm the logo cache so it shows instantly everywhere
       const { warmLogoCache } = await import("@/hooks/use-logo-url")
-      if (previewUrl) warmLogoCache(objectKey, previewUrl)
+      const displayUrl = dataUrl || previewUrl
+      if (displayUrl) warmLogoCache(objectKey, displayUrl)
 
       setState("complete")
-      setCurrentDisplayUrl(previewUrl)
+      setCurrentDisplayUrl(displayUrl || previewUrl)
       setSelectedFile(null)
       onUploadComplete(objectKey)
     } catch (err: unknown) {

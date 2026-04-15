@@ -100,7 +100,12 @@ export async function POST(request: NextRequest) {
 
     await uploadToR2(objectKey, arrayBuffer, file.type)
 
-    return NextResponse.json({ objectKey })
+    // Return base64 data URL alongside the key so clients can display immediately
+    // without a separate /api/storage/image round-trip
+    const base64 = Buffer.from(arrayBuffer).toString("base64")
+    const dataUrl = `data:${file.type};base64,${base64}`
+
+    return NextResponse.json({ objectKey, dataUrl })
   } catch (error) {
     console.error("Upload API error:", error instanceof Error ? `${error.message}\n${error.stack}` : error)
     return NextResponse.json(

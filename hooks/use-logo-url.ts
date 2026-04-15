@@ -5,16 +5,53 @@ import { authFetch } from "@/lib/auth-fetch"
 
 // Module-level cache — persists across component mounts for the session
 const logoCache = new Map<string, string>()
+// Track in-flight requests to avoid duplicate fetches
+const inFlight = new Map<string, Promise<string | null>>()
 
 function isR2Key(value: string): boolean {
-  return value.length > 0 && !value.startsWith("data:") && !value.startsWith("http") && !value.startsWith("blob:")
+  return (
+    value.length > 0 &&
+    !value.startsWith("data:") &&
+    !value.startsWith("http") &&
+    !value.startsWith("blob:")
+  )
+}
+
+async function fetchLogoDataUrl(key: string): Promise<string | null> {
+  // Check cache first
+  const cached = logoCache.get(key)
+  if (cached) return cached
+
+  // Deduplicate concurrent fetches for the same key
+  const existing = inFlight.get(key)
+  if (existing) return existing
+
+  const promise = (async () => {
+    try {
+      const res = await authFetch(`/api/storage/image?key=${encodeURIComponent(key)}`)
+      if (!res.ok) return null
+      const data = await res.json()
+      if (data?.dataUrl) {
+        logoCache.set(key, data.dataUrl)
+        return data.dataUrl
+      }
+      return null
+    } catch {
+      return null
+    } finally {
+      inFlight.delete(key)
+    }
+  })()
+
+  inFlight.set(key, promise)
+  return promise
 }
 
 /**
  * Resolves an R2 object key to a displayable URL.
  * - Returns the value directly if it's already a data URL, http URL, or blob URL
  * - Caches results in memory to avoid re-fetching on every mount
- * - Returns null while loading
+ * - Deduplicates concurrent fetches for the same key
  */
 export function useLogoUrl(logoKey: string | null | undefined): {
   url: string | null
@@ -45,7 +82,7 @@ export function useLogoUrl(logoKey: string | null | undefined): {
       return
     }
 
-    // Check cache first
+    // Check cache first — instant return
     const cached = logoCache.get(logoKey)
     if (cached) {
       setUrl(cached)
@@ -57,19 +94,11 @@ export function useLogoUrl(logoKey: string | null | undefined): {
     let cancelled = false
     setLoading(true)
 
-    authFetch(`/api/storage/image?key=${encodeURIComponent(logoKey)}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (cancelled) return
-        if (data?.dataUrl) {
-          logoCache.set(logoKey, data.dataUrl)
-          setUrl(data.dataUrl)
-        }
-        setLoading(false)
-      })
-      .catch(() => {
-        if (!cancelled) setLoading(false)
-      })
+    fetchLogoDataUrl(logoKey).then((result) => {
+      if (cancelled) return
+      setUrl(result)
+      setLoading(false)
+    })
 
     return () => { cancelled = true }
   }, [logoKey])
@@ -81,8 +110,8 @@ export function useLogoUrl(logoKey: string | null | undefined): {
  * Pre-warm the logo cache for a given key.
  * Call this after upload to avoid the spinner on next render.
  */
-export function warmLogoCache(key: string, objectUrl: string) {
-  logoCache.set(key, objectUrl)
+export function warmLogoCache(key: string, url: string) {
+  if (key && url) logoCache.set(key, url)
 }
 
 /**
@@ -90,4 +119,5 @@ export function warmLogoCache(key: string, objectUrl: string) {
  */
 export function invalidateLogoCache(key: string) {
   logoCache.delete(key)
+  inFlight.delete(key)
 }
