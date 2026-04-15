@@ -764,6 +764,11 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     limit={upgradeInfo.limit}
                     errorType={upgradeInfo.errorType}
                     message={upgradeInfo.message}
+                    onUpgradeSuccess={() => {
+                        // Reset limit state so user can immediately continue
+                        setDocumentLimitReached(false)
+                        setUpgradeInfo(null)
+                    }}
                 />
             )}
         </div>

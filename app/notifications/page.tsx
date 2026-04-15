@@ -1,107 +1,173 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/components/auth-provider"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Bell, CheckCircle2, AlertCircle, Info } from "lucide-react"
+import { createClient } from "@/lib/supabase"
+import { Bell, CheckCircle2, Gift, CreditCard, XCircle, RefreshCw, Info, Loader2, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { formatDistanceToNow } from "date-fns"
+import { HamburgerMenu } from "@/components/hamburger-menu"
+import { ClorefyLogo } from "@/components/clorefy-logo"
+import Link from "next/link"
+
+interface Notification {
+  id: string
+  type: string
+  title: string
+  message: string
+  read: boolean
+  metadata: Record<string, any>
+  created_at: string
+}
+
+const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
+  subscription_activated: { icon: CreditCard,   color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
+  subscription_free_grant:{ icon: Gift,          color: "text-purple-600",  bg: "bg-purple-50 dark:bg-purple-950/30" },
+  subscription_cancelled: { icon: XCircle,       color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/30" },
+  subscription_renewed:   { icon: RefreshCw,     color: "text-blue-600",    bg: "bg-blue-50 dark:bg-blue-950/30" },
+  document_limit_warning: { icon: Info,          color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-950/30" },
+  general:                { icon: Bell,          color: "text-muted-foreground", bg: "bg-muted" },
+}
 
 export default function NotificationsPage() {
   const router = useRouter()
   const user = useUser()
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loading, setLoading] = useState(true)
+  const [markingAll, setMarkingAll] = useState(false)
 
   useEffect(() => {
-    if (!user) {
-      router.push("/auth/login")
+    if (!user) { router.push("/auth/login"); return }
+    loadNotifications()
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadNotifications = useCallback(async () => {
+    if (!user) return
+    setLoading(true)
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50)
+      if (error) throw error
+      setNotifications((data || []) as Notification[])
+    } catch (err) {
+      console.error("Failed to load notifications:", err)
+    } finally {
+      setLoading(false)
     }
   }, [user])
 
-  const notifications = [
-    {
-      id: 1,
-      type: "success",
-      title: "Document Generated",
-      message: "Your invoice has been successfully generated",
-      time: "2 hours ago",
-      read: false
-    },
-    {
-      id: 2,
-      type: "info",
-      title: "New Feature Available",
-      message: "Check out our new contract templates",
-      time: "1 day ago",
-      read: true
-    },
-    {
-      id: 3,
-      type: "warning",
-      title: "Payment Reminder",
-      message: "Your subscription renews in 3 days",
-      time: "2 days ago",
-      read: true
-    }
-  ]
+  const markAsRead = useCallback(async (id: string) => {
+    const supabase = createClient()
+    await supabase.from("notifications").update({ read: true }).eq("id", id)
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+  }, [])
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "success":
-        return <CheckCircle2 className="w-5 h-5 text-green-500" />
-      case "warning":
-        return <AlertCircle className="w-5 h-5 text-yellow-500" />
-      default:
-        return <Info className="w-5 h-5 text-blue-500" />
+  const markAllAsRead = useCallback(async () => {
+    if (!user) return
+    setMarkingAll(true)
+    try {
+      const supabase = createClient()
+      await supabase
+        .from("notifications")
+        .update({ read: true })
+        .eq("user_id", user.id)
+        .eq("read", false)
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    } finally {
+      setMarkingAll(false)
     }
+  }, [user])
+
+  const unreadCount = notifications.filter(n => !n.read).length
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Notifications</h1>
-          <p className="text-muted-foreground">
-            Stay updated with your account activity
-          </p>
-        </div>
-        <Button variant="outline" size="sm">
-          Mark all as read
-        </Button>
+    <div className="container mx-auto p-4 sm:p-6 max-w-2xl pb-20">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <Link href="/"><ClorefyLogo size={36} /></Link>
+        <HamburgerMenu />
       </div>
 
-      <div className="space-y-4">
-        {notifications.map((notification) => (
-          <Card key={notification.id} className={notification.read ? "opacity-60" : ""}>
-            <CardHeader>
-              <div className="flex items-start gap-4">
-                <div className="mt-1">
-                  {getIcon(notification.type)}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            Notifications
+            {unreadCount > 0 && (
+              <span className="text-sm font-semibold px-2 py-0.5 rounded-full bg-primary text-primary-foreground">
+                {unreadCount}
+              </span>
+            )}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Your account activity and updates</p>
+        </div>
+        {unreadCount > 0 && (
+          <Button variant="outline" size="sm" onClick={markAllAsRead} disabled={markingAll} className="gap-1.5">
+            {markingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            Mark all read
+          </Button>
+        )}
+      </div>
+
+      {notifications.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted/60 flex items-center justify-center mb-4">
+            <Bell className="w-7 h-7 text-muted-foreground/40" />
+          </div>
+          <h3 className="text-base font-semibold mb-1">All caught up</h3>
+          <p className="text-sm text-muted-foreground">Notifications about your plan and activity will appear here.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {notifications.map((n) => {
+            const cfg = TYPE_CONFIG[n.type] || TYPE_CONFIG.general
+            const Icon = cfg.icon
+            return (
+              <div
+                key={n.id}
+                onClick={() => !n.read && markAsRead(n.id)}
+                className={cn(
+                  "flex items-start gap-4 p-4 rounded-2xl border transition-all cursor-pointer",
+                  n.read
+                    ? "bg-card border-border/50 opacity-60"
+                    : "bg-card border-border shadow-sm hover:shadow-md hover:-translate-y-px"
+                )}
+              >
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", cfg.bg)}>
+                  <Icon className={cn("w-5 h-5", cfg.color)} />
                 </div>
-                <div className="flex-1">
-                  <CardTitle className="text-base">{notification.title}</CardTitle>
-                  <CardDescription className="mt-1">
-                    {notification.message}
-                  </CardDescription>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {notification.time}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={cn("text-sm font-semibold leading-snug", !n.read && "text-foreground")}>
+                      {n.title}
+                    </p>
+                    {!n.read && (
+                      <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{n.message}</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1.5">
+                    {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
                   </p>
                 </div>
               </div>
-            </CardHeader>
-          </Card>
-        ))}
-      </div>
-
-      {notifications.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Bell className="w-16 h-16 text-muted-foreground mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No notifications</h3>
-            <p className="text-muted-foreground">
-              You're all caught up!
-            </p>
-          </CardContent>
-        </Card>
+            )
+          })}
+        </div>
       )}
     </div>
   )

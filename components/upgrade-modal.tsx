@@ -1,7 +1,6 @@
 "use client"
 
-import Link from "next/link"
-import { ArrowUpRight, Sparkles } from "lucide-react"
+import { Sparkles, Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -11,6 +10,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { useRazorpay } from "@/hooks/use-razorpay"
+import { toast } from "sonner"
 
 interface UpgradeModalProps {
   open: boolean
@@ -20,6 +21,7 @@ interface UpgradeModalProps {
   limit?: number
   errorType: "limit" | "type_restriction" | "feature_restricted"
   message?: string
+  onUpgradeSuccess?: () => void
 }
 
 const TIER_DISPLAY: Record<string, string> = {
@@ -29,10 +31,11 @@ const TIER_DISPLAY: Record<string, string> = {
   agency: "Agency",
 }
 
-const NEXT_TIER: Record<string, { name: string; docsPerMonth: number }> = {
-  free: { name: "Starter", docsPerMonth: 50 },
-  starter: { name: "Pro", docsPerMonth: 150 },
-  pro: { name: "Agency", docsPerMonth: 0 },
+// Maps current tier → recommended upgrade
+const NEXT_TIER: Record<string, { id: string; name: string; docsPerMonth: number }> = {
+  free:    { id: "starter", name: "Starter", docsPerMonth: 50 },
+  starter: { id: "pro",     name: "Pro",     docsPerMonth: 150 },
+  pro:     { id: "agency",  name: "Agency",  docsPerMonth: 0 },
 }
 
 export function UpgradeModal({
@@ -43,9 +46,19 @@ export function UpgradeModal({
   limit,
   errorType,
   message,
+  onUpgradeSuccess,
 }: UpgradeModalProps) {
   const planName = TIER_DISPLAY[tier] || "Free"
   const next = NEXT_TIER[tier] || NEXT_TIER.free
+
+  const { subscribe, isProcessing } = useRazorpay({
+    onSuccess: () => {
+      toast.success(`🎉 Upgraded to ${next.name}! You can now create more documents.`)
+      onOpenChange(false)
+      // Give the parent a chance to re-check limits
+      setTimeout(() => onUpgradeSuccess?.(), 500)
+    },
+  })
 
   const headline =
     errorType === "limit"
@@ -72,6 +85,8 @@ export function UpgradeModal({
       ? `Upgrade to ${next.name} for ${next.docsPerMonth} documents/month`
       : `Upgrade to ${next.name} for unlimited documents`
 
+  const canUpgradeInline = next.id !== "agency" // Agency is coming soon
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md rounded-2xl shadow-sm">
@@ -97,12 +112,23 @@ export function UpgradeModal({
         </div>
 
         <DialogFooter className="flex flex-col gap-2 sm:flex-col">
-          <Button asChild className="w-full rounded-2xl gap-2">
-            <Link href="/pricing">
-              View Plans
-              <ArrowUpRight className="h-4 w-4" />
-            </Link>
-          </Button>
+          {canUpgradeInline ? (
+            <Button
+              className="w-full rounded-2xl gap-2"
+              disabled={isProcessing}
+              onClick={() => subscribe(next.id, "monthly")}
+            >
+              {isProcessing ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
+              ) : (
+                <><Sparkles className="h-4 w-4" /> Upgrade to {next.name} now</>
+              )}
+            </Button>
+          ) : (
+            <Button asChild className="w-full rounded-2xl gap-2">
+              <a href="/billing">View Plans</a>
+            </Button>
+          )}
           <Button
             variant="ghost"
             className="w-full rounded-2xl"

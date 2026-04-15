@@ -139,6 +139,18 @@ export async function POST(request: NextRequest) {
             } as any,
         }, request).catch(() => {})
 
+        // Send subscription activation notification
+        const { createNotification, PLAN_NAMES } = await import("@/lib/notifications")
+        const planLabel = PLAN_NAMES[plan] || plan
+        const cycleLabel = billingCycle === "yearly" ? "yearly" : "monthly"
+        await createNotification(auth.supabase, {
+            user_id: auth.user.id,
+            type: "subscription_activated",
+            title: `${planLabel} Plan Activated 🎉`,
+            message: `Your ${planLabel} plan (${cycleLabel}) is now active. Enjoy all the features!`,
+            metadata: { plan, billingCycle, amount, razorpay_payment_id },
+        })
+
         return NextResponse.json({
             success: true,
             plan,

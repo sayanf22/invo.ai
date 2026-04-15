@@ -118,7 +118,10 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
                             throw new Error("Payment verification failed")
                         }
 
+                        const result = await verifyRes.json()
                         toast.success(`🎉 ${order.planName} plan activated!`)
+                        // Small delay to ensure DB write is committed before UI refresh
+                        await new Promise(r => setTimeout(r, 800))
                         onSuccess?.(plan, billingCycle)
                     } catch (err) {
                         toast.error("Payment was received but activation failed. Contact support.")

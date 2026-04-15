@@ -59,5 +59,18 @@ export async function POST(request: NextRequest) {
     metadata: { userId: user_id, oldTier, newTier: tier, reason: reason.trim(), adminEmail },
   })
 
+  // Send notification to the user
+  const { createNotification, PLAN_NAMES } = await import('@/lib/notifications')
+  const planLabel = PLAN_NAMES[tier] || tier
+  if (tier !== 'free') {
+    await createNotification(supabase, {
+      user_id,
+      type: 'subscription_free_grant',
+      title: `${planLabel} Plan Granted 🎁`,
+      message: `You've been granted the ${planLabel} plan${expires_at ? ` until ${new Date(expires_at).toLocaleDateString()}` : ''}. Enjoy the upgrade!`,
+      metadata: { tier, oldTier, reason: reason.trim(), expires_at: expires_at ?? null },
+    })
+  }
+
   return NextResponse.json({ success: true })
 }
