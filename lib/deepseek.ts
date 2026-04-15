@@ -611,7 +611,7 @@ Required fields:
 - invoiceDate: effective date (YYYY-MM-DD)
 - fromName, fromEmail, fromAddress: provider/party A
 - toName, toEmail, toAddress: client/party B
-- description: FULL contract body — include all clauses, scope of work, deliverables, payment terms, confidentiality, termination, dispute resolution, liability, intellectual property, amendments. Write this as a complete, professional legal document with numbered sections.
+- description: FULL contract body — include all clauses, scope of work, deliverables, payment terms, confidentiality, termination, dispute resolution, liability, intellectual property, amendments. Write this as a complete, professional legal document with numbered sections. DO NOT include a signature block or "IN WITNESS WHEREOF" clause — the PDF template adds signature lines automatically.
 - signatureName, signatureTitle: from business profile
 - notes: any additional notes
 - terms: governing law, jurisdiction
