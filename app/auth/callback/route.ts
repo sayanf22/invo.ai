@@ -1,13 +1,13 @@
+import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 
 /**
  * Auth callback for PKCE code exchange.
- * Handles: OAuth (Google etc.), magic links, email confirmations.
+ * Uses @supabase/ssr createServerClient which properly handles cookie
+ * read/write for session persistence across requests.
  *
- * After exchangeCodeForSession, we manually write the session tokens
- * to cookies so the middleware can read them on the next request.
+ * Handles: OAuth (Google), magic links, email confirmations.
  */
 export async function GET(request: Request) {
     const requestUrl = new URL(request.url)
@@ -15,70 +15,46 @@ export async function GET(request: Request) {
     const rawRedirect = requestUrl.searchParams.get("redirect") || "/"
     const origin = requestUrl.origin
 
-    // SECURITY: Prevent open redirect
+    // SECURITY: Prevent open redirect — only allow relative paths
     const redirectTo = rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
         ? rawRedirect
         : "/"
 
     if (code) {
-        // Use service-role-free client for code exchange
-        const supabase = createClient(
+        const cookieStore = await cookies()
+
+        const supabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+                cookies: {
+                    getAll() {
+                        return cookieStore.getAll()
+                    },
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) =>
+                                cookieStore.set(name, value, options)
+                            )
+                        } catch {
+                            // Called from Server Component — middleware will handle cookies
+                        }
+                    },
+                },
+            }
         )
 
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
 
-        if (!error && data.session) {
-            const session = data.session
-            const cookieStore = await cookies()
-
-            // Write session to cookies so middleware can read it
-            const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL!
-                .replace("https://", "")
-                .replace(".supabase.co", "")
-            const cookieName = `sb-${projectRef}-auth-token`
-
-            const tokenValue = JSON.stringify({
-                access_token: session.access_token,
-                refresh_token: session.refresh_token,
-                token_type: "bearer",
-                expires_in: session.expires_in,
-                expires_at: session.expires_at,
-                user: session.user,
-            })
-
-            const cookieOpts = {
-                path: "/",
-                httpOnly: false, // must be readable by client JS
-                sameSite: "lax" as const,
-                secure: process.env.NODE_ENV === "production",
-                maxAge: 365 * 24 * 60 * 60,
-            }
-
-            // Chunk if needed (browsers limit cookie size to ~4KB)
-            const CHUNK = 3500
-            const encoded = encodeURIComponent(tokenValue)
-            if (encoded.length <= CHUNK) {
-                cookieStore.set(cookieName, encoded, cookieOpts)
-            } else {
-                const count = Math.ceil(encoded.length / CHUNK)
-                for (let i = 0; i < count; i++) {
-                    cookieStore.set(
-                        `${cookieName}.${i}`,
-                        encoded.slice(i * CHUNK, (i + 1) * CHUNK),
-                        cookieOpts
-                    )
-                }
-            }
-
+        if (!error) {
             // Password reset flow
             if (redirectTo === "/auth/update-password") {
                 return NextResponse.redirect(`${origin}/auth/update-password`)
             }
 
             // Check onboarding status
-            const user = session.user
+            const { data: { user } } = await supabase.auth.getUser()
+
             if (user) {
                 const { data: profile } = await supabase
                     .from("profiles")
@@ -98,7 +74,7 @@ export async function GET(request: Request) {
             return NextResponse.redirect(`${origin}${redirectTo}`)
         }
 
-        console.error("OAuth code exchange failed:", error?.message)
+        console.error("OAuth code exchange failed:", error.message)
     }
 
     return NextResponse.redirect(
