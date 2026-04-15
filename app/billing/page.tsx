@@ -94,7 +94,7 @@ export default function BillingPage() {
                 .eq("status", "captured")
                 .order("created_at", { ascending: false })
                 .limit(10)
-            if (rows) setPayments(rows as PaymentRecord[])
+            if (rows) setPayments(rows as unknown as PaymentRecord[])
         } catch {}
     }, [])
 
@@ -102,7 +102,7 @@ export default function BillingPage() {
         setDownloadingReceiptId(payment.id)
         try {
             const { pdf } = await import("@react-pdf/renderer")
-            const { ReceiptPDF } = await import("@/lib/pdf-templates")
+            const { PaymentReceiptPDF } = await import("@/lib/pdf-templates")
             const receiptData = {
                 paymentId: payment.razorpay_payment_id,
                 orderId: payment.razorpay_order_id,
@@ -113,7 +113,7 @@ export default function BillingPage() {
                 date: payment.created_at,
                 userEmail: user?.email || "",
             }
-            const blob = await pdf(<ReceiptPDF receiptData={receiptData} />).toBlob()
+            const blob = await pdf(<PaymentReceiptPDF receiptData={receiptData} />).toBlob()
             const url = URL.createObjectURL(blob)
             const link = document.createElement("a")
             link.href = url

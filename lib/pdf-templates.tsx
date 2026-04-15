@@ -1137,7 +1137,7 @@ export interface PaymentReceiptData {
     userEmail: string
 }
 
-export function ReceiptPDF({ receiptData }: { receiptData: PaymentReceiptData }) {
+export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceiptData }) {
     const pri = "#c2410c"
     const bg = "#fff7ed"
     const mut = "#78716c"
