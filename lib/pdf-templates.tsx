@@ -1123,3 +1123,187 @@ export function ReceiptPDF({ data, logoUrl }: Props) {
 }
 
 // ═══════════════════════════════════════════════════════
+
+// PAYMENT RECEIPT PDF — Clorefy subscription receipt
+// ═══════════════════════════════════════════════════════
+
+export interface PaymentReceiptData {
+    paymentId: string
+    orderId: string
+    plan: string
+    billingCycle: string
+    amount: number       // in paise (INR smallest unit)
+    currency: string
+    date: string
+    userEmail: string
+    userName?: string
+}
+
+export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceiptData }) {
+    const pri = "#f6821f"
+    const txt = "#1a1a1a"
+    const mut = "#6b7280"
+    const bdr = "#d1d5db"
+    const font = "Inter"
+
+    const amountInRupees = receiptData.amount / 100
+    const amountDisplay = receiptData.currency === "INR"
+        ? `Rs. ${amountInRupees.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : `${receiptData.currency} ${amountInRupees.toFixed(2)}`
+
+    const dateDisplay = (() => {
+        try {
+            return new Date(receiptData.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+        } catch { return receiptData.date }
+    })()
+
+    const planLabel = receiptData.plan.charAt(0).toUpperCase() + receiptData.plan.slice(1)
+    const cycleLabel = receiptData.billingCycle === "yearly" ? "Annual" : "Monthly"
+
+    const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
+    const thinLineTop = { ...bw(1, 0, 0, 0), ...bc(bdr, "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
+
+    const s = StyleSheet.create({
+        page: { paddingTop: 0, paddingBottom: 44, paddingHorizontal: 48, fontSize: 9, fontFamily: font, backgroundColor: "#fff" },
+        orangeBar: { position: "absolute", top: 0, left: 0, right: 0, height: 4, backgroundColor: pri },
+        topRule: { marginTop: 30, paddingBottom: 16, ...thinLine },
+        headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginTop: 16, marginBottom: 14 },
+        title: { fontSize: 22, color: txt, fontWeight: 700 },
+        subtitle: { fontSize: 9, color: mut, marginTop: 3 },
+        paidBadge: { backgroundColor: "#ecfdf5", paddingHorizontal: 10, paddingVertical: 4, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, ...bw(1,1,1,1), ...bc("#bbf7d0","#bbf7d0","#bbf7d0","#bbf7d0"), ...bs("solid","solid","solid","solid"), alignSelf: "flex-start" as any, marginTop: 10 },
+        paidText: { fontSize: 8, color: "#16a34a", fontWeight: 700, letterSpacing: 0.5 },
+        metaBlock: { marginBottom: 14 },
+        metaRow: { flexDirection: "row", marginBottom: 3 },
+        metaLabel: { fontSize: 8, color: mut, width: 90 },
+        metaValue: { fontSize: 8, color: txt, fontWeight: 700 },
+        addrRow: { flexDirection: "row", marginBottom: 0, paddingBottom: 14, ...thinLine },
+        addrLeft: { flex: 1, paddingRight: 20 },
+        addrRight: { flex: 1 },
+        addrLabel: { fontSize: 8, color: mut, fontWeight: 700, marginBottom: 3 },
+        addrName: { fontSize: 9, color: txt, fontWeight: 700, marginBottom: 1 },
+        addrText: { fontSize: 8, color: "#374151", lineHeight: 1.5 },
+        totalBlock: { paddingTop: 14, paddingBottom: 14, ...thinLine },
+        totalText: { fontSize: 14, color: txt, fontWeight: 700 },
+        tableWrap: { marginTop: 14 },
+        tableHead: { flexDirection: "row", paddingBottom: 6, ...thinLine },
+        tableRow: { flexDirection: "row", paddingVertical: 10, ...thinLine },
+        colDesc: { flex: 1 },
+        colAmt: { width: 100, textAlign: "right" as any },
+        th: { fontSize: 7, color: "#9ca3af", letterSpacing: 0.2 },
+        td: { fontSize: 8.5, color: "#374151" },
+        tdSub: { fontSize: 7.5, color: mut, marginTop: 2 },
+        tdB: { fontSize: 8.5, color: txt, fontWeight: 700 },
+        sumOuter: { flexDirection: "row", justifyContent: "flex-end", marginTop: 6, marginBottom: 20 },
+        sumInner: { width: 220 },
+        sumRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
+        sumLabel: { fontSize: 8, color: mut },
+        sumVal: { fontSize: 8, color: txt, fontWeight: 700 },
+        sumTotalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...thinLineTop, marginTop: 4 },
+        sumTotalLabel: { fontSize: 9, color: txt, fontWeight: 700 },
+        sumTotalVal: { fontSize: 9, color: pri, fontWeight: 700 },
+        noteBlock: { paddingTop: 14, ...thinLineTop, marginBottom: 10 },
+        noteLabel: { fontSize: 8, color: txt, fontWeight: 700, marginBottom: 3 },
+        noteText: { fontSize: 8, color: mut, lineHeight: 1.6 },
+        footer: { position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 48, paddingVertical: 12, flexDirection: "row", justifyContent: "space-between" },
+        footerText: { fontSize: 7, color: "#9ca3af" },
+    })
+
+    return (
+        <Document>
+            <Page size="A4" style={s.page} wrap>
+                <View style={s.orangeBar} fixed />
+                <View style={s.topRule} />
+
+                <View style={s.headerRow} wrap={false}>
+                    <View>
+                        <Text style={s.title}>Receipt</Text>
+                        <Text style={s.subtitle}>Clorefy — AI Document Platform</Text>
+                        <View style={s.paidBadge}>
+                            <Text style={s.paidText}>PAID</Text>
+                        </View>
+                    </View>
+                </View>
+
+                <View style={s.metaBlock} wrap={false}>
+                    <View style={s.metaRow}>
+                        <Text style={s.metaLabel}>Receipt date</Text>
+                        <Text style={s.metaValue}>{dateDisplay}</Text>
+                    </View>
+                    <View style={s.metaRow}>
+                        <Text style={s.metaLabel}>Payment ID</Text>
+                        <Text style={s.metaValue}>{receiptData.paymentId}</Text>
+                    </View>
+                    <View style={s.metaRow}>
+                        <Text style={s.metaLabel}>Order ID</Text>
+                        <Text style={s.metaValue}>{receiptData.orderId}</Text>
+                    </View>
+                </View>
+
+                <View style={s.addrRow} wrap={false}>
+                    <View style={s.addrLeft}>
+                        <Text style={s.addrLabel}>From</Text>
+                        <Text style={s.addrName}>Clorefy</Text>
+                        <Text style={s.addrText}>AI Document Platform</Text>
+                        <Text style={s.addrText}>support@clorefy.com</Text>
+                        <Text style={s.addrText}>clorefy.com</Text>
+                    </View>
+                    <View style={s.addrRight}>
+                        <Text style={s.addrLabel}>Bill to</Text>
+                        {receiptData.userName ? <Text style={s.addrName}>{receiptData.userName}</Text> : null}
+                        <Text style={s.addrText}>{receiptData.userEmail}</Text>
+                    </View>
+                </View>
+
+                <View style={s.totalBlock} wrap={false}>
+                    <Text style={s.totalText}>{amountDisplay} paid on {dateDisplay}</Text>
+                </View>
+
+                <View style={s.tableWrap}>
+                    <View style={s.tableHead}>
+                        <View style={s.colDesc}><Text style={s.th}>DESCRIPTION</Text></View>
+                        <View style={s.colAmt}><Text style={{ ...s.th, textAlign: "right" }}>AMOUNT</Text></View>
+                    </View>
+                    <View style={s.tableRow} wrap={false}>
+                        <View style={s.colDesc}>
+                            <Text style={s.td}>Clorefy {planLabel} Plan — {cycleLabel}</Text>
+                            <Text style={s.tdSub}>Subscription · {dateDisplay}</Text>
+                        </View>
+                        <View style={s.colAmt}>
+                            <Text style={s.tdB}>{amountDisplay}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                <View style={s.sumOuter} wrap={false}>
+                    <View style={s.sumInner}>
+                        <View style={s.sumRow}>
+                            <Text style={s.sumLabel}>Subtotal</Text>
+                            <Text style={s.sumVal}>{amountDisplay}</Text>
+                        </View>
+                        <View style={s.sumRow}>
+                            <Text style={s.sumLabel}>Tax</Text>
+                            <Text style={s.sumVal}>Included</Text>
+                        </View>
+                        <View style={s.sumTotalRow}>
+                            <Text style={s.sumTotalLabel}>Amount paid</Text>
+                            <Text style={s.sumTotalVal}>{amountDisplay}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                <View style={s.noteBlock} wrap={false}>
+                    <Text style={s.noteLabel}>Note</Text>
+                    <Text style={s.noteText}>
+                        Thank you for subscribing to Clorefy. This receipt confirms your payment for the {planLabel} plan ({cycleLabel} billing).
+                        Your subscription is now active. For support, contact us at support@clorefy.com.
+                    </Text>
+                </View>
+
+                <View style={s.footer} fixed>
+                    <Text style={s.footerText}>Clorefy — clorefy.com</Text>
+                    <Text style={s.footerText}>Official payment receipt</Text>
+                </View>
+            </Page>
+        </Document>
+    )
+}
