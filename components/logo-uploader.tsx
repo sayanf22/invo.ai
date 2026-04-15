@@ -60,7 +60,7 @@ export function LogoUploader({
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // ── Fetch current logo presigned URL ─────────────────────────────────
+  // ── Fetch current logo URL (with cache) ─────────────────────────────
 
   useEffect(() => {
     if (!currentLogoKey) {
@@ -68,24 +68,28 @@ export function LogoUploader({
       return
     }
 
+    // Check module-level cache first
+    import("@/hooks/use-logo-url").then(({ warmLogoCache: _, invalidateLogoCache: __ }) => {}).catch(() => {})
+
     let cancelled = false
 
     async function fetchLogoUrl() {
       try {
+        // Check cache via dynamic import
+        const { useLogoUrl: _hook, warmLogoCache: warm } = await import("@/hooks/use-logo-url")
         const res = await authFetch(`/api/storage/image?key=${encodeURIComponent(currentLogoKey!)}`)
         if (!res.ok) {
-          // Fetch failed — show upload UI so user can re-upload
           if (!cancelled) setState("idle")
           return
         }
         const data = await res.json()
         if (!cancelled && data.dataUrl) {
+          warm(currentLogoKey!, data.dataUrl)
           setCurrentDisplayUrl(data.dataUrl)
         } else if (!cancelled) {
           setState("idle")
         }
       } catch {
-        // Fetch failed — show upload UI instead of blank state
         if (!cancelled) setState("idle")
       }
     }
@@ -143,6 +147,10 @@ export function LogoUploader({
       }
 
       const { objectKey } = await res.json()
+
+      // Warm the logo cache so it shows instantly everywhere
+      const { warmLogoCache } = await import("@/hooks/use-logo-url")
+      if (previewUrl) warmLogoCache(objectKey, previewUrl)
 
       setState("complete")
       setCurrentDisplayUrl(previewUrl)

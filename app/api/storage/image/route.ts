@@ -67,7 +67,12 @@ export async function GET(request: NextRequest) {
     const mime = obj.contentType !== "application/octet-stream" ? obj.contentType : getMimeFromKey(key)
     const dataUrl = `data:${mime};base64,${base64}`
 
-    return NextResponse.json({ dataUrl })
+    return NextResponse.json({ dataUrl }, {
+      headers: {
+        // Cache for 1 hour in browser, 24h in CDN — logos rarely change
+        "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400",
+      },
+    })
   } catch (error) {
     console.error("Image proxy error:", error instanceof Error ? `${error.name}: ${error.message}\n${error.stack}` : error)
     return NextResponse.json({ error: "Failed to load image" }, { status: 500 })

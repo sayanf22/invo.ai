@@ -18,6 +18,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import type { InvoiceData, LineItem } from "@/lib/invoice-types"
+import { useLogoUrl, warmLogoCache, invalidateLogoCache } from "@/hooks/use-logo-url"
 import { authFetch } from "@/lib/auth-fetch"
 import {
   CURRENCIES,
@@ -195,8 +196,10 @@ function SelectField({
 export function EditorPanel({ data, onChange }: EditorPanelProps) {
   const [openStep, setOpenStep] = useState(1)
   const logoInputRef = useRef<HTMLInputElement>(null)
-  const [logoDisplayUrl, setLogoDisplayUrl] = useState<string | null>(null)
   const [isLogoUploading, setIsLogoUploading] = useState(false)
+
+  // Cached hook — no spinner on repeat visits, instant after upload
+  const { url: logoDisplayUrl, loading: logoLoading } = useLogoUrl(data.fromLogo || null)
 
   const isInvoice = data.documentType === "Invoice"
   const isContract = data.documentType === "Contract"
@@ -245,50 +248,23 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
     })
   }
 
-  /* ── Resolve logo display URL from R2 object key via base64 proxy ── */
-  useEffect(() => {
-    if (!data.fromLogo) {
-      setLogoDisplayUrl(null)
-      return
-    }
-    // If it's already a data URL or http URL, use directly
-    if (!isR2ObjectKey(data.fromLogo)) {
-      setLogoDisplayUrl(data.fromLogo)
-      return
-    }
-    // Fetch as base64 data URL via server proxy (avoids CORS)
-    let cancelled = false
-    async function fetchUrl() {
-      try {
-        const res = await authFetch(`/api/storage/image?key=${encodeURIComponent(data.fromLogo)}`)
-        if (!res.ok) return
-        const json = await res.json()
-        if (!cancelled && json.dataUrl) setLogoDisplayUrl(json.dataUrl)
-      } catch {
-        // Silently fail — logo just won't display
-      }
-    }
-    fetchUrl()
-    return () => { cancelled = true }
-  }, [data.fromLogo])
-
-  /* ── Logo upload via R2 ── */
+  /* ── Logo upload — show instantly via blob URL, then warm cache ── */
   const handleLogoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    // Reset input so the same file can be re-selected
     e.target.value = ""
 
-    // Validate file type
     if (!(ALLOWED_LOGO_TYPES as readonly string[]).includes(file.type)) {
       toast.error("Invalid file type. Please upload PNG, JPEG, WebP, or GIF.")
       return
     }
-    // Validate file size
     if (file.size > MAX_LOGO_SIZE_BYTES) {
       toast.error(`File too large. Maximum size is ${MAX_LOGO_SIZE_MB}MB.`)
       return
     }
+
+    // Create a local blob URL immediately — shows image before server responds
+    const blobUrl = URL.createObjectURL(file)
 
     setIsLogoUploading(true)
     try {
@@ -306,10 +282,12 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
       }
       const { objectKey } = await res.json()
 
+      // Warm the cache with the blob URL so the hook returns it instantly
+      warmLogoCache(objectKey, blobUrl)
       onChange({ fromLogo: objectKey })
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Logo upload failed. Please try again."
-      toast.error(message)
+      URL.revokeObjectURL(blobUrl)
+      toast.error(err instanceof Error ? err.message : "Logo upload failed.")
     } finally {
       setIsLogoUploading(false)
     }
