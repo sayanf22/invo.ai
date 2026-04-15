@@ -32,17 +32,31 @@ export function AppShell() {
       setView("prompt")
       loadSessionType(sessionId)
     } else {
-      // Check localStorage for last active session
+      // Check localStorage for last active session — but only restore if valid
       const lastSession = localStorage.getItem("clorefy_active_session")
       if (lastSession) {
         try {
           const { sessionId: savedId, category } = JSON.parse(lastSession)
           if (savedId) {
-            setSelectedSessionId(savedId)
-            setSelectedCategory(category || "Invoice")
-            setView("prompt")
+            // Validate the session still exists before restoring
+            supabase
+              .from("document_sessions")
+              .select("id")
+              .eq("id", savedId)
+              .single()
+              .then(({ data }) => {
+                if (data) {
+                  setSelectedSessionId(savedId)
+                  setSelectedCategory(category || "Invoice")
+                  setView("prompt")
+                } else {
+                  localStorage.removeItem("clorefy_active_session")
+                }
+              })
           }
-        } catch {}
+        } catch {
+          localStorage.removeItem("clorefy_active_session")
+        }
       }
     }
   }, [searchParams])
@@ -70,6 +84,8 @@ export function AppShell() {
         const { data: profile, error } = await supabase
           .from("profiles").select("onboarding_complete").eq("id", user.id).single()
         if (!error && profile && (profile as any).onboarding_complete === false) {
+          // New user — clear any stale session from localStorage
+          localStorage.removeItem("clorefy_active_session")
           router.push("/onboarding"); return
         }
         // Check if business profile is actually filled out
