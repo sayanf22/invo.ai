@@ -20,24 +20,24 @@ export const PLANS = {
     },
     starter: {
         name: "Starter",
-        monthlyPrice: 90000,  // ₹900 in paise ($9 equivalent)
-        yearlyPrice: 70000,   // ₹700/mo in paise ($7 equivalent)
+        monthlyPrice: 99900,  // ₹999 in paise
+        yearlyPrice: 79900,   // ₹799/mo in paise
         documentsPerMonth: 50,
         messagesPerSession: 25,
         features: ["All 4 document types", "All 9 templates", "All 11 countries", "PDF + DOCX", "30-day history"],
     },
     pro: {
         name: "Pro",
-        monthlyPrice: 240000,  // ₹2400 in paise ($24 equivalent)
-        yearlyPrice: 190000,   // ₹1900/mo in paise ($19 equivalent)
+        monthlyPrice: 249900,  // ₹2499 in paise
+        yearlyPrice: 199900,   // ₹1999/mo in paise
         documentsPerMonth: 150,
         messagesPerSession: 30,
         features: ["All 4 document types", "All 9 templates", "All 11 countries", "All export formats", "1-year history", "E-signatures", "Custom branding"],
     },
     agency: {
         name: "Agency",
-        monthlyPrice: 590000,  // ₹5900 in paise ($59 equivalent)
-        yearlyPrice: 470000,   // ₹4700/mo in paise ($47 equivalent)
+        monthlyPrice: 599900,  // ₹5999 in paise
+        yearlyPrice: 479900,   // ₹4799/mo in paise
         documentsPerMonth: -1, // unlimited
         messagesPerSession: -1,
         features: ["Everything in Pro", "Unlimited documents", "Unlimited messages", "3 team members", "Priority support", "Forever history"],
