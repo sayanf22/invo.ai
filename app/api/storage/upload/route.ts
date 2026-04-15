@@ -106,13 +106,29 @@ export async function POST(request: NextRequest) {
     const dataUrl = `data:${file.type};base64,${base64}`
 
     // For logos: persist the dataUrl in the businesses table so it loads
-    // instantly on any device without needing to fetch from R2
+    // instantly on any device without needing to fetch from R2.
+    // Uses upsert to handle both new users (no row yet) and existing users.
     if (category === "logos") {
       try {
-        await auth.supabase
+        // First try update (existing row)
+        const { data: updated, error: updateErr } = await auth.supabase
           .from("businesses")
           .update({ logo_url: objectKey, logo_data_url: dataUrl } as any)
           .eq("user_id", auth.user.id)
+          .select("user_id") as any
+
+        // If no row was updated (new user), insert a minimal row with the logo
+        if (!updateErr && (!updated || updated.length === 0)) {
+          await auth.supabase
+            .from("businesses")
+            .insert({
+              user_id: auth.user.id,
+              name: "",
+              logo_url: objectKey,
+              logo_data_url: dataUrl,
+            } as any)
+            .then(() => {}) // ignore result
+        }
       } catch {
         // Non-blocking — logo still works via R2 fallback
       }
