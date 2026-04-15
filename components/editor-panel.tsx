@@ -328,7 +328,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
         </span>
       </div>
 
-      {/* Steps — scrollable on all screen sizes */}
+      {/* Steps — scrollable, flex-1 fills remaining height */}
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24 flex flex-col gap-3 min-h-0">
         {/* ═══ Step 1: Document Type, Currency, Branding ═══ */}
         <Step

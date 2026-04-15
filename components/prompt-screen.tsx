@@ -77,10 +77,10 @@ export function PromptScreen({
         </div>
 
         {/* Mobile tab switcher */}
-        <div className="flex items-center gap-1 md:hidden shrink-0">
+        <div className="flex items-center gap-0.5 md:hidden shrink-0">
           {(["chat", "edit", "preview"] as MobileTab[]).map((tab) => {
             const icons = { chat: MessageSquare, edit: PenLine, preview: Eye }
-            const labels = { chat: "Chat", edit: "Edit", preview: "Prev" }
+            const labels = { chat: "Chat", edit: "Edit", preview: "View" }
             const Icon = icons[tab]
             const isActive = mobileTab === tab
             return (
@@ -94,7 +94,7 @@ export function PromptScreen({
                 )}
               >
                 <Icon className="w-3.5 h-3.5" />
-                {labels[tab]}
+                <span>{labels[tab]}</span>
                 {tab === "chat" && messageCount > 0 && (
                   <span className={cn(
                     "text-[9px] font-bold px-1 py-0.5 rounded-full leading-none",
@@ -143,13 +143,13 @@ export function PromptScreen({
         {/* ── MOBILE: 3-panel sliding track ── */}
         {/* Outer clip — hides the off-screen panels */}
         <div className="md:hidden flex-1 overflow-hidden relative min-h-0">
-          {/* Inner track — 300% wide, slides left/right */}
+          {/* Inner track — 300% wide, slides left/right, same height as outer */}
           <div
             className="flex h-full transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
             style={{ width: "300%", transform: `translateX(${slideOffset / 3}%)` }}
           >
             {/* Panel 0: Chat */}
-            <div className="flex flex-col overflow-hidden" style={{ width: "33.333%" }}>
+            <div className="h-full flex flex-col overflow-hidden" style={{ width: "33.333%" }}>
               <InvoiceChat
                 data={data}
                 onChange={handleChange}
@@ -162,15 +162,13 @@ export function PromptScreen({
               />
             </div>
 
-            {/* Panel 1: Edit — needs its own scroll */}
-            <div className="flex flex-col overflow-hidden" style={{ width: "33.333%" }}>
-              <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
-                <EditorPanel data={data} onChange={handleChange} />
-              </div>
+            {/* Panel 1: Edit */}
+            <div className="h-full flex flex-col overflow-hidden" style={{ width: "33.333%" }}>
+              <EditorPanel data={data} onChange={handleChange} />
             </div>
 
             {/* Panel 2: Preview */}
-            <div className="flex flex-col overflow-hidden" style={{ width: "33.333%" }}>
+            <div className="h-full flex flex-col overflow-hidden" style={{ width: "33.333%" }}>
               <DocumentPreview
                 data={data}
                 onChange={handleChange}
