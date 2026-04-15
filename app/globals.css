@@ -390,20 +390,24 @@
   }
 }
 
-/* App shell rounded corners on desktop */
+/* App shell rounded corners on desktop — body padding creates the frame */
 @media (min-width: 768px) {
-  body {
+  html {
     background-color: hsl(var(--secondary));
-    padding: 8px;
   }
   
-  /* Make the root app container fill the padded area with rounded corners */
-  #__next,
-  [data-nextjs-scroll-focus-boundary] {
-    height: calc(100dvh - 16px);
+  body {
+    padding: 8px;
+    min-height: 100dvh;
+    background-color: hsl(var(--secondary));
+  }
+  
+  /* The direct child of body gets the rounded card treatment */
+  body > div:first-child {
     border-radius: 1.25rem;
     overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.05);
+    min-height: calc(100dvh - 16px);
   }
 }
 
