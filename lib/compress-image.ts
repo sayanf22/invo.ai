@@ -43,8 +43,8 @@ export async function compressImage(file: File): Promise<File> {
       ctx.fillRect(0, 0, width, height)
       ctx.drawImage(img, 0, 0, width, height)
 
-      // Try WebP first (best compression), fall back to JPEG
-      const mimeType = "image/webp"
+      // Try JPEG (universally supported by PDF renderers, unlike WebP)
+      const mimeType = "image/jpeg"
       const quality = 0.85
 
       canvas.toBlob(
@@ -57,7 +57,7 @@ export async function compressImage(file: File): Promise<File> {
             return
           }
 
-          const ext = mimeType === "image/webp" ? "webp" : "jpg"
+          const ext = "jpg"
           const name = file.name.replace(/\.[^.]+$/, `.${ext}`)
           resolve(new File([blob], name, { type: mimeType }))
         },
