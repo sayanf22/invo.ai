@@ -403,12 +403,11 @@ export default function ProfilePage() {
                 } catch {
                     // Non-blocking — old file may be orphaned
                 }
+                // Invalidate old logo from cache
+                const { invalidateLogoCache } = await import("@/hooks/use-logo-url")
+                invalidateLogoCache(oldLogoKey)
             }
-            // Update DB with new logo key
-            const { createClient } = await import("@/lib/supabase")
-            const sb = createClient()
-            const { error } = await sb.from("businesses").update({ logo_url: objectKey }).eq("user_id", user.id)
-            if (error) throw error
+            // Note: upload API already saved logo_url + logo_data_url to businesses table
             toast.success("Logo updated!")
             await loadProfile()
         } catch {
@@ -425,10 +424,13 @@ export default function ProfilePage() {
             } catch {
                 // Non-blocking
             }
-            // Clear DB
+            // Invalidate cache
+            const { invalidateLogoCache } = await import("@/hooks/use-logo-url")
+            invalidateLogoCache(profile.logo_url)
+            // Clear DB — both logo_url and logo_data_url
             const { createClient } = await import("@/lib/supabase")
             const sb = createClient()
-            const { error } = await sb.from("businesses").update({ logo_url: null }).eq("user_id", user.id)
+            const { error } = await sb.from("businesses").update({ logo_url: null, logo_data_url: null } as any).eq("user_id", user.id)
             if (error) throw error
             toast.success("Logo removed.")
             await loadProfile()
