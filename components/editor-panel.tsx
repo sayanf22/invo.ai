@@ -446,6 +446,27 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                       <div className="w-5 h-5 rounded-full bg-muted" />
                     </button>
                   </div>
+                  {/* Logo size slider */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">Size:</span>
+                      <span className="text-[10px] font-medium text-muted-foreground">{data.logoSize ?? 44}pt</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={24}
+                      max={96}
+                      step={4}
+                      value={data.logoSize ?? 44}
+                      onChange={(e) => onChange({ logoSize: Number(e.target.value) })}
+                      className="w-full h-1.5 rounded-full appearance-none bg-secondary cursor-pointer accent-primary"
+                      aria-label="Logo size"
+                    />
+                    <div className="flex justify-between text-[9px] text-muted-foreground/50">
+                      <span>Small</span>
+                      <span>Large</span>
+                    </div>
+                  </div>
                   {/* Show on document toggle */}
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input

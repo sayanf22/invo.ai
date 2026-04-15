@@ -28,6 +28,7 @@ export interface InvoiceData {
   fromLogo: string // R2 object key, base64, or URL
   showLogo: boolean // whether to display logo on the document
   logoShape: "rounded" | "circle" // logo display shape on the document
+  logoSize: number // logo size in PDF points (32–96, default 44)
 
   // Buyer / To
   toName: string
@@ -142,6 +143,7 @@ export function getInitialInvoiceData(): InvoiceData {
     fromLogo: "",
     showLogo: true,
     logoShape: "rounded",
+    logoSize: 44,
     toName: "",
     toEmail: "",
     toAddress: "",
