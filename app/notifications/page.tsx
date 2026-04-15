@@ -49,13 +49,13 @@ export default function NotificationsPage() {
     try {
       const supabase = createClient()
       const { data, error } = await supabase
-        .from("notifications")
+        .from("notifications" as any)
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(50)
       if (error) throw error
-      setNotifications((data || []) as Notification[])
+      setNotifications((data || []) as unknown as Notification[])
     } catch (err) {
       console.error("Failed to load notifications:", err)
     } finally {
@@ -65,7 +65,7 @@ export default function NotificationsPage() {
 
   const markAsRead = useCallback(async (id: string) => {
     const supabase = createClient()
-    await supabase.from("notifications").update({ read: true }).eq("id", id)
+    await supabase.from("notifications" as any).update({ read: true }).eq("id", id)
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
   }, [])
 
@@ -75,7 +75,7 @@ export default function NotificationsPage() {
     try {
       const supabase = createClient()
       await supabase
-        .from("notifications")
+        .from("notifications" as any)
         .update({ read: true })
         .eq("user_id", user.id)
         .eq("read", false)

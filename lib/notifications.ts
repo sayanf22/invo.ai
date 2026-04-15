@@ -24,7 +24,7 @@ export async function createNotification(
     supabase: SupabaseClient,
     params: CreateNotificationParams
 ): Promise<void> {
-    const { error } = await supabase.from("notifications").insert({
+    const { error } = await supabase.from("notifications" as any).insert({
         user_id: params.user_id,
         type: params.type,
         title: params.title,
