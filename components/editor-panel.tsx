@@ -286,8 +286,11 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
       }
       const { objectKey, dataUrl } = await res.json()
 
-      // Cache the server's dataUrl — works on any device, any session
-      warmLogoCache(objectKey, dataUrl || blobUrl)
+      // Cache the server's dataUrl (data: URL) — required for PDF rendering
+      // blob: URLs don't work with @react-pdf/renderer
+      if (dataUrl) {
+        warmLogoCache(objectKey, dataUrl)
+      }
       onChange({ fromLogo: objectKey })
     } catch (err: unknown) {
       URL.revokeObjectURL(blobUrl)

@@ -152,10 +152,9 @@ export function LogoUploader({
 
       const { objectKey, dataUrl } = await res.json()
 
-      // Warm the logo cache so it shows instantly everywhere
+      // Warm the logo cache — prefer dataUrl (data: URL) for PDF compatibility
       const { warmLogoCache } = await import("@/hooks/use-logo-url")
-      const displayUrl = dataUrl || previewUrl
-      if (displayUrl) warmLogoCache(objectKey, displayUrl)
+      if (dataUrl) warmLogoCache(objectKey, dataUrl)
 
       setState("complete")
       setCurrentDisplayUrl(displayUrl || previewUrl)

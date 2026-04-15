@@ -12,23 +12,20 @@
 export async function resolveLogoUrl(fromLogo: string): Promise<string | null> {
   if (!fromLogo) return null
 
-  // Already a usable data URL, http URL, or blob URL
-  if (
-    fromLogo.startsWith("data:") ||
-    fromLogo.startsWith("http") ||
-    fromLogo.startsWith("blob:")
-  ) {
+  // Already a usable data URL or http URL — return as-is
+  // NOTE: blob: URLs are NOT supported by @react-pdf/renderer's <Image>
+  if (fromLogo.startsWith("data:") || fromLogo.startsWith("http")) {
     return fromLogo
   }
 
   // Check the client-side logo cache first (populated on upload or DB load)
-  // This avoids a network round-trip entirely
   try {
     const { logoCache } = await import("@/hooks/use-logo-url")
     const cached = logoCache.get(fromLogo)
-    if (cached) return cached
+    // Only use cached value if it's a data: URL (not blob:)
+    if (cached && cached.startsWith("data:")) return cached
   } catch {
-    // Cache not available (e.g. server-side render) — fall through
+    // Cache not available — fall through
   }
 
   // Fall back to the image proxy API
@@ -38,7 +35,6 @@ export async function resolveLogoUrl(fromLogo: string): Promise<string | null> {
     if (!res.ok) return null
     const json = await res.json()
     if (json.dataUrl) {
-      // Warm the cache for future calls
       try {
         const { warmLogoCache } = await import("@/hooks/use-logo-url")
         warmLogoCache(fromLogo, json.dataUrl)
