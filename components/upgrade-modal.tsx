@@ -1,6 +1,6 @@
 "use client"
 
-import { Sparkles, Loader2 } from "lucide-react"
+import { Zap, Loader2, ArrowUpRight } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -92,7 +92,7 @@ export function UpgradeModal({
       <DialogContent className="sm:max-w-md rounded-2xl shadow-sm">
         <DialogHeader className="space-y-3">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-            <Sparkles className="h-6 w-6 text-primary" />
+            <Zap className="h-6 w-6 text-primary" />
           </div>
           <DialogTitle className="text-center text-lg font-semibold">
             {headline}
@@ -121,7 +121,7 @@ export function UpgradeModal({
               {isProcessing ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
               ) : (
-                <><Sparkles className="h-4 w-4" /> Upgrade to {next.name} now</>
+                <><ArrowUpRight className="h-4 w-4" /> Upgrade to {next.name} now</>
               )}
             </Button>
           ) : (

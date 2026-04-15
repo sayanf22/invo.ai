@@ -68,7 +68,7 @@ function Step({
   children: React.ReactNode
 }) {
   return (
-    <div className="border border-border rounded-2xl bg-card shadow-sm transition-all duration-200 hover:shadow-md">
+    <div className={`border border-border rounded-2xl bg-card shadow-sm transition-all duration-200 hover:shadow-md ${isOpen ? "ring-1 ring-primary/15" : ""}`}>
       <button
         type="button"
         onClick={onToggle}
@@ -85,15 +85,21 @@ function Step({
         <span className="text-sm font-medium text-foreground flex-1">
           {title}
         </span>
-        <div className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
+        <div className={`transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${isOpen ? "rotate-180" : ""}`}>
           <ChevronDown className="w-4 h-4 text-muted-foreground" />
         </div>
       </button>
-      {isOpen && (
-        <div className="px-4 pb-4 pt-1 animate-in fade-in slide-in-from-top-1 duration-150">
-          {children}
+      {/* Smooth height animation via grid-template-rows trick */}
+      <div
+        className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+        style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
+      >
+        <div className="overflow-hidden">
+          <div className="px-4 pb-4 pt-1">
+            {children}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
