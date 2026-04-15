@@ -4,10 +4,10 @@ import { NextResponse } from "next/server"
 
 /**
  * Auth callback for PKCE code exchange.
- * Uses @supabase/ssr createServerClient which properly handles cookie
- * read/write for session persistence across requests.
+ * Uses @supabase/ssr createServerClient for proper cookie handling.
  *
- * Handles: OAuth (Google), magic links, email confirmations.
+ * After successful code exchange, redirects to the app.
+ * The session cookies are set by @supabase/ssr's cookie adapter.
  */
 export async function GET(request: Request) {
     const requestUrl = new URL(request.url)
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const rawRedirect = requestUrl.searchParams.get("redirect") || "/"
     const origin = requestUrl.origin
 
-    // SECURITY: Prevent open redirect — only allow relative paths
+    // SECURITY: Prevent open redirect
     const redirectTo = rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
         ? rawRedirect
         : "/"
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
                                 cookieStore.set(name, value, options)
                             )
                         } catch {
-                            // Called from Server Component — middleware will handle cookies
+                            // Server Component context — middleware handles cookies
                         }
                     },
                 },
@@ -52,25 +52,9 @@ export async function GET(request: Request) {
                 return NextResponse.redirect(`${origin}/auth/update-password`)
             }
 
-            // Check onboarding status
-            const { data: { user } } = await supabase.auth.getUser()
-
-            if (user) {
-                const { data: profile } = await supabase
-                    .from("profiles")
-                    .select("onboarding_complete, plan_selected")
-                    .eq("id", user.id)
-                    .single()
-
-                const p = profile as any
-                if (!p?.plan_selected) {
-                    return NextResponse.redirect(`${origin}/choose-plan`)
-                }
-                if (!p?.onboarding_complete) {
-                    return NextResponse.redirect(`${origin}/onboarding`)
-                }
-            }
-
+            // For all other flows, redirect to the target page.
+            // The @supabase/ssr cookie adapter has already set the session cookies
+            // via cookieStore.set() above.
             return NextResponse.redirect(`${origin}${redirectTo}`)
         }
 

@@ -219,47 +219,71 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Read auth token from cookies ─────────────────────────────────────
-  const rawToken = getAuthTokenFromCookies(request)
-  const parsed = rawToken ? parseAuthToken(rawToken) : null
-  const accessToken = parsed?.access_token
-  const refreshToken = parsed?.refresh_token
-
+  // Use @supabase/ssr to properly read cookies (handles base64, chunking, etc.)
   let isAuthenticated = false
+  let accessToken: string | undefined
 
-  if (accessToken) {
-    try {
-      const payload = JSON.parse(atob(accessToken.split(".")[1]))
-      const exp = payload.exp * 1000
-      const now = Date.now()
+  try {
+    const { createServerClient } = await import("@supabase/ssr")
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll() {
+            // Middleware doesn't need to write cookies for auth check
+          },
+        },
+      }
+    )
 
-      if (exp > now + 60_000) {
-        isAuthenticated = true
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      isAuthenticated = true
+      // Extract access token for last_active_at update
+      const rawToken = getAuthTokenFromCookies(request)
+      const parsed = rawToken ? parseAuthToken(rawToken) : null
+      accessToken = parsed?.access_token
 
-        // Update last_active_at (fire-and-forget, non-blocking)
-        if (accessToken) {
-          const userId = getUserIdFromToken(accessToken)
-          if (userId) {
-            const nowMs = Date.now()
-            const lastUpdate = lastActiveCache.get(userId) ?? 0
-            if (nowMs - lastUpdate > LAST_ACTIVE_THROTTLE) {
-              lastActiveCache.set(userId, nowMs)
-              updateLastActive(userId).catch(() => {})
-            }
+      // Update last_active_at (fire-and-forget, non-blocking)
+      const userId = user.id
+      const nowMs = Date.now()
+      const lastUpdate = lastActiveCache.get(userId) ?? 0
+      if (nowMs - lastUpdate > LAST_ACTIVE_THROTTLE) {
+        lastActiveCache.set(userId, nowMs)
+        updateLastActive(userId).catch(() => {})
+      }
+    }
+  } catch {
+    // Fall back to manual JWT parsing if @supabase/ssr fails
+    const rawToken = getAuthTokenFromCookies(request)
+    const parsed = rawToken ? parseAuthToken(rawToken) : null
+    accessToken = parsed?.access_token
+    const refreshToken = parsed?.refresh_token
+
+    if (accessToken) {
+      try {
+        const payload = JSON.parse(atob(accessToken.split(".")[1]))
+        const exp = payload.exp * 1000
+        if (exp > Date.now() + 60_000) {
+          isAuthenticated = true
+        } else if (refreshToken) {
+          const refreshed = await refreshSession(accessToken, refreshToken)
+          if (refreshed) {
+            isAuthenticated = true
+            writeAuthCookies(response, refreshed.rawJson, request)
           }
         }
-      } else if (refreshToken) {
-        const refreshed = await refreshSession(accessToken, refreshToken)
-        if (refreshed) {
-          isAuthenticated = true
-          writeAuthCookies(response, refreshed.rawJson, request)
-        }
-      }
-    } catch {
-      if (refreshToken) {
-        const refreshed = await refreshSession(accessToken, refreshToken)
-        if (refreshed) {
-          isAuthenticated = true
-          writeAuthCookies(response, refreshed.rawJson, request)
+      } catch {
+        if (refreshToken) {
+          const refreshed = await refreshSession(accessToken, refreshToken)
+          if (refreshed) {
+            isAuthenticated = true
+            writeAuthCookies(response, refreshed.rawJson, request)
+          }
         }
       }
     }
