@@ -29,7 +29,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
                             initial="initial"
                             animate="enter"
                             exit="exit"
-                            className="flex-1"
+                            className="flex-1 pt-24"
                         >
                             {children}
                         </motion.main>

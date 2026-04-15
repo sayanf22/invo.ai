@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FileText, Download, Eye, Trash2, Calendar, DollarSign } from "lucide-react"
+import { FileText, Download, Eye, Trash2, Calendar, DollarSign, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
+import type { InvoiceData } from "@/lib/invoice-types"
+import { cleanDataForExport } from "@/lib/invoice-types"
+import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 
 interface Document {
   id: string
@@ -25,6 +28,7 @@ export default function MyDocumentsPage() {
   const user = useUser()
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) {
@@ -80,6 +84,58 @@ export default function MyDocumentsPage() {
       toast.error("Failed to load documents")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const downloadDocument = async (doc: Document) => {
+    if (!doc.data) {
+      toast.error("No document data available")
+      return
+    }
+    setDownloadingId(doc.id)
+    try {
+      const cleanedData = cleanDataForExport(doc.data as InvoiceData)
+      const logoUrl = await resolveLogoUrl(cleanedData.fromLogo)
+      const templates = await import("@/lib/pdf-templates")
+      const { pdf } = await import("@react-pdf/renderer")
+
+      let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
+      let filePrefix: string
+
+      switch ((cleanedData.documentType || "").toLowerCase()) {
+        case "contract":
+          PdfComponent = templates.ContractPDF
+          filePrefix = cleanedData.referenceNumber || cleanedData.invoiceNumber || "contract"
+          break
+        case "quotation":
+          PdfComponent = templates.QuotationPDF
+          filePrefix = cleanedData.referenceNumber || cleanedData.invoiceNumber || "quotation"
+          break
+        case "proposal":
+          PdfComponent = templates.ProposalPDF
+          filePrefix = cleanedData.referenceNumber || cleanedData.invoiceNumber || "proposal"
+          break
+        default:
+          PdfComponent = templates.InvoicePDF
+          filePrefix = cleanedData.invoiceNumber || "invoice"
+          break
+      }
+
+      const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `${filePrefix}_${new Date().toISOString().split("T")[0]}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      toast.success("PDF downloaded!")
+    } catch (error) {
+      console.error("PDF download error:", error)
+      toast.error("Failed to generate PDF")
+    } finally {
+      setDownloadingId(null)
     }
   }
 
@@ -210,13 +266,15 @@ export default function MyDocumentsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      // TODO: Implement download
-                      toast.info("Download feature coming soon")
-                    }}
+                    disabled={downloadingId === doc.id}
+                    onClick={() => downloadDocument(doc)}
                   >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
+                    {downloadingId === doc.id ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    Download PDF
                   </Button>
                   <Button
                     variant="outline"

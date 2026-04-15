@@ -50,6 +50,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
     const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([])
+    const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
     const [fileContext, setFileContext] = useState<string | null>(null)
@@ -283,9 +284,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             let sseBuffer = "" // Buffer for incomplete SSE lines across chunks
             let streamError: string | null = null
             let completeData: string | null = null
+            let isStreamingText = false // true once we detect this is a plain-text (non-JSON) response
             if (!reader) throw new Error("No response body")
 
-            // Phase 1: Read the entire stream, accumulate content
+            // Phase 1: Read the stream, accumulate content + stream text progressively
             while (true) {
                 const { done, value: chunk } = await reader.read()
                 if (done) break
@@ -303,6 +305,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         const parsed = JSON.parse(line.slice(6))
                         if (parsed.type === "chunk") {
                             fullContent += parsed.data
+                            // Once we have enough content to know it's not JSON, stream it live
+                            if (!isStreamingText && fullContent.length > 10 && !fullContent.trimStart().startsWith("{")) {
+                                isStreamingText = true
+                                setIsLoading(false)
+                                setStreamingContent(fullContent)
+                            } else if (isStreamingText) {
+                                setStreamingContent(fullContent)
+                            }
                         } else if (parsed.type === "complete") {
                             // Backend sends the full cleaned content — use it as authoritative source
                             completeData = parsed.data
@@ -314,6 +324,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     }
                 }
             }
+            // Clear streaming state — final message will be committed below
+            setStreamingContent(null)
 
             // Phase 2: Handle errors
             if (streamError) {
@@ -446,12 +458,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             const assistantMsg = errorMsg.includes("429") || errorMsg.includes("rate limit")
                 ? "⏳ High demand right now. Please wait a minute and try again."
                 : "Something went wrong. Please try again."
+            setStreamingContent(null)
             setMessages(prev => [...prev, { role: "assistant", content: assistantMsg }])
             // NOTE: Do NOT save user or error messages to DB on failure —
             // this prevents errors from counting against the message limit.
             // The error message is shown in the UI only.
             await saveGeneration(messageText, {}, null, false, errorMsg)
         } finally {
+            setStreamingContent(null)
             setIsLoading(false)
         }
     }, [isLoading, messages, data, docType, onChange, session, saveMessage, updateSessionContext, saveGeneration, fileContext])
@@ -647,7 +661,16 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             </div>
                         </div>
                     ))}
-                    {isLoading && (
+                    {/* Live streaming bubble — shown while AI is writing a plain-text response */}
+                    {streamingContent && (
+                        <div className="flex justify-start w-full animate-in fade-in duration-200">
+                            <div className="max-w-[85%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm bg-muted text-foreground rounded-bl-md">
+                                <MarkdownMessage content={streamingContent} />
+                                <span className="inline-block w-0.5 h-4 bg-foreground/60 ml-0.5 animate-pulse align-middle" />
+                            </div>
+                        </div>
+                    )}
+                    {isLoading && !streamingContent && (
                         <div className="flex justify-start w-full animate-in fade-in duration-200">
                             <AIThinkingBlock label="Thinking..." />
                         </div>

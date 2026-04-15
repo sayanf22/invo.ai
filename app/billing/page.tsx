@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
-import { Check, Zap, Crown, Loader2, FileText, MessageSquare } from "lucide-react"
+import { Check, Zap, Crown, Loader2, FileText, MessageSquare, Download } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useRazorpay } from "@/hooks/use-razorpay"
 import { authFetch } from "@/lib/auth-fetch"
@@ -13,6 +13,10 @@ import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTR
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase"
+import type { InvoiceData } from "@/lib/invoice-types"
+import { cleanDataForExport } from "@/lib/invoice-types"
+import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 
 const plans = [
     {
@@ -46,6 +50,14 @@ interface UsageData {
     }
 }
 
+interface RecentSession {
+    id: string
+    document_type: string
+    client_name: string | null
+    created_at: string
+    context: any
+}
+
 export default function BillingPage() {
     const router = useRouter()
     const { user } = useAuth()
@@ -55,6 +67,8 @@ export default function BillingPage() {
     const [downgradeTarget, setDowngradeTarget] = useState<string | null>(null)
     const [isDowngrading, setIsDowngrading] = useState(false)
     const [countryPricing, setCountryPricing] = useState<CountryPricing>(COUNTRY_PRICING[DEFAULT_COUNTRY])
+    const [recentSessions, setRecentSessions] = useState<RecentSession[]>([])
+    const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
     const { subscribe, isProcessing } = useRazorpay({
         onSuccess: () => {
@@ -73,13 +87,80 @@ export default function BillingPage() {
         } catch {} finally { setLoading(false) }
     }, [])
 
+    const fetchRecentSessions = useCallback(async () => {
+        try {
+            const supabase = createClient()
+            const { data: sessions } = await supabase
+                .from("document_sessions")
+                .select("id, document_type, client_name, created_at, context")
+                .not("context", "is", null)
+                .order("created_at", { ascending: false })
+                .limit(5)
+            if (sessions) setRecentSessions(sessions as RecentSession[])
+        } catch {}
+    }, [])
+
+    const downloadSessionPDF = useCallback(async (session: RecentSession) => {
+        const docData = session.context as InvoiceData
+        if (!docData || !docData.documentType) {
+            toast.error("No document data available for this session")
+            return
+        }
+        setDownloadingId(session.id)
+        try {
+            const cleanedData = cleanDataForExport(docData)
+            const logoUrl = await resolveLogoUrl(cleanedData.fromLogo)
+            const templates = await import("@/lib/pdf-templates")
+            const { pdf } = await import("@react-pdf/renderer")
+
+            let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
+            let filePrefix: string
+
+            switch ((cleanedData.documentType || "").toLowerCase()) {
+                case "contract":
+                    PdfComponent = templates.ContractPDF
+                    filePrefix = cleanedData.referenceNumber || "contract"
+                    break
+                case "quotation":
+                    PdfComponent = templates.QuotationPDF
+                    filePrefix = cleanedData.referenceNumber || "quotation"
+                    break
+                case "proposal":
+                    PdfComponent = templates.ProposalPDF
+                    filePrefix = cleanedData.referenceNumber || "proposal"
+                    break
+                default:
+                    PdfComponent = templates.InvoicePDF
+                    filePrefix = cleanedData.invoiceNumber || "invoice"
+                    break
+            }
+
+            const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            link.href = url
+            link.download = `${filePrefix}_${new Date(session.created_at).toISOString().split("T")[0]}.pdf`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+            toast.success("PDF downloaded!")
+        } catch (err) {
+            console.error("PDF error:", err)
+            toast.error("Failed to generate PDF")
+        } finally {
+            setDownloadingId(null)
+        }
+    }, [])
+
     useEffect(() => {
         if (!user) { router.push("/auth/login"); return }
         fetchUsage()
+        fetchRecentSessions()
         // Detect country for pricing display
         const detected = detectCountryFromTimezone()
         setCountryPricing(COUNTRY_PRICING[detected] || COUNTRY_PRICING[DEFAULT_COUNTRY])
-    }, [user, router, fetchUsage])
+    }, [user, router, fetchUsage, fetchRecentSessions])
 
     const currentPlan = data?.plan || "free"
 
@@ -157,6 +238,54 @@ export default function BillingPage() {
                     <p className="text-xs text-muted-foreground">Month: {usage?.currentMonth || "—"}</p>
                 </div>
             </div>
+
+            {/* Recent Documents — download section for paid users */}
+            {currentPlan !== "free" && recentSessions.length > 0 && (
+                <div className="mb-8">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-base font-semibold">Recent Documents</h2>
+                        <Link href="/history" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                            View all →
+                        </Link>
+                    </div>
+                    <div className="rounded-2xl border bg-card divide-y divide-border overflow-hidden">
+                        {recentSessions.map((session) => {
+                            const docData = session.context as InvoiceData | null
+                            const docNumber = docData?.invoiceNumber || docData?.referenceNumber || "—"
+                            const clientName = session.client_name || docData?.toName || "Unknown client"
+                            const docType = session.document_type
+                            const dateStr = session.created_at
+                                ? new Date(session.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                                : "—"
+                            return (
+                                <div key={session.id} className="flex items-center gap-3 px-4 py-3">
+                                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                        <FileText className="w-4 h-4 text-primary" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">{clientName}</p>
+                                        <p className="text-xs text-muted-foreground capitalize">{docType} · {docNumber} · {dateStr}</p>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="shrink-0 h-8 px-3 text-xs gap-1.5"
+                                        disabled={downloadingId === session.id || !docData?.documentType}
+                                        onClick={() => downloadSessionPDF(session)}
+                                    >
+                                        {downloadingId === session.id ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                            <Download className="w-3.5 h-3.5" />
+                                        )}
+                                        PDF
+                                    </Button>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Billing Toggle */}
             <div className="flex items-center justify-center gap-1 mb-6 bg-secondary/50 rounded-2xl p-1 w-fit mx-auto">
