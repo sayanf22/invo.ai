@@ -1,80 +1,45 @@
-import { createClient } from "@supabase/supabase-js"
+import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
-import type { Database } from "./database.types"
 
+/**
+ * Create a Supabase client for Server Components, Server Actions, and Route Handlers.
+ * Uses @supabase/ssr for proper cookie handling (reads base64-prefixed, chunked cookies).
+ */
 export async function createServerSupabaseClient() {
     const cookieStore = await cookies()
 
-    // Read the Supabase auth token from cookies
-    const allCookies = cookieStore.getAll()
-    const authCookies = allCookies.filter(c => c.name.startsWith("sb-") && c.name.includes("-auth-token"))
-
-    // Reconstruct the auth token from chunked cookies
-    let accessToken: string | undefined
-    if (authCookies.length > 0) {
-        // Supabase stores auth as JSON in cookies (may be chunked)
-        const baseName = authCookies[0].name.replace(/\.\d+$/, "")
-        const chunks = allCookies
-            .filter(c => c.name === baseName || c.name.startsWith(baseName + "."))
-            .sort((a, b) => {
-                const aIdx = a.name.includes(".") ? parseInt(a.name.split(".").pop()!) : 0
-                const bIdx = b.name.includes(".") ? parseInt(b.name.split(".").pop()!) : 0
-                return aIdx - bIdx
-            })
-            .map(c => c.value)
-            .join("")
-
-        try {
-            let decoded = chunks
-            // Handle base64-prefixed cookies
-            if (decoded.startsWith("base64-")) {
-                try { decoded = atob(decoded.slice(7)) } catch {}
-            }
-            // Handle URL-encoded cookies
-            if (decoded.startsWith("%7B") || decoded.startsWith("%5B")) {
-                try { decoded = decodeURIComponent(decoded) } catch {}
-            }
-            const parsed = JSON.parse(decoded)
-            accessToken = parsed.access_token
-        } catch {
-            // Cookie parse failed — try URL-decoding the whole thing
-            try {
-                const decoded = decodeURIComponent(chunks)
-                const parsed = JSON.parse(decoded)
-                accessToken = parsed.access_token
-            } catch {
-                // Give up
-            }
-        }
-    }
-
-    const supabase = createClient<Database>(
+    return createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
-            global: {
-                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            cookies: {
+                getAll() {
+                    return cookieStore.getAll()
+                },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) =>
+                            cookieStore.set(name, value, options)
+                        )
+                    } catch {
+                        // Called from a Server Component — middleware handles cookie refresh
+                    }
+                },
             },
         }
     )
-
-    return supabase
 }
 
 // Helper to get current user on server
 export async function getServerUser() {
     const supabase = await createServerSupabaseClient()
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
     return user
 }
 
 // Helper to get current session on server
 export async function getServerSession() {
     const supabase = await createServerSupabaseClient()
-    const {
-        data: { session },
-    } = await supabase.auth.getSession()
+    const { data: { session } } = await supabase.auth.getSession()
     return session
 }
