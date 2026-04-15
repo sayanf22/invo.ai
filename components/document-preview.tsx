@@ -125,7 +125,8 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
       if (!mountedRef.current) return
 
       const arrayBuffer = await blob.arrayBuffer()
-      setPdfBytes(new Uint8Array(arrayBuffer))
+      // Copy the buffer so react-pdf's worker transfer doesn't detach our reference
+      setPdfBytes(new Uint8Array(arrayBuffer).slice())
     } catch (err) {
       console.error("PDF preview render error:", err)
       if (mountedRef.current) setError("Failed to render preview")
@@ -164,15 +165,6 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
     setError("Could not load preview")
   }, [])
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-        <FileText className="w-8 h-8" />
-        <p className="text-sm">{error}</p>
-      </div>
-    )
-  }
-
   // A4 aspect ratio: 595pt wide. Base width is container - padding, scaled by zoom.
   const baseWidth = containerWidth > 0 ? Math.min(containerWidth - 48, 800) : 600
   const pageWidth = Math.round(baseWidth * (zoom / 100))
@@ -185,8 +177,20 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
 
   const fileData = useMemo(() => {
     if (!pdfBytes) return null
-    return { data: pdfBytes }
+    // Always pass a fresh copy — react-pdf transfers the buffer to its Worker,
+    // which detaches the original. A new copy avoids "already detached" errors.
+    return { data: pdfBytes.slice() }
   }, [pdfBytes])
+
+  // Early return AFTER all hooks to avoid "Rendered fewer hooks" error
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+        <FileText className="w-8 h-8" />
+        <p className="text-sm">{error}</p>
+      </div>
+    )
+  }
 
   return (
     <div ref={containerRef} className="relative w-full h-full overflow-auto">
