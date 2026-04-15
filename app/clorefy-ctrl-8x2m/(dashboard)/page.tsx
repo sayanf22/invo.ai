@@ -24,10 +24,21 @@ interface OverviewData {
   monthlyActiveUsers: number
   accountsCreatedThisMonth: number
   activePaidUsers: number
+  freeUsers: number
+  starterUsers: number
+  proUsers: number
+  agencyUsers: number
   totalDocumentsAllTime: number
+  totalDocumentsToday: number
+  totalDocumentsThisWeek: number
   totalDocumentsThisMonth: number
+  totalMessagesAllTime: number
+  totalMessagesThisMonth: number
+  totalMessagesToday: number
   totalAIRequestsThisMonth: number
+  totalTokensThisMonth: number
   estimatedAICostThisMonth: number
+  estimatedAICostToday: number
   totalRevenue: number
   currentMRR: number
   signupsTrend: Array<{ date: string; count: number }>
@@ -148,57 +159,65 @@ export default function AdminOverviewPage() {
         <p className="text-sm mt-1" style={{ color: '#71717A' }}>{today}</p>
       </div>
 
-      {/* KPI Cards */}
-      <section>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard title="Total Users" value={data?.totalUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-
-          {/* New Signups — toggleable */}
-          <div
-            className="rounded-lg p-4 border transition-all duration-200 hover:scale-[1.02]"
-            style={{ backgroundColor: chartBg, borderColor: chartBorder }}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-sm" style={{ color: '#71717A' }}>New Signups</p>
-              <div className="flex gap-1">
-                {(['today', 'week', 'month', 'year'] as SignupPeriod[]).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setSignupPeriod(p)}
-                    className="text-xs px-2 py-0.5 rounded transition-all duration-150 active:scale-95"
-                    style={{
-                      backgroundColor: signupPeriod === p
-                        ? isDark ? '#FFFFFF' : '#0A0A0A'
-                        : 'transparent',
-                      color: signupPeriod === p
-                        ? isDark ? '#0A0A0A' : '#FFFFFF'
-                        : '#71717A',
-                    }}
-                  >
-                    {p === 'today' ? 'Today' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Year'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {loading ? (
-              <div className="h-8 rounded w-3/4 animate-pulse mt-2" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
-            ) : error ? (
-              <p className="text-sm text-red-400 mt-2">Failed to load</p>
-            ) : (
-              <p className="text-2xl font-bold mt-1" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>{signupValue.toLocaleString()}</p>
-            )}
+      {/* KPI Cards — grouped by category */}
+      <section className="space-y-6">
+        {/* Users */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>Users</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KpiCard title="Total Users" value={data?.totalUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="Free Plan" value={data?.freeUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="Starter Plan" value={data?.starterUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="Pro Plan" value={data?.proUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="Agency Plan" value={data?.agencyUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="Active Paid" value={data?.activePaidUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="DAU (24h)" value={data?.dailyActiveUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="MAU (30d)" value={data?.monthlyActiveUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
           </div>
+        </div>
 
-          <KpiCard title="Daily Active Users" value={data?.dailyActiveUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          <KpiCard title="Monthly Active Users" value={data?.monthlyActiveUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          <KpiCard title="Accounts This Month" value={data?.accountsCreatedThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          <KpiCard title="Active Paid Users" value={data?.activePaidUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          <KpiCard title="Total Documents (All Time)" value={data?.totalDocumentsAllTime ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          <KpiCard title="Documents This Month" value={data?.totalDocumentsThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          <KpiCard title="AI Requests This Month" value={data?.totalAIRequestsThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          <KpiCard title="Estimated AI Cost" value={data?.estimatedAICostThisMonth ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
-          <KpiCard title="Total Revenue" value={data?.totalRevenue ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
-          <KpiCard title="Current MRR" value={data?.currentMRR ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
+        {/* Signups */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>Signups</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KpiCard title="Today" value={data?.newSignupsToday ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="This Week" value={data?.newSignupsThisWeek ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="This Month" value={data?.newSignupsThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="This Year" value={data?.newSignupsThisYear ?? 0} loading={loading} error={error} onRetry={fetchData} />
+          </div>
+        </div>
+
+        {/* Documents */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>Documents Generated</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KpiCard title="Today" value={data?.totalDocumentsToday ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="This Week" value={data?.totalDocumentsThisWeek ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="This Month" value={data?.totalDocumentsThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="All Time" value={data?.totalDocumentsAllTime ?? 0} loading={loading} error={error} onRetry={fetchData} />
+          </div>
+        </div>
+
+        {/* Chat Messages */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>Chat Messages</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KpiCard title="Today" value={data?.totalMessagesToday ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="This Month" value={data?.totalMessagesThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="All Time" value={data?.totalMessagesAllTime ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="AI Requests / Month" value={data?.totalAIRequestsThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
+          </div>
+        </div>
+
+        {/* AI Cost */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>AI Cost (DeepSeek)</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KpiCard title="Today" value={data?.estimatedAICostToday ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="This Month" value={data?.estimatedAICostThisMonth ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="Tokens This Month" value={data?.totalTokensThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
+            <KpiCard title="MRR" value={data?.currentMRR ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
+          </div>
         </div>
       </section>
 

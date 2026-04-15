@@ -41,10 +41,26 @@ export interface OverviewKPIs {
   monthlyActiveUsers: number
   accountsCreatedThisMonth: number
   activePaidUsers: number
+  // Tier breakdown
+  freeUsers: number
+  starterUsers: number
+  proUsers: number
+  agencyUsers: number
+  // Documents
   totalDocumentsAllTime: number
+  totalDocumentsToday: number
+  totalDocumentsThisWeek: number
   totalDocumentsThisMonth: number
+  // Chat messages
+  totalMessagesAllTime: number
+  totalMessagesThisMonth: number
+  totalMessagesToday: number
+  // AI
   totalAIRequestsThisMonth: number
+  totalTokensThisMonth: number
   estimatedAICostThisMonth: number
+  estimatedAICostToday: number
+  // Revenue
   totalRevenue: number
   currentMRR: number
   signupsTrend: Array<{ date: string; count: number }>
@@ -351,7 +367,7 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .map(([date, count]) => ({ date, count }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
-  // Tier distribution
+  // Tier distribution + individual counts
   const { data: allProfiles } = await supabase
     .from("profiles")
     .select("tier")
@@ -363,6 +379,60 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
   }
   const tierDistribution = Object.entries(tierCounts).map(([tier, count]) => ({ tier, count }))
 
+  const freeUsers = tierCounts["free"] ?? 0
+  const starterUsers = tierCounts["starter"] ?? 0
+  const proUsers = tierCounts["pro"] ?? 0
+  const agencyUsers = tierCounts["agency"] ?? 0
+
+  // Documents today and this week
+  const { count: totalDocumentsToday } = await supabase
+    .from("generation_history")
+    .select("*", { count: "exact", head: true })
+    .eq("success", true)
+    .gte("created_at", todayISO)
+    .then(r => ({ count: r.count ?? 0 }))
+
+  const { count: totalDocumentsThisWeek } = await supabase
+    .from("generation_history")
+    .select("*", { count: "exact", head: true })
+    .eq("success", true)
+    .gte("created_at", weekISO)
+    .then(r => ({ count: r.count ?? 0 }))
+
+  // Chat messages
+  const { count: totalMessagesAllTime } = await supabase
+    .from("chat_messages")
+    .select("*", { count: "exact", head: true })
+    .then(r => ({ count: r.count ?? 0 }))
+
+  const { count: totalMessagesThisMonth } = await supabase
+    .from("chat_messages")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", monthISO)
+    .then(r => ({ count: r.count ?? 0 }))
+
+  const { count: totalMessagesToday } = await supabase
+    .from("chat_messages")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", todayISO)
+    .then(r => ({ count: r.count ?? 0 }))
+
+  // Tokens from generation_history (more accurate than user_usage)
+  const { data: tokenRows } = await supabase
+    .from("generation_history")
+    .select("tokens_used, created_at")
+    .gte("created_at", monthISO)
+
+  const totalTokensThisMonth = (tokenRows ?? []).reduce((s, r) => s + (r.tokens_used ?? 0), 0)
+
+  // AI cost today (DeepSeek V3: ~$0.00094 per request average)
+  const { count: aiRequestsToday } = await supabase
+    .from("generation_history")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", todayISO)
+    .then(r => ({ count: r.count ?? 0 }))
+  const estimatedAICostToday = Math.round(aiRequestsToday * 0.00094 * 85 * 100) / 100 // USD to INR
+
   return {
     totalUsers,
     newSignupsToday,
@@ -373,10 +443,21 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     monthlyActiveUsers,
     accountsCreatedThisMonth: newSignupsThisMonth,
     activePaidUsers,
+    freeUsers,
+    starterUsers,
+    proUsers,
+    agencyUsers,
     totalDocumentsAllTime,
+    totalDocumentsToday,
+    totalDocumentsThisWeek,
     totalDocumentsThisMonth,
+    totalMessagesAllTime,
+    totalMessagesThisMonth,
+    totalMessagesToday,
     totalAIRequestsThisMonth,
-    estimatedAICostThisMonth: Math.round(estimatedAICostThisMonth * 85 * 100) / 100, // Convert USD to INR
+    totalTokensThisMonth,
+    estimatedAICostThisMonth: Math.round(estimatedAICostThisMonth * 85 * 100) / 100,
+    estimatedAICostToday,
     totalRevenue,
     currentMRR,
     signupsTrend,
