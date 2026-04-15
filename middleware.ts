@@ -170,11 +170,10 @@ export async function middleware(request: NextRequest) {
   const clientIP = getClientIP(request)
   const category = getRouteCategory(pathname)
 
-  // Skip rate limiting for OAuth callback and email confirm routes —
-  // these are server-to-server redirects, not user-initiated requests
-  const skipRateLimit =
-    pathname.startsWith("/auth/callback") ||
-    pathname.startsWith("/auth/confirm")
+  // Skip rate limiting for all auth routes — OAuth flows make multiple
+  // redirects that would trigger false positives. Auth is protected by
+  // brute force detection instead.
+  const skipRateLimit = pathname.startsWith("/auth")
 
   if (!skipRateLimit) {
     const rateCheck = checkIPRateLimit(clientIP, category, ipStore)
