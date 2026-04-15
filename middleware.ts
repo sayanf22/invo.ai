@@ -311,32 +311,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url))
   }
 
-  // ── Onboarding guard: redirect completed users away from /onboarding ─
-  if (isAuthenticated && pathname === "/onboarding" && accessToken) {
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      if (supabaseUrl && supabaseKey) {
-        const profileRes = await fetch(
-          `${supabaseUrl}/rest/v1/profiles?select=onboarding_complete&id=eq.${getUserIdFromToken(accessToken)}`,
-          {
-            headers: {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        )
-        if (profileRes.ok) {
-          const profiles = await profileRes.json()
-          if (profiles?.[0]?.onboarding_complete === true) {
-            return NextResponse.redirect(new URL("/", request.url))
-          }
-        }
-      }
-    } catch {
-      // If the check fails, let the client-side guard handle it
-    }
-  }
+  // ── Onboarding: allow users to revisit /onboarding anytime ─────────
+  // The onboarding page itself handles whether to show the form or redirect.
+  // No middleware guard needed — users with incomplete profiles should be
+  // able to click "Complete your business profile" and reach onboarding.
 
   return response
 }
