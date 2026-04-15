@@ -62,20 +62,23 @@ export function PromptScreen({
 
   return (
     <div className="h-dvh flex flex-col bg-background overflow-hidden">
-      <header className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-card shadow-sm shrink-0">
+      <header className="flex items-center gap-3 px-5 py-3.5 border-b border-border bg-card shadow-sm shrink-0">
+        {/* Left: back button */}
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center justify-center w-10 h-10 rounded-2xl bg-background border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 hover:shadow-md transition-all duration-200 active:scale-95"
+          className="flex items-center justify-center w-10 h-10 rounded-2xl bg-background border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 hover:shadow-md transition-all duration-200 active:scale-95 shrink-0"
           aria-label="Go back"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
 
-        <span className="text-base font-semibold text-foreground tracking-tight">
+        {/* Center: logo */}
+        <div className="flex-1 flex justify-center">
           <InvoLogo size={32} />
-        </span>
+        </div>
 
+        {/* Right: mobile tabs */}
         <div className="flex items-center gap-1.5 md:hidden">
           <button
             type="button"
@@ -120,18 +123,19 @@ export function PromptScreen({
           </button>
         </div>
 
-        <div className="hidden md:flex items-center gap-2.5">
+        {/* Right: desktop controls — each item shrinks-0 so they never overlap */}
+        <div className="hidden md:flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setShowHistory(!showHistory)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 btn-press ${
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 btn-press whitespace-nowrap ${
               showHistory
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "bg-secondary text-foreground hover:bg-secondary/50 hover:shadow-sm"
             }`}
           >
-            <HistoryIcon className="w-[18px] h-[18px]" />
-            {showHistory ? "Hide History" : "Show History"}
+            <HistoryIcon className="w-4 h-4 shrink-0" />
+            <span>{showHistory ? "Hide History" : "History"}</span>
           </button>
           <HamburgerMenu />
         </div>
