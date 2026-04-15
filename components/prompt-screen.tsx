@@ -141,15 +141,14 @@ export function PromptScreen({
         </div>
 
         {/* ── MOBILE: 3-panel sliding track ── */}
-        {/* Outer clip — hides the off-screen panels */}
-        <div className="md:hidden flex-1 overflow-hidden relative min-h-0">
-          {/* Inner track — 300% wide, slides left/right, same height as outer */}
+        <div className="md:hidden flex-1 relative overflow-hidden">
+          {/* Absolute-positioned track fills the container exactly */}
           <div
-            className="flex h-full transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
-            style={{ width: "300%", transform: `translateX(${slideOffset / 3}%)` }}
+            className="absolute inset-0 flex transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+            style={{ width: "300%", transform: `translateX(calc(${slideOffset}% / 3))` }}
           >
-            {/* Panel 0: Chat */}
-            <div className="h-full flex flex-col overflow-hidden" style={{ width: "33.333%" }}>
+            {/* Each panel is 1/3 of the 300%-wide track = exactly 100vw wide and 100% tall */}
+            <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col overflow-hidden">
               <InvoiceChat
                 data={data}
                 onChange={handleChange}
@@ -162,13 +161,11 @@ export function PromptScreen({
               />
             </div>
 
-            {/* Panel 1: Edit */}
-            <div className="h-full flex flex-col overflow-hidden" style={{ width: "33.333%" }}>
+            <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col overflow-hidden">
               <EditorPanel data={data} onChange={handleChange} />
             </div>
 
-            {/* Panel 2: Preview */}
-            <div className="h-full flex flex-col overflow-hidden" style={{ width: "33.333%" }}>
+            <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col overflow-hidden">
               <DocumentPreview
                 data={data}
                 onChange={handleChange}
