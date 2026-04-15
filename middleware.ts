@@ -169,24 +169,32 @@ export async function middleware(request: NextRequest) {
   // ── IP-Based Rate Limiting ───────────────────────────────────────────
   const clientIP = getClientIP(request)
   const category = getRouteCategory(pathname)
-  const rateCheck = checkIPRateLimit(clientIP, category, ipStore)
 
-  if (!rateCheck.allowed) {
-    return new NextResponse(
-      JSON.stringify({
-        error: "Too many requests. Please slow down.",
-        retryAfter: rateCheck.retryAfter,
-      }),
-      {
-        status: 429,
-        headers: {
-          "Content-Type": "application/json",
-          "Retry-After": String(rateCheck.retryAfter),
-          "X-RateLimit-Limit": String(RATE_LIMITS[category].maxRequests),
-          "X-RateLimit-Remaining": "0",
-        },
-      }
-    )
+  // Skip rate limiting for OAuth callback and email confirm routes —
+  // these are server-to-server redirects, not user-initiated requests
+  const skipRateLimit =
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/auth/confirm")
+
+  if (!skipRateLimit) {
+    const rateCheck = checkIPRateLimit(clientIP, category, ipStore)
+    if (!rateCheck.allowed) {
+      return new NextResponse(
+        JSON.stringify({
+          error: "Too many requests. Please slow down.",
+          retryAfter: rateCheck.retryAfter,
+        }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": String(rateCheck.retryAfter),
+            "X-RateLimit-Limit": String(RATE_LIMITS[category].maxRequests),
+            "X-RateLimit-Remaining": "0",
+          },
+        }
+      )
+    }
   }
 
   // ── Brute Force Detection (auth routes only) ────────────────────────

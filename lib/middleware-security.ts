@@ -12,7 +12,7 @@ export interface RateLimitEntry {
 }
 
 export const RATE_LIMITS = {
-  auth:    { maxRequests: 10,  windowMs: 60_000 },  // 10 req/min for auth
+  auth:    { maxRequests: 30,  windowMs: 60_000 },  // 30 req/min for auth (increased for OAuth flows)
   api:     { maxRequests: 120, windowMs: 60_000 },  // 120 req/min for API
   signing: { maxRequests: 5,   windowMs: 60_000 },  // 5 req/min for signing
   webhook: { maxRequests: 30,  windowMs: 60_000 },  // 30 req/min for webhooks
