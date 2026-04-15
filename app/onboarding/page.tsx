@@ -18,7 +18,7 @@ export default function OnboardingPage() {
     const [phase, setPhase] = useState<"upload" | "chat" | "logo">("upload")
     const [extractedData, setExtractedData] = useState<CollectedData>({})
 
-    // Redirect if not logged in, or if plan not selected, or if onboarding already complete
+    // Redirect if not logged in, or if plan not selected
     useEffect(() => {
         if (!isLoading && !user) {
             router.push("/auth/login")
@@ -36,12 +36,24 @@ export default function OnboardingPage() {
                         router.push("/choose-plan")
                         return
                     }
-                    // If onboarding is already complete, always redirect home.
-                    // Clean up any stale localStorage keys from previous sessions.
+                    // Only redirect home if onboarding is complete AND business profile
+                    // is actually filled out. If the user skipped, their business profile
+                    // will be empty and they should be allowed to complete it.
                     if (data?.onboarding_complete) {
-                        localStorage.removeItem("invo_onboarding_session")
-                        localStorage.removeItem("clorefy_onboarding_skipped")
-                        router.push("/")
+                        supabase
+                            .from("businesses")
+                            .select("name, country, email")
+                            .eq("user_id", user.id)
+                            .single()
+                            .then(({ data: biz }: any) => {
+                                if (biz?.name && biz?.country && biz?.email) {
+                                    // Business profile is complete — redirect home
+                                    localStorage.removeItem("invo_onboarding_session")
+                                    localStorage.removeItem("clorefy_onboarding_skipped")
+                                    router.push("/")
+                                }
+                                // Otherwise: business profile is incomplete, let them stay on onboarding
+                            })
                     }
                 })
         }
