@@ -33,6 +33,19 @@ async function fetchLogoDataUrl(key: string): Promise<string | null> {
       const data = await res.json()
       if (data?.dataUrl) {
         logoCache.set(key, data.dataUrl)
+        // Backfill: save to businesses table so future loads are instant
+        try {
+          const { createClient } = await import("@/lib/supabase")
+          const supabase = createClient()
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            await supabase
+              .from("businesses")
+              .update({ logo_data_url: data.dataUrl } as any)
+              .eq("user_id", user.id)
+              .eq("logo_url", key)
+          }
+        } catch { /* non-blocking */ }
         return data.dataUrl
       }
       return null

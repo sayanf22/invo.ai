@@ -105,6 +105,19 @@ export async function POST(request: NextRequest) {
     const base64 = Buffer.from(arrayBuffer).toString("base64")
     const dataUrl = `data:${file.type};base64,${base64}`
 
+    // For logos: persist the dataUrl in the businesses table so it loads
+    // instantly on any device without needing to fetch from R2
+    if (category === "logos") {
+      try {
+        await auth.supabase
+          .from("businesses")
+          .update({ logo_url: objectKey, logo_data_url: dataUrl } as any)
+          .eq("user_id", auth.user.id)
+      } catch {
+        // Non-blocking — logo still works via R2 fallback
+      }
+    }
+
     return NextResponse.json({ objectKey, dataUrl })
   } catch (error) {
     console.error("Upload API error:", error instanceof Error ? `${error.message}\n${error.stack}` : error)

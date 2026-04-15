@@ -155,10 +155,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 if (!user || cancelled) return
                 const { data: biz } = await supabase
                     .from("businesses")
-                    .select("logo_url")
+                    .select("logo_url, logo_data_url")
                     .eq("user_id", user.id)
-                    .single()
+                    .single() as any
                 if (!cancelled && biz?.logo_url) {
+                    // Warm the cache with the stored dataUrl so display is instant
+                    if (biz.logo_data_url) {
+                        const { warmLogoCache } = await import("@/hooks/use-logo-url")
+                        warmLogoCache(biz.logo_url, biz.logo_data_url)
+                    }
                     onChange({ fromLogo: biz.logo_url })
                 }
             } catch { /* ignore — logo is optional */ }
