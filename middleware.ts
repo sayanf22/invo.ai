@@ -219,73 +219,63 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Read auth token from cookies ─────────────────────────────────────
-  // Use @supabase/ssr to properly read cookies (handles base64, chunking, etc.)
+  // Fast local JWT check — no network call. Only refresh if expired.
+  const rawToken = getAuthTokenFromCookies(request)
+  const parsed = rawToken ? parseAuthToken(rawToken) : null
+  const accessToken = parsed?.access_token
+  const refreshToken = parsed?.refresh_token
+
   let isAuthenticated = false
-  let accessToken: string | undefined
 
-  try {
-    const { createServerClient } = await import("@supabase/ssr")
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll() {
-            // Middleware doesn't need to write cookies for auth check
-          },
-        },
+  if (accessToken) {
+    try {
+      const payload = JSON.parse(atob(accessToken.split(".")[1]))
+      const exp = payload.exp * 1000
+      const now = Date.now()
+
+      if (exp > now + 60_000) {
+        // Token is valid and not about to expire — trust it locally
+        isAuthenticated = true
+
+        // Update last_active_at (fire-and-forget, non-blocking)
+        const userId = getUserIdFromToken(accessToken)
+        if (userId) {
+          const nowMs = Date.now()
+          const lastUpdate = lastActiveCache.get(userId) ?? 0
+          if (nowMs - lastUpdate > LAST_ACTIVE_THROTTLE) {
+            lastActiveCache.set(userId, nowMs)
+            updateLastActive(userId).catch(() => {})
+          }
+        }
+      } else if (refreshToken) {
+        // Token expired — try to refresh
+        const refreshed = await refreshSession(accessToken, refreshToken)
+        if (refreshed) {
+          isAuthenticated = true
+          writeAuthCookies(response, refreshed.rawJson, request)
+        }
       }
-    )
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      isAuthenticated = true
-      // Extract access token for last_active_at update
-      const rawToken = getAuthTokenFromCookies(request)
-      const parsed = rawToken ? parseAuthToken(rawToken) : null
-      accessToken = parsed?.access_token
-
-      // Update last_active_at (fire-and-forget, non-blocking)
-      const userId = user.id
-      const nowMs = Date.now()
-      const lastUpdate = lastActiveCache.get(userId) ?? 0
-      if (nowMs - lastUpdate > LAST_ACTIVE_THROTTLE) {
-        lastActiveCache.set(userId, nowMs)
-        updateLastActive(userId).catch(() => {})
+    } catch {
+      // JWT parse failed — try refresh
+      if (refreshToken) {
+        const refreshed = await refreshSession(accessToken, refreshToken)
+        if (refreshed) {
+          isAuthenticated = true
+          writeAuthCookies(response, refreshed.rawJson, request)
+        }
       }
     }
-  } catch {
-    // Fall back to manual JWT parsing if @supabase/ssr fails
-    const rawToken = getAuthTokenFromCookies(request)
-    const parsed = rawToken ? parseAuthToken(rawToken) : null
-    accessToken = parsed?.access_token
-    const refreshToken = parsed?.refresh_token
-
-    if (accessToken) {
-      try {
-        const payload = JSON.parse(atob(accessToken.split(".")[1]))
-        const exp = payload.exp * 1000
-        if (exp > Date.now() + 60_000) {
-          isAuthenticated = true
-        } else if (refreshToken) {
-          const refreshed = await refreshSession(accessToken, refreshToken)
-          if (refreshed) {
-            isAuthenticated = true
-            writeAuthCookies(response, refreshed.rawJson, request)
-          }
-        }
-      } catch {
-        if (refreshToken) {
-          const refreshed = await refreshSession(accessToken, refreshToken)
-          if (refreshed) {
-            isAuthenticated = true
-            writeAuthCookies(response, refreshed.rawJson, request)
-          }
-        }
-      }
+  } else {
+    // No old-format cookie — check for @supabase/ssr format cookies
+    // These use base64- prefix and different chunking
+    const allCookies = request.cookies.getAll()
+    const hasSupabaseCookie = allCookies.some(c =>
+      c.name.startsWith("sb-") && c.name.includes("-auth-token")
+    )
+    if (hasSupabaseCookie) {
+      // Cookie exists but our parser couldn't read it — likely @supabase/ssr format
+      // Trust it and let the page-level auth handle validation
+      isAuthenticated = true
     }
   }
 
