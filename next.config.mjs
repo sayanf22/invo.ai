@@ -46,7 +46,7 @@ const nextConfig = {
           // Prevent XSS attacks
           { key: "X-XSS-Protection", value: "1; mode=block" },
           // Permissions policy: disable camera, mic, geo, usb; allow payment for Razorpay
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(self https://checkout.razorpay.com), usb=()" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(self \"https://checkout.razorpay.com\"), usb=()" },
           // Content Security Policy (environment-aware)
           {
             key: "Content-Security-Policy",
