@@ -144,9 +144,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         }
     }, [messages, onMessageCountChange])
 
-    // Auto-populate fromLogo from business profile if not already set
+    // Load logo from business profile and warm cache
+    // Always runs to ensure the cache has the dataUrl for PDF rendering
     useEffect(() => {
-        if (data.fromLogo) return // already has a logo
         let cancelled = false
         async function loadProfileLogo() {
             try {
@@ -159,31 +159,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     .eq("user_id", user.id)
                     .single() as any
                 if (!cancelled && biz?.logo_url) {
+                    // Always warm the cache so PDF rendering works
                     if (biz.logo_data_url) {
-                        // Warm the cache with the stored dataUrl — instant display
                         const { warmLogoCache } = await import("@/hooks/use-logo-url")
                         warmLogoCache(biz.logo_url, biz.logo_data_url)
                     }
-                    onChange({ fromLogo: biz.logo_url })
-
-                    // Backfill: if logo_data_url is missing, fetch from R2 and save
-                    if (!biz.logo_data_url) {
-                        try {
-                            const { authFetch } = await import("@/lib/auth-fetch")
-                            const res = await authFetch(`/api/storage/image?key=${encodeURIComponent(biz.logo_url)}`)
-                            if (res.ok) {
-                                const imgData = await res.json()
-                                if (imgData?.dataUrl) {
-                                    const { warmLogoCache } = await import("@/hooks/use-logo-url")
-                                    warmLogoCache(biz.logo_url, imgData.dataUrl)
-                                    // Save to DB for future cross-device loads
-                                    await supabase
-                                        .from("businesses")
-                                        .update({ logo_data_url: imgData.dataUrl } as any)
-                                        .eq("user_id", user.id)
-                                }
-                            }
-                        } catch { /* non-blocking backfill */ }
+                    // Only set fromLogo if not already set (don't override session-specific logo)
+                    if (!data.fromLogo) {
+                        onChange({ fromLogo: biz.logo_url })
                     }
                 }
             } catch { /* ignore — logo is optional */ }
