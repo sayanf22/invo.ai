@@ -22,6 +22,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
     const [isSaving, setIsSaving] = useState(false)
     const [limitError, setLimitError] = useState<{ error: string; tier: string; currentUsage: number; limit: number; message: string } | null>(null)
     const initRef = useRef(false)
+    const creatingRef = useRef(false) // mutex: prevent concurrent session creation
     const currentSessionIdRef = useRef<string | null>(null)
 
     // Load a specific session by ID
@@ -71,6 +72,9 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
     // Create a brand new session
     const createNewSession = useCallback(async (): Promise<DocumentSession | null> => {
         if (!user) return null
+        // Mutex: prevent concurrent session creation (React StrictMode / fast re-renders)
+        if (creatingRef.current) return null
+        creatingRef.current = true
         try {
             const response = await authFetch("/api/sessions/create", {
                 method: "POST",
@@ -113,6 +117,8 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
         } catch (error) {
             console.error("Error creating session:", error)
             return null
+        } finally {
+            creatingRef.current = false
         }
     }, [supabase, user, documentType])
 
@@ -241,13 +247,34 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                     .update({ status: "completed" })
                     .eq("id", session.id)
             }
-            const newSession = await createNewSession()
-            return newSession
+            // Reset mutex so forceNew can proceed
+            creatingRef.current = false
+            const response = await authFetch("/api/sessions/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ documentType, forceNew: true }),
+            })
+            const result = await response.json()
+            if (!response.ok || !result.success) {
+                console.error("Failed to create new session:", result.error)
+                return null
+            }
+            const { data: newSession, error } = await supabase
+                .from("document_sessions")
+                .select("*")
+                .eq("id", result.session.id)
+                .single()
+            if (error || !newSession) return null
+            const created = newSession as DocumentSession
+            currentSessionIdRef.current = created.id
+            setSession(created)
+            setMessages([])
+            return created
         } catch (error) {
             console.error("Error starting new session:", error)
             return null
         }
-    }, [user, session, supabase, createNewSession])
+    }, [user, session, supabase, documentType])
 
     // Complete session
     const completeSession = useCallback(async (documentId?: string) => {

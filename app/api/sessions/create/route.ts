@@ -13,6 +13,7 @@ import type { UserTier } from "@/lib/cost-protection"
 interface CreateSessionRequest {
     documentType: "invoice" | "contract" | "quotation" | "proposal"
     initialPrompt?: string
+    forceNew?: boolean // bypass deduplication (e.g. explicit "New conversation" click)
 }
 
 export async function POST(request: NextRequest) {
@@ -59,6 +60,36 @@ export async function POST(request: NextRequest) {
         // Check document limit for this tier (requires DB query)
         const limitError = await checkDocumentLimit(auth.supabase, auth.user.id, userTier)
         if (limitError) return limitError
+
+        // Deduplication: prevent duplicate sessions created within 5 seconds
+        // (handles React StrictMode double-invocation and fast re-renders)
+        // Skip deduplication if forceNew is explicitly set (e.g. "New conversation" button)
+        if (!body.forceNew) {
+            const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString()
+            const { data: recentSession } = await auth.supabase
+                .from("document_sessions")
+                .select("id, document_type, status, created_at")
+                .eq("user_id", auth.user.id)
+                .eq("document_type", body.documentType)
+                .eq("status", "active")
+                .gte("created_at", fiveSecondsAgo)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle()
+
+            if (recentSession) {
+                // Return the existing session instead of creating a duplicate
+                return NextResponse.json({
+                    success: true,
+                    session: {
+                        id: recentSession.id,
+                        documentType: recentSession.document_type,
+                        status: recentSession.status,
+                        createdAt: recentSession.created_at,
+                    }
+                })
+            }
+        }
 
         const { data: newSession, error: createError } = await auth.supabase
             .from("document_sessions")
