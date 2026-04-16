@@ -1063,3 +1063,93 @@ export async function getSecurity(params: SecurityQueryParams): Promise<Security
     ipBlocklist: (ipBlocklist ?? []) as Array<Record<string, unknown>>,
   }
 }
+
+// ─── 6.8 getActivityInsights ──────────────────────────────────────────────────
+// Returns hourly peak data per document type for the last 30 days
+
+export interface HourlyBucket {
+  hour: number   // 0–23
+  count: number
+}
+
+export interface DocTypePeaks {
+  type: string
+  hourly: HourlyBucket[]
+  peakHour: number
+  total: number
+}
+
+export interface ActivityInsights {
+  byDocType: DocTypePeaks[]
+  overallHourly: HourlyBucket[]
+  overallPeakHour: number
+  totalLast30Days: number
+  dailyTrend: Array<{ date: string; invoice: number; contract: number; quotation: number; proposal: number; total: number }>
+}
+
+export async function getActivityInsights(): Promise<ActivityInsights> {
+  const supabase = getAdminClient()
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  const { data: rows } = await supabase
+    .from("generation_history")
+    .select("document_type, created_at, success")
+    .gte("created_at", thirtyDaysAgo)
+    .eq("success", true)
+
+  // Build hourly buckets per doc type
+  const typeHourly: Record<string, Record<number, number>> = {}
+  const overallHourly: Record<number, number> = {}
+  const dailyMap: Record<string, Record<string, number>> = {}
+
+  for (const r of rows ?? []) {
+    const dt = (r.document_type ?? "unknown").toLowerCase()
+    const d = new Date(r.created_at ?? "")
+    const hour = d.getUTCHours()
+    const day = r.created_at?.slice(0, 10) ?? ""
+
+    if (!typeHourly[dt]) typeHourly[dt] = {}
+    typeHourly[dt][hour] = (typeHourly[dt][hour] ?? 0) + 1
+    overallHourly[hour] = (overallHourly[hour] ?? 0) + 1
+
+    if (day) {
+      if (!dailyMap[day]) dailyMap[day] = {}
+      dailyMap[day][dt] = (dailyMap[day][dt] ?? 0) + 1
+      dailyMap[day]["total"] = (dailyMap[day]["total"] ?? 0) + 1
+    }
+  }
+
+  const docTypes = ["invoice", "contract", "quotation", "proposal"]
+
+  const byDocType: DocTypePeaks[] = docTypes.map(type => {
+    const hourMap = typeHourly[type] ?? {}
+    const hourly: HourlyBucket[] = Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      count: hourMap[h] ?? 0,
+    }))
+    const total = hourly.reduce((s, b) => s + b.count, 0)
+    const peakHour = hourly.reduce((best, b) => b.count > best.count ? b : best, { hour: 0, count: 0 }).hour
+    return { type, hourly, peakHour, total }
+  })
+
+  const overallHourlyArr: HourlyBucket[] = Array.from({ length: 24 }, (_, h) => ({
+    hour: h,
+    count: overallHourly[h] ?? 0,
+  }))
+  const overallPeakHour = overallHourlyArr.reduce((best, b) => b.count > best.count ? b : best, { hour: 0, count: 0 }).hour
+  const totalLast30Days = (rows ?? []).length
+
+  // Daily trend (last 30 days)
+  const dailyTrend = Object.entries(dailyMap)
+    .map(([date, counts]) => ({
+      date,
+      invoice: counts["invoice"] ?? 0,
+      contract: counts["contract"] ?? 0,
+      quotation: counts["quotation"] ?? 0,
+      proposal: counts["proposal"] ?? 0,
+      total: counts["total"] ?? 0,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  return { byDocType, overallHourly: overallHourlyArr, overallPeakHour, totalLast30Days, dailyTrend }
+}
