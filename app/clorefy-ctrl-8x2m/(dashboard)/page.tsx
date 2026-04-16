@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import KpiCard from '@/components/admin/kpi-card'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
+import { Users, FileText, MessageSquare, DollarSign, TrendingUp, Activity } from 'lucide-react'
 import {
   AreaChart, Area,
   BarChart, Bar,
@@ -22,7 +22,6 @@ interface OverviewData {
   newSignupsThisYear: number
   dailyActiveUsers: number
   monthlyActiveUsers: number
-  accountsCreatedThisMonth: number
   activePaidUsers: number
   freeUsers: number
   starterUsers: number
@@ -39,7 +38,6 @@ interface OverviewData {
   totalTokensThisMonth: number
   estimatedAICostThisMonth: number
   estimatedAICostToday: number
-  totalRevenue: number
   currentMRR: number
   signupsTrend: Array<{ date: string; count: number }>
   documentsTrend: Array<{ date: string; count: number }>
@@ -47,11 +45,6 @@ interface OverviewData {
   tierDistribution: Array<{ tier: string; count: number }>
   recentActivity: Array<Record<string, unknown>>
 }
-
-type SignupPeriod = 'today' | 'week' | 'month' | 'year'
-
-const PIE_COLORS_DARK = ['#FFFFFF', '#71717A', '#52525B', '#3F3F46']
-const PIE_COLORS_LIGHT = ['#0A0A0A', '#52525B', '#71717A', '#A1A1AA']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -61,9 +54,7 @@ function formatDate(iso: string): string {
       month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit',
     })
-  } catch {
-    return iso
-  }
+  } catch { return iso }
 }
 
 function getActivityEmail(entry: Record<string, unknown>): string {
@@ -74,19 +65,54 @@ function getActivityEmail(entry: Record<string, unknown>): string {
   return 'system'
 }
 
+// ─── Stat card ────────────────────────────────────────────────────────────────
+
+function StatCard({
+  label, value, sub, icon: Icon, loading, isDark,
+}: {
+  label: string
+  value: string | number
+  sub?: string
+  icon: React.ElementType
+  loading: boolean
+  isDark: boolean
+}) {
+  const bg = isDark ? '#0A0A0A' : '#FAFAFA'
+  const border = isDark ? '#1A1A1A' : '#E5E5E5'
+
+  if (loading) {
+    return (
+      <div className="rounded-xl p-5 border animate-pulse" style={{ backgroundColor: bg, borderColor: border }}>
+        <div className="h-3 w-20 rounded mb-3" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
+        <div className="h-7 w-16 rounded" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl p-5 border transition-all duration-200 hover:scale-[1.01]"
+      style={{ backgroundColor: bg, borderColor: border }}>
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-xs font-medium uppercase tracking-wider" style={{ color: '#71717A' }}>{label}</p>
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+          style={{ backgroundColor: isDark ? '#1A1A1A' : '#F0F0F0' }}>
+          <Icon className="w-3.5 h-3.5" style={{ color: isDark ? '#A1A1AA' : '#52525B' }} />
+        </div>
+      </div>
+      <p className="text-2xl font-bold" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>{value}</p>
+      {sub && <p className="text-xs mt-1" style={{ color: '#52525B' }}>{sub}</p>}
+    </div>
+  )
+}
+
 // ─── Chart skeleton ───────────────────────────────────────────────────────────
 
 function ChartSkeleton({ isDark }: { isDark: boolean }) {
   return (
-    <div
-      className="rounded-lg p-4 border animate-pulse transition-all duration-200"
-      style={{
-        backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA',
-        borderColor: isDark ? '#1A1A1A' : '#E5E5E5',
-      }}
-    >
-      <div className="h-4 rounded w-1/3 mb-4" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
-      <div className="h-40 rounded" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
+    <div className="rounded-xl p-5 border animate-pulse"
+      style={{ backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA', borderColor: isDark ? '#1A1A1A' : '#E5E5E5' }}>
+      <div className="h-3 w-32 rounded mb-4" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
+      <div className="h-44 rounded" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
     </div>
   )
 }
@@ -99,35 +125,27 @@ export default function AdminOverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const [signupPeriod, setSignupPeriod] = useState<SignupPeriod>('month')
 
   const fetchData = useCallback(async () => {
-    setLoading(true)
-    setError(false)
+    setLoading(true); setError(false)
     try {
       const res = await fetch('/api/admin/overview')
       if (!res.ok) throw new Error('Failed')
-      const json = await res.json()
-      setData(json)
-    } catch {
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
+      setData(await res.json())
+    } catch { setError(true) }
+    finally { setLoading(false) }
   }, [])
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  useEffect(() => { fetchData() }, [fetchData])
 
-  // Theme-aware chart config
-  const chartStroke = isDark ? '#FFFFFF' : '#0A0A0A'
-  const gridStroke = isDark ? '#1A1A1A' : '#E5E5E5'
-  const axisColor = '#71717A'
   const chartBg = isDark ? '#0A0A0A' : '#FAFAFA'
   const chartBorder = isDark ? '#1A1A1A' : '#E5E5E5'
-  const pieColors = isDark ? PIE_COLORS_DARK : PIE_COLORS_LIGHT
-
+  const gridStroke = isDark ? '#1A1A1A' : '#E5E5E5'
+  const axisColor = '#71717A'
+  const chartStroke = isDark ? '#FFFFFF' : '#0A0A0A'
+  const pieColors = isDark
+    ? ['#FFFFFF', '#71717A', '#52525B', '#3F3F46']
+    : ['#0A0A0A', '#52525B', '#71717A', '#A1A1AA']
   const tooltipStyle = {
     contentStyle: {
       backgroundColor: isDark ? '#111111' : '#FFFFFF',
@@ -141,133 +159,118 @@ export default function AdminOverviewPage() {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
 
-  const signupValue = data
-    ? signupPeriod === 'today'
-      ? data.newSignupsToday
-      : signupPeriod === 'week'
-        ? data.newSignupsThisWeek
-        : signupPeriod === 'month'
-          ? data.newSignupsThisMonth
-          : data.newSignupsThisYear ?? data.totalUsers
-    : 0
-
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Overview</h1>
-        <p className="text-sm mt-1" style={{ color: '#71717A' }}>{today}</p>
+
+      {/* Page header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Dashboard</h1>
+          <p className="text-sm mt-0.5" style={{ color: '#71717A' }}>{today}</p>
+        </div>
+        {error && (
+          <button onClick={fetchData}
+            className="text-xs px-3 py-1.5 rounded-md border transition-colors"
+            style={{ borderColor: chartBorder, color: '#71717A' }}>
+            Retry
+          </button>
+        )}
       </div>
 
-      {/* KPI Cards — grouped by category */}
-      <section className="space-y-6">
-        {/* Users */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>Users</p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KpiCard title="Total Users" value={data?.totalUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="Free Plan" value={data?.freeUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="Starter Plan" value={data?.starterUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="Pro Plan" value={data?.proUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="Agency Plan" value={data?.agencyUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="Active Paid" value={data?.activePaidUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="DAU (24h)" value={data?.dailyActiveUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="MAU (30d)" value={data?.monthlyActiveUsers ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          </div>
-        </div>
+      {/* ── Row 1: Key metrics ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total Users" value={(data?.totalUsers ?? 0).toLocaleString()}
+          sub={`${data?.dailyActiveUsers ?? 0} active today`}
+          icon={Users} loading={loading} isDark={isDark} />
+        <StatCard label="Documents" value={(data?.totalDocumentsAllTime ?? 0).toLocaleString()}
+          sub={`${data?.totalDocumentsToday ?? 0} today · ${data?.totalDocumentsThisMonth ?? 0} this month`}
+          icon={FileText} loading={loading} isDark={isDark} />
+        <StatCard label="Chat Messages" value={(data?.totalMessagesAllTime ?? 0).toLocaleString()}
+          sub={`${data?.totalMessagesToday ?? 0} today`}
+          icon={MessageSquare} loading={loading} isDark={isDark} />
+        <StatCard label="MRR"
+          value={`₹${(data?.currentMRR ?? 0).toLocaleString()}`}
+          sub={`${data?.activePaidUsers ?? 0} paid users`}
+          icon={DollarSign} loading={loading} isDark={isDark} />
+      </div>
 
-        {/* Signups */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>Signups</p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KpiCard title="Today" value={data?.newSignupsToday ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="This Week" value={data?.newSignupsThisWeek ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="This Month" value={data?.newSignupsThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="This Year" value={data?.newSignupsThisYear ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          </div>
-        </div>
+      {/* ── Row 2: Growth metrics ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="New Signups Today" value={data?.newSignupsToday ?? 0}
+          icon={TrendingUp} loading={loading} isDark={isDark} />
+        <StatCard label="New Signups This Week" value={data?.newSignupsThisWeek ?? 0}
+          icon={TrendingUp} loading={loading} isDark={isDark} />
+        <StatCard label="New Signups This Month" value={data?.newSignupsThisMonth ?? 0}
+          icon={TrendingUp} loading={loading} isDark={isDark} />
+        <StatCard label="MAU (30d)" value={data?.monthlyActiveUsers ?? 0}
+          sub="Monthly active users"
+          icon={Activity} loading={loading} isDark={isDark} />
+      </div>
 
-        {/* Documents */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>Documents Generated</p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KpiCard title="Today" value={data?.totalDocumentsToday ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="This Week" value={data?.totalDocumentsThisWeek ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="This Month" value={data?.totalDocumentsThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="All Time" value={data?.totalDocumentsAllTime ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          </div>
+      {/* ── Row 3: Tier breakdown ── */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>
+          Users by Plan
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Free', value: data?.freeUsers ?? 0 },
+            { label: 'Starter', value: data?.starterUsers ?? 0 },
+            { label: 'Pro', value: data?.proUsers ?? 0 },
+            { label: 'Agency', value: data?.agencyUsers ?? 0 },
+          ].map(({ label, value }) => (
+            <div key={label} className="rounded-xl border p-4 flex items-center justify-between"
+              style={{ backgroundColor: chartBg, borderColor: chartBorder }}>
+              {loading ? (
+                <div className="h-5 w-full rounded animate-pulse" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
+              ) : (
+                <>
+                  <span className="text-sm" style={{ color: '#71717A' }}>{label}</span>
+                  <span className="text-xl font-bold" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>
+                    {value.toLocaleString()}
+                  </span>
+                </>
+              )}
+            </div>
+          ))}
         </div>
+      </div>
 
-        {/* Chat Messages */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>Chat Messages</p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KpiCard title="Today" value={data?.totalMessagesToday ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="This Month" value={data?.totalMessagesThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="All Time" value={data?.totalMessagesAllTime ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="AI Requests / Month" value={data?.totalAIRequestsThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
-          </div>
-        </div>
-
-        {/* AI Cost */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#52525B' }}>AI Cost (DeepSeek)</p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KpiCard title="Today" value={data?.estimatedAICostToday ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="This Month" value={data?.estimatedAICostThisMonth ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="Tokens This Month" value={data?.totalTokensThisMonth ?? 0} loading={loading} error={error} onRetry={fetchData} />
-            <KpiCard title="MRR" value={data?.currentMRR ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
-          </div>
-        </div>
-      </section>
-
-      {/* Charts */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Signups trend */}
+      {/* ── Row 4: Charts ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {loading ? <ChartSkeleton isDark={isDark} /> : (
-          <div
-            className="rounded-lg p-4 border transition-all duration-200"
-            style={{ backgroundColor: chartBg, borderColor: chartBorder }}
-          >
-            <p className="text-sm mb-4" style={{ color: '#71717A' }}>Signups — Last 30 Days</p>
+          <div className="rounded-xl p-5 border" style={{ backgroundColor: chartBg, borderColor: chartBorder }}>
+            <p className="text-sm font-medium mb-4" style={{ color: isDark ? '#D4D4D8' : '#27272A' }}>Signups — Last 30 Days</p>
             <ResponsiveContainer width="100%" height={180}>
               <AreaChart data={data?.signupsTrend ?? []}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                 <XAxis dataKey="date" tick={{ fill: axisColor, fontSize: 11 }} tickLine={false} />
                 <YAxis tick={{ fill: axisColor, fontSize: 11 }} tickLine={false} axisLine={false} />
                 <Tooltip {...tooltipStyle} />
-                <Area type="monotone" dataKey="count" stroke={chartStroke} fill={chartStroke} fillOpacity={0.1} />
+                <Area type="monotone" dataKey="count" stroke={chartStroke} fill={chartStroke} fillOpacity={0.08} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         )}
 
-        {/* Documents trend */}
         {loading ? <ChartSkeleton isDark={isDark} /> : (
-          <div
-            className="rounded-lg p-4 border transition-all duration-200"
-            style={{ backgroundColor: chartBg, borderColor: chartBorder }}
-          >
-            <p className="text-sm mb-4" style={{ color: '#71717A' }}>Documents — Last 30 Days</p>
+          <div className="rounded-xl p-5 border" style={{ backgroundColor: chartBg, borderColor: chartBorder }}>
+            <p className="text-sm font-medium mb-4" style={{ color: isDark ? '#D4D4D8' : '#27272A' }}>Documents — Last 30 Days</p>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={data?.documentsTrend ?? []}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                 <XAxis dataKey="date" tick={{ fill: axisColor, fontSize: 11 }} tickLine={false} />
                 <YAxis tick={{ fill: axisColor, fontSize: 11 }} tickLine={false} axisLine={false} />
                 <Tooltip {...tooltipStyle} />
-                <Bar dataKey="count" fill={chartStroke} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill={chartStroke} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         )}
 
-        {/* Revenue trend */}
         {loading ? <ChartSkeleton isDark={isDark} /> : (
-          <div
-            className="rounded-lg p-4 border transition-all duration-200"
-            style={{ backgroundColor: chartBg, borderColor: chartBorder }}
-          >
-            <p className="text-sm mb-4" style={{ color: '#71717A' }}>Revenue — Last 6 Months</p>
+          <div className="rounded-xl p-5 border" style={{ backgroundColor: chartBg, borderColor: chartBorder }}>
+            <p className="text-sm font-medium mb-4" style={{ color: isDark ? '#D4D4D8' : '#27272A' }}>Revenue — Last 6 Months</p>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={data?.revenueTrend ?? []}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
@@ -280,103 +283,104 @@ export default function AdminOverviewPage() {
           </div>
         )}
 
-        {/* Tier distribution */}
         {loading ? <ChartSkeleton isDark={isDark} /> : (
-          <div
-            className="rounded-lg p-4 border transition-all duration-200"
-            style={{ backgroundColor: chartBg, borderColor: chartBorder }}
-          >
-            <p className="text-sm mb-4" style={{ color: '#71717A' }}>Tier Distribution</p>
+          <div className="rounded-xl p-5 border" style={{ backgroundColor: chartBg, borderColor: chartBorder }}>
+            <p className="text-sm font-medium mb-4" style={{ color: isDark ? '#D4D4D8' : '#27272A' }}>Tier Distribution</p>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
-                <Pie
-                  data={data?.tierDistribution ?? []}
-                  nameKey="tier"
-                  dataKey="count"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={70}
+                <Pie data={data?.tierDistribution ?? []} nameKey="tier" dataKey="count"
+                  cx="50%" cy="50%" outerRadius={65}
                   label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
+                  labelLine={false}>
                   {(data?.tierDistribution ?? []).map((_, i) => (
                     <Cell key={i} fill={pieColors[i % pieColors.length]} />
                   ))}
                 </Pie>
                 <Tooltip {...tooltipStyle} />
-                <Legend
-                  formatter={(value) => <span style={{ color: axisColor, fontSize: 12 }}>{value}</span>}
-                />
+                <Legend formatter={(v) => <span style={{ color: axisColor, fontSize: 12 }}>{v}</span>} />
               </PieChart>
             </ResponsiveContainer>
           </div>
         )}
-      </section>
+      </div>
 
-      {/* Recent Activity + System Health */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent Activity */}
-        <div
-          className="lg:col-span-2 rounded-lg p-4 border transition-all duration-200"
-          style={{ backgroundColor: chartBg, borderColor: chartBorder }}
-        >
-          <p className="text-sm font-medium mb-3" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Recent Activity</p>
+      {/* ── Row 5: Recent Activity + System Health ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 rounded-xl border p-5"
+          style={{ backgroundColor: chartBg, borderColor: chartBorder }}>
+          <p className="text-sm font-medium mb-4" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Recent Activity</p>
           {loading ? (
             <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="h-10 rounded animate-pulse" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-9 rounded animate-pulse" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
               ))}
             </div>
-          ) : error ? (
-            <p className="text-sm text-red-400">Failed to load activity</p>
           ) : (
-            <ul style={{ borderColor: chartBorder }}>
-              {(data?.recentActivity ?? []).slice(0, 20).map((entry, i) => (
-                <li
-                  key={i}
-                  className="py-2 flex items-start gap-3 text-sm"
-                  style={{ borderBottom: i < 19 ? `1px solid ${chartBorder}` : undefined }}
-                >
-                  <span className="whitespace-nowrap text-xs mt-0.5" style={{ color: '#52525B' }}>
+            <ul>
+              {(data?.recentActivity ?? []).slice(0, 15).map((entry, i, arr) => (
+                <li key={i} className="py-2.5 flex items-start gap-3 text-sm"
+                  style={{ borderBottom: i < arr.length - 1 ? `1px solid ${chartBorder}` : undefined }}>
+                  <span className="text-xs whitespace-nowrap mt-0.5 w-28 shrink-0" style={{ color: '#52525B' }}>
                     {formatDate(entry.created_at as string)}
                   </span>
                   <span className="font-mono text-xs mt-0.5 whitespace-nowrap" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>
                     {entry.action as string}
                   </span>
-                  <span className="truncate" style={{ color: '#71717A' }}>{getActivityEmail(entry)}</span>
+                  <span className="truncate text-xs" style={{ color: '#71717A' }}>
+                    {getActivityEmail(entry)}
+                  </span>
                 </li>
               ))}
               {(data?.recentActivity ?? []).length === 0 && (
-                <li className="py-4 text-center text-sm" style={{ color: '#52525B' }}>No recent activity</li>
+                <li className="py-6 text-center text-sm" style={{ color: '#52525B' }}>No recent activity</li>
               )}
             </ul>
           )}
         </div>
 
-        {/* System Health */}
-        <div
-          className="rounded-lg p-4 border transition-all duration-200"
-          style={{ backgroundColor: chartBg, borderColor: chartBorder }}
-        >
-          <p className="text-sm font-medium mb-3" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>System Health</p>
-          <ul className="space-y-3">
-            <li className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: '#71717A' }}>Database</span>
-              <span className="flex items-center gap-2 text-sm text-green-400">
-                <span className="w-2 h-2 rounded-full bg-green-400" />
-                Healthy
-              </span>
-            </li>
-            <li className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: '#71717A' }}>AI API</span>
-              <span className="flex items-center gap-2 text-sm text-green-400">
-                <span className="w-2 h-2 rounded-full bg-green-400" />
-                Healthy
-              </span>
-            </li>
+        <div className="rounded-xl border p-5" style={{ backgroundColor: chartBg, borderColor: chartBorder }}>
+          <p className="text-sm font-medium mb-4" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>System Health</p>
+          <ul className="space-y-4">
+            {[
+              { label: 'Database', status: 'Healthy' },
+              { label: 'AI API', status: 'Healthy' },
+              { label: 'Storage', status: 'Healthy' },
+              { label: 'Auth', status: 'Healthy' },
+            ].map(({ label, status }) => (
+              <li key={label} className="flex items-center justify-between">
+                <span className="text-sm" style={{ color: '#71717A' }}>{label}</span>
+                <span className="flex items-center gap-1.5 text-xs font-medium text-green-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  {status}
+                </span>
+              </li>
+            ))}
           </ul>
+
+          {/* Quick stats */}
+          <div className="mt-6 pt-4 space-y-3" style={{ borderTop: `1px solid ${chartBorder}` }}>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#52525B' }}>AI This Month</p>
+            <div className="flex justify-between text-sm">
+              <span style={{ color: '#71717A' }}>Requests</span>
+              <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
+                {loading ? '—' : (data?.totalAIRequestsThisMonth ?? 0).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span style={{ color: '#71717A' }}>Tokens</span>
+              <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
+                {loading ? '—' : (data?.totalTokensThisMonth ?? 0).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span style={{ color: '#71717A' }}>Est. Cost</span>
+              <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
+                {loading ? '—' : `₹${(data?.estimatedAICostThisMonth ?? 0).toLocaleString()}`}
+              </span>
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }

@@ -11,18 +11,56 @@ import {
   DollarSign,
   Shield,
   Settings,
+  ChevronDown,
+  ChevronRight,
+  Activity,
+  BarChart3,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAdminTheme } from './admin-theme-provider'
 
-const navLinks = [
-  { href: '/clorefy-ctrl-8x2m', label: 'Overview', icon: LayoutDashboard },
-  { href: '/clorefy-ctrl-8x2m/users', label: 'Users', icon: Users },
-  { href: '/clorefy-ctrl-8x2m/subscriptions', label: 'Subscriptions', icon: CreditCard },
-  { href: '/clorefy-ctrl-8x2m/ai-usage', label: 'AI Usage', icon: Brain },
-  { href: '/clorefy-ctrl-8x2m/revenue', label: 'Revenue', icon: DollarSign },
-  { href: '/clorefy-ctrl-8x2m/security', label: 'Security', icon: Shield },
-  { href: '/clorefy-ctrl-8x2m/settings', label: 'Settings', icon: Settings },
+// ─── Nav structure ────────────────────────────────────────────────────────────
+
+interface NavItem {
+  href: string
+  label: string
+  icon: React.ElementType
+}
+
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Overview',
+    items: [
+      { href: '/clorefy-ctrl-8x2m', label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'Manage',
+    items: [
+      { href: '/clorefy-ctrl-8x2m/users', label: 'Users', icon: Users },
+      { href: '/clorefy-ctrl-8x2m/subscriptions', label: 'Subscriptions', icon: CreditCard },
+      { href: '/clorefy-ctrl-8x2m/revenue', label: 'Revenue', icon: DollarSign },
+    ],
+  },
+  {
+    label: 'Monitor',
+    items: [
+      { href: '/clorefy-ctrl-8x2m/ai-usage', label: 'AI Usage', icon: Brain },
+      { href: '/clorefy-ctrl-8x2m/security', label: 'Security', icon: Shield },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { href: '/clorefy-ctrl-8x2m/settings', label: 'Settings', icon: Settings },
+    ],
+  },
 ]
 
 interface AdminSidebarProps {
@@ -33,96 +71,146 @@ export default function AdminSidebar({ adminEmail }: AdminSidebarProps) {
   const pathname = usePathname()
   const { theme } = useAdminTheme()
   const [collapsed, setCollapsed] = useState(false)
+  // Track which groups are open (all open by default)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    Overview: true,
+    Manage: true,
+    Monitor: true,
+    System: true,
+  })
 
   useEffect(() => {
-    const handleResize = () => {
-      setCollapsed(window.innerWidth < 1024)
-    }
+    const handleResize = () => setCollapsed(window.innerWidth < 1024)
     handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
   const isDark = theme === 'dark'
+  const bg = isDark ? '#000000' : '#FAFAFA'
+  const border = isDark ? '#1A1A1A' : '#E5E5E5'
+  const textMuted = isDark ? '#52525B' : '#A1A1AA'
+  const textActive = isDark ? '#F5F5F5' : '#0A0A0A'
+  const textInactive = isDark ? '#71717A' : '#52525B'
+  const activeBg = isDark ? '#1A1A1A' : '#F0F0F0'
+  const hoverBg = isDark ? '#111111' : '#F0F0F0'
+
+  function isActive(href: string) {
+    return href === '/clorefy-ctrl-8x2m'
+      ? pathname === href
+      : pathname.startsWith(href)
+  }
+
+  function toggleGroup(label: string) {
+    if (collapsed) return
+    setOpenGroups(prev => ({ ...prev, [label]: !prev[label] }))
+  }
 
   return (
     <aside
-      className={cn(
-        'flex flex-col transition-all duration-200 shrink-0',
-        collapsed ? 'w-14' : 'w-56',
-      )}
-      style={{
-        backgroundColor: isDark ? '#000000' : '#FAFAFA',
-        color: isDark ? '#F5F5F5' : '#0A0A0A',
-        borderRight: `1px solid ${isDark ? '#1A1A1A' : '#E5E5E5'}`,
-      }}
+      className={cn('flex flex-col transition-all duration-200 shrink-0', collapsed ? 'w-14' : 'w-60')}
+      style={{ backgroundColor: bg, borderRight: `1px solid ${border}` }}
     >
-      {/* Logo / title */}
-      <div
-        className="flex items-center h-14 px-3"
-        style={{ borderBottom: `1px solid ${isDark ? '#1A1A1A' : '#E5E5E5'}` }}
-      >
-        {!collapsed && (
-          <span className="text-sm font-semibold truncate" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
-            Admin Panel
-          </span>
+      {/* Logo */}
+      <div className="flex items-center h-14 px-4 shrink-0" style={{ borderBottom: `1px solid ${border}` }}>
+        {collapsed ? (
+          <div className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold"
+            style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: textActive }}>A</div>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold"
+              style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: textActive }}>A</div>
+            <span className="text-sm font-semibold" style={{ color: textActive }}>Admin Panel</span>
+          </div>
         )}
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 py-3 space-y-1 px-2">
-        {navLinks.map(({ href, label, icon: Icon }) => {
-          const isActive =
-            href === '/clorefy-ctrl-8x2m'
-              ? pathname === href
-              : pathname.startsWith(href)
+      {/* Nav groups */}
+      <nav className="flex-1 overflow-y-auto py-3 space-y-0.5">
+        {NAV_GROUPS.map((group) => {
+          const isOpen = openGroups[group.label] !== false
+          const hasActiveItem = group.items.some(i => isActive(i.href))
 
           return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-all duration-200 relative',
+            <div key={group.label}>
+              {/* Group header — only shown when expanded */}
+              {!collapsed && (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.label)}
+                  className="w-full flex items-center justify-between px-4 py-1.5 text-left transition-colors"
+                  style={{ color: hasActiveItem ? textActive : textMuted }}
+                >
+                  <span className="text-[10px] font-semibold uppercase tracking-widest">
+                    {group.label}
+                  </span>
+                  {group.items.length > 1 && (
+                    isOpen
+                      ? <ChevronDown className="w-3 h-3 opacity-50" />
+                      : <ChevronRight className="w-3 h-3 opacity-50" />
+                  )}
+                </button>
               )}
-              style={{
-                backgroundColor: isActive
-                  ? isDark ? '#1F1F1F' : '#F0F0F0'
-                  : 'transparent',
-                color: isActive
-                  ? isDark ? '#F5F5F5' : '#0A0A0A'
-                  : isDark ? '#71717A' : '#52525B',
-                borderLeft: isActive ? `2px solid ${isDark ? '#FFFFFF' : '#0A0A0A'}` : '2px solid transparent',
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = isDark ? '#111111' : '#F0F0F0'
-                  e.currentTarget.style.color = isDark ? '#F5F5F5' : '#0A0A0A'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                  e.currentTarget.style.color = isDark ? '#71717A' : '#52525B'
-                }
-              }}
-              title={collapsed ? label : undefined}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{label}</span>}
-            </Link>
+
+              {/* Items */}
+              {(collapsed || isOpen) && (
+                <div className={cn('space-y-0.5', !collapsed && 'px-2 pb-2')}>
+                  {group.items.map(({ href, label, icon: Icon }) => {
+                    const active = isActive(href)
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        title={collapsed ? label : undefined}
+                        className={cn(
+                          'flex items-center gap-3 rounded-md text-sm transition-all duration-150',
+                          collapsed ? 'justify-center px-0 py-2.5 mx-1' : 'px-3 py-2',
+                        )}
+                        style={{
+                          backgroundColor: active ? activeBg : 'transparent',
+                          color: active ? textActive : textInactive,
+                          borderLeft: !collapsed && active ? `2px solid ${isDark ? '#FFFFFF' : '#0A0A0A'}` : !collapsed ? '2px solid transparent' : undefined,
+                        }}
+                        onMouseEnter={e => {
+                          if (!active) {
+                            e.currentTarget.style.backgroundColor = hoverBg
+                            e.currentTarget.style.color = textActive
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!active) {
+                            e.currentTarget.style.backgroundColor = 'transparent'
+                            e.currentTarget.style.color = textInactive
+                          }
+                        }}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span>{label}</span>}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Divider between groups */}
+              {!collapsed && (
+                <div className="mx-4 my-1" style={{ borderTop: `1px solid ${border}` }} />
+              )}
+            </div>
           )
         })}
       </nav>
 
-      {/* Admin email at bottom */}
+      {/* Admin email */}
       {!collapsed && (
-        <div
-          className="px-3 py-3"
-          style={{ borderTop: `1px solid ${isDark ? '#1A1A1A' : '#E5E5E5'}` }}
-        >
-          <p className="text-xs truncate" style={{ color: isDark ? '#71717A' : '#52525B' }}>
-            {adminEmail}
-          </p>
+        <div className="px-4 py-3 shrink-0" style={{ borderTop: `1px solid ${border}` }}>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+              style={{ backgroundColor: isDark ? '#27272A' : '#D4D4D8', color: textActive }}>
+              {adminEmail[0]?.toUpperCase() ?? 'A'}
+            </div>
+            <p className="text-xs truncate" style={{ color: textMuted }}>{adminEmail}</p>
+          </div>
         </div>
       )}
     </aside>
