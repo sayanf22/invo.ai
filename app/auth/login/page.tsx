@@ -29,8 +29,7 @@ function LoginForm() {
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) {
-                // Hard redirect to ensure fresh page load with session
-                window.location.href = redirectTo
+                window.location.replace(redirectTo)
             }
         })
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -66,8 +65,8 @@ function LoginForm() {
             }
 
             toast.success("Welcome back!")
-            // Hard redirect to ensure cookies are sent with the next request
-            window.location.href = redirectTo
+            // Full page reload to ensure auth-provider re-initializes with the new session
+            window.location.replace(redirectTo)
         } catch (err) {
             console.error("[login] Unexpected error:", err)
             toast.error("Unable to connect. Please check your internet connection.")

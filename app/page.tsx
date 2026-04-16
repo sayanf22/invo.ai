@@ -26,10 +26,9 @@ export default function Page() {
     if (isLoading) return
 
     if (!user) {
-      // Brief grace period — if a session is about to arrive (e.g. after OAuth),
-      // don't flash the landing page. Wait 800ms then show it.
-      const timer = setTimeout(() => setReady(true), 800)
-      return () => clearTimeout(timer)
+      // No user — show landing page immediately
+      setReady(true)
+      return
     }
 
     // User is authenticated — check profile

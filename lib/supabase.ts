@@ -11,9 +11,12 @@ let supabaseInstance: ReturnType<typeof createSupabaseClient<Database>> | null =
 const cookieStorage = {
     getItem: (key: string): string | null => {
         if (typeof document === "undefined") return null
-        let val = getCookie(key)
+        // Read from localStorage first (more reliable — no size limits)
+        // Fall back to cookies (for server-side reads via middleware)
+        let val: string | null = null
+        try { val = localStorage.getItem(key) } catch {}
         if (!val) {
-            try { val = localStorage.getItem(key) } catch { return null }
+            val = getCookie(key)
         }
         if (!val) return null
         // Handle base64-prefixed values from @supabase/ssr
