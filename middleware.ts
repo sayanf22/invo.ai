@@ -61,7 +61,7 @@ const PUBLIC_PATHS = [
   "/business",
   "/tools",
   "/clorefy-alternative-spellings",
-  "/clorefy-ctrl-8x2m/login",
+  "/clorefy-ctrl-8x2m", // admin routes — protected by their own JWT check in middleware
 ]
 
 function isPublicPath(pathname: string): boolean {
