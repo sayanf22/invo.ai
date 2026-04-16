@@ -301,12 +301,17 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect authenticated users away from auth pages (except callback/confirm/update-password)
+  // NOTE: We do NOT redirect from login/signup — the user may be initiating OAuth
+  // from there, and redirecting away would break the PKCE flow.
+  // The app-shell handles routing authenticated users to the right page.
   if (
     isAuthenticated &&
     pathname.startsWith("/auth") &&
     !pathname.startsWith("/auth/callback") &&
     !pathname.startsWith("/auth/confirm") &&
-    !pathname.startsWith("/auth/update-password")
+    !pathname.startsWith("/auth/update-password") &&
+    !pathname.startsWith("/auth/login") &&
+    !pathname.startsWith("/auth/signup")
   ) {
     return NextResponse.redirect(new URL("/", request.url))
   }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useState, Suspense, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase"
@@ -24,6 +24,15 @@ function LoginForm() {
     const [showPassword, setShowPassword] = useState(false)
 
     const supabase = createClient()
+
+    // If already logged in, redirect to dashboard
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user) {
+                router.replace(redirectTo)
+            }
+        })
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -56,8 +65,8 @@ function LoginForm() {
             }
 
             toast.success("Welcome back!")
-            router.push(redirectTo)
-            router.refresh()
+            // Hard redirect to ensure cookies are sent with the next request
+            window.location.href = redirectTo
         } catch (err) {
             console.error("[login] Unexpected error:", err)
             toast.error("Unable to connect. Please check your internet connection.")
