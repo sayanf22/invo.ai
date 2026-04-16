@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { createServerSupabaseClient } from "@/lib/supabase-server"
 import { Suspense } from "react"
 import { Loader2 } from "lucide-react"
+import { cookies } from "next/headers"
 
 function AppShellFallback() {
   return (
@@ -14,12 +15,30 @@ function AppShellFallback() {
 }
 
 export default async function Page() {
+  // Check if any Supabase auth cookie exists — fast check without network call
+  const cookieStore = await cookies()
+  const allCookies = cookieStore.getAll()
+  const hasAuthCookie = allCookies.some(c =>
+    c.name.startsWith("sb-") && c.name.includes("-auth-token")
+  )
+
+  // If no auth cookie at all, show landing page immediately (no network call needed)
+  if (!hasAuthCookie) {
+    return <LandingPage />
+  }
+
+  // Auth cookie exists — verify with Supabase
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Non-authenticated users see the landing page
+  // Cookie exists but getUser() failed (edge runtime timing issue) — show AppShell
+  // and let client-side auth handle the session
   if (!user) {
-    return <LandingPage />
+    return (
+      <Suspense fallback={<AppShellFallback />}>
+        <AppShell />
+      </Suspense>
+    )
   }
 
   // Authenticated users: check profile status
