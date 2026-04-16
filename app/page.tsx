@@ -26,7 +26,16 @@ export default function Page() {
     if (isLoading) return
 
     if (!user) {
-      // No user — show landing page immediately
+      // Check if there are auth cookies — if so, the session might still be loading
+      const hasAuthCookie = typeof document !== "undefined" &&
+        document.cookie.split(";").some(c => c.trim().startsWith("sb-") && c.includes("-auth-token"))
+      
+      if (hasAuthCookie) {
+        // Auth cookies exist but user is null — wait a bit for getUser() fallback
+        const timer = setTimeout(() => setReady(true), 2000)
+        return () => clearTimeout(timer)
+      }
+      
       setReady(true)
       return
     }

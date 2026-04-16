@@ -4,6 +4,7 @@ import { useState, Suspense, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase"
+import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +15,7 @@ import { Loader2, Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react"
 function LoginForm() {
     const router = useRouter()
     const searchParams = useSearchParams()
+    const { user: authUser } = useAuth()
     const redirectTo = searchParams.get("redirect") || "/"
 
     const [email, setEmail] = useState("")
@@ -25,14 +27,12 @@ function LoginForm() {
 
     const supabase = createClient()
 
-    // If already logged in, redirect to dashboard
+    // If user becomes authenticated (via onAuthStateChange), navigate away
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                window.location.replace(redirectTo)
-            }
-        })
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+        if (authUser) {
+            router.push(redirectTo)
+        }
+    }, [authUser, redirectTo, router])
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -65,8 +65,8 @@ function LoginForm() {
             }
 
             toast.success("Welcome back!")
-            // Full page reload to ensure auth-provider re-initializes with the new session
-            window.location.replace(redirectTo)
+            // onAuthStateChange will fire SIGNED_IN → authUser updates → useEffect navigates
+            // No need to manually redirect — React handles it
         } catch (err) {
             console.error("[login] Unexpected error:", err)
             toast.error("Unable to connect. Please check your internet connection.")

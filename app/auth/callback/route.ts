@@ -59,10 +59,9 @@ export async function GET(request: NextRequest) {
         )
     }
 
-    // Redirect to the session-sync page which handles client-side routing
-    // Pass the intended destination as a query param
-    const syncUrl = `${origin}/auth/session-sync?next=${encodeURIComponent(redirectTo)}`
-    const finalResponse = NextResponse.redirect(syncUrl)
+    // Redirect directly to the intended destination
+    // The auth-provider on the client will pick up the session from cookies
+    const finalResponse = NextResponse.redirect(`${origin}${redirectTo}`)
 
     // Apply all collected cookies to the redirect response
     cookiesToSet.forEach(({ name, value, options }) => {
