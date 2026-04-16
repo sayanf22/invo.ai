@@ -5,8 +5,12 @@ import type { NextRequest } from "next/server"
 /**
  * Auth callback for PKCE code exchange (OAuth, magic links, email confirm).
  *
- * Pattern: collect all cookies set by Supabase during code exchange,
- * then apply them to the final redirect response.
+ * After exchangeCodeForSession, we redirect to /auth/session-sync which is a
+ * client-side page that reads the session from the Supabase client (which has
+ * it in memory after the exchange) and then redirects to the correct page.
+ *
+ * This avoids the Cloudflare Workers edge runtime issue where cookies() from
+ * next/headers doesn't reliably read freshly-set cookies in Server Components.
  */
 export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url)
@@ -37,10 +41,8 @@ export async function GET(request: NextRequest) {
                     return request.cookies.getAll()
                 },
                 setAll(incoming) {
-                    // Collect all cookies — apply them to the final response later
                     incoming.forEach(({ name, value, options }) => {
                         cookiesToSet.push({ name, value, options })
-                        // Also write to request so subsequent reads in this handler work
                         request.cookies.set(name, value)
                     })
                 },
@@ -57,33 +59,12 @@ export async function GET(request: NextRequest) {
         )
     }
 
-    // Determine where to redirect after successful login
-    let finalPath = redirectTo
+    // Redirect to the session-sync page which handles client-side routing
+    // Pass the intended destination as a query param
+    const syncUrl = `${origin}/auth/session-sync?next=${encodeURIComponent(redirectTo)}`
+    const finalResponse = NextResponse.redirect(syncUrl)
 
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (user) {
-        if (redirectTo === "/auth/update-password") {
-            finalPath = "/auth/update-password"
-        } else {
-            const { data: profile } = await supabase
-                .from("profiles")
-                .select("onboarding_complete, plan_selected")
-                .eq("id", user.id)
-                .single()
-
-            const p = profile as any
-            if (!p?.plan_selected) {
-                finalPath = "/choose-plan"
-            } else if (!p?.onboarding_complete) {
-                finalPath = "/onboarding"
-            }
-            // Otherwise keep finalPath = redirectTo (usually "/")
-        }
-    }
-
-    // Build the final redirect response and apply all collected cookies
-    const finalResponse = NextResponse.redirect(`${origin}${finalPath}`)
+    // Apply all collected cookies to the redirect response
     cookiesToSet.forEach(({ name, value, options }) => {
         finalResponse.cookies.set(name, value, options)
     })

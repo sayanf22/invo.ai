@@ -26,25 +26,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Get initial session
         async function initSession() {
             try {
+                // First try getSession() — reads from localStorage/cookies (fast, no network)
                 const { data: { session }, error } = await supabase.auth.getSession()
 
                 if (!mounted) return
 
                 if (error) {
                     console.warn("Session load warning:", error.message)
-                    // DON'T clear tokens on session load failure — the token might still be valid
-                    // and auto-refresh will handle it. Only clear on explicit sign-out.
                     setSession(null)
                     setUser(null)
-                } else {
+                } else if (session) {
                     setSession(session)
-                    setUser(session?.user ?? null)
+                    setUser(session.user)
+                } else {
+                    // No session in storage — try getUser() which makes a network call
+                    // This handles the case where @supabase/ssr set cookies server-side
+                    // but the client-side storage adapter hasn't picked them up yet
+                    const { data: { user } } = await supabase.auth.getUser()
+                    if (!mounted) return
+                    if (user) {
+                        // User exists server-side — refresh to get full session
+                        const { data: refreshed } = await supabase.auth.refreshSession()
+                        if (!mounted) return
+                        setSession(refreshed.session)
+                        setUser(refreshed.session?.user ?? null)
+                    } else {
+                        setSession(null)
+                        setUser(null)
+                    }
                 }
             } catch (err) {
                 if (!mounted) return
                 console.warn("Session init error:", err)
-                // Network error — DON'T clear tokens. User might just have a flaky connection.
-                // The session will be restored on next successful request.
                 setSession(null)
                 setUser(null)
             } finally {
