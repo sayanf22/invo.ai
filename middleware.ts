@@ -220,6 +220,8 @@ export async function middleware(request: NextRequest) {
 
   // ── Read auth token from cookies ─────────────────────────────────────
   // Fast local JWT check — no network call. Only refresh if expired.
+  // Skip auth check entirely for public pages — no need to validate/refresh tokens
+  const isPublic = isPublicPath(pathname)
   const rawToken = getAuthTokenFromCookies(request)
   const parsed = rawToken ? parseAuthToken(rawToken) : null
   const accessToken = parsed?.access_token
@@ -227,7 +229,10 @@ export async function middleware(request: NextRequest) {
 
   let isAuthenticated = false
 
-  if (accessToken) {
+  // For public pages, just check if a token exists (no refresh needed)
+  if (isPublic && rawToken) {
+    isAuthenticated = true
+  } else if (accessToken) {
     try {
       const payload = JSON.parse(atob(accessToken.split(".")[1]))
       const exp = payload.exp * 1000

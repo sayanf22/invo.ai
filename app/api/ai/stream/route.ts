@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { streamGenerateDocument, type AIGenerationRequest } from "@/lib/deepseek"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 
-import { checkCostLimit, trackUsage, checkMessageLimit, type UserTier } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, checkMessageLimit, incrementDocumentCount, type UserTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText } from "@/lib/sanitize"
 
@@ -137,6 +137,9 @@ export async function POST(request: NextRequest) {
 
                     // Track usage for cost protection (after successful generation)
                     await trackUsage(auth.supabase, auth.user.id, "generation", 0)
+
+                    // Increment document count (only on actual document generation, not session creation)
+                    await incrementDocumentCount(auth.supabase, auth.user.id)
 
                     // Audit log
                     await logAIGeneration(

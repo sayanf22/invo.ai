@@ -110,8 +110,9 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Increment document count for usage tracking
-        await incrementDocumentCount(auth.supabase, auth.user.id)
+        // NOTE: Document count is NOT incremented here — it's incremented in /api/ai/stream
+        // when a document is actually generated successfully. Creating a session is just
+        // starting a conversation, not generating a document.
 
         if (sanitizedPrompt) {
             const { error: messageError } = await auth.supabase
