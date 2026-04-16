@@ -1,139 +1,21 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createBrowserClient } from "@supabase/ssr"
 import type { Database } from "./database.types"
 
-let supabaseInstance: ReturnType<typeof createSupabaseClient<Database>> | null = null
+let supabaseInstance: ReturnType<typeof createBrowserClient<Database>> | null = null
 
 /**
- * Cookie-based storage adapter for Supabase auth.
- * Stores auth tokens in cookies so server-side code can read them.
- * Also keeps localStorage as fallback.
+ * Create a Supabase client for browser use.
+ * 
+ * Uses @supabase/ssr's createBrowserClient which handles cookie reading/writing
+ * in a format compatible with the server-side @supabase/ssr createServerClient.
+ * This ensures OAuth sessions set by the server callback are readable client-side.
  */
-const cookieStorage = {
-    getItem: (key: string): string | null => {
-        if (typeof document === "undefined") return null
-        // Read from localStorage first (more reliable — no size limits)
-        // Fall back to cookies (for server-side reads via middleware)
-        let val: string | null = null
-        try { val = localStorage.getItem(key) } catch {}
-        if (!val) {
-            val = getCookie(key)
-        }
-        if (!val) return null
-        // Handle base64-prefixed values from @supabase/ssr
-        if (val.startsWith("base64-")) {
-            try { return atob(val.slice(7)) } catch { return val }
-        }
-        // Handle URL-encoded JSON (from server-side cookie writes)
-        if (val.startsWith("%7B") || val.startsWith("%5B")) {
-            try { return decodeURIComponent(val) } catch { return val }
-        }
-        return val
-    },
-    setItem: (key: string, value: string): void => {
-        if (typeof document === "undefined") return
-        try { localStorage.setItem(key, value) } catch {}
-        setCookieChunked(key, value)
-    },
-    removeItem: (key: string): void => {
-        if (typeof document === "undefined") return
-        try { localStorage.removeItem(key) } catch {}
-        removeCookieChunked(key)
-    },
-}
-
-const CHUNK_SIZE = 3500
-
-function getCookie(name: string): string | null {
-    if (typeof document === "undefined") return null
-    const cookies = document.cookie.split(";").map(c => c.trim())
-    const chunk0 = cookies.find(c => c.startsWith(`${name}.0=`))
-    if (chunk0) {
-        const chunks: string[] = []
-        for (let i = 0; ; i++) {
-            const chunk = cookies.find(c => c.startsWith(`${name}.${i}=`))
-            if (!chunk) break
-            chunks.push(chunk.split("=").slice(1).join("="))
-        }
-        return safeDecodeURI(chunks.join(""))
-    }
-    const base = cookies.find(c => c.startsWith(`${name}=`))
-    if (base) return safeDecodeURI(base.split("=").slice(1).join("="))
-    return null
-}
-
-/** Decode URI component safely — returns original if already decoded or invalid */
-function safeDecodeURI(val: string): string {
-    try {
-        const decoded = decodeURIComponent(val)
-        return decoded
-    } catch {
-        return val
-    }
-}
-
-function setCookieChunked(name: string, value: string): void {
-    if (typeof document === "undefined") return
-    removeCookieChunked(name)
-    const encoded = encodeURIComponent(value)
-    const expires = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toUTCString()
-    const opts = `path=/;expires=${expires};SameSite=Lax`
-    if (encoded.length <= CHUNK_SIZE) {
-        document.cookie = `${name}=${encoded};${opts}`
-    } else {
-        const count = Math.ceil(encoded.length / CHUNK_SIZE)
-        for (let i = 0; i < count; i++) {
-            document.cookie = `${name}.${i}=${encoded.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)};${opts}`
-        }
-    }
-}
-
-function removeCookieChunked(name: string): void {
-    if (typeof document === "undefined") return
-    const past = "Thu, 01 Jan 1970 00:00:00 GMT"
-    document.cookie = `${name}=;path=/;expires=${past}`
-    for (let i = 0; i < 10; i++) {
-        document.cookie = `${name}.${i}=;path=/;expires=${past}`
-    }
-}
-
 export function createClient() {
     if (supabaseInstance) return supabaseInstance
 
-    const isBrowser = typeof document !== "undefined"
-
-    supabaseInstance = createSupabaseClient<Database>(
+    supabaseInstance = createBrowserClient<Database>(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            auth: {
-                autoRefreshToken: true,
-                persistSession: true,
-                detectSessionInUrl: true,
-                ...(isBrowser ? { storage: cookieStorage } : {}),
-            },
-            global: {
-                fetch: async (url, options) => {
-                    const response = await fetch(url, options)
-                    // Only clear tokens on confirmed invalid_grant (expired/revoked refresh token).
-                    // Do NOT clear on network errors, 5xx, or other transient failures —
-                    // Supabase's built-in auto-refresh will retry automatically.
-                    if (!response.ok && typeof url === "string" && url.includes("/auth/v1/token")) {
-                        try {
-                            const cloned = response.clone()
-                            const body = await cloned.json()
-                            // Only these specific errors mean the refresh token is permanently invalid
-                            if (body?.error === "invalid_grant") {
-                                console.warn("Supabase: Refresh token invalid, clearing auth tokens")
-                                clearAuthTokens()
-                            }
-                        } catch {
-                            // JSON parse failed or network error — do NOT clear tokens
-                        }
-                    }
-                    return response
-                },
-            },
-        }
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
     return supabaseInstance
@@ -143,16 +25,23 @@ export function createClient() {
 export function clearAuthTokens() {
     if (typeof document === "undefined") return
     try {
+        // Clear localStorage
         Object.keys(localStorage)
             .filter(k => k.startsWith("sb-") && k.includes("-auth-token"))
-            .forEach(k => {
-                localStorage.removeItem(k)
-                removeCookieChunked(k)
-            })
+            .forEach(k => localStorage.removeItem(k))
+        
+        // Clear cookies
+        const past = "Thu, 01 Jan 1970 00:00:00 GMT"
+        document.cookie.split(";").forEach(c => {
+            const name = c.trim().split("=")[0]
+            if (name.startsWith("sb-") && name.includes("-auth-token")) {
+                document.cookie = `${name}=;path=/;expires=${past}`
+            }
+        })
     } catch {}
 }
 
-/** Reset the singleton Supabase client. Call this after signOut to ensure fresh state. */
+/** Reset the singleton Supabase client. */
 export function resetSupabaseClient() {
     supabaseInstance = null
 }
