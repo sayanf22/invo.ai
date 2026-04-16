@@ -2,13 +2,13 @@
 
 import { motion, AnimatePresence } from "framer-motion"
 import { useState } from "react"
-import { Briefcase, Code2, GraduationCap, Scale, Palette } from "lucide-react"
+import { Briefcase, Code2, GraduationCap, Bot, Palette } from "lucide-react"
 
 const personas = [
     { id: "freelancers", label: "Freelancers", icon: Briefcase, title: "Get paid faster", desc: "Turn a rough outline into a professional invoice and send it before you leave the meeting." },
-    { id: "developers", label: "Developers", icon: Code2, title: "Docs that write themselves", desc: "Describe documentation, PR descriptions, and commit messages. Let AI handle the markdown formatting." },
-    { id: "students", label: "Students", icon: GraduationCap, title: "Write papers 10x faster", desc: "Type your essay outline and let Clorefy flesh out the paragraphs. Perfect for overcoming writer's block." },
-    { id: "lawyers", label: "Lawyers", icon: Scale, title: "Billable hours saved", desc: "Draft contracts and legal memos instantly. Trusted by 2,000+ legal professionals for accuracy and security." },
+    { id: "developers", label: "Developers", icon: Code2, title: "Docs that write themselves", desc: "Describe your project scope, deliverables, and terms. Clorefy generates polished proposals and contracts instantly." },
+    { id: "students", label: "Students", icon: GraduationCap, title: "Professional docs, zero stress", desc: "Create internship contracts, project proposals, and freelance invoices. Free tier covers everything you need to start." },
+    { id: "agents", label: "Agents", icon: Bot, title: "Close deals with speed", desc: "Generate client proposals, service agreements, and quotations in seconds. Spend less time on paperwork, more time closing." },
     { id: "creatives", label: "Creatives", icon: Palette, title: "Capture fleeting ideas", desc: "Don't let inspiration slip away. Record your creative bursts and get organized project briefs instantly." },
 ]
 
