@@ -29,7 +29,8 @@ function LoginForm() {
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) {
-                router.replace(redirectTo)
+                // Hard redirect to ensure fresh page load with session
+                window.location.href = redirectTo
             }
         })
     }, []) // eslint-disable-line react-hooks/exhaustive-deps

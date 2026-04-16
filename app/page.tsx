@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
 import { LandingPage } from "@/components/landing/landing-page"
@@ -9,34 +9,33 @@ import { Loader2 } from "lucide-react"
 import { Suspense } from "react"
 
 /**
- * Root page — fully client-side routing.
+ * Root page — fully client-side routing for Cloudflare Workers compatibility.
  *
- * Why client-side? This app runs on Cloudflare Workers edge runtime where
- * cookies() from next/headers doesn't reliably read @supabase/ssr cookies
- * immediately after an OAuth redirect. The auth-provider already manages
- * session state via onAuthStateChange, so we delegate all routing to it.
- *
- * Flow:
- *  - isLoading=true  → show spinner (auth-provider is initializing)
- *  - user=null       → show landing page
- *  - user exists     → check profile, redirect to onboarding/choose-plan if needed
- *  - user complete   → show AppShell
+ * Shows a spinner while auth is loading, then routes based on session state.
+ * Uses a short grace period after auth loads to avoid flashing the landing page
+ * when the session is about to be established (e.g. right after OAuth redirect).
  */
 export default function Page() {
   const { user, supabase, isLoading } = useAuth()
   const router = useRouter()
-  const [profileChecked, setProfileChecked] = useState(false)
+  const [ready, setReady] = useState(false)
   const [showApp, setShowApp] = useState(false)
+  const profileCheckedRef = useRef(false)
 
   useEffect(() => {
     if (isLoading) return
+
     if (!user) {
-      setProfileChecked(true)
-      setShowApp(false)
-      return
+      // Brief grace period — if a session is about to arrive (e.g. after OAuth),
+      // don't flash the landing page. Wait 800ms then show it.
+      const timer = setTimeout(() => setReady(true), 800)
+      return () => clearTimeout(timer)
     }
 
-    // User is authenticated — check profile status
+    // User is authenticated — check profile
+    if (profileCheckedRef.current) return
+    profileCheckedRef.current = true
+
     async function checkProfile() {
       try {
         const { data: profile } = await supabase
@@ -54,19 +53,18 @@ export default function Page() {
           return
         }
         setShowApp(true)
+        setReady(true)
       } catch {
-        // Profile check failed — show app anyway, let app-shell handle it
         setShowApp(true)
-      } finally {
-        setProfileChecked(true)
+        setReady(true)
       }
     }
 
     checkProfile()
   }, [user, isLoading, supabase, router])
 
-  // Still loading auth state
-  if (isLoading || (user && !profileChecked)) {
+  // Loading or grace period
+  if (isLoading || !ready) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -74,13 +72,8 @@ export default function Page() {
     )
   }
 
-  // Not authenticated
-  if (!user) {
-    return <LandingPage />
-  }
-
   // Authenticated and profile complete
-  if (showApp) {
+  if (user && showApp) {
     return (
       <Suspense fallback={
         <div className="min-h-screen flex items-center justify-center">
@@ -90,6 +83,11 @@ export default function Page() {
         <AppShell />
       </Suspense>
     )
+  }
+
+  // Not authenticated — show landing page
+  if (!user) {
+    return <LandingPage />
   }
 
   // Redirecting to onboarding/choose-plan

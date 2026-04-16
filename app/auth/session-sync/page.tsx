@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase"
 import { Suspense } from "react"
@@ -18,7 +18,6 @@ import { Suspense } from "react"
  * can't reliably read freshly-set cookies after an OAuth redirect.
  */
 function SessionSyncContent() {
-    const router = useRouter()
     const searchParams = useSearchParams()
     const next = searchParams.get("next") || "/"
     const didRedirect = useRef(false)
@@ -45,7 +44,7 @@ function SessionSyncContent() {
 
             if (!user) {
                 // Still no user — something went wrong, go to login
-                router.replace("/auth/login?error=" + encodeURIComponent("Session could not be established. Please try again."))
+                window.location.href = "/auth/login?error=" + encodeURIComponent("Session could not be established. Please try again.")
                 return
             }
 
@@ -57,17 +56,18 @@ function SessionSyncContent() {
                 .single() as any
 
             if (!profile?.plan_selected) {
-                router.replace("/choose-plan")
+                window.location.href = "/choose-plan"
                 return
             }
             if (!profile?.onboarding_complete) {
-                router.replace("/onboarding")
+                window.location.href = "/onboarding"
                 return
             }
 
             // All good — go to intended destination
             const destination = next.startsWith("/") && !next.startsWith("//") ? next : "/"
-            router.replace(destination)
+            // Hard redirect to ensure the page fully reloads with the new session
+            window.location.href = destination
         }
 
         // Listen for auth state change (fires when session is established)
