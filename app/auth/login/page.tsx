@@ -3,7 +3,7 @@
 import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { createClient, clearAuthTokens } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,18 +28,6 @@ function LoginForm() {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsLoading(true)
-
-        try {
-            // Sign out any stale session first — this clears the Supabase client's
-            // internal state AND removes cookies/localStorage via our storage adapter.
-            // Using scope: 'local' so we only clear this browser, not all sessions.
-            await supabase.auth.signOut({ scope: "local" })
-        } catch {
-            // Ignore sign-out errors — we're just clearing stale state
-        }
-
-        // Also clear any leftover cookie fragments that signOut might miss
-        clearAuthTokens()
 
         try {
             const { data, error } = await supabase.auth.signInWithPassword({
@@ -104,10 +92,16 @@ function LoginForm() {
 
     const handleGoogleLogin = async () => {
         setIsGoogleLoading(true)
+        // Do NOT sign out before OAuth — it clears the PKCE state verifier
+        // which causes "OAuth state not found or expired" on callback
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {
                 redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
+                queryParams: {
+                    // Force account selection so users can pick the right Google account
+                    prompt: "select_account",
+                },
             },
         })
         if (error) {

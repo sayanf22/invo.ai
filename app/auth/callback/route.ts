@@ -5,13 +5,8 @@ import type { NextRequest } from "next/server"
 /**
  * Auth callback for PKCE code exchange (OAuth, magic links, email confirm).
  *
- * CRITICAL FIX: We set cookies on the NextResponse redirect object directly
- * (not via next/headers cookies()). This is because cookies().set() in a
- * Route Handler doesn't reliably propagate to redirect responses on edge
- * runtimes (Cloudflare Workers). This is a known Next.js/Supabase issue.
- *
- * Pattern from Supabase middleware docs: write to both request.cookies
- * (for server reads) and response.cookies (for browser Set-Cookie headers).
+ * Pattern: collect all cookies set by Supabase during code exchange,
+ * then apply them to the final redirect response.
  */
 export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url)
@@ -19,7 +14,7 @@ export async function GET(request: NextRequest) {
     const rawRedirect = requestUrl.searchParams.get("redirect") || "/"
     const origin = requestUrl.origin
 
-    // SECURITY: Prevent open redirect
+    // SECURITY: Prevent open redirect — only allow relative paths
     const redirectTo = rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
         ? rawRedirect
         : "/"
@@ -30,11 +25,8 @@ export async function GET(request: NextRequest) {
         )
     }
 
-    // Determine final redirect URL (default, may change based on profile)
-    let finalRedirect = `${origin}${redirectTo}`
-
-    // Create a temporary response to collect cookies
-    let response = NextResponse.redirect(finalRedirect)
+    // Collect cookies set during the exchange
+    const cookiesToSet: Array<{ name: string; value: string; options: any }> = []
 
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,14 +36,12 @@ export async function GET(request: NextRequest) {
                 getAll() {
                     return request.cookies.getAll()
                 },
-                setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value }) => {
+                setAll(incoming) {
+                    // Collect all cookies — apply them to the final response later
+                    incoming.forEach(({ name, value, options }) => {
+                        cookiesToSet.push({ name, value, options })
+                        // Also write to request so subsequent reads in this handler work
                         request.cookies.set(name, value)
-                    })
-                    // Recreate response to pick up updated request cookies
-                    response = NextResponse.redirect(finalRedirect)
-                    cookiesToSet.forEach(({ name, value, options }) => {
-                        response.cookies.set(name, value, options)
                     })
                 },
             },
@@ -67,12 +57,14 @@ export async function GET(request: NextRequest) {
         )
     }
 
-    // Session is now set. Check where to redirect.
+    // Determine where to redirect after successful login
+    let finalPath = redirectTo
+
     const { data: { user } } = await supabase.auth.getUser()
 
     if (user) {
         if (redirectTo === "/auth/update-password") {
-            finalRedirect = `${origin}/auth/update-password`
+            finalPath = "/auth/update-password"
         } else {
             const { data: profile } = await supabase
                 .from("profiles")
@@ -82,18 +74,18 @@ export async function GET(request: NextRequest) {
 
             const p = profile as any
             if (!p?.plan_selected) {
-                finalRedirect = `${origin}/choose-plan`
+                finalPath = "/choose-plan"
             } else if (!p?.onboarding_complete) {
-                finalRedirect = `${origin}/onboarding`
+                finalPath = "/onboarding"
             }
+            // Otherwise keep finalPath = redirectTo (usually "/")
         }
     }
 
-    // Build final response with all cookies preserved
-    const finalResponse = NextResponse.redirect(finalRedirect)
-    // Copy all cookies from the supabase response to the final redirect
-    response.cookies.getAll().forEach((cookie) => {
-        finalResponse.cookies.set(cookie.name, cookie.value)
+    // Build the final redirect response and apply all collected cookies
+    const finalResponse = NextResponse.redirect(`${origin}${finalPath}`)
+    cookiesToSet.forEach(({ name, value, options }) => {
+        finalResponse.cookies.set(name, value, options)
     })
 
     return finalResponse
