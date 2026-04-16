@@ -103,6 +103,32 @@ export async function POST(request: NextRequest) {
             .single()
 
         if (createError) {
+            // Handle unique constraint violation (duplicate session in same 10s window)
+            if (createError.code === "23505") {
+                // Race condition: another request created a session in the same window
+                // Fetch and return the existing one
+                const { data: existing } = await auth.supabase
+                    .from("document_sessions")
+                    .select("id, document_type, status, created_at")
+                    .eq("user_id", auth.user.id)
+                    .eq("document_type", body.documentType)
+                    .eq("status", "active")
+                    .order("created_at", { ascending: false })
+                    .limit(1)
+                    .single()
+
+                if (existing) {
+                    return NextResponse.json({
+                        success: true,
+                        session: {
+                            id: existing.id,
+                            documentType: existing.document_type,
+                            status: existing.status,
+                            createdAt: existing.created_at,
+                        }
+                    })
+                }
+            }
             console.error("Session creation error:", createError.message)
             return NextResponse.json(
                 { success: false, error: "Failed to create session" },
