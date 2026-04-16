@@ -14,8 +14,8 @@ import {
   ChevronDown,
   ChevronRight,
   Activity,
-  BarChart3,
-  Bell,
+  FileText,
+  TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAdminTheme } from './admin-theme-provider'
@@ -26,6 +26,7 @@ interface NavItem {
   href: string
   label: string
   icon: React.ElementType
+  children?: NavItem[] // sub-items (like Supabase)
 }
 
 interface NavGroup {
@@ -38,6 +39,21 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Overview',
     items: [
       { href: '/clorefy-ctrl-8x2m', label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'Analytics',
+    items: [
+      {
+        href: '/clorefy-ctrl-8x2m/analytics',
+        label: 'Analytics',
+        icon: Activity,
+        children: [
+          { href: '/clorefy-ctrl-8x2m/analytics/engagement', label: 'User Engagement', icon: Users },
+          { href: '/clorefy-ctrl-8x2m/analytics/documents', label: 'Documents & AI', icon: FileText },
+          { href: '/clorefy-ctrl-8x2m/analytics/activity', label: 'Peak Activity', icon: TrendingUp },
+        ],
+      },
     ],
   },
   {
@@ -74,9 +90,14 @@ export default function AdminSidebar({ adminEmail }: AdminSidebarProps) {
   // Track which groups are open (all open by default)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     Overview: true,
+    Analytics: true,
     Manage: true,
     Monitor: true,
     System: true,
+  })
+  // Track which parent items with children are expanded
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({
+    '/clorefy-ctrl-8x2m/analytics': true,
   })
 
   useEffect(() => {
@@ -106,6 +127,109 @@ export default function AdminSidebar({ adminEmail }: AdminSidebarProps) {
     setOpenGroups(prev => ({ ...prev, [label]: !prev[label] }))
   }
 
+  function toggleItem(href: string) {
+    if (collapsed) return
+    setExpandedItems(prev => ({ ...prev, [href]: !prev[href] }))
+  }
+
+  function renderNavItem(item: NavItem, depth = 0) {
+    const active = item.href === '/clorefy-ctrl-8x2m'
+      ? pathname === item.href
+      : pathname.startsWith(item.href)
+    const hasChildren = item.children && item.children.length > 0
+    const isExpanded = expandedItems[item.href] !== false
+
+    // Auto-expand if a child is active
+    const childActive = hasChildren && item.children!.some(c => pathname.startsWith(c.href))
+
+    return (
+      <div key={item.href}>
+        {hasChildren ? (
+          // Parent item with children — clicking toggles expansion
+          <button
+            type="button"
+            onClick={() => toggleItem(item.href)}
+            className={cn(
+              'w-full flex items-center gap-3 rounded-md text-sm transition-all duration-150',
+              collapsed ? 'justify-center px-0 py-2.5 mx-1' : 'px-3 py-2',
+            )}
+            style={{
+              backgroundColor: (active || childActive) ? activeBg : 'transparent',
+              color: (active || childActive) ? textActive : textInactive,
+              borderLeft: !collapsed && (active || childActive) ? `2px solid ${isDark ? '#FFFFFF' : '#0A0A0A'}` : !collapsed ? '2px solid transparent' : undefined,
+            }}
+            onMouseEnter={e => {
+              if (!active && !childActive) {
+                e.currentTarget.style.backgroundColor = hoverBg
+                e.currentTarget.style.color = textActive
+              }
+            }}
+            onMouseLeave={e => {
+              if (!active && !childActive) {
+                e.currentTarget.style.backgroundColor = 'transparent'
+                e.currentTarget.style.color = textInactive
+              }
+            }}
+          >
+            <item.icon className="h-4 w-4 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-left">{item.label}</span>
+                {(isExpanded || childActive)
+                  ? <ChevronDown className="w-3 h-3 opacity-50 shrink-0" />
+                  : <ChevronRight className="w-3 h-3 opacity-50 shrink-0" />
+                }
+              </>
+            )}
+          </button>
+        ) : (
+          // Leaf item — clicking navigates
+          <Link
+            href={item.href}
+            title={collapsed ? item.label : undefined}
+            className={cn(
+              'flex items-center gap-3 rounded-md text-sm transition-all duration-150',
+              collapsed ? 'justify-center px-0 py-2.5 mx-1' : 'px-3 py-2',
+              depth > 0 && !collapsed ? 'pl-8' : '',
+            )}
+            style={{
+              backgroundColor: active ? activeBg : 'transparent',
+              color: active ? textActive : textInactive,
+              borderLeft: !collapsed && active ? `2px solid ${isDark ? '#FFFFFF' : '#0A0A0A'}` : !collapsed ? '2px solid transparent' : undefined,
+            }}
+            onMouseEnter={e => {
+              if (!active) {
+                e.currentTarget.style.backgroundColor = hoverBg
+                e.currentTarget.style.color = textActive
+              }
+            }}
+            onMouseLeave={e => {
+              if (!active) {
+                e.currentTarget.style.backgroundColor = 'transparent'
+                e.currentTarget.style.color = textInactive
+              }
+            }}
+          >
+            {depth > 0 && !collapsed ? (
+              // Sub-item: dot indicator instead of icon
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: active ? (isDark ? '#FFFFFF' : '#0A0A0A') : '#52525B' }} />
+            ) : (
+              <item.icon className="h-4 w-4 shrink-0" />
+            )}
+            {!collapsed && <span>{item.label}</span>}
+          </Link>
+        )}
+
+        {/* Children */}
+        {hasChildren && !collapsed && (isExpanded || childActive) && (
+          <div className="mt-0.5 space-y-0.5">
+            {item.children!.map(child => renderNavItem(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <aside
       className={cn('flex flex-col transition-all duration-200 shrink-0', collapsed ? 'w-14' : 'w-60')}
@@ -129,11 +253,13 @@ export default function AdminSidebar({ adminEmail }: AdminSidebarProps) {
       <nav className="flex-1 overflow-y-auto py-3 space-y-0.5">
         {NAV_GROUPS.map((group) => {
           const isOpen = openGroups[group.label] !== false
-          const hasActiveItem = group.items.some(i => isActive(i.href))
+          const hasActiveItem = group.items.some(i =>
+            i.href === '/clorefy-ctrl-8x2m' ? pathname === i.href : pathname.startsWith(i.href)
+          )
 
           return (
             <div key={group.label}>
-              {/* Group header — only shown when expanded */}
+              {/* Group header */}
               {!collapsed && (
                 <button
                   type="button"

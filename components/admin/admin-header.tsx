@@ -22,6 +22,10 @@ function formatCountdown(ms: number): string {
 // Map pathname → readable section name
 function getSectionName(pathname: string): string {
   if (pathname === '/clorefy-ctrl-8x2m') return 'Dashboard'
+  if (pathname.startsWith('/clorefy-ctrl-8x2m/analytics/engagement')) return 'User Engagement'
+  if (pathname.startsWith('/clorefy-ctrl-8x2m/analytics/documents')) return 'Documents & AI'
+  if (pathname.startsWith('/clorefy-ctrl-8x2m/analytics/activity')) return 'Peak Activity'
+  if (pathname.startsWith('/clorefy-ctrl-8x2m/analytics')) return 'Analytics'
   if (pathname.startsWith('/clorefy-ctrl-8x2m/users')) return 'Users'
   if (pathname.startsWith('/clorefy-ctrl-8x2m/subscriptions')) return 'Subscriptions'
   if (pathname.startsWith('/clorefy-ctrl-8x2m/revenue')) return 'Revenue'
