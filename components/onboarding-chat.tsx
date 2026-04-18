@@ -548,7 +548,7 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                             <div className="h-full bg-emerald-500 transition-all duration-500 ease-out rounded-full" style={{ width: `${progressPercent}%` }} />
                         </div>
                     </div>
-                    {(allComplete || progressPercent >= 100) ? (
+                    {allComplete ? (
                         <div className="flex items-center gap-3 max-w-3xl mx-auto">
                             <div className="flex-1 text-base text-muted-foreground">
                                 All information collected. Ready to complete setup.
