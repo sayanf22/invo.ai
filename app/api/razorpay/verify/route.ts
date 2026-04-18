@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
             status: "captured",
             plan,
             billing_cycle: billingCycle || "monthly",
-        }).catch(() => {})
+        })
 
         // Audit log
         await logAudit(auth.supabase, {
