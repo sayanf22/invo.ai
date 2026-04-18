@@ -112,7 +112,10 @@ export function HamburgerMenu() {
             <button
                 type="button"
                 onClick={toggle}
-                className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-secondary/50 transition-colors duration-200 shrink-0"
+                className={cn(
+                    "flex items-center justify-center w-10 h-10 rounded-xl hover:bg-secondary/50 transition-colors duration-200 shrink-0",
+                    isOpen && "fixed top-3 right-4 z-[60]"
+                )}
                 aria-expanded={isOpen}
                 aria-label={isOpen ? "Close menu" : "Open menu"}
             >
