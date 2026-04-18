@@ -15,8 +15,30 @@ import { getTaxIdFieldName } from "@/lib/countries"
 export default function OnboardingPage() {
     const router = useRouter()
     const { supabase, user, isLoading } = useAuth()
-    const [phase, setPhase] = useState<"upload" | "chat" | "logo">("upload")
-    const [extractedData, setExtractedData] = useState<CollectedData>({})
+    
+    // Restore phase and data from localStorage on mount
+    const [phase, setPhase] = useState<"upload" | "chat" | "logo">(() => {
+        if (typeof window === "undefined") return "upload"
+        const saved = localStorage.getItem("clorefy_onboarding_phase")
+        if (saved === "chat" || saved === "logo") return saved
+        return "upload"
+    })
+    const [extractedData, setExtractedData] = useState<CollectedData>(() => {
+        if (typeof window === "undefined") return {}
+        try {
+            const saved = localStorage.getItem("clorefy_onboarding_data")
+            return saved ? JSON.parse(saved) : {}
+        } catch { return {} }
+    })
+
+    // Persist phase and data to localStorage whenever they change
+    useEffect(() => {
+        localStorage.setItem("clorefy_onboarding_phase", phase)
+    }, [phase])
+    
+    useEffect(() => {
+        localStorage.setItem("clorefy_onboarding_data", JSON.stringify(extractedData))
+    }, [extractedData])
 
     // Redirect if not logged in, or if plan not selected
     useEffect(() => {
@@ -132,6 +154,9 @@ export default function OnboardingPage() {
 
             toast.success("🎉 Business profile saved! Welcome to Clorefy")
             localStorage.removeItem("clorefy_onboarding_skipped")
+            localStorage.removeItem("clorefy_onboarding_phase")
+            localStorage.removeItem("clorefy_onboarding_data")
+            localStorage.removeItem("clorefy_onboarding_messages")
             router.push("/")
             router.refresh()
         } catch (error) {
@@ -143,14 +168,15 @@ export default function OnboardingPage() {
     const handleSkip = async () => {
         if (!user) return
         try {
-            // Mark onboarding as complete but with skipped flag
             await supabase
                 .from("profiles")
                 .update({ onboarding_complete: true })
                 .eq("id", user.id)
             
-            // Store skip flag in localStorage so the banner shows
             localStorage.setItem("clorefy_onboarding_skipped", "true")
+            localStorage.removeItem("clorefy_onboarding_phase")
+            localStorage.removeItem("clorefy_onboarding_data")
+            localStorage.removeItem("clorefy_onboarding_messages")
             
             toast.info("You can complete your setup anytime from the dashboard")
             router.push("/")
