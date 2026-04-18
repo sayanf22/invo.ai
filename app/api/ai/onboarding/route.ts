@@ -305,7 +305,7 @@ async function callDeepSeek(
     }
 
     const collectedSummary = collectedKeys.length > 0
-        ? `\n\nDATA COLLECTED SO FAR:\n${JSON.stringify(collectedData, null, 2)}\n\nSTILL NEEDED: ${missingFields.length > 0 ? missingFields.join(", ") : "NONE — all required fields done!"}\n\n${instruction}`
+        ? `\n\nDATA COLLECTED SO FAR:\n${JSON.stringify(collectedData, null, 2)}\n\nSTILL NEEDED: ${missingFields.length > 0 ? missingFields.join(", ") : "NONE — all required fields done!"}\n\nIMPORTANT: Most data is already collected from a file upload. Do NOT re-ask for fields that are already collected. Only ask for the MISSING fields listed above. If only 1-2 fields are missing, acknowledge the collected data briefly and ask ONLY for the missing field.\n\n${instruction}`
         : "\n\nNo data collected yet. Greet the user warmly and ask about their business type (freelancer, developer, agency, ecommerce, professional, or other)."
 
     // Trim conversation history — only send last 12 messages to avoid token overflow

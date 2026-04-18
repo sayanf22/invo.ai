@@ -163,17 +163,38 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
     const sendInitialGreeting = async () => {
         setIsLoading(true)
         try {
+            const mergedData = { email: userEmail || "", ...initialData }
+            
+            // Count how many fields are already filled
+            const filledFields = Object.entries(mergedData).filter(([k, v]) => {
+                if (!v) return false
+                if (typeof v === "string" && v.trim() === "") return false
+                if (Array.isArray(v) && v.length === 0) return false
+                if (typeof v === "object" && !Array.isArray(v) && Object.values(v as Record<string, unknown>).every(val => !val || String(val).trim() === "")) return false
+                return true
+            })
+            
+            // If most data is already collected, tell the AI explicitly
+            const userMsg = filledFields.length >= 5
+                ? "I've already uploaded a file with my business details. Please check what's already collected and only ask me for the missing fields."
+                : "Hi, I want to set up my business profile."
+
             const response = await authFetch("/api/ai/onboarding", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    messages: [{ role: "user", content: "Hi, I want to set up my business profile." }],
-                    collectedData: { email: userEmail || "", ...initialData },
+                    messages: [{ role: "user", content: userMsg }],
+                    collectedData: mergedData,
                 }),
             })
             const result = await response.json()
             if (result.message) {
-                setMessages([{ role: "assistant", content: result.message }])
+                // If data was pre-filled, don't show the user's message — just show AI's response
+                if (filledFields.length >= 5) {
+                    setMessages([{ role: "assistant", content: result.message }])
+                } else {
+                    setMessages([{ role: "assistant", content: result.message }])
+                }
             } else {
                 setMessages([{
                     role: "assistant",
