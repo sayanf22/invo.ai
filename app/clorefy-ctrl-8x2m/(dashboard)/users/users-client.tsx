@@ -16,6 +16,8 @@ interface UserRow extends Record<string, unknown> {
   created_at: string | null
   last_active_at: string | null
   suspended_at: string | null
+  onboarding_complete: boolean | null
+  plan_selected: boolean | null
   documents_count?: number
 }
 
@@ -225,6 +227,24 @@ export default function UsersClient() {
           {(row.documents_count as number ?? 0).toLocaleString()}
         </span>
       ),
+    },
+    {
+      key: 'onboarding',
+      header: 'Setup',
+      render: (row: UserRow) => {
+        const planDone = row.plan_selected === true
+        const onboardDone = row.onboarding_complete === true
+        if (planDone && onboardDone) {
+          return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+            style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#22C55E' }}>Complete</span>
+        }
+        if (planDone && !onboardDone) {
+          return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+            style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#F59E0B' }}>Partial</span>
+        }
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+          style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: '#71717A' }}>Not started</span>
+      },
     },
     {
       key: 'created_at',
