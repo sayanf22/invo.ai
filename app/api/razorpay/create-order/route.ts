@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
-import { createRazorpayOrder, PLANS, type PlanId } from "@/lib/razorpay"
-import { COUNTRY_PRICING } from "@/lib/pricing"
+import { createRazorpaySubscription, PLANS, type PlanId } from "@/lib/razorpay"
 
 /**
  * POST /api/razorpay/create-order
- * Creates a Razorpay order for subscription payment.
+ * Creates a Razorpay Subscription for recurring billing.
  * 
  * SECURITY:
  * - Requires authentication
- * - Amount is determined server-side from plan + country (client sends country code, not amount)
- * - Validates country code against known pricing table
+ * - Plan is validated server-side
+ * - Subscription is created via Razorpay API (not client-controlled)
  */
 export async function POST(request: Request) {
     const auth = await authenticateRequest(request)
@@ -18,46 +17,27 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json()
-        const { plan, billingCycle, countryCode } = body as { plan: string; billingCycle: string; countryCode?: string }
+        const { plan, billingCycle } = body as { plan: string; billingCycle: string }
 
         if (!plan || !["starter", "pro", "agency"].includes(plan)) {
             return NextResponse.json({ error: "Invalid plan" }, { status: 400 })
         }
 
-        if (!billingCycle || !["monthly", "yearly"].includes(billingCycle)) {
-            return NextResponse.json({ error: "Invalid billing cycle" }, { status: 400 })
-        }
+        const cycle = (billingCycle === "yearly" ? "yearly" : "monthly") as "monthly" | "yearly"
 
-        // Determine currency and amount from server-side pricing table
-        const pricing = countryCode && COUNTRY_PRICING[countryCode]
-            ? COUNTRY_PRICING[countryCode]
-            : COUNTRY_PRICING["IN"]
-
-        const paidPlan = plan as "starter" | "pro" | "agency"
-        const cycle = billingCycle as "monthly" | "yearly"
-        const displayAmount = pricing[paidPlan][cycle]
-        const yearlyTotal = cycle === "yearly" ? displayAmount * 12 : displayAmount
-
-        // Create order with the user's currency
-        const order = await createRazorpayOrder(
-            plan as PlanId,
-            cycle,
-            pricing.currency,
-            yearlyTotal
-        )
+        // Create a Razorpay Subscription (recurring)
+        const subscription = await createRazorpaySubscription(plan as PlanId, cycle)
 
         return NextResponse.json({
-            orderId: order.id,
-            amount: order.amount,
-            currency: order.currency,
+            subscriptionId: subscription.id,
             keyId: process.env.RAZORPAY_KEY_ID,
             plan,
-            billingCycle,
+            billingCycle: cycle,
             planName: PLANS[plan as PlanId].name,
-            displayPrice: `${pricing.currencySymbol}${displayAmount}`,
+            amount: subscription.plan_id ? PLANS[plan as PlanId].monthlyPrice : 0,
         })
     } catch (error: any) {
-        console.error("Create order error:", error)
-        return NextResponse.json({ error: "Operation failed. Please try again." }, { status: 500 })
+        console.error("Create subscription error:", error)
+        return NextResponse.json({ error: "Failed to create subscription. Please try again." }, { status: 500 })
     }
 }

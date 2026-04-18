@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
+import { authFetch } from "@/lib/auth-fetch"
 
 declare global {
     interface Window {
@@ -42,98 +43,62 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
         setIsProcessing(true)
 
         try {
-            // Load Razorpay script
             const loaded = await loadRazorpayScript()
-            if (!loaded) {
-                throw new Error("Failed to load payment gateway")
-            }
+            if (!loaded) throw new Error("Failed to load payment gateway")
 
-            // Get auth token for API call
-            const tokenKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.includes("-auth-token"))
-            const tokenRaw = tokenKey ? localStorage.getItem(tokenKey) : null
-            let accessToken = ""
-            if (tokenRaw) {
-                try {
-                    const parsed = JSON.parse(tokenRaw)
-                    accessToken = parsed.access_token || ""
-                } catch {
-                    // Try URL-decoded
-                    try {
-                        const decoded = decodeURIComponent(tokenRaw)
-                        const parsed = JSON.parse(decoded)
-                        accessToken = parsed.access_token || ""
-                    } catch {}
-                }
-            }
-
-            // Create order server-side
-            const orderRes = await fetch("/api/razorpay/create-order", {
+            // Create subscription server-side
+            const orderRes = await authFetch("/api/razorpay/create-order", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ plan, billingCycle, countryCode }),
             })
 
             if (!orderRes.ok) {
                 const err = await orderRes.json()
-                throw new Error(err.error || "Failed to create order")
+                throw new Error(err.error || "Failed to create subscription")
             }
 
-            const order = await orderRes.json()
+            const data = await orderRes.json()
 
-            // Open Razorpay Checkout
-            const options = {
-                key: order.keyId,
-                amount: order.amount,
-                currency: order.currency,
+            // Open Razorpay Checkout with subscription_id
+            const options: any = {
+                key: data.keyId,
                 name: "Clorefy",
-                description: `${order.planName} Plan — ${billingCycle === "yearly" ? "Yearly" : "Monthly"}`,
-                order_id: order.orderId,
+                description: `${data.planName} Plan — Monthly`,
+                subscription_id: data.subscriptionId,
                 prefill: {
                     email: user.email || "",
                     name: user.user_metadata?.full_name || "",
                 },
-                theme: {
-                    color: "#1a1a1a",
-                },
-                handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
-                    // Verify payment server-side
+                theme: { color: "#1a1a1a" },
+                handler: async (response: any) => {
                     try {
-                        const verifyRes = await fetch("/api/razorpay/verify", {
+                        const verifyRes = await authFetch("/api/razorpay/verify", {
                             method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-                            },
+                            headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
-                                ...response,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_subscription_id: response.razorpay_subscription_id,
+                                razorpay_signature: response.razorpay_signature,
                                 plan,
                                 billingCycle,
                             }),
                         })
 
-                        if (!verifyRes.ok) {
-                            throw new Error("Payment verification failed")
-                        }
+                        if (!verifyRes.ok) throw new Error("Payment verification failed")
 
-                        const result = await verifyRes.json()
-                        toast.success(`🎉 ${order.planName} plan activated!`)
-                        // Small delay to ensure DB write is committed before UI refresh
+                        toast.success(`🎉 ${data.planName} plan activated!`)
                         await new Promise(r => setTimeout(r, 800))
                         onSuccess?.(plan, billingCycle)
-                    } catch (err) {
-                        toast.error("Payment was received but activation failed. Contact support.")
+                    } catch {
+                        toast.error("Payment received but activation failed. Contact support.")
                         onError?.("Verification failed")
                     } finally {
                         setIsProcessing(false)
                     }
                 },
                 modal: {
-                    ondismiss: () => {
-                        setIsProcessing(false)
-                    },
+                    ondismiss: () => setIsProcessing(false),
                 },
             }
 

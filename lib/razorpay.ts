@@ -44,6 +44,13 @@ export const PLANS = {
     },
 } as const
 
+// Razorpay Plan IDs (created via API — these are live plans)
+export const RAZORPAY_PLAN_IDS = {
+    starter: { monthly: "plan_SeqvSGEJYtblYF" },
+    pro: { monthly: "plan_SeqvmVPu1FVuRx" },
+    agency: { monthly: "plan_SeqvmqZpMvvQYS" },
+} as const
+
 export type PlanId = keyof typeof PLANS
 
 /** Known valid plan IDs for validation */
@@ -55,6 +62,53 @@ export const VALID_PLAN_IDS: readonly string[] = ["free", "starter", "pro", "age
  */
 export function isValidPlanId(plan: unknown): plan is PlanId {
     return typeof plan === "string" && VALID_PLAN_IDS.includes(plan)
+}
+
+/**
+ * Create a Razorpay Subscription for recurring billing.
+ * This replaces the one-time order flow with automatic monthly charges.
+ */
+export async function createRazorpaySubscription(plan: PlanId, billingCycle: "monthly" | "yearly" = "monthly") {
+    const { getSecret } = await import("@/lib/secrets")
+    const keyId = await getSecret("RAZORPAY_KEY_ID")
+    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+
+    if (!keyId || !keySecret) {
+        throw new Error("Razorpay API keys not configured")
+    }
+
+    if (plan === "free" || !RAZORPAY_PLAN_IDS[plan as keyof typeof RAZORPAY_PLAN_IDS]) {
+        throw new Error("Invalid plan for subscription")
+    }
+
+    const planIds = RAZORPAY_PLAN_IDS[plan as keyof typeof RAZORPAY_PLAN_IDS]
+    const razorpayPlanId = planIds.monthly // Currently only monthly plans
+
+    const response = await fetch("https://api.razorpay.com/v1/subscriptions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}`,
+        },
+        body: JSON.stringify({
+            plan_id: razorpayPlanId,
+            total_count: 120, // Max 10 years of monthly billing
+            quantity: 1,
+            notes: {
+                plan,
+                billing_cycle: billingCycle,
+                platform: "clorefy",
+            },
+        }),
+    })
+
+    if (!response.ok) {
+        const error = await response.json()
+        console.error("Razorpay subscription creation failed:", error)
+        throw new Error(error.error?.description || "Failed to create subscription")
+    }
+
+    return response.json()
 }
 
 /**

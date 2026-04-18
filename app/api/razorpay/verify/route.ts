@@ -8,13 +8,9 @@ import type { NextRequest } from "next/server"
  * POST /api/razorpay/verify
  * Verifies payment signature and activates subscription.
  * 
- * SECURITY:
- * - Requires authentication
- * - Validates plan ID against known plans
- * - Verifies Razorpay signature using HMAC-SHA256
- * - Audit logs success and failure
- * - Uses service role client to update subscription (bypasses RLS)
- * - Logs payment to payment_history for audit trail
+ * Handles both:
+ * - Subscription payments (razorpay_subscription_id + razorpay_payment_id)
+ * - One-time order payments (razorpay_order_id + razorpay_payment_id) — legacy
  */
 export async function POST(request: NextRequest) {
     const auth = await authenticateRequest(request)
@@ -25,52 +21,43 @@ export async function POST(request: NextRequest) {
         const {
             razorpay_order_id,
             razorpay_payment_id,
+            razorpay_subscription_id,
             razorpay_signature,
             plan,
             billingCycle,
         } = body
 
-        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        if (!razorpay_payment_id || !razorpay_signature) {
             return NextResponse.json({ error: "Missing payment details" }, { status: 400 })
         }
 
-        // SECURITY: Validate plan ID against known plans
+        // Need either order_id or subscription_id
+        const verifyId = razorpay_subscription_id || razorpay_order_id
+        if (!verifyId) {
+            return NextResponse.json({ error: "Missing order or subscription ID" }, { status: 400 })
+        }
+
         if (!isValidPlanId(plan)) {
-            await logAudit(auth.supabase, {
-                user_id: auth.user.id,
-                action: "security.payment_failure",
-                metadata: {
-                    reason: "invalid_plan_id",
-                    plan,
-                    razorpay_order_id,
-                } as any,
-            }, request).catch(() => {})
             return NextResponse.json({ error: "Invalid plan ID" }, { status: 400 })
         }
 
-        // CRITICAL: Verify signature server-side
+        // Verify signature: for subscriptions, it's subscription_id|payment_id
         const isValid = await verifyPaymentSignature(
-            razorpay_order_id,
+            verifyId,
             razorpay_payment_id,
             razorpay_signature
         )
 
         if (!isValid) {
-            console.error("Payment signature verification failed", { razorpay_order_id, razorpay_payment_id })
-            // Audit log: payment verification failure
+            console.error("Payment signature verification failed", { verifyId, razorpay_payment_id })
             await logAudit(auth.supabase, {
                 user_id: auth.user.id,
                 action: "security.payment_failure",
-                metadata: {
-                    reason: "signature_verification_failed",
-                    razorpay_order_id,
-                    razorpay_payment_id,
-                } as any,
+                metadata: { reason: "signature_verification_failed", verifyId, razorpay_payment_id } as any,
             }, request).catch(() => {})
             return NextResponse.json({ error: "Payment verification failed" }, { status: 400 })
         }
 
-        // Use the authenticated user's Supabase client for the subscription update
         const planConfig = PLANS[plan]
         const amount = billingCycle === "yearly"
             ? planConfig.yearlyPrice * 12
@@ -90,10 +77,11 @@ export async function POST(request: NextRequest) {
             .upsert({
                 user_id: auth.user.id,
                 plan: plan as string,
-                billing_cycle: billingCycle,
+                billing_cycle: billingCycle || "monthly",
                 status: "active",
                 razorpay_payment_id,
-                razorpay_order_id,
+                razorpay_order_id: razorpay_order_id || null,
+                razorpay_subscription_id: razorpay_subscription_id || null,
                 amount_paid: amount,
                 currency: "INR",
                 current_period_start: now.toISOString(),
@@ -112,49 +100,41 @@ export async function POST(request: NextRequest) {
             .update({ plan_selected: true } as any)
             .eq("id", auth.user.id)
 
-        // Log payment for audit
+        // Log payment
         await auth.supabase.from("payment_history" as any).insert({
             user_id: auth.user.id,
             razorpay_payment_id,
-            razorpay_order_id,
+            razorpay_order_id: razorpay_order_id || null,
             razorpay_signature,
             amount,
             currency: "INR",
             status: "captured",
             plan,
-            billing_cycle: billingCycle,
-        })
+            billing_cycle: billingCycle || "monthly",
+        }).catch(() => {})
 
-        // Audit log: payment verification success
+        // Audit log
         await logAudit(auth.supabase, {
             user_id: auth.user.id,
             action: "payment.verify",
-            metadata: {
-                razorpay_order_id,
-                razorpay_payment_id,
-                plan,
-                billing_cycle: billingCycle,
-                amount,
-                status: "success",
-            } as any,
+            metadata: { verifyId, razorpay_payment_id, plan, billing_cycle: billingCycle, amount, status: "success" } as any,
         }, request).catch(() => {})
 
-        // Send subscription activation notification
+        // Notification
         const { createNotification, PLAN_NAMES } = await import("@/lib/notifications")
         const planLabel = PLAN_NAMES[plan] || plan
-        const cycleLabel = billingCycle === "yearly" ? "yearly" : "monthly"
         await createNotification(auth.supabase, {
             user_id: auth.user.id,
             type: "subscription_activated",
             title: `${planLabel} Plan Activated 🎉`,
-            message: `Your ${planLabel} plan (${cycleLabel}) is now active. Enjoy all the features!`,
+            message: `Your ${planLabel} plan is now active with automatic monthly billing.`,
             metadata: { plan, billingCycle, amount, razorpay_payment_id },
-        })
+        }).catch(() => {})
 
         return NextResponse.json({
             success: true,
             plan,
-            billingCycle,
+            billingCycle: billingCycle || "monthly",
             periodEnd: periodEnd.toISOString(),
         })
     } catch (error) {
