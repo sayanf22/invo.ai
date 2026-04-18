@@ -295,13 +295,22 @@ async function callDeepSeek(
 
     let instruction = ""
     if (missingFields.length > 0) {
-        instruction = `INSTRUCTION: The NEXT field to collect is "${missingFields[0]}". The user's LAST message is their answer to your LAST question. If your last question was about "${missingFields[0]}", then the user's reply IS the value for "${missingFields[0]}" — accept it and extract it. Do NOT say "could you tell me more" or "I didn't catch that". Accept whatever they typed as the answer.`
+        instruction = `INSTRUCTION: The NEXT field to collect is "${missingFields[0]}". The user's LAST message is their answer to your LAST question. If your last question was about "${missingFields[0]}", then the user's reply IS the value for "${missingFields[0]}" — accept it and extract it. Do NOT say "could you tell me more" or "I didn't catch that". Accept whatever they typed as the answer.
+
+IMPORTANT FOR TAX QUESTION: When asking about tax registration (GST/VAT/Sales Tax), phrase it as: "Are you registered for GST, VAT, or Sales Tax? (You can say no if not applicable)"
+- If user says "no" / "not yet" / "nah" → set extractedData: { "taxRegistered": false, "taxId": "" }
+- If user says "yes" → set extractedData: { "taxRegistered": true } and then ask for their tax number in the NEXT turn.`
     } else if (!bankDetailsAsked) {
-        instruction = `INSTRUCTION: All required fields are collected! Now ask about OPTIONAL bank details: "Would you like to add your bank details for invoices? You can skip this step." If user says no/skip/nah, set extractedData to { "bankDetailsSkipped": true } and ask the final question. If yes, collect bankName, accountName, accountNumber, and ifscCode (for India) or swiftCode or routingNumber.`
+        instruction = `INSTRUCTION: All required fields including tax are collected! Now ask about OPTIONAL bank details. Say exactly: "Would you like to add your bank details for invoices? You can add them later from your profile if you prefer. (Type 'skip' to continue)"
+- If user says no/skip/later/nah → set extractedData: { "bankDetailsSkipped": true } and then ask the additional info question.
+- If user says yes → collect bankName, accountName, accountNumber, and ifscCode (for India) or swiftCode or routingNumber. After collecting, ask the additional info question.`
     } else if (!additionalNotesCollected) {
-        instruction = `INSTRUCTION: All fields including bank details are done. If your LAST message already asked the final question ("anything else to add?"), then the user's LAST message IS their answer. If they said no/nothing/that's it, set allFieldsComplete=true with extractedData={}. If they provided actual content (pricing, description, etc.), save it as extractedData: { "additionalNotes": "<their answer>" } AND set allFieldsComplete=true. If you haven't asked the final question yet, ask it now: "Is there anything else you'd like to add? Like pricing, product details, or a business description?"`
+        instruction = `INSTRUCTION: Bank details step is done. Now ask the FINAL question. Say exactly: "Almost done! Is there anything else you'd like to add about your business? Like services you offer, pricing details, or a business description? (Type 'skip' or 'no' to finish)"
+- If user says no/skip/nothing/that's it/done → set allFieldsComplete: true with extractedData: {}
+- If user provides actual content → set extractedData: { "additionalNotes": "<their answer>" } AND allFieldsComplete: true
+- If your LAST message already asked this question, then the user's LAST message IS their answer — process it accordingly.`
     } else {
-        instruction = "INSTRUCTION: User answered the final question. Set allFieldsComplete=true."
+        instruction = "INSTRUCTION: User answered the final question. Set allFieldsComplete: true."
     }
 
     const collectedSummary = collectedKeys.length > 0
@@ -550,7 +559,7 @@ function serverSideInterpret(
 
     // Phase 3: Final question (additional notes)
     if (!additionalNotesCollected) {
-        const no = ["no", "nah", "nope", "n", "nothing", "that's it", "thats it", "that is it", "nope", "all good", "done", "no thanks"]
+        const no = ["no", "nah", "nope", "n", "nothing", "that's it", "thats it", "that is it", "nope", "all good", "done", "no thanks", "skip", "not now", "later"]
         if (no.some(w => userMsg.toLowerCase().includes(w))) {
             return {
                 message: "You're all set! 🎉 Click 'Complete Setup' to save your profile.",
