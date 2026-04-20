@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { History, Clock, FileText, Trash2, Loader2, ScrollText, ClipboardList, Lightbulb, Link2, ArrowRight, Pencil, Check, X } from "lucide-react"
+import { FileText, Trash2, Loader2, ScrollText, ClipboardList, Lightbulb, Link2, ChevronRight, ChevronDown, Pencil, Check, X, RefreshCw } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Button } from "@/components/ui/button"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
@@ -33,36 +32,33 @@ const DOC_ICONS: Record<string, React.ElementType> = {
     proposal: Lightbulb,
 }
 
-const DOC_COLORS: Record<string, string> = {
-    invoice: "text-blue-600",
-    contract: "text-amber-600",
-    quotation: "text-emerald-600",
-    proposal: "text-purple-600",
+const DOC_COLORS: Record<string, { text: string; bg: string; dot: string }> = {
+    invoice:   { text: "text-blue-600",    bg: "bg-blue-50",    dot: "bg-blue-500" },
+    contract:  { text: "text-emerald-600", bg: "bg-emerald-50", dot: "bg-emerald-500" },
+    quotation: { text: "text-amber-600",   bg: "bg-amber-50",   dot: "bg-amber-500" },
+    proposal:  { text: "text-purple-600",  bg: "bg-purple-50",  dot: "bg-purple-500" },
 }
+const fallbackColor = { text: "text-muted-foreground", bg: "bg-muted", dot: "bg-muted-foreground" }
 
-const DOC_BG: Record<string, string> = {
-    invoice: "bg-blue-50 dark:bg-blue-950/30",
-    contract: "bg-amber-50 dark:bg-amber-950/30",
-    quotation: "bg-emerald-50 dark:bg-emerald-950/30",
-    proposal: "bg-purple-50 dark:bg-purple-950/30",
-}
+const FILTERS = ["All", "Invoice", "Contract", "Quotation", "Proposal"] as const
+type Filter = typeof FILTERS[number]
 
-export function SessionHistorySidebar({
-    currentSessionId,
-    onSessionSelect,
-    documentType,
-}: SessionHistorySidebarProps) {
+export function SessionHistorySidebar({ currentSessionId, onSessionSelect, documentType }: SessionHistorySidebarProps) {
     const supabase = useSupabase()
     const user = useUser()
     const [sessions, setSessions] = useState<Session[]>([])
     const [isLoading, setIsLoading] = useState(true)
-    const [filter, setFilter] = useState<"all" | string>(documentType)
+    const [filter, setFilter] = useState<Filter>(() => {
+        const cap = documentType.charAt(0).toUpperCase() + documentType.slice(1)
+        return (FILTERS.includes(cap as Filter) ? cap : "All") as Filter
+    })
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editingTitle, setEditingTitle] = useState("")
     const editInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
-        setFilter(documentType)
+        const cap = documentType.charAt(0).toUpperCase() + documentType.slice(1)
+        setFilter((FILTERS.includes(cap as Filter) ? cap : "All") as Filter)
     }, [documentType])
 
     const loadSessions = useCallback(async () => {
@@ -76,10 +72,6 @@ export function SessionHistorySidebar({
                 .order("last_message_at", { ascending: false })
                 .limit(50)
 
-            if (filter !== "all") {
-                query = query.eq("document_type", filter)
-            }
-
             const { data, error } = await query
             if (error) throw error
             setSessions((data || []) as Session[])
@@ -88,15 +80,13 @@ export function SessionHistorySidebar({
         } finally {
             setIsLoading(false)
         }
-    }, [user, supabase, filter])
+    }, [user, supabase])
 
-    useEffect(() => {
-        loadSessions()
-    }, [loadSessions])
+    useEffect(() => { loadSessions() }, [loadSessions])
 
     const deleteSession = async (sessionId: string, e: React.MouseEvent) => {
         e.stopPropagation()
-        if (!confirm("Delete this conversation? This cannot be undone.")) return
+        if (!confirm("Delete this conversation?")) return
         try {
             await supabase.from("chat_messages").delete().eq("session_id", sessionId)
             await supabase.from("document_sessions").delete().eq("id", sessionId)
@@ -125,8 +115,6 @@ export function SessionHistorySidebar({
         setEditingId(null)
     }
 
-    const cancelRename = () => setEditingId(null)
-
     const getSessionTitle = (session: Session) => {
         if (session.title) return session.title
         const type = session.document_type.charAt(0).toUpperCase() + session.document_type.slice(1)
@@ -136,236 +124,294 @@ export function SessionHistorySidebar({
     const getTimeLabel = (session: Session) => {
         try {
             return formatDistanceToNow(new Date(session.last_message_at || session.updated_at), { addSuffix: true })
-        } catch {
-            return "recently"
+        } catch { return "recently" }
+    }
+
+    // Group sessions
+    const filteredSessions = filter === "All"
+        ? sessions
+        : sessions.filter(s => s.document_type.toLowerCase() === filter.toLowerCase())
+
+    const chainGroups = new Map<string, Session[]>()
+    const standalone: Session[] = []
+    for (const s of filteredSessions) {
+        if (s.chain_id) {
+            const g = chainGroups.get(s.chain_id) || []
+            g.push(s)
+            chainGroups.set(s.chain_id, g)
+        } else {
+            standalone.push(s)
         }
     }
 
-    const renderSessionItem = (session: Session, isChained: boolean, chainIndex: number, chainTotal: number) => {
-        const Icon = DOC_ICONS[session.document_type] || FileText
-        const colorClass = DOC_COLORS[session.document_type] || "text-muted-foreground"
-        const bgClass = DOC_BG[session.document_type] || "bg-secondary/30"
-        const isCurrent = currentSessionId === session.id
-        const docLabel = session.document_type.charAt(0).toUpperCase() + session.document_type.slice(1)
-        const isEditing = editingId === session.id
-
-        return (
-            <div
-                key={session.id}
-                onClick={() => !isEditing && onSessionSelect(session.id)}
-                className={cn(
-                    "w-full text-left px-3.5 py-3.5 rounded-xl transition-all duration-150 group cursor-pointer relative",
-                    isCurrent
-                        ? "bg-primary/8 ring-1 ring-primary/25 shadow-md shadow-primary/5"
-                        : "hover:bg-secondary/60 hover:shadow-sm active:scale-[0.98] shadow-none"
-                )}
-            >
-                <div className="flex items-start gap-3">
-                    <div className={cn(
-                        "w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 shadow-sm",
-                        isCurrent ? "bg-primary/15 shadow-primary/10" : bgClass
-                    )}>
-                        <Icon className={cn("w-[18px] h-[18px]", isCurrent ? "text-primary" : colorClass)} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        {isEditing ? (
-                            <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                                <input
-                                    ref={editInputRef}
-                                    value={editingTitle}
-                                    onChange={e => setEditingTitle(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === "Enter") commitRename(session.id)
-                                        if (e.key === "Escape") cancelRename()
-                                    }}
-                                    autoFocus
-                                    className="flex-1 text-sm font-semibold bg-background border border-primary/40 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-primary/20 min-w-0"
-                                />
-                                <button onClick={() => commitRename(session.id)} className="p-1 rounded-md hover:bg-primary/10 text-primary transition-colors">
-                                    <Check className="w-3.5 h-3.5" />
-                                </button>
-                                <button onClick={cancelRename} className="p-1 rounded-md hover:bg-destructive/10 text-muted-foreground transition-colors">
-                                    <X className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        ) : (
-                            <p className={cn(
-                                "text-sm leading-snug line-clamp-2",
-                                isCurrent ? "font-bold text-primary" : "font-semibold text-foreground"
-                            )}>
-                                {getSessionTitle(session)}
-                            </p>
-                        )}
-                        {!isEditing && (
-                            <div className="flex items-center gap-2 mt-1.5">
-                                <span className={cn(
-                                    "text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
-                                    isCurrent ? "bg-primary/10 text-primary" : `${bgClass} ${colorClass}`
-                                )}>
-                                    {docLabel}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    {getTimeLabel(session)}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                    {!isEditing && (
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all duration-150 shrink-0">
-                            <button
-                                onClick={(e) => startRename(session, e)}
-                                className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
-                                aria-label="Rename"
-                            >
-                                <Pencil className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
-                            </button>
-                            <button
-                                onClick={(e) => deleteSession(session.id, e)}
-                                className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors"
-                                aria-label="Delete session"
-                            >
-                                <Trash2 className="w-3.5 h-3.5 text-destructive/60 hover:text-destructive" />
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
-        )
-    }
-
     return (
-        <div className="w-[320px] border-r border-border bg-card shadow-[2px_0_16px_-4px_rgba(0,0,0,0.08)] flex flex-col h-full">
+        <div className="w-[300px] flex flex-col h-full bg-background border-r border-border"
+            style={{ boxShadow: "2px 0 16px -4px rgba(0,0,0,0.08)" }}
+        >
             {/* Header */}
-            <div className="p-4 pb-3.5 border-b border-border/60 bg-card/95 backdrop-blur-sm">
-                <div className="flex items-center gap-2.5 mb-3.5">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shadow-sm">
-                        <History className="w-4 h-4 text-primary" />
-                    </div>
-                    <h3 className="font-bold text-lg">History</h3>
+            <div className="px-4 pt-4 pb-3 border-b border-border shrink-0">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-base font-bold text-foreground">History</h3>
+                    <button
+                        onClick={loadSessions}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-secondary transition-colors"
+                        title="Refresh"
+                    >
+                        <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={1.5} />
+                    </button>
                 </div>
-                <div className="flex gap-1.5 flex-wrap">
-                    {["all", "invoice", "contract", "quotation", "proposal"].map(f => (
+                {/* Filter pills */}
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+                    {FILTERS.map(f => (
                         <button
                             key={f}
-                            type="button"
                             onClick={() => setFilter(f)}
                             className={cn(
-                                "px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all duration-150 active:scale-95",
+                                "px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-200 border shrink-0",
                                 filter === f
-                                    ? "bg-primary text-primary-foreground shadow-sm"
-                                    : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-card text-foreground border-border hover:bg-secondary"
                             )}
+                            style={filter === f ? { boxShadow: "0 1px 4px hsl(var(--primary)/0.3)" } : { boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
                         >
-                            {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                            {f}
                         </button>
                     ))}
                 </div>
             </div>
 
-            {/* Sessions List */}
+            {/* List */}
             <ScrollArea className="flex-1">
                 {isLoading ? (
                     <div className="flex items-center justify-center p-8">
-                        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                     </div>
-                ) : sessions.length === 0 ? (
+                ) : filteredSessions.length === 0 ? (
                     <div className="p-6 text-center">
-                        <FileText className="w-10 h-10 mx-auto mb-2 text-muted-foreground/30" />
+                        <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground/30" strokeWidth={1.5} />
                         <p className="text-sm text-muted-foreground">No conversations yet</p>
                     </div>
                 ) : (
-                    <div className="p-2.5 space-y-1.5">
-                        {(() => {
-                            const chainGroups = new Map<string, Session[]>()
-                            const standalone: Session[] = []
-
-                            for (const s of sessions) {
-                                if (s.chain_id) {
-                                    const group = chainGroups.get(s.chain_id) || []
-                                    group.push(s)
-                                    chainGroups.set(s.chain_id, group)
-                                } else {
-                                    standalone.push(s)
-                                }
-                            }
-
-                            const sortedChains = Array.from(chainGroups.entries()).sort((a, b) => {
-                                const aLatest = a[1][0]?.last_message_at || a[1][0]?.created_at || ""
-                                const bLatest = b[1][0]?.last_message_at || b[1][0]?.created_at || ""
-                                return bLatest.localeCompare(aLatest)
-                            })
-
-                            const allItems: Array<
-                                | { type: "chain"; chainId: string; sessions: Session[]; clientName: string | null }
-                                | { type: "single"; session: Session }
-                            > = []
-
-                            for (const [chainId, chainSessions] of sortedChains) {
-                                const clientName = chainSessions.find(s => s.client_name)?.client_name || null
-                                allItems.push({ type: "chain", chainId, sessions: chainSessions, clientName })
-                            }
-                            for (const s of standalone) {
-                                allItems.push({ type: "single", session: s })
-                            }
-
-                            return allItems.map(item => {
-                                if (item.type === "chain") {
-                                    return (
-                                        <div key={item.chainId} className="mb-3">
-                                            {/* Chain header */}
-                                            <div className="flex items-center gap-2.5 px-3.5 py-2.5 mb-1">
-                                                <Link2 className="w-[18px] h-[18px] text-primary/60" />
-                                                <span className="text-sm font-bold text-foreground truncate">
-                                                    {item.clientName || "Linked Documents"}
-                                                </span>
-                                            </div>
-                                            {/* Chain items with visual connector */}
-                                            <div className="relative ml-5">
-                                                {/* Vertical connector line */}
-                                                <div className="absolute left-[15px] top-3 bottom-3 w-0.5 bg-primary/15 rounded-full" />
-                                                <div className="space-y-1 relative">
-                                                    {item.sessions.map((session, idx) => (
-                                                        <div key={session.id} className="relative">
-                                                            {/* Horizontal connector dot */}
-                                                            <div className={cn(
-                                                                "absolute left-[11px] top-5 w-2.5 h-2.5 rounded-full border-2 z-10",
-                                                                currentSessionId === session.id
-                                                                    ? "bg-primary border-primary"
-                                                                    : "bg-card border-primary/30"
-                                                            )} />
-                                                            {/* Arrow between items */}
-                                                            {idx < item.sessions.length - 1 && (
-                                                                <div className="absolute left-[9px] top-[30px] z-10">
-                                                                    <ArrowRight className="w-3 h-3 text-primary/30 rotate-90" />
-                                                                </div>
-                                                            )}
-                                                            <div className="pl-7">
-                                                                {renderSessionItem(session, true, idx, item.sessions.length)}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )
-                                }
-                                return renderSessionItem(item.session, false, 0, 0)
-                            })
-                        })()}
+                    <div className="p-3 space-y-2">
+                        {/* Chain groups */}
+                        {Array.from(chainGroups.entries()).map(([chainId, chainSessions]) => (
+                            <ChainGroup
+                                key={chainId}
+                                sessions={chainSessions}
+                                currentSessionId={currentSessionId}
+                                onSelect={onSessionSelect}
+                                onDelete={deleteSession}
+                                onRename={startRename}
+                                editingId={editingId}
+                                editingTitle={editingTitle}
+                                setEditingTitle={setEditingTitle}
+                                editInputRef={editInputRef}
+                                commitRename={commitRename}
+                                cancelRename={() => setEditingId(null)}
+                                getSessionTitle={getSessionTitle}
+                                getTimeLabel={getTimeLabel}
+                            />
+                        ))}
+                        {/* Standalone */}
+                        {standalone.map(session => (
+                            <SessionCard
+                                key={session.id}
+                                session={session}
+                                isCurrent={currentSessionId === session.id}
+                                onSelect={() => onSessionSelect(session.id)}
+                                onDelete={deleteSession}
+                                onRename={startRename}
+                                editingId={editingId}
+                                editingTitle={editingTitle}
+                                setEditingTitle={setEditingTitle}
+                                editInputRef={editInputRef}
+                                commitRename={commitRename}
+                                cancelRename={() => setEditingId(null)}
+                                getSessionTitle={getSessionTitle}
+                                getTimeLabel={getTimeLabel}
+                            />
+                        ))}
                     </div>
                 )}
             </ScrollArea>
+        </div>
+    )
+}
 
-            {/* Footer */}
-            <div className="p-3 border-t border-border">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={loadSessions}
-                    className="w-full text-sm rounded-xl"
+interface SessionCardProps {
+    session: Session
+    isCurrent: boolean
+    onSelect: () => void
+    onDelete: (id: string, e: React.MouseEvent) => void
+    onRename: (session: Session, e: React.MouseEvent) => void
+    editingId: string | null
+    editingTitle: string
+    setEditingTitle: (v: string) => void
+    editInputRef: React.RefObject<HTMLInputElement>
+    commitRename: (id: string) => void
+    cancelRename: () => void
+    getSessionTitle: (s: Session) => string
+    getTimeLabel: (s: Session) => string
+}
+
+function SessionCard({ session, isCurrent, onSelect, onDelete, onRename, editingId, editingTitle, setEditingTitle, editInputRef, commitRename, cancelRename, getSessionTitle, getTimeLabel }: SessionCardProps) {
+    const cfg = DOC_COLORS[session.document_type] || fallbackColor
+    const Icon = DOC_ICONS[session.document_type] || FileText
+    const isEditing = editingId === session.id
+
+    return (
+        <div
+            onClick={() => !isEditing && onSelect()}
+            className={cn(
+                "group rounded-2xl border transition-all duration-150 cursor-pointer",
+                isCurrent
+                    ? "border-primary/30 bg-primary/5"
+                    : "border-border bg-card hover:bg-secondary/30"
+            )}
+            style={{ boxShadow: isCurrent ? "0 1px 4px hsl(var(--primary)/0.12)" : "0 1px 3px rgba(0,0,0,0.05)" }}
+        >
+            <div className="flex items-start gap-3 px-3.5 py-3">
+                {/* Icon */}
+                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5", cfg.bg)}
+                    style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}
                 >
-                    Refresh
-                </Button>
+                    <Icon className={cn("w-4 h-4", cfg.text)} strokeWidth={1.5} />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                    {isEditing ? (
+                        <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                            <input
+                                ref={editInputRef}
+                                value={editingTitle}
+                                onChange={e => setEditingTitle(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === "Enter") commitRename(session.id)
+                                    if (e.key === "Escape") cancelRename()
+                                }}
+                                autoFocus
+                                className="flex-1 text-sm font-semibold bg-background border border-primary/40 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-primary/20 min-w-0"
+                            />
+                            <button onClick={() => commitRename(session.id)} className="p-1 rounded-md hover:bg-primary/10 text-primary">
+                                <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={cancelRename} className="p-1 rounded-md hover:bg-secondary text-muted-foreground">
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    ) : (
+                        <p className={cn("text-sm font-semibold leading-snug line-clamp-1", isCurrent ? "text-primary" : "text-foreground")}>
+                            {getSessionTitle(session)}
+                        </p>
+                    )}
+                    {!isEditing && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                            <span className={cn("text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md", cfg.bg, cfg.text)}>
+                                {session.document_type}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">{getTimeLabel(session)}</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Actions */}
+                {!isEditing && (
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button onClick={(e) => onRename(session, e)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
+                            <Pencil className="w-3 h-3 text-muted-foreground" strokeWidth={1.5} />
+                        </button>
+                        <button onClick={(e) => onDelete(session.id, e)} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
+                            <Trash2 className="w-3 h-3 text-destructive/60" strokeWidth={1.5} />
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+interface ChainGroupProps {
+    sessions: Session[]
+    currentSessionId?: string
+    onSelect: (id: string) => void
+    onDelete: (id: string, e: React.MouseEvent) => void
+    onRename: (session: Session, e: React.MouseEvent) => void
+    editingId: string | null
+    editingTitle: string
+    setEditingTitle: (v: string) => void
+    editInputRef: React.RefObject<HTMLInputElement>
+    commitRename: (id: string) => void
+    cancelRename: () => void
+    getSessionTitle: (s: Session) => string
+    getTimeLabel: (s: Session) => string
+}
+
+function ChainGroup({ sessions, currentSessionId, onSelect, onDelete, onRename, editingId, editingTitle, setEditingTitle, editInputRef, commitRename, cancelRename, getSessionTitle, getTimeLabel }: ChainGroupProps) {
+    const [expanded, setExpanded] = useState(true)
+    const clientName = sessions.find(s => s.client_name)?.client_name || null
+    const hasActive = sessions.some(s => s.id === currentSessionId)
+
+    return (
+        <div
+            className={cn("rounded-2xl border overflow-hidden", hasActive ? "border-primary/30" : "border-border")}
+            style={{ boxShadow: hasActive ? "0 1px 4px hsl(var(--primary)/0.1)" : "0 1px 3px rgba(0,0,0,0.05)" }}
+        >
+            {/* Chain header */}
+            <button
+                type="button"
+                onClick={() => setExpanded(!expanded)}
+                className="flex items-center gap-2.5 w-full px-3.5 py-3 bg-card hover:bg-secondary/30 transition-colors text-left"
+            >
+                <div className="w-7 h-7 rounded-xl bg-primary/8 flex items-center justify-center shrink-0">
+                    <Link2 className="w-3.5 h-3.5 text-primary" strokeWidth={1.5} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{clientName || "Linked Documents"}</p>
+                    <p className="text-[11px] text-muted-foreground">{sessions.length} documents</p>
+                </div>
+                <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground/50 transition-transform duration-200 shrink-0", expanded && "rotate-180")} />
+            </button>
+
+            {/* Items */}
+            <div
+                className="grid transition-[grid-template-rows] duration-250 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
+            >
+                <div className="overflow-hidden">
+                    <div className={cn("border-t border-border/50 transition-opacity duration-200", expanded ? "opacity-100" : "opacity-0")}>
+                        {sessions.map(session => (
+                            <button
+                                key={session.id}
+                                type="button"
+                                onClick={() => onSelect(session.id)}
+                                className={cn(
+                                    "flex items-center gap-3 w-full px-3.5 py-2.5 text-left transition-colors border-b border-border/30 last:border-0 group",
+                                    session.id === currentSessionId ? "bg-primary/5" : "bg-card hover:bg-secondary/30"
+                                )}
+                            >
+                                {(() => {
+                                    const cfg = DOC_COLORS[session.document_type] || fallbackColor
+                                    const Icon = DOC_ICONS[session.document_type] || FileText
+                                    return (
+                                        <>
+                                            <div className={cn("w-7 h-7 rounded-xl flex items-center justify-center shrink-0", cfg.bg)}>
+                                                <Icon className={cn("w-3.5 h-3.5", cfg.text)} strokeWidth={1.5} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={cn("text-xs font-semibold truncate", session.id === currentSessionId ? "text-primary" : "text-foreground")}>
+                                                    {getSessionTitle(session)}
+                                                </p>
+                                                <p className="text-[10px] text-muted-foreground mt-0.5">{getTimeLabel(session)}</p>
+                                            </div>
+                                            <ChevronRight className="w-3 h-3 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" />
+                                        </>
+                                    )
+                                })()}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
         </div>
     )
