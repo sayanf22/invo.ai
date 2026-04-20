@@ -140,114 +140,139 @@ export function HamburgerMenu() {
             {/* Slide-out menu panel */}
             <div
                 className={cn(
-                    "fixed top-0 right-0 h-full w-[420px] max-w-[calc(100vw-16px)] bg-background border-l border-border shadow-[-8px_0_30px_-5px_rgba(0,0,0,0.15)] z-50 flex flex-col",
+                    "fixed top-0 right-0 h-full w-[340px] max-w-[calc(100vw-16px)] z-50 flex flex-col",
                     "transition-transform ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform",
                     visibleOpen ? "translate-x-0" : "translate-x-full",
                     !isOpen && !visibleOpen && "invisible"
                 )}
-                style={{ transitionDuration: "350ms" }}
+                style={{
+                    transitionDuration: "350ms",
+                    background: "var(--background)",
+                    borderLeft: "1px solid rgba(0,0,0,0.06)",
+                    borderRadius: "20px 0 0 20px",
+                    boxShadow: "-12px 0 40px -8px rgba(0,0,0,0.18), -2px 0 8px -2px rgba(0,0,0,0.08)",
+                }}
             >
                 {/* Header with user info */}
                 {user && (
-                    <div className="p-6 pt-5 border-b border-border bg-gradient-to-br from-primary/5 to-primary/10">
-                        <div className="flex items-center gap-4 pr-14">
+                    <div className="px-5 pt-6 pb-5 shrink-0"
+                        style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}
+                    >
+                        <div className="flex items-center gap-3.5 pr-12">
                             {avatarUrl ? (
                                 <Image
                                     src={avatarUrl}
                                     alt={fullName || email}
-                                    width={56}
-                                    height={56}
-                                    className="w-14 h-14 rounded-full object-cover border-2 border-primary/20"
+                                    width={48}
+                                    height={48}
+                                    className="w-12 h-12 rounded-2xl object-cover"
+                                    style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
                                 />
                             ) : (
-                                <div className="w-14 h-14 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center">
-                                    <span className="text-base font-semibold text-primary">
-                                        {initials}
-                                    </span>
+                                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center"
+                                    style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
+                                >
+                                    <span className="text-sm font-bold text-primary">{initials}</span>
                                 </div>
                             )}
                             <div className="flex-1 min-w-0">
-                                <p className="text-base font-semibold text-foreground truncate">
-                                    {fullName || "User"}
-                                </p>
-                                <p className="text-sm text-muted-foreground truncate">
-                                    {email}
-                                </p>
+                                <p className="text-sm font-bold text-foreground truncate">{fullName || "User"}</p>
+                                <p className="text-xs text-muted-foreground truncate mt-0.5">{email}</p>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* Spacer for toggle button area when no user header */}
                 {!user && <div className="h-[68px] shrink-0" />}
 
                 {/* Menu sections */}
-                <div className="flex-1 overflow-y-auto py-2 pb-20">
+                <div className="flex-1 overflow-y-auto py-3">
+
                     {/* Main Navigation */}
-                    <div className="px-3 py-3">
-                        <p className="px-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    <div className="px-4 mb-1">
+                        <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest px-2 mb-2">
                             Navigation
                         </p>
-                        <MenuItem icon={Home} label="Home" onClick={() => navigate("/")} />
-                        {user && (
-                            <>
-                                <MenuItem icon={FileText} label="My Documents" onClick={() => navigate("/documents")} />
-                                <MenuItem icon={History} label="History" onClick={() => navigate("/history")} />
-                            </>
-                        )}
+                        <div className="rounded-2xl overflow-hidden"
+                            style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)", border: "1px solid rgba(0,0,0,0.05)" }}
+                        >
+                            <MenuItem icon={Home} label="Home" onClick={() => navigate("/")} />
+                            {user && (
+                                <>
+                                    <MenuItem icon={FileText} label="My Documents" onClick={() => navigate("/documents")} divider />
+                                    <MenuItem icon={History} label="History" onClick={() => navigate("/history")} divider />
+                                </>
+                            )}
+                        </div>
                     </div>
 
                     {/* Account Section */}
                     {user && (
-                        <div className="px-3 py-3 border-t border-border">
-                            <p className="px-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        <div className="px-4 mt-4 mb-1">
+                            <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest px-2 mb-2">
                                 Account
                             </p>
-                            <MenuItem icon={User} label="Business Profile" onClick={() => navigate("/profile")} />
-                            <MenuItem icon={Settings} label="Settings" onClick={() => navigate("/settings")} />
-                            <MenuItem icon={Bell} label="Notifications" onClick={() => navigate("/notifications")} />
-                            <MenuItem icon={CreditCard} label="Billing & Plans" onClick={() => navigate("/billing")} />
+                            <div className="rounded-2xl overflow-hidden"
+                                style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)", border: "1px solid rgba(0,0,0,0.05)" }}
+                            >
+                                <MenuItem icon={User} label="Business Profile" onClick={() => navigate("/profile")} />
+                                <MenuItem icon={Settings} label="Settings" onClick={() => navigate("/settings")} divider />
+                                <MenuItem icon={Bell} label="Notifications" onClick={() => navigate("/notifications")} divider />
+                                <MenuItem icon={CreditCard} label="Billing & Plans" onClick={() => navigate("/billing")} divider />
+                            </div>
                         </div>
                     )}
 
-                    {/* Legal & Support */}
-                    <div className="px-3 py-3 border-t border-border">
-                        <p className="px-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    {/* Support & Legal */}
+                    <div className="px-4 mt-4 mb-1">
+                        <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest px-2 mb-2">
                             Support & Legal
                         </p>
-                        <MenuItem icon={HelpCircle} label="Help Center" onClick={() => navigate("/contact")} />
-                        <MenuItem icon={BookOpen} label="Blog" onClick={() => navigate("/blog")} />
-                        <MenuItem icon={Mail} label="Contact Us" onClick={() => navigate("/contact")} />
-                        <MenuItem icon={Info} label="About Us" onClick={() => navigate("/about")} />
-                        <MenuItem icon={Shield} label="Privacy Policy" onClick={() => navigate("/privacy")} />
-                        <MenuItem icon={FileCheck} label="Terms & Conditions" onClick={() => navigate("/terms")} />
-                        <MenuItem icon={Lock} label="Refund Policy" onClick={() => navigate("/refund-policy")} />
+                        <div className="rounded-2xl overflow-hidden"
+                            style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)", border: "1px solid rgba(0,0,0,0.05)" }}
+                        >
+                            <MenuItem icon={HelpCircle} label="Help Center" onClick={() => navigate("/contact")} />
+                            <MenuItem icon={BookOpen} label="Blog" onClick={() => navigate("/blog")} divider />
+                            <MenuItem icon={Mail} label="Contact Us" onClick={() => navigate("/contact")} divider />
+                            <MenuItem icon={Info} label="About Us" onClick={() => navigate("/about")} divider />
+                            <MenuItem icon={Shield} label="Privacy Policy" onClick={() => navigate("/privacy")} divider />
+                            <MenuItem icon={FileCheck} label="Terms & Conditions" onClick={() => navigate("/terms")} divider />
+                            <MenuItem icon={Lock} label="Refund Policy" onClick={() => navigate("/refund-policy")} divider />
+                        </div>
                     </div>
 
                     {/* Sign out */}
                     {user && (
-                        <div className="px-3 py-3 border-t border-border">
-                            <MenuItem icon={LogOut} label="Sign Out" onClick={handleSignOut} variant="danger" />
+                        <div className="px-4 mt-4">
+                            <div className="rounded-2xl overflow-hidden"
+                                style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)", border: "1px solid rgba(0,0,0,0.05)" }}
+                            >
+                                <MenuItem icon={LogOut} label="Sign Out" onClick={handleSignOut} variant="danger" />
+                            </div>
                         </div>
                     )}
 
                     {/* Sign in (if not logged in) */}
                     {!user && !isLoading && (
-                        <div className="px-3 py-3 border-t border-border">
+                        <div className="px-4 mt-4">
                             <button
                                 onClick={() => navigate("/auth/login")}
-                                className="w-full px-4 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
+                                className="w-full px-4 py-3.5 bg-primary text-primary-foreground rounded-2xl font-semibold hover:bg-primary/90 transition-colors active:scale-[0.98]"
+                                style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
                             >
                                 Sign In
                             </button>
                         </div>
                     )}
+
+                    <div className="h-6" />
                 </div>
 
                 {/* Footer */}
-                <div className="shrink-0 p-4 border-t border-border bg-muted/30">
-                    <p className="text-xs text-center text-muted-foreground">Clorefy © 2026</p>
-                    <p className="text-xs text-center text-muted-foreground mt-1">v1.0.0</p>
+                <div className="shrink-0 px-5 py-4"
+                    style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}
+                >
+                    <p className="text-[11px] text-center text-muted-foreground/60">Clorefy © 2026 · v1.0.0</p>
                 </div>
             </div>
         </div>
@@ -260,21 +285,33 @@ interface MenuItemProps {
     label: string
     onClick: () => void
     variant?: "default" | "danger"
+    divider?: boolean
 }
 
-function MenuItem({ icon: Icon, label, onClick, variant = "default" }: MenuItemProps) {
+function MenuItem({ icon: Icon, label, onClick, variant = "default", divider = false }: MenuItemProps) {
     return (
-        <button
-            type="button"
-            onClick={onClick}
-            className={cn(
-                "flex items-center gap-4 w-full px-4 py-3.5 rounded-lg text-base transition-all duration-200 active:scale-[0.97]",
-                variant === "default" && "text-foreground hover:bg-secondary/50 hover:text-foreground",
-                variant === "danger" && "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
-            )}
-        >
-            <Icon className="w-5 h-5 shrink-0" />
-            <span className="truncate">{label}</span>
-        </button>
+        <>
+            {divider && <div style={{ height: "1px", background: "rgba(0,0,0,0.05)", margin: "0 14px" }} />}
+            <button
+                type="button"
+                onClick={onClick}
+                className={cn(
+                    "flex items-center gap-3.5 w-full px-4 py-3.5 text-sm font-medium transition-all duration-150 active:scale-[0.98] bg-card",
+                    variant === "default" && "text-foreground hover:bg-secondary/40",
+                    variant === "danger" && "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+                )}
+            >
+                <div className={cn(
+                    "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
+                    variant === "default" ? "bg-secondary/60" : "bg-red-50 dark:bg-red-950/30"
+                )}>
+                    <Icon className={cn(
+                        "w-4 h-4",
+                        variant === "default" ? "text-foreground/70" : "text-red-500"
+                    )} />
+                </div>
+                <span className="truncate">{label}</span>
+            </button>
+        </>
     )
 }
