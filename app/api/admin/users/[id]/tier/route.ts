@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdminSession } from '@/lib/admin-auth'
 import { logAudit } from '@/lib/audit-log'
+import { isValidUUID, getAdminClientIP } from '@/lib/admin-utils'
 
 const VALID_TIERS = ['free', 'starter', 'pro', 'agency']
 
@@ -13,6 +14,12 @@ export async function PATCH(
   if (!adminEmail) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { id } = await params
+
+  // Validate UUID format
+  if (!isValidUUID(id)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   const body = await request.json()
   const { tier, expires_at, reason } = body
 
@@ -54,7 +61,7 @@ export async function PATCH(
     admin_email: adminEmail,
   })
 
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'
+  const ip = getAdminClientIP(request)
   await logAudit(supabase, {
     user_id: 'admin',
     action: 'admin.tier_change',

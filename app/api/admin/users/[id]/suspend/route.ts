@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdminSession } from '@/lib/admin-auth'
 import { logAudit } from '@/lib/audit-log'
+import { isValidUUID, getAdminClientIP } from '@/lib/admin-utils'
 
 export async function PATCH(
   request: NextRequest,
@@ -11,6 +12,12 @@ export async function PATCH(
   if (!adminEmail) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { id } = await params
+
+  // Validate UUID format to prevent injection
+  if (!isValidUUID(id)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   const body = await request.json()
   const { suspended } = body
 
@@ -29,7 +36,7 @@ export async function PATCH(
     .eq('id', id)
   if (updateError) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
 
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'
+  const ip = getAdminClientIP(request)
   await logAudit(supabase, {
     user_id: 'admin',
     action: suspended ? 'admin.user_suspend' : 'admin.user_unsuspend',

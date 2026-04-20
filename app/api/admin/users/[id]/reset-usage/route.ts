@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdminSession } from '@/lib/admin-auth'
 import { logAudit } from '@/lib/audit-log'
+import { isValidUUID, getAdminClientIP } from '@/lib/admin-utils'
 
 export async function POST(
   request: NextRequest,
@@ -11,6 +12,11 @@ export async function POST(
   if (!adminEmail) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { id } = await params
+
+  // Validate UUID format
+  if (!isValidUUID(id)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -27,7 +33,7 @@ export async function POST(
     .eq('month', currentMonth)
   if (deleteError) return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
 
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'
+  const ip = getAdminClientIP(request)
   await logAudit(supabase, {
     user_id: 'admin',
     action: 'admin.usage_reset',
