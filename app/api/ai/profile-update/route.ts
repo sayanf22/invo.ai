@@ -252,6 +252,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Messages array required" }, { status: 400 })
     }
 
+    // SECURITY: Fetch the profile server-side — never trust client-sent profile data
+    // This prevents prompt injection via a crafted currentProfile payload
+    const { data: serverProfile } = await auth.supabase
+        .from("businesses")
+        .select("*")
+        .eq("user_id", auth.user.id)
+        .single()
+
+    // Use server-fetched profile, fall back to empty object if not found
+    const currentProfile: Record<string, unknown> = serverProfile
+        ? (serverProfile as Record<string, unknown>)
+        : (body.currentProfile || {})
+
     // SECURITY: Validate prompt length — reject any message exceeding 10,000 chars
     for (const msg of body.messages) {
         if (typeof msg.content === "string" && msg.content.length > 10_000) {
@@ -272,7 +285,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const systemPrompt = buildSystemPrompt(body.currentProfile || {}, body.section)
+        const systemPrompt = buildSystemPrompt(currentProfile, body.section)
 
         // If file data was extracted, prepend it as context
         const messages: Array<{ role: string; content: string }> = [
