@@ -114,8 +114,13 @@ export function ClientSelector({ onChange }: ClientSelectorProps) {
   }
 
   const trigger = (
-    <Button variant="outline" size="sm" type="button">
-      <Users className="mr-2 h-4 w-4" />
+    <Button
+      variant="outline"
+      size="sm"
+      type="button"
+      className="h-7 px-2.5 text-[12px] font-medium rounded-lg border-border/70 text-muted-foreground hover:text-foreground gap-1.5"
+    >
+      <Users className="h-3.5 w-3.5" />
       Select Client
     </Button>
   )

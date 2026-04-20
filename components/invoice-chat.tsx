@@ -740,9 +740,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             <div className="border-t border-border/40 shrink-0 bg-card/95 backdrop-blur-sm"
               style={{ boxShadow: "0 -1px 0 0 rgba(0,0,0,0.04), 0 -4px 16px -4px rgba(0,0,0,0.06)" }}
             >
-                {/* Next Steps Bar — compact strip above input, only when doc is generated */}
+                {/* Next Steps Bar — compact collapsible strip above input, only when doc is generated */}
                 {documentGenerated && !isLoading && !isUploading && session && (
-                    <div className="px-4 pt-2.5 pb-0">
+                    <div className="px-4 pt-2 pb-0">
                         <div className="max-w-xl mx-auto">
                             <NextStepsBar
                                 clientName={data.toName || null}
@@ -791,7 +791,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         </div>
                     ) : (
                         <>
-                            <div className="mb-2">
+                            {/* Compact inline toolbar above the input */}
+                            <div className="flex items-center gap-1.5 mb-1.5">
                                 <ClientSelector
                                     onChange={(fields) =>
                                         onChange({
