@@ -61,8 +61,8 @@ export function PromptScreen({
   return (
     <div className="h-dvh flex flex-col bg-background overflow-hidden">
       {/* ── Header ── */}
-      <header className="flex items-center px-4 py-3 border-b border-border/60 bg-card shrink-0"
-        style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.04), 0 2px 12px -4px rgba(0,0,0,0.08)" }}
+      <header className="flex items-center px-4 py-3 border-b border-border bg-card shrink-0"
+        style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.06), 0 4px 16px -4px rgba(0,0,0,0.1)" }}
       >
         {/* Left: back */}
         <button
@@ -124,7 +124,8 @@ export function PromptScreen({
             <HistoryIcon className="w-4 h-4 shrink-0" />
             <span className="hidden lg:inline">{showHistory ? "Hide" : "History"}</span>
           </button>
-          <div className="shrink-0">
+          {/* Fixed-size wrapper prevents layout shift when button goes fixed */}
+          <div className="shrink-0 w-10 h-10 relative">
             <HamburgerMenu />
           </div>
         </div>

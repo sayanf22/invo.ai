@@ -287,8 +287,8 @@ function ToolbarBtn({
         "flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 active:scale-95",
         active
           ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:text-foreground hover:bg-secondary/50",
-        disabled && "opacity-40 pointer-events-none"
+          : "text-foreground/70 hover:text-foreground hover:bg-secondary",
+        disabled && "opacity-30 pointer-events-none"
       )}
     >
       {children}
@@ -364,8 +364,8 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
   return (
     <div className="flex flex-col h-full w-full">
       {/* Toolbar */}
-      <div className="relative z-30 flex items-center justify-between px-2 sm:px-4 py-2.5 border-b border-border/60 bg-card backdrop-blur-sm shrink-0 gap-1.5 sm:gap-2"
-        style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.04), 0 2px 8px -2px rgba(0,0,0,0.06)" }}
+      <div className="relative z-30 flex items-center justify-between px-2 sm:px-4 py-2.5 border-b border-border bg-card shrink-0 gap-1.5 sm:gap-2"
+        style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.06), 0 4px 12px -2px rgba(0,0,0,0.08)" }}
       >
         {/* Left: Design + Editor toggle */}
         <div className="flex items-center gap-1.5 sm:gap-2">
@@ -388,11 +388,11 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
         </div>
 
         {/* Center: Zoom controls + page info — hidden on mobile */}
-        <div className="hidden sm:flex items-center gap-1 bg-secondary/50 border border-border/40 rounded-xl px-2 py-1 shadow-sm">
+        <div className="hidden sm:flex items-center gap-1 bg-secondary/60 border border-border rounded-xl px-2 py-1 shadow-sm">
           <ToolbarBtn onClick={handleZoomOut} disabled={!canZoomOut} title="Zoom out">
             <ZoomOut className="w-4 h-4" />
           </ToolbarBtn>
-          <span className="text-xs font-medium text-foreground min-w-[40px] text-center tabular-nums select-none">
+          <span className="text-xs font-semibold text-foreground min-w-[40px] text-center tabular-nums select-none">
             {zoom}%
           </span>
           <ToolbarBtn onClick={handleZoomIn} disabled={!canZoomIn} title="Zoom in">
@@ -430,7 +430,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
             onClick={handlePrint}
             title="Print document"
             aria-label="Print document"
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border/60 bg-card text-foreground hover:border-primary/40 hover:shadow-md shadow-sm transition-all duration-200 active:scale-95"
+            className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-md shadow-sm transition-all duration-200 active:scale-95"
           >
             <Printer className="w-4 h-4" />
             <span className="hidden lg:inline">Print</span>
