@@ -172,6 +172,44 @@ export async function middleware(request: NextRequest) {
   const clientIP = getClientIP(request)
   const category = getRouteCategory(pathname)
 
+  // ── IP Blocklist Check (admin-blocked IPs) ───────────────────────────
+  // Check the ip_blocklist table for this IP. Uses a lightweight REST call.
+  // Only check for non-static, non-admin paths to avoid overhead.
+  if (clientIP !== "unknown" && !pathname.startsWith("/clorefy-ctrl-8x2m")) {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (supabaseUrl && supabaseKey) {
+        const now = new Date().toISOString()
+        const blocklistRes = await fetch(
+          `${supabaseUrl}/rest/v1/ip_blocklist?ip_address=eq.${encodeURIComponent(clientIP)}&select=ip_address,expires_at&limit=1`,
+          {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+          }
+        )
+        if (blocklistRes.ok) {
+          const blocked = await blocklistRes.json()
+          if (Array.isArray(blocked) && blocked.length > 0) {
+            const entry = blocked[0]
+            // Check if block is still active (no expiry = permanent)
+            const isActive = !entry.expires_at || entry.expires_at > now
+            if (isActive) {
+              return new NextResponse(
+                JSON.stringify({ error: "Access denied." }),
+                { status: 403, headers: { "Content-Type": "application/json" } }
+              )
+            }
+          }
+        }
+      }
+    } catch {
+      // Non-blocking — if blocklist check fails, allow the request
+    }
+  }
+
   // Skip rate limiting for all auth routes — OAuth flows make multiple
   // redirects that would trigger false positives. Auth is protected by
   // brute force detection instead.

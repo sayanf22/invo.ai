@@ -58,6 +58,12 @@ export default function SettingsPage() {
       return
     }
 
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters")
+      setLoading(false)
+      return
+    }
+
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) throw error
@@ -201,7 +207,8 @@ export default function SettingsPage() {
                     name="newPassword"
                     type="password"
                     required
-                    minLength={6}
+                    minLength={8}
+                    placeholder="Minimum 8 characters"
                   />
                 </div>
                 <div className="space-y-2">
@@ -211,7 +218,7 @@ export default function SettingsPage() {
                     name="confirmPassword"
                     type="password"
                     required
-                    minLength={6}
+                    minLength={8}
                   />
                 </div>
                 <Button type="submit" disabled={loading}>
