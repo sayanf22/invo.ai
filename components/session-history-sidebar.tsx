@@ -247,7 +247,7 @@ interface SessionCardProps {
     editingId: string | null
     editingTitle: string
     setEditingTitle: (v: string) => void
-    editInputRef: React.RefObject<HTMLInputElement>
+    editInputRef: React.RefObject<HTMLInputElement | null>
     commitRename: (id: string) => void
     cancelRename: () => void
     getSessionTitle: (s: Session) => string
@@ -340,7 +340,7 @@ interface ChainGroupProps {
     editingId: string | null
     editingTitle: string
     setEditingTitle: (v: string) => void
-    editInputRef: React.RefObject<HTMLInputElement>
+    editInputRef: React.RefObject<HTMLInputElement | null>
     commitRename: (id: string) => void
     cancelRename: () => void
     getSessionTitle: (s: Session) => string

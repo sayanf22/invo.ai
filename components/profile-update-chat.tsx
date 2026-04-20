@@ -221,7 +221,7 @@ export function ProfileUpdateChat({
             const supabase = createClient()
             const { error } = await supabase
                 .from("businesses")
-                .update(updates)
+                .update(updates as any)
                 .eq("user_id", userId)
 
             if (error) throw error

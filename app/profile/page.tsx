@@ -199,7 +199,7 @@ function SectionChatBar({ section, sectionTitle, currentProfile, userId, onUpdat
                 if (Object.keys(dbUpdate).length > 0) {
                     const { createClient } = await import("@/lib/supabase")
                     const supabase = createClient()
-                    const { error } = await supabase.from("businesses").update(dbUpdate).eq("user_id", userId)
+                    const { error } = await supabase.from("businesses").update(dbUpdate as any).eq("user_id", userId)
                     if (error) throw error
                     toast.success(`Updated via AI!`)
                     onUpdated()
@@ -374,7 +374,7 @@ export default function ProfilePage() {
                 }
                 case "notes": updateData = { additional_notes: editData.additional_notes }; break
             }
-            const { error } = await supabase.from("businesses").update(updateData).eq("user_id", user.id)
+            const { error } = await supabase.from("businesses").update(updateData as any).eq("user_id", user.id)
             if (error) throw error
             toast.success("Profile updated!")
             setEditingSection(null); setEditData({})

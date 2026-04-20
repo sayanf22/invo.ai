@@ -194,13 +194,13 @@ describe("Feature: security-hardening, Property 17: Origin validation", () => {
     beforeEach(() => {
         process.env.NEXT_PUBLIC_APP_URL = "https://app.clorefy.com"
         process.env.VERCEL_URL = undefined
-        process.env.NODE_ENV = "production"
+        Object.defineProperty(process.env, "NODE_ENV", { value: "production", writable: true, configurable: true })
     })
 
     afterEach(() => {
         process.env.NEXT_PUBLIC_APP_URL = originalEnv.NEXT_PUBLIC_APP_URL
         process.env.VERCEL_URL = originalEnv.VERCEL_URL
-        process.env.NODE_ENV = originalEnv.NODE_ENV
+        Object.defineProperty(process.env, "NODE_ENV", { value: originalEnv.NODE_ENV, writable: true, configurable: true })
     })
 
     /** Helper to create a Request with specific headers */
@@ -293,7 +293,7 @@ describe("Feature: security-hardening, Property 17: Origin validation", () => {
     })
 
     it("does not allow localhost origins in production mode", () => {
-        process.env.NODE_ENV = "production"
+        Object.defineProperty(process.env, "NODE_ENV", { value: "production", writable: true, configurable: true })
         fc.assert(
             fc.property(
                 fc.constantFrom("http://localhost:3000", "http://localhost:3001"),
@@ -310,7 +310,7 @@ describe("Feature: security-hardening, Property 17: Origin validation", () => {
     })
 
     it("allows localhost origins in development mode", () => {
-        process.env.NODE_ENV = "development"
+        Object.defineProperty(process.env, "NODE_ENV", { value: "development", writable: true, configurable: true })
         fc.assert(
             fc.property(
                 fc.constantFrom("http://localhost:3000", "http://localhost:3001"),

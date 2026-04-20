@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: sanitizeError(error) }, { status: 500 })
     }
 
-    return NextResponse.json({ clients: (clients ?? []) as Client[] })
+    return NextResponse.json({ clients: (clients ?? []) as unknown as Client[] })
 }
 
 /**
@@ -83,5 +83,5 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: sanitizeError(error) }, { status: 500 })
     }
 
-    return NextResponse.json({ client: client as Client }, { status: 201 })
+    return NextResponse.json({ client: client as unknown as Client }, { status: 201 })
 }

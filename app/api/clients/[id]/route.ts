@@ -82,7 +82,7 @@ export async function PUT(
         return NextResponse.json({ error: "Client not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ client: client as Client }, { status: 200 })
+    return NextResponse.json({ client: client as unknown as Client }, { status: 200 })
 }
 
 /**
