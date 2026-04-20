@@ -145,7 +145,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     }, [messages, onMessageCountChange])
 
     // Load logo from business profile and warm cache
-    // Always runs to ensure the cache has the dataUrl for PDF rendering
+    // Load logo from business profile and warm cache
+    // Runs on mount AND when session changes to ensure logo is always available
     useEffect(() => {
         let cancelled = false
         async function loadProfileLogo() {
@@ -153,27 +154,51 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 const supabase = createClient()
                 const { data: { user } } = await supabase.auth.getUser()
                 if (!user || cancelled) return
-                const { data: biz } = await supabase
+
+                const { data: biz, error: bizError } = await supabase
                     .from("businesses")
                     .select("logo_url, logo_data_url")
                     .eq("user_id", user.id)
                     .single() as any
-                if (!cancelled && biz?.logo_url) {
-                    // Always warm the cache so PDF rendering works
-                    if (biz.logo_data_url) {
-                        const { warmLogoCache } = await import("@/hooks/use-logo-url")
-                        warmLogoCache(biz.logo_url, biz.logo_data_url)
-                    }
-                    // Only set fromLogo if not already set (don't override session-specific logo)
-                    if (!data.fromLogo) {
-                        onChange({ fromLogo: biz.logo_url })
-                    }
+
+                if (bizError || !biz?.logo_url) return
+                if (cancelled) return
+
+                const { warmLogoCache } = await import("@/hooks/use-logo-url")
+
+                // Use cached data_url if valid (starts with data:)
+                if (biz.logo_data_url && typeof biz.logo_data_url === "string" && biz.logo_data_url.startsWith("data:")) {
+                    warmLogoCache(biz.logo_url, biz.logo_data_url)
+                } else {
+                    // logo_data_url is missing or corrupted — re-fetch from R2 and repair DB
+                    try {
+                        const { authFetch } = await import("@/lib/auth-fetch")
+                        const res = await authFetch(`/api/storage/image?key=${encodeURIComponent(biz.logo_url)}`)
+                        if (res.ok) {
+                            const json = await res.json()
+                            if (json.dataUrl && json.dataUrl.startsWith("data:")) {
+                                warmLogoCache(biz.logo_url, json.dataUrl)
+                                // Repair the DB entry so next load is instant
+                                await supabase
+                                    .from("businesses")
+                                    .update({ logo_data_url: json.dataUrl } as any)
+                                    .eq("user_id", user.id)
+                                    .catch(() => {}) // non-blocking
+                            }
+                        }
+                    } catch { /* R2 fetch failed — logo will be missing from PDF but not a crash */ }
                 }
-            } catch { /* ignore — logo is optional */ }
+
+                if (!cancelled && !data.fromLogo) {
+                    onChange({ fromLogo: biz.logo_url })
+                }
+            } catch (err) {
+                console.warn("[logo] Failed to load profile logo:", err)
+            }
         }
         loadProfileLogo()
         return () => { cancelled = true }
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [session?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Handle document limit error from session creation
     useEffect(() => {

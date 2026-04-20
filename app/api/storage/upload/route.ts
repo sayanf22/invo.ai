@@ -107,17 +107,15 @@ export async function POST(request: NextRequest) {
 
     // For logos: persist the dataUrl in the businesses table so it loads
     // instantly on any device without needing to fetch from R2.
-    // Uses upsert to handle both new users (no row yet) and existing users.
-    if (category === "logos") {
+    // Only store if dataUrl is reasonable size (< 800KB to avoid DB row limits)
+    if (category === "logos" && dataUrl.length < 800_000) {
       try {
-        // First try update (existing row)
         const { data: updated, error: updateErr } = await auth.supabase
           .from("businesses")
           .update({ logo_url: objectKey, logo_data_url: dataUrl } as any)
           .eq("user_id", auth.user.id)
           .select("user_id") as any
 
-        // If no row was updated (new user), insert a minimal row with the logo
         if (!updateErr && (!updated || updated.length === 0)) {
           await auth.supabase
             .from("businesses")
@@ -127,11 +125,26 @@ export async function POST(request: NextRequest) {
               logo_url: objectKey,
               logo_data_url: dataUrl,
             } as any)
-            .then(() => {}) // ignore result
+            .then(() => {})
         }
       } catch {
         // Non-blocking — logo still works via R2 fallback
       }
+    } else if (category === "logos") {
+      // dataUrl too large — store only the key, fetch from R2 on demand
+      try {
+        const { data: updated } = await auth.supabase
+          .from("businesses")
+          .update({ logo_url: objectKey, logo_data_url: null } as any)
+          .eq("user_id", auth.user.id)
+          .select("user_id") as any
+        if (!updated || updated.length === 0) {
+          await auth.supabase
+            .from("businesses")
+            .insert({ user_id: auth.user.id, name: "", logo_url: objectKey, logo_data_url: null } as any)
+            .then(() => {})
+        }
+      } catch { /* non-blocking */ }
     }
 
     return NextResponse.json({ objectKey, dataUrl })

@@ -157,7 +157,7 @@ export function LogoUploader({
       if (dataUrl) warmLogoCache(objectKey, dataUrl)
 
       setState("complete")
-      setCurrentDisplayUrl(displayUrl || previewUrl)
+      setCurrentDisplayUrl(previewUrl)
       setSelectedFile(null)
       onUploadComplete(objectKey)
     } catch (err: unknown) {
