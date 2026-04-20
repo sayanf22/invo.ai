@@ -101,7 +101,7 @@ function NavDropdown({ label, items, isOpen, onOpen, onClose }: {
             onMouseLeave={handleLeave}
         >
             <button
-                className={`flex items-center gap-1 px-3 py-2 rounded-full text-lg font-extrabold transition-all duration-200 ${isOpen ? 'text-black' : 'text-stone-600 hover:text-black'}`}
+                className={`flex items-center gap-1 px-2.5 lg:px-3 py-2 rounded-full text-sm lg:text-base font-bold transition-all duration-200 whitespace-nowrap ${isOpen ? 'text-black' : 'text-stone-600 hover:text-black'}`}
             >
                 {label}
                 <ChevronDown size={14} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
@@ -173,20 +173,20 @@ export function LandingNavbar() {
     return (
         <>
             {/* Desktop Navbar */}
-            <nav className={`hidden md:flex fixed top-6 left-1/2 -translate-x-1/2 z-[100] items-center gap-1 px-2 py-2 rounded-full transition-all duration-500 ${scrolled ? 'glass-nav shadow-lg shadow-black/5 border border-stone-200/30' : 'bg-transparent'}`}>
+            <nav className={`hidden md:flex fixed top-6 left-1/2 -translate-x-1/2 z-[100] items-center gap-0.5 lg:gap-1 px-2 py-2 rounded-full transition-all duration-500 ${scrolled ? 'glass-nav shadow-lg shadow-black/5 border border-stone-200/30' : 'bg-transparent'}`}>
                 {/* Logo */}
-                <Link href="/" className="flex items-center px-3 mr-2">
+                <Link href="/" className="flex items-center px-2 lg:px-3 mr-1 lg:mr-2">
                     <ClorefyLogo size={42} />
                 </Link>
 
                 <NavDropdown label="Product" items={productItems} isOpen={openDropdown === "product"} onOpen={() => openMenu("product")} onClose={() => closeMenu("product")} />
                 <NavDropdown label="Use Cases" items={useCaseItems} isOpen={openDropdown === "usecases"} onOpen={() => openMenu("usecases")} onClose={() => closeMenu("usecases")} />
-                <Link href="/business" className="px-3 py-2 rounded-full text-lg font-extrabold text-stone-600 hover:text-black transition-colors">Business</Link>
+                <Link href="/business" className="px-2.5 lg:px-3 py-2 rounded-full text-sm lg:text-base font-bold text-stone-600 hover:text-black transition-colors whitespace-nowrap">Business</Link>
                 <NavDropdown label="Resources" items={resourceItems} isOpen={openDropdown === "resources"} onOpen={() => openMenu("resources")} onClose={() => closeMenu("resources")} />
 
-                <div className="flex items-center gap-2 ml-2 pl-2 border-l border-stone-200/50">
-                    <Link href="/auth/login" className="px-4 py-2 rounded-full text-lg font-extrabold text-stone-600 hover:text-black transition-colors">Log in</Link>
-                    <Link href="/auth/signup" className="group flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[var(--landing-dark)] text-white text-base font-bold hover:scale-105 active:scale-95 transition-all shadow-md hover:shadow-lg">
+                <div className="flex items-center gap-1.5 lg:gap-2 ml-1.5 lg:ml-2 pl-1.5 lg:pl-2 border-l border-stone-200/50">
+                    <Link href="/auth/login" className="px-3 lg:px-4 py-2 rounded-full text-sm lg:text-base font-bold text-stone-600 hover:text-black transition-colors whitespace-nowrap">Log in</Link>
+                    <Link href="/auth/signup" className="group flex items-center gap-1.5 px-4 lg:px-5 py-2 lg:py-2.5 rounded-full bg-[var(--landing-dark)] text-white text-sm lg:text-base font-bold hover:scale-105 active:scale-95 transition-all shadow-md hover:shadow-lg whitespace-nowrap">
                         Get Started
                         <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
                     </Link>
