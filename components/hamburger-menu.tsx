@@ -83,7 +83,7 @@ export function HamburgerMenu() {
                     isOpen ? "pointer-events-auto" : "pointer-events-none",
                     visibleOpen ? "opacity-100" : "opacity-0"
                 )}
-                style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(4px)" }}
+                style={{ background: "rgba(0,0,0,0.25)", backdropFilter: "blur(3px)" }}
                 onClick={handleClose}
             />
 
@@ -99,84 +99,76 @@ export function HamburgerMenu() {
                     transitionDuration: "350ms",
                     background: "hsl(36 33% 97%)",
                     borderRadius: "20px 0 0 20px",
-                    boxShadow: "-20px 0 60px -10px rgba(0,0,0,0.2), -4px 0 16px -4px rgba(0,0,0,0.08)",
+                    boxShadow: "-16px 0 48px -8px rgba(0,0,0,0.14), -2px 0 8px -2px rgba(0,0,0,0.06)",
+                    borderLeft: "1px solid rgba(0,0,0,0.06)",
                 }}
             >
                 {/* User header */}
                 {user ? (
-                    <div className="px-5 pt-14 pb-5 shrink-0"
-                        style={{
-                            background: "linear-gradient(135deg, hsl(18 60% 44%) 0%, hsl(24 70% 38%) 100%)",
-                            borderRadius: "20px 0 0 0",
-                        }}
-                    >
+                    <div className="px-6 pt-14 pb-5 shrink-0" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
                         <div className="flex items-center gap-3.5">
                             {avatarUrl ? (
-                                <Image src={avatarUrl} alt={fullName || email} width={48} height={48}
-                                    className="w-12 h-12 rounded-2xl object-cover ring-2 ring-white/30"
+                                <Image src={avatarUrl} alt={fullName || email} width={44} height={44}
+                                    className="w-11 h-11 rounded-2xl object-cover"
+                                    style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}
                                 />
                             ) : (
-                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center ring-2 ring-white/30"
-                                    style={{ background: "rgba(255,255,255,0.2)" }}
+                                <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-primary/10"
+                                    style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
                                 >
-                                    <span className="text-base font-bold text-white">{initials}</span>
+                                    <span className="text-sm font-bold text-primary">{initials}</span>
                                 </div>
                             )}
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-white truncate">{fullName || "User"}</p>
-                                <p className="text-xs text-white/70 truncate mt-0.5">{email}</p>
+                                <p className="text-sm font-semibold text-foreground truncate">{fullName || "User"}</p>
+                                <p className="text-xs text-muted-foreground truncate mt-0.5">{email}</p>
                             </div>
                         </div>
                     </div>
                 ) : (
-                    <div className="h-16 shrink-0" style={{ borderRadius: "20px 0 0 0", background: "linear-gradient(135deg, hsl(18 60% 44%) 0%, hsl(24 70% 38%) 100%)" }} />
+                    <div className="h-16 shrink-0" />
                 )}
 
                 {/* Scrollable content */}
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+                <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5">
 
-                    {/* Navigation */}
                     <MenuSection label="Navigation">
-                        <MenuItem icon={Home} iconBg="#3b82f6" label="Home" onClick={() => navigate("/")} />
+                        <MenuItem icon={Home} label="Home" onClick={() => navigate("/")} />
                         {user && <>
-                            <MenuItem icon={FileText} iconBg="#8b5cf6" label="My Documents" onClick={() => navigate("/documents")} divider />
-                            <MenuItem icon={History} iconBg="#06b6d4" label="History" onClick={() => navigate("/history")} divider />
+                            <MenuItem icon={FileText} label="My Documents" onClick={() => navigate("/documents")} divider />
+                            <MenuItem icon={History} label="History" onClick={() => navigate("/history")} divider />
                         </>}
                     </MenuSection>
 
-                    {/* Account */}
                     {user && (
                         <MenuSection label="Account">
-                            <MenuItem icon={User} iconBg="#f97316" label="Business Profile" onClick={() => navigate("/profile")} />
-                            <MenuItem icon={Settings} iconBg="#6b7280" label="Settings" onClick={() => navigate("/settings")} divider />
-                            <MenuItem icon={Bell} iconBg="#ef4444" label="Notifications" onClick={() => navigate("/notifications")} divider />
-                            <MenuItem icon={CreditCard} iconBg="#10b981" label="Billing & Plans" onClick={() => navigate("/billing")} divider />
+                            <MenuItem icon={User} label="Business Profile" onClick={() => navigate("/profile")} />
+                            <MenuItem icon={Settings} label="Settings" onClick={() => navigate("/settings")} divider />
+                            <MenuItem icon={Bell} label="Notifications" onClick={() => navigate("/notifications")} divider />
+                            <MenuItem icon={CreditCard} label="Billing & Plans" onClick={() => navigate("/billing")} divider />
                         </MenuSection>
                     )}
 
-                    {/* Support */}
                     <MenuSection label="Support & Legal">
-                        <MenuItem icon={HelpCircle} iconBg="#f59e0b" label="Help Center" onClick={() => navigate("/contact")} />
-                        <MenuItem icon={BookOpen} iconBg="#8b5cf6" label="Blog" onClick={() => navigate("/blog")} divider />
-                        <MenuItem icon={Mail} iconBg="#3b82f6" label="Contact Us" onClick={() => navigate("/contact")} divider />
-                        <MenuItem icon={Info} iconBg="#6b7280" label="About Us" onClick={() => navigate("/about")} divider />
-                        <MenuItem icon={Shield} iconBg="#10b981" label="Privacy Policy" onClick={() => navigate("/privacy")} divider />
-                        <MenuItem icon={FileCheck} iconBg="#6b7280" label="Terms & Conditions" onClick={() => navigate("/terms")} divider />
-                        <MenuItem icon={Lock} iconBg="#6b7280" label="Refund Policy" onClick={() => navigate("/refund-policy")} divider />
+                        <MenuItem icon={HelpCircle} label="Help Center" onClick={() => navigate("/contact")} />
+                        <MenuItem icon={BookOpen} label="Blog" onClick={() => navigate("/blog")} divider />
+                        <MenuItem icon={Mail} label="Contact Us" onClick={() => navigate("/contact")} divider />
+                        <MenuItem icon={Info} label="About Us" onClick={() => navigate("/about")} divider />
+                        <MenuItem icon={Shield} label="Privacy Policy" onClick={() => navigate("/privacy")} divider />
+                        <MenuItem icon={FileCheck} label="Terms & Conditions" onClick={() => navigate("/terms")} divider />
+                        <MenuItem icon={Lock} label="Refund Policy" onClick={() => navigate("/refund-policy")} divider />
                     </MenuSection>
 
-                    {/* Sign out */}
                     {user && (
                         <MenuSection>
-                            <MenuItem icon={LogOut} iconBg="#ef4444" label="Sign Out" onClick={handleSignOut} variant="danger" />
+                            <MenuItem icon={LogOut} label="Sign Out" onClick={handleSignOut} variant="danger" />
                         </MenuSection>
                     )}
 
-                    {/* Sign in */}
                     {!user && !isLoading && (
                         <button onClick={() => navigate("/auth/login")}
-                            className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white transition-all active:scale-[0.98]"
-                            style={{ background: "linear-gradient(135deg, hsl(18 60% 44%), hsl(24 70% 38%))", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
+                            className="w-full py-3.5 rounded-2xl font-semibold text-sm bg-primary text-primary-foreground transition-all active:scale-[0.98] hover:opacity-90"
+                            style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
                         >
                             Sign In
                         </button>
@@ -184,8 +176,8 @@ export function HamburgerMenu() {
                 </div>
 
                 {/* Footer */}
-                <div className="shrink-0 py-3 px-5" style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
-                    <p className="text-[11px] text-center text-stone-400">Clorefy © 2026 · v1.0.0</p>
+                <div className="shrink-0 py-3 px-6" style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+                    <p className="text-[11px] text-center text-muted-foreground/50">Clorefy © 2026 · v1.0.0</p>
                 </div>
             </div>
         </div>
@@ -196,10 +188,13 @@ function MenuSection({ label, children }: { label?: string; children: React.Reac
     return (
         <div>
             {label && (
-                <p className="text-[10px] font-bold uppercase tracking-widest px-1 mb-1.5" style={{ color: "hsl(18 60% 48% / 0.7)" }}>{label}</p>
+                <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest px-1 mb-2">{label}</p>
             )}
-            <div className="rounded-2xl overflow-hidden bg-white"
-                style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 16px -4px rgba(0,0,0,0.08)", border: "1px solid rgba(0,0,0,0.04)" }}
+            <div className="rounded-2xl overflow-hidden bg-card"
+                style={{
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 12px -4px rgba(0,0,0,0.07)",
+                    border: "1px solid rgba(0,0,0,0.05)",
+                }}
             >
                 {children}
             </div>
@@ -209,33 +204,37 @@ function MenuSection({ label, children }: { label?: string; children: React.Reac
 
 interface MenuItemProps {
     icon: React.ElementType
-    iconBg: string
     label: string
     onClick: () => void
     variant?: "default" | "danger"
     divider?: boolean
 }
 
-function MenuItem({ icon: Icon, iconBg, label, onClick, variant = "default", divider = false }: MenuItemProps) {
+function MenuItem({ icon: Icon, label, onClick, variant = "default", divider = false }: MenuItemProps) {
     return (
         <>
-            {divider && <div className="mx-[52px]" style={{ height: "0.5px", background: "rgba(0,0,0,0.08)" }} />}
+            {divider && (
+                <div className="mx-4" style={{ height: "1px", background: "hsl(var(--border) / 0.6)" }} />
+            )}
             <button
                 type="button"
                 onClick={onClick}
                 className={cn(
-                    "flex items-center gap-3 w-full px-3.5 py-3 text-sm font-medium transition-all duration-150 active:opacity-60 bg-white",
-                    variant === "danger" ? "text-red-500" : "text-stone-800"
+                    "flex items-center gap-3.5 w-full px-4 py-3.5 text-sm font-medium transition-all duration-150 active:bg-secondary/60 bg-card",
+                    variant === "default" ? "text-foreground hover:bg-secondary/40" : "text-destructive hover:bg-destructive/5"
                 )}
             >
-                {/* Colored icon badge */}
-                <div className="w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0"
-                    style={{ background: variant === "danger" ? "#ef4444" : iconBg }}
-                >
-                    <Icon className="w-[17px] h-[17px] text-white" />
+                <div className={cn(
+                    "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
+                    variant === "default" ? "bg-secondary/70" : "bg-destructive/8"
+                )}>
+                    <Icon className={cn(
+                        "w-[17px] h-[17px]",
+                        variant === "default" ? "text-foreground/60" : "text-destructive"
+                    )} strokeWidth={1.5} />
                 </div>
                 <span className="flex-1 text-left">{label}</span>
-                <ChevronRight className="w-3.5 h-3.5 text-stone-300 shrink-0" />
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 shrink-0" />
             </button>
         </>
     )
