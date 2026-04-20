@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { Users } from "lucide-react"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -113,16 +112,28 @@ export function ClientSelector({ onChange }: ClientSelectorProps) {
     setSearch("")
   }
 
+  // Shared pill style — matches NextStepsBar pill exactly
+  const pillClass = [
+    "inline-flex items-center gap-1.5",
+    "h-8 px-3 rounded-xl",
+    "text-[13px] font-medium text-foreground",
+    "bg-card border border-border",
+    "transition-all duration-150",
+    "hover:bg-secondary/60 hover:border-border/80",
+    "active:scale-[0.97]",
+  ].join(" ")
+
+  const pillShadow = "0 1px 2px rgba(0,0,0,0.06), 0 2px 6px -1px rgba(0,0,0,0.08)"
+
   const trigger = (
-    <Button
-      variant="outline"
-      size="sm"
+    <button
       type="button"
-      className="h-7 px-2.5 text-[12px] font-medium rounded-lg border-border/70 text-muted-foreground hover:text-foreground gap-1.5"
+      className={pillClass}
+      style={{ boxShadow: pillShadow }}
     >
-      <Users className="h-3.5 w-3.5" />
-      Select Client
-    </Button>
+      <Users className="h-3.5 w-3.5 text-foreground/60 shrink-0" />
+      <span>Select Client</span>
+    </button>
   )
 
   if (isMobile) {

@@ -740,7 +740,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             <div className="border-t border-border/40 shrink-0 bg-card/95 backdrop-blur-sm"
               style={{ boxShadow: "0 -1px 0 0 rgba(0,0,0,0.04), 0 -4px 16px -4px rgba(0,0,0,0.06)" }}
             >
-                {/* Next Steps Bar — compact collapsible strip above input, only when doc is generated */}
+                {/* Unified toolbar: New Doc + Select Client in one row, collapsible panel below */}
                 {documentGenerated && !isLoading && !isUploading && session && (
                     <div className="px-4 pt-2 pb-0">
                         <div className="max-w-xl mx-auto">
@@ -749,6 +749,19 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 currentDocType={docType}
                                 parentSessionId={session.id}
                                 onCreateLinked={handleCreateLinked}
+                                clientSelectorSlot={
+                                    <ClientSelector
+                                        onChange={(fields) =>
+                                            onChange({
+                                                toName: fields.toName,
+                                                toEmail: fields.toEmail,
+                                                toAddress: fields.toAddress,
+                                                toPhone: fields.toPhone,
+                                                toTaxId: fields.toTaxId,
+                                            })
+                                        }
+                                    />
+                                }
                             />
                         </div>
                     </div>
@@ -790,21 +803,46 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             </a>
                         </div>
                     ) : (
-                        <>
-                            {/* Compact inline toolbar above the input */}
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                                <ClientSelector
-                                    onChange={(fields) =>
-                                        onChange({
-                                            toName: fields.toName,
-                                            toEmail: fields.toEmail,
-                                            toAddress: fields.toAddress,
-                                            toPhone: fields.toPhone,
-                                            toTaxId: fields.toTaxId,
-                                        })
-                                    }
+                        /* When doc not yet generated, show Select Client above input */
+                        !documentGenerated ? (
+                            <>
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <ClientSelector
+                                        onChange={(fields) =>
+                                            onChange({
+                                                toName: fields.toName,
+                                                toEmail: fields.toEmail,
+                                                toAddress: fields.toAddress,
+                                                toPhone: fields.toPhone,
+                                                toTaxId: fields.toTaxId,
+                                            })
+                                        }
+                                    />
+                                </div>
+                                <AIInputWithLoading
+                                    value={inputValue}
+                                    onValueChange={setInputValue}
+                                    isLoading={isLoading}
+                                    isUploading={isUploading}
+                                    onSubmit={(val) => {
+                                        if (stagedFile) {
+                                            handleFileUpload(stagedFile, val.trim() || undefined)
+                                            setStagedFile(null)
+                                            setInputValue("")
+                                        } else {
+                                            sendMessage(val)
+                                        }
+                                    }}
+                                    placeholder="Ask a question or describe a document..."
+                                    disabled={sessionLoading || !session}
+                                    statusText={isSaving ? "Saving..." : undefined}
+                                    showAttachButton={true}
+                                    stagedFile={stagedFile}
+                                    onFileSelect={(file) => setStagedFile(file)}
+                                    onFileRemove={() => setStagedFile(null)}
                                 />
-                            </div>
+                            </>
+                        ) : (
                             <AIInputWithLoading
                                 value={inputValue}
                                 onValueChange={setInputValue}
@@ -827,7 +865,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 onFileSelect={(file) => setStagedFile(file)}
                                 onFileRemove={() => setStagedFile(null)}
                             />
-                        </>
+                        )
                     )}
                 </div>
                 </div>
