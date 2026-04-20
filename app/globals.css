@@ -15,6 +15,15 @@
   }
 }
 
+/* Hide scrollbars globally — scroll still works, just no visible track */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
 @layer base {
   :root {
     --background: 36 33% 97%;
