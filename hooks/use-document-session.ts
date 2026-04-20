@@ -192,6 +192,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", session.id)
+                .eq("user_id", user.id) // defense-in-depth: scope to owner
 
             if (error) throw error
 
@@ -246,6 +247,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                     .from("document_sessions")
                     .update({ status: "completed" })
                     .eq("id", session.id)
+                    .eq("user_id", user.id)
             }
             // Reset mutex so forceNew can proceed
             creatingRef.current = false
@@ -288,6 +290,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                     document_id: documentId || null,
                 })
                 .eq("id", session.id)
+                .eq("user_id", user.id)
             setSession(prev => prev ? { ...prev, status: "completed" } : null)
         } catch (error) {
             console.error("Error completing session:", error)
@@ -302,6 +305,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                 .from("document_sessions")
                 .update({ client_name: clientName })
                 .eq("id", session.id)
+                .eq("user_id", user.id)
             setSession(prev => prev ? { ...prev, client_name: clientName } : null)
         } catch (error) {
             console.error("Error updating client name:", error)
