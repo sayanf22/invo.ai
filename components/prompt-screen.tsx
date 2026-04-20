@@ -117,12 +117,14 @@ export function PromptScreen({
             type="button"
             onClick={() => setShowHistory(!showHistory)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap shrink-0",
-              showHistory ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-foreground hover:bg-secondary/50"
+              "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap shrink-0 border",
+              showHistory
+                ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                : "bg-card border-border text-foreground hover:bg-secondary shadow-sm"
             )}
           >
             <HistoryIcon className="w-4 h-4 shrink-0" />
-            <span className="hidden lg:inline">{showHistory ? "Hide" : "History"}</span>
+            <span className="hidden lg:inline text-sm">{showHistory ? "Hide" : "History"}</span>
           </button>
           {/* Fixed-size wrapper prevents layout shift when button goes fixed */}
           <div className="shrink-0 w-10 h-10 relative">
@@ -134,18 +136,18 @@ export function PromptScreen({
       {/* ── Body ── */}
       <div className="flex-1 flex overflow-hidden min-h-0">
 
-        {/* Desktop: history sidebar */}
+        {/* Desktop: history sidebar — always mounted, animated in/out */}
         <div className={cn(
-          "hidden md:block transition-all duration-300 ease-in-out overflow-hidden shrink-0",
-          showHistory ? "w-[320px] opacity-100" : "w-0 opacity-0"
+          "hidden md:flex transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden shrink-0",
+          showHistory ? "w-[300px] opacity-100" : "w-0 opacity-0"
         )}>
-          {showHistory && (
+          <div className="w-[300px] shrink-0">
             <SessionHistorySidebar
               currentSessionId={selectedSessionId}
               onSessionSelect={handleSessionSelect}
               documentType={data.documentType?.toLowerCase() || "invoice"}
             />
-          )}
+          </div>
         </div>
 
         {/* ── MOBILE: 3-panel sliding track ── */}
