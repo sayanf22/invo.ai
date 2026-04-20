@@ -666,13 +666,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             msg.role === "user" ? "justify-end" : "justify-start"
                         )}>
                             {msg.role === "user" ? (
-                                <div className="max-w-[78%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed"
+                                <div className="max-w-[78%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)" }}
                                 >
                                     <div className="whitespace-pre-wrap">{msg.content}</div>
                                 </div>
                             ) : (
-                                <div className="max-w-[88%] px-4 py-3 rounded-2xl rounded-bl-sm bg-card border border-border/50 text-sm leading-relaxed text-foreground"
+                                <div className="max-w-[88%] px-4 py-3 rounded-2xl rounded-bl-sm bg-card border border-border/50 text-sm leading-relaxed text-foreground animate-in fade-in slide-in-from-bottom-2 duration-400"
                                     style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
                                 >
                                     <MarkdownMessage content={msg.content} />

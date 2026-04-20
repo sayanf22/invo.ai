@@ -215,7 +215,7 @@ export function PromptScreen({
         </div>
 
         {/* ── DESKTOP: preview panel ── */}
-        <div className="hidden md:flex flex-1 bg-background overflow-hidden flex-col">
+        <div className="hidden md:flex flex-1 bg-background overflow-hidden flex-col transition-opacity duration-300">
           <DocumentPreview data={data} onChange={handleChange} onToggleEditor={() => setShowEditor(e => !e)} showEditor={showEditor} />
         </div>
       </div>

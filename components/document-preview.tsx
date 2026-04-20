@@ -198,17 +198,22 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
 
   return (
     <div ref={containerRef} className="relative w-full h-full overflow-auto">
-      {isRendering && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[2px]">
-          <div className="flex items-center gap-2.5 bg-card px-5 py-3 rounded-2xl shadow-lg border border-border/60">
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">Rendering preview...</span>
-          </div>
+      {/* Smooth rendering overlay — fades in/out instead of popping */}
+      <div className={cn(
+        "absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[3px] transition-opacity duration-300 pointer-events-none",
+        isRendering ? "opacity-100" : "opacity-0"
+      )}>
+        <div className="flex items-center gap-2.5 bg-card px-5 py-3 rounded-2xl shadow-lg border border-border/60">
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          <span className="text-sm text-muted-foreground">Updating preview...</span>
         </div>
-      )}
+      </div>
 
       {fileData && viewerReady && ViewerComponents ? (
-        <div className="flex flex-col items-center gap-6 py-6">
+        <div className={cn(
+          "flex flex-col items-center gap-6 py-6 transition-opacity duration-500",
+          isRendering ? "opacity-60" : "opacity-100"
+        )}>
           <ViewerComponents.Document
             file={fileData}
             onLoadSuccess={onDocumentLoadSuccess}
