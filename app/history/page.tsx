@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
-import { Button } from "@/components/ui/button"
-import { History, FileText, Calendar, Link2, ChevronRight, ArrowRight, ScrollText, ClipboardList, Lightbulb } from "lucide-react"
+import { History, FileText, Calendar, Link2, ChevronRight, ArrowRight, ScrollText, ClipboardList, Lightbulb, ChevronDown, ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -26,14 +25,16 @@ interface SessionGroup {
   latestDate: string
 }
 
-const DOC_CONFIG: Record<string, { label: string; icon: React.ElementType; bg: string; text: string; dot: string }> = {
-  invoice:   { label: "Invoice",   icon: FileText,      bg: "bg-blue-50 dark:bg-blue-950/40",     text: "text-blue-600 dark:text-blue-400",     dot: "bg-blue-500" },
-  contract:  { label: "Contract",  icon: ScrollText,    bg: "bg-emerald-50 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" },
-  quotation: { label: "Quotation", icon: ClipboardList, bg: "bg-amber-50 dark:bg-amber-950/40",   text: "text-amber-600 dark:text-amber-400",   dot: "bg-amber-500" },
-  proposal:  { label: "Proposal",  icon: Lightbulb,     bg: "bg-purple-50 dark:bg-purple-950/40", text: "text-purple-600 dark:text-purple-400", dot: "bg-purple-500" },
+const DOC_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
+  invoice:   { label: "Invoice",   icon: FileText,      color: "text-blue-600",    bg: "bg-blue-50" },
+  contract:  { label: "Contract",  icon: ScrollText,    color: "text-emerald-600", bg: "bg-emerald-50" },
+  quotation: { label: "Quotation", icon: ClipboardList, color: "text-amber-600",   bg: "bg-amber-50" },
+  proposal:  { label: "Proposal",  icon: Lightbulb,     color: "text-purple-600",  bg: "bg-purple-50" },
 }
+const fallback = { label: "Document", icon: FileText, color: "text-muted-foreground", bg: "bg-muted" }
 
-const fallbackDoc = { label: "Document", icon: FileText, bg: "bg-muted", text: "text-muted-foreground", dot: "bg-muted-foreground" }
+const FILTERS = ["All", "Invoice", "Contract", "Quotation", "Proposal"] as const
+type Filter = typeof FILTERS[number]
 
 export default function HistoryPage() {
   const router = useRouter()
@@ -41,6 +42,7 @@ export default function HistoryPage() {
   const user = useUser()
   const [groups, setGroups] = useState<SessionGroup[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<Filter>("All")
 
   useEffect(() => {
     if (!user) { router.push("/auth/login"); return }
@@ -84,24 +86,25 @@ export default function HistoryPage() {
       grouped.sort((a, b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime())
       setGroups(grouped)
     } catch (error: any) {
-      console.error("Error loading sessions:", error?.message || error)
       toast.error("Failed to load history")
     } finally { setLoading(false) }
   }
 
   const openSession = (session: Session) => router.push(`/?sessionId=${session.id}`)
 
+  const filteredGroups = filter === "All"
+    ? groups
+    : groups.filter(g => g.sessions.some(s => s.document_type.toLowerCase() === filter.toLowerCase()))
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-12">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded-xl w-48" />
-            <div className="h-4 bg-muted rounded w-64" />
-            <div className="h-20 bg-muted rounded-2xl mt-6" />
-            <div className="h-20 bg-muted rounded-2xl" />
-            <div className="h-20 bg-muted rounded-2xl" />
-          </div>
+      <div className="min-h-screen bg-background px-4 pt-12 max-w-2xl mx-auto">
+        <div className="animate-pulse space-y-3">
+          <div className="h-7 bg-muted rounded-xl w-40" />
+          <div className="h-4 bg-muted rounded w-52" />
+          <div className="h-16 bg-muted rounded-2xl mt-6" />
+          <div className="h-16 bg-muted rounded-2xl" />
+          <div className="h-16 bg-muted rounded-2xl" />
         </div>
       </div>
     )
@@ -109,37 +112,63 @@ export default function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 pb-20">
+      <div className="max-w-2xl mx-auto px-4 pt-6 pb-20">
+
         {/* Header */}
-        <div className="mb-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2.5 rounded-2xl bg-primary/10">
-              <History className="w-5 h-5 text-primary" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Document History</h1>
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => router.back()}
+            className="w-9 h-9 rounded-2xl border border-border bg-card flex items-center justify-center hover:bg-secondary transition-colors shrink-0"
+            style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+          >
+            <ArrowLeft className="w-4 h-4 text-foreground/70" />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">History</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {groups.length} document{groups.length !== 1 ? "s" : ""}
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground ml-[52px]">
-            {groups.length > 0
-              ? `${groups.length} document${groups.length === 1 ? "" : " groups"} — grouped by client`
-              : "Your documents will appear here"}
-          </p>
         </div>
 
-        {groups.length === 0 ? (
+        {/* Filter pills */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-0.5">
+          {FILTERS.map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "px-4 py-2 rounded-2xl text-sm font-semibold whitespace-nowrap transition-all duration-200 border",
+                filter === f
+                  ? "bg-primary text-primary-foreground border-primary shadow-md"
+                  : "bg-card text-foreground border-border hover:bg-secondary shadow-sm"
+              )}
+              style={filter === f ? { boxShadow: "0 2px 8px hsl(var(--primary)/0.3)" } : { boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+
+        {filteredGroups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-20 h-20 rounded-3xl bg-muted/60 flex items-center justify-center mb-5">
-              <History className="w-9 h-9 text-muted-foreground/50" />
+            <div className="w-16 h-16 rounded-3xl bg-muted/60 flex items-center justify-center mb-4">
+              <History className="w-7 h-7 text-muted-foreground/40" />
             </div>
-            <h3 className="text-lg font-semibold mb-1.5">No documents yet</h3>
-            <p className="text-sm text-muted-foreground mb-6 max-w-xs">Create your first document and it will show up here</p>
-            <Button onClick={() => router.push("/")} className="rounded-xl gap-2">
+            <h3 className="text-base font-semibold mb-1">No documents yet</h3>
+            <p className="text-sm text-muted-foreground mb-5 max-w-xs">Create your first document and it will show up here</p>
+            <button
+              onClick={() => router.push("/")}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+              style={{ boxShadow: "0 2px 8px hsl(var(--primary)/0.3)" }}
+            >
               Get Started <ArrowRight className="w-4 h-4" />
-            </Button>
+            </button>
           </div>
         ) : (
-          <div className="space-y-3">
-            {groups.map((group, gi) => (
-              <div key={group.chainId || `s-${gi}`}>
+          <div className="space-y-2.5">
+            {filteredGroups.map((group, gi) => (
+              <div key={group.chainId || `s-${gi}`} className="animate-in fade-in slide-in-from-bottom-1 duration-300" style={{ animationDelay: `${gi * 30}ms` }}>
                 {group.sessions.length > 1 ? (
                   <ChainGroup group={group} onOpen={openSession} />
                 ) : (
@@ -155,82 +184,72 @@ export default function HistoryPage() {
 }
 
 function ChainGroup({ group, onOpen }: { group: SessionGroup; onOpen: (s: Session) => void }) {
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const docTypes = [...new Set(group.sessions.map(s => s.document_type))]
 
   return (
-    <div className="rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)] overflow-hidden transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.04)]">
-      {/* Chain header */}
+    <div
+      className="rounded-2xl border border-border bg-card overflow-hidden"
+      style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 16px -4px rgba(0,0,0,0.08)" }}
+    >
+      {/* Header row */}
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-3 w-full px-5 py-4 text-left hover:bg-secondary/30 transition-colors"
+        className="flex items-center gap-3 w-full px-4 py-3.5 text-left hover:bg-secondary/30 transition-colors active:bg-secondary/50"
       >
-        <div className="p-1.5 rounded-xl bg-primary/8">
-          <Link2 className="w-4 h-4 text-primary" />
+        <div className="w-9 h-9 rounded-xl bg-primary/8 flex items-center justify-center shrink-0">
+          <Link2 className="w-4 h-4 text-primary" strokeWidth={1.5} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[15px] font-semibold tracking-tight truncate">
-            {group.clientName || "Linked Documents"}
-          </p>
-          <div className="flex items-center gap-2 mt-0.5">
+          <p className="text-sm font-semibold truncate">{group.clientName || "Linked Documents"}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
             <span className="text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(group.latestDate), { addSuffix: true })}
             </span>
-            <span className="text-muted-foreground/30">·</span>
-            <div className="flex items-center gap-1">
+            <span className="text-muted-foreground/30 text-xs">·</span>
+            <span className="text-xs text-muted-foreground">{group.sessions.length} docs</span>
+            <div className="flex items-center gap-0.5 ml-0.5">
               {docTypes.map(t => {
-                const cfg = DOC_CONFIG[t] || fallbackDoc
-                return <span key={t} className={cn("w-2 h-2 rounded-full", cfg.dot)} />
+                const cfg = DOC_CONFIG[t] || fallback
+                return <span key={t} className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>{cfg.label}</span>
               })}
             </div>
-            <span className="text-xs text-muted-foreground">{group.sessions.length} docs</span>
           </div>
         </div>
-        <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]", expanded && "rotate-90")} />
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground/50 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] shrink-0", expanded && "rotate-180")} />
       </button>
 
-      {/* Chain items — animated expand/collapse via grid-template-rows */}
+      {/* Expandable items */}
       <div
         className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
         style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
       >
         <div className="overflow-hidden">
-          <div className={cn("px-3 pb-2 transition-opacity duration-200", expanded ? "opacity-100 border-t border-border/40" : "opacity-0")}>
+          <div className={cn("transition-opacity duration-200 border-t border-border/50", expanded ? "opacity-100" : "opacity-0")}>
             {group.sessions.map((session, si) => {
-            const cfg = DOC_CONFIG[session.document_type] || fallbackDoc
-            const Icon = cfg.icon
-            return (
-              <button
-                key={session.id}
-                type="button"
-                onClick={() => onOpen(session)}
-                className="flex items-center gap-3 w-full pl-4 pr-3 py-3 rounded-xl hover:bg-secondary/40 transition-all duration-150 text-left group active:scale-[0.99]"
-              >
-                {/* Timeline */}
-                <div className="flex flex-col items-center w-4 shrink-0 self-stretch">
-                  {si > 0 && <div className="w-px flex-1 bg-border/60" />}
-                  <div className={cn("w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-background", cfg.dot)} />
-                  {si < group.sessions.length - 1 && <div className="w-px flex-1 bg-border/60" />}
-                </div>
-
-                <div className={cn("p-1.5 rounded-lg shrink-0", cfg.bg)}>
-                  <Icon className={cn("w-3.5 h-3.5", cfg.text)} />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate group-hover:text-foreground transition-colors">
-                    {session.context?.toName || session.client_name || "Untitled"}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {cfg.label} · {session.created_at ? format(new Date(session.created_at), "MMM dd, h:mm a") : ""}
-                  </p>
-                </div>
-
-                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
-              </button>
-            )
-          })}
+              const cfg = DOC_CONFIG[session.document_type] || fallback
+              const Icon = cfg.icon
+              return (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => onOpen(session)}
+                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-secondary/30 transition-colors text-left group border-b border-border/30 last:border-0"
+                >
+                  <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0", cfg.bg)}>
+                    <Icon className={cn("w-4 h-4", cfg.color)} strokeWidth={1.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{session.context?.toName || session.client_name || "Untitled"}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {cfg.label} · {session.created_at ? format(new Date(session.created_at), "MMM dd, h:mm a") : ""}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" />
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -239,7 +258,7 @@ function ChainGroup({ group, onOpen }: { group: SessionGroup; onOpen: (s: Sessio
 }
 
 function SingleCard({ session, clientName, onOpen }: { session: Session; clientName: string | null; onOpen: (s: Session) => void }) {
-  const cfg = DOC_CONFIG[session.document_type] || fallbackDoc
+  const cfg = DOC_CONFIG[session.document_type] || fallback
   const Icon = cfg.icon
   const title = clientName || session.context?.toName || "Untitled"
   const date = session.updated_at || session.created_at
@@ -248,30 +267,26 @@ function SingleCard({ session, clientName, onOpen }: { session: Session; clientN
     <button
       type="button"
       onClick={() => onOpen(session)}
-      className="flex items-center gap-4 w-full px-5 py-4 rounded-2xl border border-border/60 bg-card text-left shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.04)] hover:-translate-y-px transition-all duration-200 group active:scale-[0.995]"
+      className="flex items-center gap-3.5 w-full px-4 py-3.5 rounded-2xl border border-border bg-card text-left group active:scale-[0.99] transition-all duration-150 hover:bg-secondary/20"
+      style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 12px -4px rgba(0,0,0,0.07)" }}
     >
-      <div className={cn("p-2.5 rounded-xl shrink-0", cfg.bg)}>
-        <Icon className={cn("w-5 h-5", cfg.text)} />
+      <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center shrink-0", cfg.bg)}
+        style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}
+      >
+        <Icon className={cn("w-5 h-5", cfg.color)} strokeWidth={1.5} />
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-[15px] font-semibold tracking-tight truncate group-hover:text-foreground transition-colors">
-          {title}
-        </p>
+        <p className="text-sm font-semibold truncate">{title}</p>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className={cn("text-[11px] font-medium capitalize", cfg.text)}>{cfg.label}</span>
-          <span className="text-muted-foreground/30">·</span>
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            {date ? format(new Date(date), "MMM dd, yyyy") : "N/A"}
+          <span className={cn("text-[11px] font-semibold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>{cfg.label}</span>
+          <span className="text-xs text-muted-foreground">
+            {date ? formatDistanceToNow(new Date(date), { addSuffix: true }) : ""}
           </span>
         </div>
-        {session.context?.fromName && (
-          <p className="text-[11px] text-muted-foreground/70 mt-1 truncate">From: {session.context.fromName}</p>
-        )}
       </div>
 
-      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
+      <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
     </button>
   )
 }
