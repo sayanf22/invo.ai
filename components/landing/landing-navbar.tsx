@@ -196,16 +196,24 @@ export function LandingNavbar() {
             {/* Mobile Navbar */}
             <nav className="md:hidden fixed top-4 left-4 right-4 z-50">
                 {/* Top bar — always visible */}
-                <motion.div
-                    animate={mobileOpen
-                        ? { background: "rgba(251,247,240,0.96)", borderColor: "rgba(214,211,209,0.4)" }
-                        : scrolled
-                            ? { background: "rgba(251,247,240,0.88)", borderColor: "rgba(214,211,209,0.3)" }
-                            : { background: "rgba(251,247,240,0)", borderColor: "rgba(214,211,209,0)" }
-                    }
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="flex items-center justify-between px-4 py-3 rounded-2xl border shadow-sm"
-                    style={{ backdropFilter: "blur(28px) saturate(1.8)", WebkitBackdropFilter: "blur(28px) saturate(1.8)" }}
+                <div
+                    className={`flex items-center justify-between px-4 py-3 rounded-2xl border transition-all duration-300 ${
+                        mobileOpen
+                            ? "border-stone-200/50 shadow-lg"
+                            : scrolled
+                                ? "border-stone-200/40 shadow-md"
+                                : "border-transparent shadow-none"
+                    }`}
+                    style={{
+                        background: mobileOpen
+                            ? "rgba(251,247,240,0.95)"
+                            : scrolled
+                                ? "rgba(251,247,240,0.82)"
+                                : "rgba(251,247,240,0.15)",
+                        backdropFilter: "blur(28px) saturate(1.8)",
+                        WebkitBackdropFilter: "blur(28px) saturate(1.8)",
+                        transition: "background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease",
+                    }}
                 >
                     <Link href="/" className="flex items-center">
                         <ClorefyLogo size={42} />
@@ -216,13 +224,13 @@ export function LandingNavbar() {
                         whileTap={{ scale: 0.9 }}
                     >
                         <motion.div
-                            animate={{ rotate: mobileOpen ? 90 : 0, opacity: 1 }}
+                            animate={{ rotate: mobileOpen ? 90 : 0 }}
                             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                         >
                             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
                         </motion.div>
                     </motion.button>
-                </motion.div>
+                </div>
 
                 {/* Dropdown panel */}
                 <AnimatePresence>
