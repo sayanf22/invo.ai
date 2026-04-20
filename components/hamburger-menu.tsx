@@ -57,8 +57,14 @@ export function HamburgerMenu() {
     const avatarUrl = user?.user_metadata?.avatar_url || ""
 
     useEffect(() => {
-        document.body.style.overflow = isOpen ? "hidden" : ""
-        return () => { document.body.style.overflow = "" }
+        // Don't lock body scroll — scrollbars are hidden globally so no layout shift occurs
+        // Just prevent touch scroll on mobile when menu is open
+        if (isOpen) {
+            document.body.style.touchAction = "none"
+        } else {
+            document.body.style.touchAction = ""
+        }
+        return () => { document.body.style.touchAction = "" }
     }, [isOpen])
 
     return (
