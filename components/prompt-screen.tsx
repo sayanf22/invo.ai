@@ -51,9 +51,11 @@ export function PromptScreen({
 
   const handleLinkedSessionCreate = useCallback((sessionId: string, docType: string) => {
     const capitalized = docType.charAt(0).toUpperCase() + docType.slice(1)
-    setData({ ...getInitialInvoiceData(), documentType: capitalized })
+    // Preserve current design when creating a linked document
+    const currentDesign = data.design
+    setData(prev => ({ ...getInitialInvoiceData(), documentType: capitalized, design: currentDesign || prev.design }))
     setSelectedSessionId(sessionId)
-  }, [])
+  }, [data.design])
 
   // Translate offset: 0% = chat, -100% = edit, -200% = preview
   const slideOffset = TAB_INDEX[mobileTab] * -100

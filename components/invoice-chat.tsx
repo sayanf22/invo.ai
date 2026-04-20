@@ -194,6 +194,26 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" })
     }, [messages])
 
+    // Save design changes to session context (debounced 800ms)
+    // This ensures design persists and propagates to linked sessions
+    const designSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    useEffect(() => {
+        if (!session || !data.design) return
+        // Only save if session already has content (don't save on initial empty state)
+        const sessionCtx = session.context as any
+        if (!sessionCtx || Object.keys(sessionCtx).length === 0) return
+
+        if (designSaveTimerRef.current) clearTimeout(designSaveTimerRef.current)
+        designSaveTimerRef.current = setTimeout(async () => {
+            try {
+                await updateSessionContext({ ...data, design: data.design })
+            } catch { /* non-fatal */ }
+        }, 800)
+        return () => {
+            if (designSaveTimerRef.current) clearTimeout(designSaveTimerRef.current)
+        }
+    }, [data.design]) // eslint-disable-line react-hooks/exhaustive-deps
+
     // Core send function — ALWAYS uses DeepSeek (via /api/ai/stream)
     // This is called for ALL text-only messages AND as step 2 after file extraction
     // GPT is NEVER used here — only DeepSeek for document generation/chat
