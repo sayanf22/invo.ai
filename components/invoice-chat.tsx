@@ -16,6 +16,7 @@ import { UpgradeModal } from "@/components/upgrade-modal"
 import AIThinkingBlock from "@/components/ui/ai-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
 import { createClient } from "@/lib/supabase"
+import { ClientSelector } from "@/components/clients/client-selector"
 
 interface InvoiceChatProps {
     data: InvoiceData
@@ -183,7 +184,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     .from("businesses")
                                     .update({ logo_data_url: json.dataUrl } as any)
                                     .eq("user_id", user.id)
-                                    .catch(() => {}) // non-blocking
+                                    .then(() => {}, () => {}) // non-blocking, ignore errors
                             }
                         }
                     } catch { /* R2 fetch failed — logo will be missing from PDF but not a crash */ }
@@ -692,15 +693,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 onSessionSelect={onChainSessionSelect || (() => {})}
             />
 
-            {/* Message count bar */}
-            {messages.filter(m => m.role === "user").length > 0 && (
-                <div className="hidden md:flex items-center px-5 py-1.5 border-b border-border/40 shrink-0 bg-secondary/20">
-                    <span className="text-xs font-medium text-foreground/50">
-                        {messages.filter(m => m.role === "user").length} message{messages.filter(m => m.role === "user").length !== 1 ? "s" : ""} this session
-                    </span>
-                </div>
-            )}
-
             {/* Messages */}
             <ScrollArea className="flex-1 px-4 py-5 bg-background">
                 <div className="space-y-4 pb-4 max-w-xl mx-auto">
@@ -744,14 +736,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 </div>
             </ScrollArea>
 
-            {/* Input + Next Steps */}
-            <div className="px-4 py-3 border-t border-border/40 shrink-0 bg-card/95 backdrop-blur-sm"
+            {/* Input area */}
+            <div className="border-t border-border/40 shrink-0 bg-card/95 backdrop-blur-sm"
               style={{ boxShadow: "0 -1px 0 0 rgba(0,0,0,0.04), 0 -4px 16px -4px rgba(0,0,0,0.06)" }}
             >
-                <div className="max-w-xl mx-auto">
-                    {/* Next Steps Bar — shows after generation is complete */}
-                    {documentGenerated && !isLoading && !isUploading && session && (
-                        <div className="mb-2.5">
+                {/* Next Steps Bar — compact strip above input, only when doc is generated */}
+                {documentGenerated && !isLoading && !isUploading && session && (
+                    <div className="px-4 pt-2.5 pb-0">
+                        <div className="max-w-xl mx-auto">
                             <NextStepsBar
                                 clientName={data.toName || null}
                                 currentDocType={docType}
@@ -759,8 +751,11 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 onCreateLinked={handleCreateLinked}
                             />
                         </div>
-                    )}
+                    </div>
+                )}
 
+                <div className="px-4 py-3">
+                <div className="max-w-xl mx-auto">
                     {messageLimitReached && limitInfo ? (
                         <MessageLimitBanner
                             currentMessages={limitInfo.currentMessages}
@@ -795,29 +790,45 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             </a>
                         </div>
                     ) : (
-                        <AIInputWithLoading
-                            value={inputValue}
-                            onValueChange={setInputValue}
-                            isLoading={isLoading}
-                            isUploading={isUploading}
-                            onSubmit={(val) => {
-                                if (stagedFile) {
-                                    handleFileUpload(stagedFile, val.trim() || undefined)
-                                    setStagedFile(null)
-                                    setInputValue("")
-                                } else {
-                                    sendMessage(val)
-                                }
-                            }}
-                            placeholder="Ask a question or describe a document..."
-                            disabled={sessionLoading || !session}
-                            statusText={isSaving ? "Saving..." : undefined}
-                            showAttachButton={true}
-                            stagedFile={stagedFile}
-                            onFileSelect={(file) => setStagedFile(file)}
-                            onFileRemove={() => setStagedFile(null)}
-                        />
+                        <>
+                            <div className="mb-2">
+                                <ClientSelector
+                                    onChange={(fields) =>
+                                        onChange({
+                                            toName: fields.toName,
+                                            toEmail: fields.toEmail,
+                                            toAddress: fields.toAddress,
+                                            toPhone: fields.toPhone,
+                                            toTaxId: fields.toTaxId,
+                                        })
+                                    }
+                                />
+                            </div>
+                            <AIInputWithLoading
+                                value={inputValue}
+                                onValueChange={setInputValue}
+                                isLoading={isLoading}
+                                isUploading={isUploading}
+                                onSubmit={(val) => {
+                                    if (stagedFile) {
+                                        handleFileUpload(stagedFile, val.trim() || undefined)
+                                        setStagedFile(null)
+                                        setInputValue("")
+                                    } else {
+                                        sendMessage(val)
+                                    }
+                                }}
+                                placeholder="Ask a question or describe a document..."
+                                disabled={sessionLoading || !session}
+                                statusText={isSaving ? "Saving..." : undefined}
+                                showAttachButton={true}
+                                stagedFile={stagedFile}
+                                onFileSelect={(file) => setStagedFile(file)}
+                                onFileRemove={() => setStagedFile(null)}
+                            />
+                        </>
                     )}
+                </div>
                 </div>
             </div>
 

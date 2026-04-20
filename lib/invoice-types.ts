@@ -1,3 +1,40 @@
+import { z } from "zod"
+
+// ─── Client Management ────────────────────────────────────────────────────────
+
+export interface Client {
+  id: string
+  user_id: string
+  name: string
+  email: string | null
+  phone: string | null
+  address: string | null
+  tax_id: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ClientInput {
+  name: string
+  email?: string
+  phone?: string
+  address?: string
+  tax_id?: string
+  notes?: string
+}
+
+export const clientSchema = z.object({
+  name: z.string().min(1, "Name is required").max(200),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  phone: z.string().max(50).optional(),
+  address: z.string().max(500).optional(),
+  tax_id: z.string().max(100).optional(),
+  notes: z.string().max(2000).optional(),
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface LineItem {
   id: string
   description: string

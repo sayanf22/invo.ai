@@ -6,7 +6,7 @@ import { useAuth } from "@/components/auth-provider"
 import { MenuToggleIcon } from "@/components/ui/menu-toggle-icon"
 import {
     User, Settings, FileText, HelpCircle, Shield, Info, LogOut,
-    Home, FileCheck, History, Bell, CreditCard, Lock, Mail, BookOpen, ChevronRight,
+    Home, FileCheck, History, Bell, CreditCard, Lock, Mail, BookOpen, ChevronRight, Users,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
@@ -140,6 +140,7 @@ export function HamburgerMenu() {
                         <MenuItem icon={Home} label="Home" onClick={() => navigate("/")} />
                         {user && <>
                             <MenuItem icon={FileText} label="My Documents" onClick={() => navigate("/documents")} divider />
+                            <MenuItem icon={Users} label="Clients" onClick={() => navigate("/clients")} divider />
                             <MenuItem icon={History} label="History" onClick={() => navigate("/history")} divider />
                         </>}
                     </MenuSection>

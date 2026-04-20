@@ -14,7 +14,6 @@ export async function GET(request: Request) {
     try {
         const userId = auth.user.id
         const now = new Date()
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
         // Run subscription expiry check first
         await (auth.supabase.rpc as any)("check_subscription_expiry", { p_user_id: userId })
@@ -29,14 +28,9 @@ export async function GET(request: Request) {
         const plan = ((sub as any)?.plan || "free") as PlanId
         const planConfig = PLANS[plan]
 
-        // Count document sessions this month
-        const { count: docsUsed } = await auth.supabase
-            .from("document_sessions")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", userId)
-            .gte("created_at", monthStart)
-
-        // Get AI request count from user_usage
+        // Get usage from user_usage table — documents_count is a cumulative counter
+        // that only increments (never decrements on delete), ensuring the limit is
+        // not gamed by deleting and re-creating documents.
         const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
         const { data: usage } = await auth.supabase
             .from("user_usage" as any)
@@ -45,7 +39,8 @@ export async function GET(request: Request) {
             .eq("month", monthKey)
             .single()
 
-        const documentsUsed = docsUsed || 0
+        // Use the immutable cumulative counter — deleting sessions does NOT reduce this
+        const documentsUsed = (usage as any)?.documents_count || 0
         const documentsLimit = planConfig.documentsPerMonth
         const aiRequests = (usage as any)?.ai_requests_count || 0
 

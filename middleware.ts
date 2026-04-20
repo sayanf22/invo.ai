@@ -44,6 +44,8 @@ function getClientIP(request: NextRequest): string {
 }
 
 // ── Public routes that don't require auth ──────────────────────────────
+// /clients is intentionally NOT listed here — it is protected by default.
+// Only paths listed in PUBLIC_PATHS bypass authentication.
 const PUBLIC_PATHS = [
   "/auth",
   "/pricing",
