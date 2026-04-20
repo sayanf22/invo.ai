@@ -185,8 +185,11 @@ export function PromptScreen({
         </div>
 
         {/* ── DESKTOP: chat+editor left panel ── */}
-        <div className="hidden md:flex w-[420px] lg:w-[460px] border-r border-border/60 bg-card shrink-0 flex-col overflow-hidden"
-          style={{ boxShadow: "2px 0 20px -4px rgba(0,0,0,0.08)" }}
+        <div className="hidden md:flex w-[420px] lg:w-[460px] bg-card shrink-0 flex-col relative z-10"
+          style={{
+            borderRight: "1px solid hsl(var(--border) / 0.6)",
+            boxShadow: "2px 0 20px -4px rgba(0,0,0,0.1)",
+          }}
         >
           <div className="flex flex-col flex-1 relative overflow-hidden">
             {/* Chat */}

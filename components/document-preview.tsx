@@ -364,7 +364,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
   return (
     <div className="flex flex-col h-full w-full">
       {/* Toolbar */}
-      <div className="relative z-30 flex items-center justify-between px-2 sm:px-4 py-2.5 border-b border-border bg-card shrink-0 gap-1.5 sm:gap-2 h-[48px]"
+      <div className="relative z-10 flex items-center justify-between px-2 sm:px-4 py-2.5 border-b border-border bg-card shrink-0 gap-1.5 sm:gap-2 h-[48px]"
         style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.06), 0 4px 12px -2px rgba(0,0,0,0.08)" }}
       >
         {/* Left: Design + Editor toggle */}
