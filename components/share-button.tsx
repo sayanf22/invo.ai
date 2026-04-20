@@ -149,8 +149,8 @@ export function ShareButton({ data, className }: ShareButtonProps) {
         <button
           type="button"
           disabled={isSharing}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm transition-all duration-200 disabled:opacity-50 ${className || ""}`}
-          style={{ WebkitTapHighlightColor: "transparent" }}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm transition-colors disabled:opacity-50 outline-none focus-visible:ring-0 ${className || ""}`}
+          style={{ WebkitTapHighlightColor: "transparent", minWidth: "max-content" }}
         >
           {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
           <span className="sr-only sm:not-sr-only">Share</span>
