@@ -106,7 +106,7 @@ export function ChainNavigator({ currentSessionId, onSessionSelect }: ChainNavig
         <div className="animate-in fade-in slide-in-from-top-2 duration-300 px-4 py-2.5 border-b border-border bg-card shrink-0"
             style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.04), 0 2px 8px -2px rgba(0,0,0,0.06)" }}
         >
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}>
                 <Link2 className="w-4 h-4 text-muted-foreground/50 shrink-0" />
                 {clientName && (
                     <span className="text-[12px] font-semibold text-foreground/70 shrink-0 mr-0.5">

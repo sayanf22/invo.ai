@@ -742,7 +742,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             >
                 {/* Unified toolbar: New Doc + Select Client in one row, collapsible panel below */}
                 {documentGenerated && !isLoading && !isUploading && session && (
-                    <div className="px-4 pt-2 pb-0">
+                    <div className="px-4 pt-2.5 pb-0">
                         <div className="max-w-xl mx-auto">
                             <NextStepsBar
                                 clientName={data.toName || null}
@@ -767,7 +767,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     </div>
                 )}
 
-                <div className="px-4 py-3">
+                {/* Main input wrapper — pb-safe for iOS home indicator */}
+                <div className="px-4 pt-2.5 pb-3" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom, 12px))" }}>
                 <div className="max-w-xl mx-auto">
                     {messageLimitReached && limitInfo ? (
                         <MessageLimitBanner
@@ -806,7 +807,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         /* When doc not yet generated, show Select Client above input */
                         !documentGenerated ? (
                             <>
-                                <div className="flex items-center gap-2 mb-1.5">
+                                <div className="flex items-center gap-2 mb-2">
                                     <ClientSelector
                                         onChange={(fields) =>
                                             onChange({
