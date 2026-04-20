@@ -221,7 +221,7 @@ function getItemDiscountTotal(data: InvoiceData): number {
 // ─── Logo helper for PDF headers ───
 function PdfLogo({ url, show, shape, size: sizeProp }: { url?: string | null; show?: boolean; shape?: "rounded" | "circle"; size?: number }) {
     if (!url || show === false) return null
-    const size = Math.max(40, Math.min(120, sizeProp ?? 80))
+    const size = Math.max(24, Math.min(96, sizeProp ?? 44))
     const isCircle = shape === "circle"
     const radius = isCircle ? size / 2 : 8
     return (
@@ -238,7 +238,7 @@ function PdfLogo({ url, show, shape, size: sizeProp }: { url?: string | null; sh
         }}>
             <Image
                 src={url}
-                style={{ width: size, height: size, objectFit: "contain" as any }}
+                style={{ width: size, height: size, objectFit: "cover" as any }}
             />
         </View>
     )
