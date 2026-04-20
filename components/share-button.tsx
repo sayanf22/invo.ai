@@ -144,7 +144,7 @@ export function ShareButton({ data, className }: ShareButtonProps) {
   if (!hasContent) return null
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"

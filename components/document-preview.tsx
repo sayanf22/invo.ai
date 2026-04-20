@@ -176,9 +176,6 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
   const baseWidth = containerWidth > 0 ? Math.min(containerWidth - 48, 800) : 600
   const pageWidth = Math.round(baseWidth * (zoom / 100))
 
-  // Use module-level constant for options — avoids react-pdf "options changed" warning
-  const pdfOptions = PDF_OPTIONS
-
   const fileData = useMemo(() => {
     if (!pdfBytes) return null
     // Always pass a fresh copy — react-pdf transfers the buffer to its Worker,
@@ -218,7 +215,7 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
             file={fileData}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
-            options={pdfOptions}
+            options={PDF_OPTIONS}
             loading={
               <div className="flex items-center gap-2.5 py-12">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
