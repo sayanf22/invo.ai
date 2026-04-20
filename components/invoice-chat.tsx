@@ -694,21 +694,21 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             />
 
             {/* Messages */}
-            <ScrollArea className="flex-1 px-4 py-5 bg-background">
-                <div className="space-y-4 pb-4 max-w-xl mx-auto">
+            <ScrollArea className="flex-1 bg-background">
+                <div className="px-4 py-5 space-y-4 pb-4 max-w-xl mx-auto">
                     {messages.map((msg, idx) => (
                         <div key={`${session?.id}-${idx}`} className={cn(
                             "flex w-full animate-in fade-in slide-in-from-bottom-1 duration-300",
                             msg.role === "user" ? "justify-end" : "justify-start"
                         )}>
                             {msg.role === "user" ? (
-                                <div className="max-w-[78%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300"
+                                <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300 break-words"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)" }}
                                 >
                                     <div className="whitespace-pre-wrap">{msg.content}</div>
                                 </div>
                             ) : (
-                                <div className="max-w-[88%] px-4 py-3 rounded-2xl rounded-bl-sm bg-card border border-border/50 text-sm leading-relaxed text-foreground animate-in fade-in slide-in-from-bottom-2 duration-400"
+                                <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-sm bg-card border border-border/50 text-sm leading-relaxed text-foreground animate-in fade-in slide-in-from-bottom-2 duration-400 break-words"
                                     style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
                                 >
                                     <MarkdownMessage content={msg.content} />
@@ -719,7 +719,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     {/* Live streaming bubble */}
                     {streamingContent && (
                         <div className="flex justify-start w-full animate-in fade-in duration-200">
-                            <div className="max-w-[88%] px-4 py-3 rounded-2xl rounded-bl-sm bg-card border border-border/50 text-sm leading-relaxed text-foreground"
+                            <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-sm bg-card border border-border/50 text-sm leading-relaxed text-foreground break-words"
                                 style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
                             >
                                 <MarkdownMessage content={streamingContent} />
