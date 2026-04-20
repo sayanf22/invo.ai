@@ -173,7 +173,15 @@ export function LandingNavbar() {
     return (
         <>
             {/* Desktop Navbar */}
-            <nav className={`hidden md:flex fixed top-6 left-1/2 -translate-x-1/2 z-[100] items-center gap-0.5 lg:gap-1 px-2 py-2 rounded-full transition-all duration-500 ${scrolled ? 'glass-nav shadow-lg shadow-black/5 border border-stone-200/30' : 'bg-transparent'}`}>
+            <nav
+                className={`hidden md:flex fixed top-6 left-1/2 -translate-x-1/2 z-[100] items-center gap-0.5 lg:gap-1 px-2 py-2 rounded-full transition-all duration-500 border ${scrolled ? 'border-stone-200/30 shadow-lg shadow-black/5' : 'border-transparent'}`}
+                style={{
+                    background: scrolled ? "rgba(251,247,240,0.65)" : "rgba(251,247,240,0.08)",
+                    backdropFilter: "blur(40px) saturate(2) brightness(1.05)",
+                    WebkitBackdropFilter: "blur(40px) saturate(2) brightness(1.05)",
+                    transition: "background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease",
+                }}
+            >
                 {/* Logo */}
                 <Link href="/" className="flex items-center px-2 lg:px-3 mr-1 lg:mr-2">
                     <ClorefyLogo size={42} />
@@ -206,12 +214,12 @@ export function LandingNavbar() {
                     }`}
                     style={{
                         background: mobileOpen
-                            ? "rgba(251,247,240,0.95)"
+                            ? "rgba(251,247,240,0.92)"
                             : scrolled
-                                ? "rgba(251,247,240,0.82)"
-                                : "rgba(251,247,240,0.15)",
-                        backdropFilter: "blur(28px) saturate(1.8)",
-                        WebkitBackdropFilter: "blur(28px) saturate(1.8)",
+                                ? "rgba(251,247,240,0.65)"
+                                : "rgba(251,247,240,0.12)",
+                        backdropFilter: "blur(40px) saturate(2) brightness(1.05)",
+                        WebkitBackdropFilter: "blur(40px) saturate(2) brightness(1.05)",
                         transition: "background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease",
                     }}
                 >
@@ -242,9 +250,9 @@ export function LandingNavbar() {
                             className="mt-2 rounded-2xl border border-stone-200/40 shadow-2xl overflow-hidden"
                             style={{
                                 transformOrigin: "top center",
-                                background: "rgba(251, 247, 240, 0.97)",
-                                backdropFilter: "blur(40px) saturate(2.2)",
-                                WebkitBackdropFilter: "blur(40px) saturate(2.2)",
+                                background: "rgba(251, 247, 240, 0.88)",
+                                backdropFilter: "blur(40px) saturate(2) brightness(1.05)",
+                                WebkitBackdropFilter: "blur(40px) saturate(2) brightness(1.05)",
                             }}
                         >
                             <div className="p-3 space-y-0.5">
