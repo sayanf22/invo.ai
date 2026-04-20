@@ -90,46 +90,46 @@ export function HamburgerMenu() {
             {/* Panel */}
             <div
                 className={cn(
-                    "fixed top-0 right-0 h-full w-[320px] max-w-[calc(100vw-24px)] z-50 flex flex-col",
+                    "fixed top-0 right-0 h-full w-[380px] max-w-[calc(100vw-16px)] z-50 flex flex-col",
                     "transition-transform ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform",
                     visibleOpen ? "translate-x-0" : "translate-x-full",
                     !isOpen && !visibleOpen && "invisible"
                 )}
                 style={{
                     transitionDuration: "350ms",
-                    background: "#f8f7f5",
-                    borderRadius: "24px 0 0 24px",
-                    boxShadow: "-20px 0 60px -10px rgba(0,0,0,0.25), -4px 0 16px -4px rgba(0,0,0,0.1)",
+                    background: "hsl(36 33% 97%)",
+                    borderRadius: "20px 0 0 20px",
+                    boxShadow: "-20px 0 60px -10px rgba(0,0,0,0.2), -4px 0 16px -4px rgba(0,0,0,0.08)",
                 }}
             >
                 {/* User header */}
                 {user ? (
                     <div className="px-5 pt-14 pb-5 shrink-0"
                         style={{
-                            background: "linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)",
-                            borderRadius: "24px 0 0 0",
+                            background: "linear-gradient(135deg, hsl(18 60% 44%) 0%, hsl(24 70% 38%) 100%)",
+                            borderRadius: "20px 0 0 0",
                         }}
                     >
                         <div className="flex items-center gap-3.5">
                             {avatarUrl ? (
                                 <Image src={avatarUrl} alt={fullName || email} width={48} height={48}
-                                    className="w-12 h-12 rounded-2xl object-cover ring-2 ring-white/20"
+                                    className="w-12 h-12 rounded-2xl object-cover ring-2 ring-white/30"
                                 />
                             ) : (
-                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center ring-2 ring-white/20"
-                                    style={{ background: "linear-gradient(135deg, #f97316, #ea580c)" }}
+                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center ring-2 ring-white/30"
+                                    style={{ background: "rgba(255,255,255,0.2)" }}
                                 >
-                                    <span className="text-sm font-bold text-white">{initials}</span>
+                                    <span className="text-base font-bold text-white">{initials}</span>
                                 </div>
                             )}
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-bold text-white truncate">{fullName || "User"}</p>
-                                <p className="text-xs text-white/60 truncate mt-0.5">{email}</p>
+                                <p className="text-xs text-white/70 truncate mt-0.5">{email}</p>
                             </div>
                         </div>
                     </div>
                 ) : (
-                    <div className="h-16 shrink-0" style={{ borderRadius: "24px 0 0 0", background: "linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)" }} />
+                    <div className="h-16 shrink-0" style={{ borderRadius: "20px 0 0 0", background: "linear-gradient(135deg, hsl(18 60% 44%) 0%, hsl(24 70% 38%) 100%)" }} />
                 )}
 
                 {/* Scrollable content */}
@@ -176,7 +176,7 @@ export function HamburgerMenu() {
                     {!user && !isLoading && (
                         <button onClick={() => navigate("/auth/login")}
                             className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white transition-all active:scale-[0.98]"
-                            style={{ background: "linear-gradient(135deg, #1a1a1a, #2d2d2d)", boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}
+                            style={{ background: "linear-gradient(135deg, hsl(18 60% 44%), hsl(24 70% 38%))", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
                         >
                             Sign In
                         </button>
@@ -196,10 +196,10 @@ function MenuSection({ label, children }: { label?: string; children: React.Reac
     return (
         <div>
             {label && (
-                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest px-1 mb-1.5">{label}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest px-1 mb-1.5" style={{ color: "hsl(18 60% 48% / 0.7)" }}>{label}</p>
             )}
             <div className="rounded-2xl overflow-hidden bg-white"
-                style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px -4px rgba(0,0,0,0.1)" }}
+                style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 16px -4px rgba(0,0,0,0.08)", border: "1px solid rgba(0,0,0,0.04)" }}
             >
                 {children}
             </div>
