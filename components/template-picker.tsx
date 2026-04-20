@@ -1,5 +1,5 @@
 "use client"
-import { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { Palette, ChevronDown, Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -57,13 +57,20 @@ function MiniPreview({ tpl, active }: { tpl: typeof TEMPLATES[number]; active: b
       <rect width="80" height="100" fill={tpl.bg} rx="3" />
       {isReceipt ? (
         <>
+          {/* Orange accent bar at top */}
           <rect x="0" y="0" width="80" height="4" fill={c} rx="1.5" />
+          {/* "Receipt" title */}
           <rect x="8" y="12" width="28" height="5" fill="#1a1a1a" rx="1" />
+          {/* Meta lines */}
           <rect x="8" y="21" width="22" height="1.5" fill="#d1d5db" rx="0.5" />
           <rect x="8" y="25" width="18" height="1.5" fill="#d1d5db" rx="0.5" />
+          {/* Divider */}
           <line x1="8" y1="32" x2="72" y2="32" stroke="#e5e5e5" strokeWidth="0.5" />
+          {/* Total callout */}
           <rect x="8" y="36" width="40" height="4" fill="#1a1a1a" rx="1" />
+          {/* Divider */}
           <line x1="8" y1="44" x2="72" y2="44" stroke="#e5e5e5" strokeWidth="0.5" />
+          {/* Table rows */}
           {[48, 55, 62].map(y => (
             <g key={y}>
               <rect x="8" y={y} width="32" height="2" fill="#cbd5e1" rx="0.5" opacity="0.6" />
@@ -71,6 +78,7 @@ function MiniPreview({ tpl, active }: { tpl: typeof TEMPLATES[number]; active: b
               <rect x="64" y={y} width="8" height="2" fill="#cbd5e1" rx="0.5" opacity="0.5" />
             </g>
           ))}
+          {/* Summary box */}
           <rect x="42" y="70" width="30" height="2" fill="#e5e5e5" rx="0.5" />
           <rect x="42" y="75" width="30" height="2" fill="#e5e5e5" rx="0.5" />
           <rect x="42" y="80" width="30" height="3" fill={c} rx="0.5" opacity="0.7" />
@@ -108,7 +116,6 @@ function MiniPreview({ tpl, active }: { tpl: typeof TEMPLATES[number]; active: b
     </svg>
   )
 }
-
 export function TemplatePicker({ data, onChange }: TemplatePickerProps) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<Tab>("templates")
@@ -158,7 +165,6 @@ export function TemplatePicker({ data, onChange }: TemplatePickerProps) {
       },
     })
   }
-
   return (
     <div className="relative" ref={ref}>
       <button
@@ -199,7 +205,6 @@ export function TemplatePicker({ data, onChange }: TemplatePickerProps) {
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-
           <div className="p-3 max-h-[420px] overflow-y-auto">
             {tab === "templates" && (
               <div className="grid grid-cols-3 gap-2.5">
@@ -231,7 +236,6 @@ export function TemplatePicker({ data, onChange }: TemplatePickerProps) {
                 ))}
               </div>
             )}
-
             {tab === "colors" && (
               <div>
                 <p className="text-[10px] text-muted-foreground mb-2.5 font-medium">Accent color</p>
@@ -263,7 +267,6 @@ export function TemplatePicker({ data, onChange }: TemplatePickerProps) {
                 </div>
               </div>
             )}
-
             {tab === "fonts" && (
               <div className="space-y-1.5">
                 {FONTS.map(f => (
