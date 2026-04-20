@@ -103,16 +103,41 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
   }
 
-  // Layer 2: Check password against ADMIN_PASSWORD (direct comparison)
+  // Layer 2: Check password against ADMIN_PASSWORD (timing-safe comparison)
   const adminPassword = process.env.ADMIN_PASSWORD
-  if (!adminPassword || password !== adminPassword) {
+  if (!adminPassword) {
+    recordFailure(ip)
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+  }
+  // Use timing-safe comparison to prevent timing attacks
+  const passwordMatch = (() => {
+    try {
+      const a = Buffer.from(password, "utf8")
+      const b = Buffer.from(adminPassword, "utf8")
+      if (a.length !== b.length) return false
+      return require("crypto").timingSafeEqual(a, b)
+    } catch { return false }
+  })()
+  if (!passwordMatch) {
     recordFailure(ip)
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
   }
 
-  // Layer 3: Check PIN against ADMIN_PIN (direct comparison)
+  // Layer 3: Check PIN against ADMIN_PIN (timing-safe comparison)
   const adminPin = process.env.ADMIN_PIN
-  if (!adminPin || pin !== adminPin) {
+  if (!adminPin) {
+    recordFailure(ip)
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+  }
+  const pinMatch = (() => {
+    try {
+      const a = Buffer.from(pin, "utf8")
+      const b = Buffer.from(adminPin, "utf8")
+      if (a.length !== b.length) return false
+      return require("crypto").timingSafeEqual(a, b)
+    } catch { return false }
+  })()
+  if (!pinMatch) {
     recordFailure(ip)
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
   }
