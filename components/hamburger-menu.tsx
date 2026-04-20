@@ -100,12 +100,12 @@ export function HamburgerMenu() {
                     background: "hsl(36 33% 97%)",
                     borderRadius: "20px 0 0 20px",
                     boxShadow: "-16px 0 48px -8px rgba(0,0,0,0.14), -2px 0 8px -2px rgba(0,0,0,0.06)",
-                    borderLeft: "1px solid rgba(0,0,0,0.06)",
+                    borderLeft: "1px solid hsl(36 20% 90%)",
                 }}
             >
                 {/* User header */}
                 {user ? (
-                    <div className="px-6 pt-14 pb-5 shrink-0" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
+                    <div className="px-6 pt-14 pb-5 shrink-0" style={{ borderBottom: "1px solid hsl(36 20% 90%)" }}>
                         <div className="flex items-center gap-3.5">
                             {avatarUrl ? (
                                 <Image src={avatarUrl} alt={fullName || email} width={44} height={44}
@@ -130,7 +130,7 @@ export function HamburgerMenu() {
                 )}
 
                 {/* Scrollable content */}
-                <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5">
+                <div className="flex-1 overflow-y-auto scrollbar-none px-4 py-5 space-y-5">
 
                     <MenuSection label="Navigation">
                         <MenuItem icon={Home} label="Home" onClick={() => navigate("/")} />
@@ -176,7 +176,7 @@ export function HamburgerMenu() {
                 </div>
 
                 {/* Footer */}
-                <div className="shrink-0 py-3 px-6" style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+                <div className="shrink-0 py-3 px-6" style={{ borderTop: "1px solid hsl(36 20% 90%)" }}>
                     <p className="text-[11px] text-center text-muted-foreground/50">Clorefy © 2026 · v1.0.0</p>
                 </div>
             </div>
@@ -193,7 +193,7 @@ function MenuSection({ label, children }: { label?: string; children: React.Reac
             <div className="rounded-2xl overflow-hidden bg-card"
                 style={{
                     boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 12px -4px rgba(0,0,0,0.07)",
-                    border: "1px solid rgba(0,0,0,0.05)",
+                    border: "1px solid hsl(36 20% 90%)",
                 }}
             >
                 {children}
@@ -214,7 +214,7 @@ function MenuItem({ icon: Icon, label, onClick, variant = "default", divider = f
     return (
         <>
             {divider && (
-                <div className="mx-4" style={{ height: "1px", background: "hsl(var(--border) / 0.6)" }} />
+                <div className="mx-4" style={{ height: "1px", background: "hsl(36 20% 90%)" }} />
             )}
             <button
                 type="button"
