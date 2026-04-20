@@ -666,7 +666,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             msg.role === "user" ? "justify-end" : "justify-start"
                         )}>
                             {msg.role === "user" ? (
-                                <div className="max-w-[78%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-stone-800 dark:bg-stone-700 text-white text-sm leading-relaxed">
+                                <div className="max-w-[78%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-stone-800 dark:bg-stone-700 text-white text-sm leading-relaxed shadow-md shadow-stone-900/20">
                                     <div className="whitespace-pre-wrap">{msg.content}</div>
                                 </div>
                             ) : (
