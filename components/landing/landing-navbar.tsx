@@ -195,41 +195,98 @@ export function LandingNavbar() {
 
             {/* Mobile Navbar */}
             <nav className="md:hidden fixed top-4 left-4 right-4 z-50">
-                <div className={`flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 ${scrolled || mobileOpen ? 'glass-nav shadow-lg border border-stone-200/30' : 'bg-transparent'}`}>
+                {/* Top bar — always visible */}
+                <motion.div
+                    animate={mobileOpen
+                        ? { background: "rgba(251,247,240,0.96)", borderColor: "rgba(214,211,209,0.4)" }
+                        : scrolled
+                            ? { background: "rgba(251,247,240,0.88)", borderColor: "rgba(214,211,209,0.3)" }
+                            : { background: "rgba(251,247,240,0)", borderColor: "rgba(214,211,209,0)" }
+                    }
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="flex items-center justify-between px-4 py-3 rounded-2xl border shadow-sm"
+                    style={{ backdropFilter: "blur(28px) saturate(1.8)", WebkitBackdropFilter: "blur(28px) saturate(1.8)" }}
+                >
                     <Link href="/" className="flex items-center">
                         <ClorefyLogo size={42} />
                     </Link>
-                    <button onClick={() => setMobileOpen(!mobileOpen)} className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-stone-100 transition-colors">
-                        {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-                    </button>
-                </div>
+                    <motion.button
+                        onClick={() => setMobileOpen(!mobileOpen)}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-black/5 transition-colors"
+                        whileTap={{ scale: 0.9 }}
+                    >
+                        <motion.div
+                            animate={{ rotate: mobileOpen ? 90 : 0, opacity: 1 }}
+                            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+                        </motion.div>
+                    </motion.button>
+                </motion.div>
 
+                {/* Dropdown panel */}
                 <AnimatePresence>
                     {mobileOpen && (
                         <motion.div
-                            initial={{ opacity: 0, y: -10, height: 0 }}
-                            animate={{ opacity: 1, y: 0, height: "auto" }}
-                            exit={{ opacity: 0, y: -10, height: 0 }}
-                            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                            className="mt-2 p-4 rounded-2xl glass-nav border border-stone-200/30 shadow-xl overflow-hidden"
+                            initial={{ opacity: 0, y: -10, scale: 0.97 }}
+                            animate={{ opacity: 1, y: 0, scale: 1, transition: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
+                            exit={{ opacity: 0, y: -6, transition: { duration: 0.18, ease: [0.4, 0, 1, 1] } }}
+                            className="mt-2 rounded-2xl border border-stone-200/40 shadow-2xl overflow-hidden"
+                            style={{
+                                transformOrigin: "top center",
+                                background: "rgba(251, 247, 240, 0.97)",
+                                backdropFilter: "blur(40px) saturate(2.2)",
+                                WebkitBackdropFilter: "blur(40px) saturate(2.2)",
+                            }}
                         >
-                            <div className="space-y-1">
+                            <div className="p-3 space-y-0.5">
                                 {[
                                     { label: "Features", href: "/features" },
                                     { label: "Pricing", href: "/pricing" },
                                     { label: "Business", href: "/business" },
                                     { label: "Blog", href: "/blog" },
                                     { label: "Resources", href: "/resources" },
-                                ].map((link) => (
-                                    <Link key={link.label} href={link.href} onClick={() => setMobileOpen(false)} className="block px-4 py-3 rounded-xl text-sm font-semibold text-[var(--landing-text-dark)] hover:bg-stone-100 transition-colors">
-                                        {link.label}
-                                    </Link>
+                                ].map((link, i) => (
+                                    <motion.div
+                                        key={link.label}
+                                        initial={{ opacity: 0, y: -6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{
+                                            delay: i * 0.045,
+                                            duration: 0.3,
+                                            ease: [0.16, 1, 0.3, 1],
+                                        }}
+                                    >
+                                        <Link
+                                            href={link.href}
+                                            onClick={() => setMobileOpen(false)}
+                                            className="block px-4 py-3 rounded-xl text-sm font-semibold text-[var(--landing-text-dark)] hover:bg-black/5 active:bg-black/8 transition-colors"
+                                        >
+                                            {link.label}
+                                        </Link>
+                                    </motion.div>
                                 ))}
                             </div>
-                            <div className="pt-4 mt-4 border-t border-stone-200/50 grid grid-cols-2 gap-3">
-                                <Link href="/auth/login" className="px-4 py-3 rounded-xl text-center text-sm font-bold border border-stone-200 hover:bg-stone-50 transition-colors">Log in</Link>
-                                <Link href="/auth/signup" className="px-4 py-3 rounded-xl text-center text-sm font-bold bg-[var(--landing-dark)] text-white hover:scale-105 transition-all">Get Started</Link>
-                            </div>
+
+                            <motion.div
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.22, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                                className="px-3 pb-3 grid grid-cols-2 gap-2 border-t border-stone-200/50 pt-3 mx-3 mb-0"
+                            >
+                                <Link
+                                    href="/auth/login"
+                                    className="px-4 py-3 rounded-xl text-center text-sm font-bold border border-stone-200/80 bg-white/60 hover:bg-white transition-colors"
+                                >
+                                    Log in
+                                </Link>
+                                <Link
+                                    href="/auth/signup"
+                                    className="px-4 py-3 rounded-xl text-center text-sm font-bold bg-[var(--landing-dark)] text-white active:scale-95 transition-transform"
+                                >
+                                    Get Started
+                                </Link>
+                            </motion.div>
                         </motion.div>
                     )}
                 </AnimatePresence>
