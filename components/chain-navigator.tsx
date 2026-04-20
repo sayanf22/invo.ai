@@ -29,20 +29,20 @@ const DOC_ICONS: Record<string, React.ElementType> = {
 
 const DOC_PILL_COLORS: Record<string, { active: string; inactive: string }> = {
     invoice: {
-        active: "bg-blue-100 text-blue-700 border-blue-300 shadow-sm",
-        inactive: "bg-secondary/40 text-muted-foreground border-transparent hover:bg-secondary/70",
+        active: "bg-blue-500 text-white border-blue-500",
+        inactive: "bg-card text-foreground border-border hover:bg-secondary hover:border-border",
     },
     contract: {
-        active: "bg-amber-100 text-amber-700 border-amber-300 shadow-sm",
-        inactive: "bg-secondary/40 text-muted-foreground border-transparent hover:bg-secondary/70",
+        active: "bg-amber-500 text-white border-amber-500",
+        inactive: "bg-card text-foreground border-border hover:bg-secondary hover:border-border",
     },
     quotation: {
-        active: "bg-emerald-100 text-emerald-700 border-emerald-300 shadow-sm",
-        inactive: "bg-secondary/40 text-muted-foreground border-transparent hover:bg-secondary/70",
+        active: "bg-emerald-500 text-white border-emerald-500",
+        inactive: "bg-card text-foreground border-border hover:bg-secondary hover:border-border",
     },
     proposal: {
-        active: "bg-purple-100 text-purple-700 border-purple-300 shadow-sm",
-        inactive: "bg-secondary/40 text-muted-foreground border-transparent hover:bg-secondary/70",
+        active: "bg-purple-500 text-white border-purple-500",
+        inactive: "bg-card text-foreground border-border hover:bg-secondary hover:border-border",
     },
 }
 
@@ -103,11 +103,13 @@ export function ChainNavigator({ currentSessionId, onSessionSelect }: ChainNavig
     if (chain.length < 2) return null
 
     return (
-        <div className="animate-in fade-in slide-in-from-top-2 duration-300 px-4 py-3 border-b border-border/50 bg-card/50 backdrop-blur-sm">
-            <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-none">
-                <Link2 className="w-[18px] h-[18px] text-muted-foreground/60 shrink-0" />
+        <div className="animate-in fade-in slide-in-from-top-2 duration-300 px-4 py-2.5 border-b border-border bg-card shrink-0"
+            style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.04), 0 2px 8px -2px rgba(0,0,0,0.06)" }}
+        >
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+                <Link2 className="w-4 h-4 text-muted-foreground/50 shrink-0" />
                 {clientName && (
-                    <span className="text-[13px] font-medium text-muted-foreground shrink-0 mr-1">
+                    <span className="text-[12px] font-semibold text-foreground/70 shrink-0 mr-0.5">
                         {clientName}
                     </span>
                 )}
@@ -121,25 +123,24 @@ export function ChainNavigator({ currentSessionId, onSessionSelect }: ChainNavig
                     return (
                         <div key={session.id} className="flex items-center gap-1.5 shrink-0">
                             {idx > 0 && (
-                                <ChevronRight className="w-4 h-4 text-muted-foreground/30 shrink-0" />
+                                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
                             )}
                             <button
                                 type="button"
-                                onClick={() => {
-                                    if (!isCurrent) onSessionSelect(session.id)
-                                }}
+                                onClick={() => { if (!isCurrent) onSessionSelect(session.id) }}
                                 disabled={isCurrent}
                                 className={cn(
-                                    "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold border transition-all duration-200",
+                                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-semibold border transition-all duration-200",
                                     isCurrent
-                                        ? cn(colors.active, "cursor-default")
-                                        : cn(colors.inactive, "active:scale-95 cursor-pointer")
+                                        ? cn(colors.active, "cursor-default shadow-md")
+                                        : cn(colors.inactive, "active:scale-95 cursor-pointer shadow-sm")
                                 )}
+                                style={isCurrent ? { boxShadow: "0 2px 8px rgba(0,0,0,0.18)" } : { boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}
                             >
-                                <Icon className="w-4 h-4" />
+                                <Icon className="w-3.5 h-3.5" />
                                 {label}
                                 {isCompleted && (
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                                 )}
                             </button>
                         </div>

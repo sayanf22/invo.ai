@@ -649,8 +649,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
             {/* Message count bar */}
             {messages.filter(m => m.role === "user").length > 0 && (
-                <div className="hidden md:flex items-center px-5 py-1.5 border-b border-border/30 shrink-0">
-                    <span className="text-xs text-muted-foreground/60">
+                <div className="hidden md:flex items-center px-5 py-1.5 border-b border-border/40 shrink-0 bg-secondary/20">
+                    <span className="text-xs font-medium text-foreground/50">
                         {messages.filter(m => m.role === "user").length} message{messages.filter(m => m.role === "user").length !== 1 ? "s" : ""} this session
                     </span>
                 </div>
