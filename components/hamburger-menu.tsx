@@ -69,13 +69,11 @@ export function HamburgerMenu() {
 
     return (
         <div className="relative">
+            {/* Toggle button — NEVER moves, always in its original position */}
             <button
                 type="button"
                 onClick={toggle}
-                className={cn(
-                    "flex items-center justify-center w-10 h-10 rounded-xl hover:bg-secondary/50 transition-colors duration-200 shrink-0",
-                    isOpen && "fixed top-3 right-4 z-[60]"
-                )}
+                className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-secondary/50 transition-colors duration-200 shrink-0"
                 aria-expanded={isOpen}
                 aria-label={isOpen ? "Close menu" : "Open menu"}
             >
@@ -111,7 +109,7 @@ export function HamburgerMenu() {
             >
                 {/* User header */}
                 {user ? (
-                    <div className="px-6 pt-14 pb-5 shrink-0" style={{ borderBottom: "1px solid hsl(36 20% 90%)" }}>
+                    <div className="px-6 pt-6 pb-5 shrink-0" style={{ borderBottom: "1px solid hsl(36 20% 90%)" }}>
                         <div className="flex items-center gap-3.5">
                             {avatarUrl ? (
                                 <Image src={avatarUrl} alt={fullName || email} width={44} height={44}
@@ -132,7 +130,7 @@ export function HamburgerMenu() {
                         </div>
                     </div>
                 ) : (
-                    <div className="h-16 shrink-0" />
+                    <div className="h-4 shrink-0" />
                 )}
 
                 {/* Scrollable content */}

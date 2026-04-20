@@ -647,13 +647,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 onSessionSelect={onChainSessionSelect || (() => {})}
             />
 
-            {/* Message count bar — desktop only, shows session usage */}
+            {/* Message count bar */}
             {messages.filter(m => m.role === "user").length > 0 && (
                 <div className="hidden md:flex items-center px-5 py-1.5 border-b border-border/30 shrink-0">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
-                        <Sparkles className="w-3 h-3" />
-                        <span>{messages.filter(m => m.role === "user").length} message{messages.filter(m => m.role === "user").length !== 1 ? "s" : ""} this session</span>
-                    </div>
+                    <span className="text-xs text-muted-foreground/60">
+                        {messages.filter(m => m.role === "user").length} message{messages.filter(m => m.role === "user").length !== 1 ? "s" : ""} this session
+                    </span>
                 </div>
             )}
 
