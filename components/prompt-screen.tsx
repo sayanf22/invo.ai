@@ -61,7 +61,9 @@ export function PromptScreen({
   return (
     <div className="h-dvh flex flex-col bg-background overflow-hidden">
       {/* ── Header ── */}
-      <header className="flex items-center px-4 py-3 border-b border-border bg-card shadow-sm shrink-0">
+      <header className="flex items-center px-4 py-3 border-b border-border/60 bg-card shrink-0"
+        style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.04), 0 2px 12px -4px rgba(0,0,0,0.08)" }}
+      >
         {/* Left: back */}
         <button
           type="button"
@@ -78,7 +80,7 @@ export function PromptScreen({
         </div>
 
         {/* Mobile tab switcher */}
-        <div className="flex items-center gap-1 md:hidden shrink-0 bg-secondary/60 rounded-2xl p-1">
+        <div className="flex items-center gap-1 md:hidden shrink-0 bg-secondary/50 border border-border/40 rounded-2xl p-1 shadow-sm">
           {(["chat", "edit", "preview"] as MobileTab[]).map((tab) => {
             const icons = { chat: MessageSquare, edit: PenLine, preview: Eye }
             const labels = { chat: "Chat", edit: "Edit", preview: "View" }
@@ -92,7 +94,7 @@ export function PromptScreen({
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 active:scale-95",
                   isActive
-                    ? "bg-background text-foreground shadow-md"
+                    ? "bg-background text-foreground shadow-md shadow-black/8"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -182,7 +184,9 @@ export function PromptScreen({
         </div>
 
         {/* ── DESKTOP: chat+editor left panel ── */}
-        <div className="hidden md:flex w-[420px] lg:w-[460px] border-r border-border bg-card shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)] shrink-0 flex-col overflow-hidden">
+        <div className="hidden md:flex w-[420px] lg:w-[460px] border-r border-border/60 bg-card shrink-0 flex-col overflow-hidden"
+          style={{ boxShadow: "2px 0 20px -4px rgba(0,0,0,0.08)" }}
+        >
           <div className="flex flex-col flex-1 relative overflow-hidden">
             {/* Chat */}
             <div className={cn(

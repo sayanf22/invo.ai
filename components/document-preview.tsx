@@ -359,7 +359,9 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
   return (
     <div className="flex flex-col h-full w-full">
       {/* Toolbar */}
-      <div className="relative z-30 flex items-center justify-between px-2 sm:px-4 py-2.5 border-b bg-card/80 backdrop-blur-sm shadow-sm shrink-0 gap-1.5 sm:gap-2">
+      <div className="relative z-30 flex items-center justify-between px-2 sm:px-4 py-2.5 border-b border-border/60 bg-card backdrop-blur-sm shrink-0 gap-1.5 sm:gap-2"
+        style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.04), 0 2px 8px -2px rgba(0,0,0,0.06)" }}
+      >
         {/* Left: Design + Editor toggle */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           {onChange && <TemplatePicker data={data} onChange={onChange} />}
@@ -370,8 +372,8 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
               className={cn(
                 "hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border transition-all duration-200 active:scale-95",
                 showEditor
-                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                  : "bg-card border-border text-foreground hover:border-primary/40 hover:shadow-sm"
+                  ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20"
+                  : "bg-card border-border/60 text-foreground hover:border-primary/40 hover:shadow-md shadow-sm"
               )}
             >
               <Edit3 className="w-4 h-4" />
@@ -381,7 +383,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
         </div>
 
         {/* Center: Zoom controls + page info — hidden on mobile */}
-        <div className="hidden sm:flex items-center gap-1 bg-secondary/40 rounded-xl px-2 py-1">
+        <div className="hidden sm:flex items-center gap-1 bg-secondary/50 border border-border/40 rounded-xl px-2 py-1 shadow-sm">
           <ToolbarBtn onClick={handleZoomOut} disabled={!canZoomOut} title="Zoom out">
             <ZoomOut className="w-4 h-4" />
           </ToolbarBtn>
@@ -423,7 +425,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
             onClick={handlePrint}
             title="Print document"
             aria-label="Print document"
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm transition-all duration-200 active:scale-95"
+            className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border/60 bg-card text-foreground hover:border-primary/40 hover:shadow-md shadow-sm transition-all duration-200 active:scale-95"
           >
             <Printer className="w-4 h-4" />
             <span className="hidden lg:inline">Print</span>
