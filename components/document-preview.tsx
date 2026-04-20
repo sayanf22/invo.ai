@@ -57,6 +57,9 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
   const mountedRef = useRef(true)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
+  // useRef guarantees the same object identity across ALL renders and HMR updates
+  // This silences react-pdf's "options changed" warning in dev mode
+  const pdfOptionsRef = useRef(PDF_OPTIONS)
 
   // Dynamically load react-pdf to avoid SSR issues
   useEffect(() => {
@@ -183,10 +186,6 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
   const baseWidth = containerWidth > 0 ? Math.min(containerWidth - 48, 800) : 600
   const pageWidth = Math.round(baseWidth * (zoom / 100))
 
-  // Memoize options so react-pdf's Document doesn't see a new object reference on every render
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const pdfOptions = useMemo(() => PDF_OPTIONS, [])
-
   const fileData = useMemo(() => {
     if (!pdfBytes) return null
     // Always pass a fresh copy — react-pdf transfers the buffer to its Worker,
@@ -226,7 +225,7 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
             file={fileData}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
-            options={pdfOptions}
+            options={pdfOptionsRef.current}
             loading={
               <div className="flex items-center gap-2.5 py-12">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
