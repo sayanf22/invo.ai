@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { authenticateRequest } from "@/lib/api-auth"
+import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
 import { verifyPaymentSignature, PLANS, isValidPlanId } from "@/lib/razorpay"
 import { logAudit } from "@/lib/audit-log"
 import type { NextRequest } from "next/server"
@@ -7,12 +7,11 @@ import type { NextRequest } from "next/server"
 /**
  * POST /api/razorpay/verify
  * Verifies payment signature and activates subscription.
- * 
- * Handles both:
- * - Subscription payments (razorpay_subscription_id + razorpay_payment_id)
- * - One-time order payments (razorpay_order_id + razorpay_payment_id) — legacy
  */
 export async function POST(request: NextRequest) {
+    const originError = validateOrigin(request)
+    if (originError) return originError
+
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 

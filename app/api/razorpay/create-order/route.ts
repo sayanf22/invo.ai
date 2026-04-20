@@ -1,17 +1,11 @@
 import { NextResponse } from "next/server"
-import { authenticateRequest } from "@/lib/api-auth"
+import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
 import { createRazorpaySubscription, PLANS, type PlanId } from "@/lib/razorpay"
 
-/**
- * POST /api/razorpay/create-order
- * Creates a Razorpay Subscription for recurring billing.
- * 
- * SECURITY:
- * - Requires authentication
- * - Plan is validated server-side
- * - Subscription is created via Razorpay API (not client-controlled)
- */
 export async function POST(request: Request) {
+    const originError = validateOrigin(request)
+    if (originError) return originError
+
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
