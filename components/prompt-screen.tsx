@@ -117,14 +117,16 @@ export function PromptScreen({
             type="button"
             onClick={() => setShowHistory(!showHistory)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap shrink-0 border",
+              "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors duration-200 whitespace-nowrap shrink-0 border",
               showHistory
                 ? "bg-primary text-primary-foreground border-primary shadow-sm"
                 : "bg-card border-border text-foreground hover:bg-secondary shadow-sm"
             )}
           >
             <HistoryIcon className="w-4 h-4 shrink-0" />
-            <span className="hidden lg:inline text-sm">{showHistory ? "Hide" : "History"}</span>
+            <span key={showHistory ? "hide" : "history"} className="hidden lg:inline text-sm animate-text-swap">
+              {showHistory ? "Hide" : "History"}
+            </span>
           </button>
           {/* Fixed-size wrapper prevents layout shift when button goes fixed */}
           <div className="shrink-0 w-10 h-10 relative">

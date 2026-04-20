@@ -379,7 +379,9 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
               )}
             >
               <Edit3 className="w-4 h-4" />
-              <span className="hidden sm:inline">{showEditor ? "Hide Editor" : "Editor"}</span>
+              <span key={showEditor ? "hide-editor" : "editor"} className="hidden sm:inline animate-text-swap">
+                {showEditor ? "Hide Editor" : "Editor"}
+              </span>
             </button>
           )}
         </div>

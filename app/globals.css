@@ -569,3 +569,13 @@
 .animate-tooltip {
   animation: tooltip-in 0.15s ease-out forwards;
 }
+
+/* Text morph / swap animation */
+@keyframes text-swap-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-text-swap {
+  animation: text-swap-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  display: inline-block;
+}
