@@ -7,8 +7,7 @@
   "vars": {
     "NEXT_PUBLIC_SUPABASE_URL": "https://tdeqauhtobtahncglqwq.supabase.co",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRkZXFhdWh0b2J0YWhuY2dscXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzODgwOTMsImV4cCI6MjA4NTk2NDA5M30.6XYlYCl7YOOaOxw5AciM0LUqzuY9DbX1QH6dMTshmi8",
-    "NEXT_PUBLIC_APP_URL": "https://clorefy.com",
-    "RAZORPAY_KEY_ID": "rzp_live_SbehViG3jhYkwF"
+    "NEXT_PUBLIC_APP_URL": "https://clorefy.com"
   },
   "assets": {
     "directory": ".open-next/assets",
