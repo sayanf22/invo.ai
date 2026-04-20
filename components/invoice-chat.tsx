@@ -649,45 +649,39 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
             {/* Message count bar — desktop only, shows session usage */}
             {messages.filter(m => m.role === "user").length > 0 && (
-                <div className="hidden md:flex items-center justify-between px-5 py-2 border-b border-border/50 bg-muted/30 shrink-0">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Sparkles className="w-3 h-3 text-primary" />
-                        <span>
-                            <span className="font-semibold text-foreground">{messages.filter(m => m.role === "user").length}</span>
-                            {" "}message{messages.filter(m => m.role === "user").length !== 1 ? "s" : ""} this session
-                        </span>
+                <div className="hidden md:flex items-center px-5 py-1.5 border-b border-border/30 shrink-0">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                        <Sparkles className="w-3 h-3" />
+                        <span>{messages.filter(m => m.role === "user").length} message{messages.filter(m => m.role === "user").length !== 1 ? "s" : ""} this session</span>
                     </div>
                 </div>
             )}
 
             {/* Messages */}
-            <ScrollArea className="flex-1 p-5">
-                <div className="space-y-4 pb-4 max-w-2xl mx-auto">
+            <ScrollArea className="flex-1 px-4 py-5">
+                <div className="space-y-5 pb-4 max-w-xl mx-auto">
                     {messages.map((msg, idx) => (
                         <div key={`${session?.id}-${idx}`} className={cn(
-                            "flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300",
+                            "flex w-full animate-in fade-in slide-in-from-bottom-1 duration-300",
                             msg.role === "user" ? "justify-end" : "justify-start"
                         )}>
-                            <div className={cn(
-                                "max-w-[85%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm",
-                                msg.role === "user"
-                                    ? "bg-primary text-primary-foreground rounded-br-md"
-                                    : "bg-muted text-foreground rounded-bl-md"
-                            )}>
-                                {msg.role === "user" ? (
+                            {msg.role === "user" ? (
+                                <div className="max-w-[78%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-stone-800 dark:bg-stone-700 text-white text-sm leading-relaxed">
                                     <div className="whitespace-pre-wrap">{msg.content}</div>
-                                ) : (
+                                </div>
+                            ) : (
+                                <div className="max-w-[88%] text-sm leading-relaxed text-foreground/90">
                                     <MarkdownMessage content={msg.content} />
-                                )}
-                            </div>
+                                </div>
+                            )}
                         </div>
                     ))}
-                    {/* Live streaming bubble — shown while AI is writing a plain-text response */}
+                    {/* Live streaming bubble */}
                     {streamingContent && (
                         <div className="flex justify-start w-full animate-in fade-in duration-200">
-                            <div className="max-w-[85%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-sm bg-muted text-foreground rounded-bl-md">
+                            <div className="max-w-[88%] text-sm leading-relaxed text-foreground/90">
                                 <MarkdownMessage content={streamingContent} />
-                                <span className="inline-block w-0.5 h-4 bg-foreground/60 ml-0.5 animate-pulse align-middle" />
+                                <span className="inline-block w-0.5 h-3.5 bg-foreground/40 ml-0.5 animate-pulse align-middle" />
                             </div>
                         </div>
                     )}
@@ -701,8 +695,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             </ScrollArea>
 
             {/* Input + Next Steps */}
-            <div className="px-4 py-3 border-t border-border shrink-0">
-                <div className="max-w-2xl mx-auto">
+            <div className="px-4 py-3 border-t border-border/40 shrink-0 bg-background/80">
+                <div className="max-w-xl mx-auto">
                     {/* Next Steps Bar — shows after generation is complete */}
                     {documentGenerated && !isLoading && !isUploading && session && (
                         <div className="mb-2.5">
