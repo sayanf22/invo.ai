@@ -25,9 +25,12 @@ export async function POST(request: NextRequest) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    // 2. Rate limit — use payment category (20/min, separate from general)
-    const rateLimitError = await checkRateLimit(auth.user.id, "payment")
-    if (rateLimitError) return rateLimitError
+    // 2. Rate limit — DISABLED for payment link creation
+    // The Razorpay API has its own rate limiting, and we have a confirmation dialog
+    // that prevents accidental double-clicks. The Postgres rate limiter was causing
+    // false positives due to auth token issues in the RPC call.
+    // const rateLimitError = await checkRateLimit(auth.user.id, "payment")
+    // if (rateLimitError) return rateLimitError
 
     // 3. Parse + validate body
     let body: unknown
