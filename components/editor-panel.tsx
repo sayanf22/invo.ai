@@ -23,11 +23,11 @@ import { authFetch } from "@/lib/auth-fetch"
 import {
   CURRENCIES,
   PAYMENT_TERMS,
-  PAYMENT_METHODS,
   TAX_LABELS,
   calculateSubtotal,
   formatCurrency,
 } from "@/lib/invoice-types"
+import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
 const documentTypes = [
   { label: "Invoice", icon: FileText, description: "Bills & payment requests" },
@@ -197,6 +197,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
   const [openStep, setOpenStep] = useState(1)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [isLogoUploading, setIsLogoUploading] = useState(false)
+  const { methods: paymentMethods, connectedGateways } = usePaymentMethods()
 
   // Cached hook — no spinner on repeat visits, instant after upload
   const { url: logoDisplayUrl, loading: logoLoading } = useLogoUrl(data.fromLogo || null)
@@ -914,14 +915,25 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
             onToggle={() => setOpenStep(openStep === 4 ? 0 : 4)}
           >
             <div className="flex flex-col gap-4">
-              {/* Payment method */}
+              {/* Payment method — shows only connected gateways + base methods */}
               <SelectField
                 id="payment-method"
                 label="Payment Method"
                 value={data.paymentMethod}
                 onChange={(v) => onChange({ paymentMethod: v })}
-                options={PAYMENT_METHODS}
+                options={paymentMethods}
               />
+
+              {/* Connected gateways info */}
+              {connectedGateways.length > 0 ? (
+                <p className="text-[10px] text-muted-foreground -mt-2">
+                  Connected: {connectedGateways.map(g => g.charAt(0).toUpperCase() + g.slice(1)).join(", ")}
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground -mt-2">
+                  <a href="/settings?tab=payments" className="text-primary hover:underline">Connect a payment gateway</a> to enable online payments
+                </p>
+              )}
 
               {/* Payment link options — only for invoices */}
               {data.documentType === "Invoice" && (

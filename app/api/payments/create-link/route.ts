@@ -149,13 +149,28 @@ export async function POST(request: NextRequest) {
         console.error("Payment link creation failed:", err)
         const msg = err instanceof Error ? err.message : "Unknown error"
         // Handle duplicate reference_id gracefully
-        if (msg.includes("reference ID already attempted")) {
+        if (msg.includes("reference ID already attempted") || msg.includes("reference_id")) {
             return NextResponse.json(
                 { error: "A payment link with this invoice number already exists. Please use a different invoice number." },
                 { status: 409 }
             )
         }
-        return NextResponse.json({ error: sanitizeError(err) }, { status: 500 })
+        // Handle Razorpay rate limiting
+        if (msg.includes("rate limit") || msg.includes("Rate limit") || msg.includes("Too Many Requests")) {
+            return NextResponse.json(
+                { error: "Razorpay API rate limit reached. Please wait a minute and try again." },
+                { status: 429 }
+            )
+        }
+        // Handle invalid credentials
+        if (msg.includes("Invalid") || msg.includes("Authentication") || msg.includes("401") || msg.includes("Unauthorized")) {
+            return NextResponse.json(
+                { error: "Invalid Razorpay credentials. Please check your API keys in Settings → Payments.", code: "INVALID_CREDENTIALS" },
+                { status: 401 }
+            )
+        }
+        // Pass through Razorpay's actual error message (it's already user-facing)
+        return NextResponse.json({ error: msg || "Failed to create payment link" }, { status: 500 })
     }
 
     // 7. Store in DB
