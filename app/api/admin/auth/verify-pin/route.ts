@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict", // upgraded from lax to strict for admin
     maxAge: 3600,
-    path: "/clorefy-ctrl-8x2m", // scope cookie to admin path only
+    path: "/", // must be "/" so the cookie is sent to both /clorefy-ctrl-8x2m and /api/admin routes
   })
 
   return response
