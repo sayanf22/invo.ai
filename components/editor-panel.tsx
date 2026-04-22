@@ -15,6 +15,7 @@ import {
   ImageIcon,
   X,
   Loader2,
+  CheckCircle2,
 } from "lucide-react"
 import { toast } from "sonner"
 import type { InvoiceData, LineItem } from "@/lib/invoice-types"
@@ -50,6 +51,7 @@ function isR2ObjectKey(value: string): boolean {
 interface EditorPanelProps {
   data: InvoiceData
   onChange: (updates: Partial<InvoiceData>) => void
+  documentStatus?: string
 }
 
 /* ─── Reusable Step accordion ─── */
@@ -114,6 +116,7 @@ function Field({
   placeholder,
   type = "text",
   optional,
+  disabled,
 }: {
   label: string
   id: string
@@ -122,6 +125,7 @@ function Field({
   placeholder?: string
   type?: string
   optional?: boolean
+  disabled?: boolean
 }) {
   return (
     <div>
@@ -142,7 +146,8 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+        disabled={disabled}
+        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
       />
     </div>
   )
@@ -155,12 +160,14 @@ function SelectField({
   value,
   onChange,
   options,
+  disabled,
 }: {
   label: string
   id: string
   value: string
   onChange: (v: string) => void
   options: readonly string[] | { value: string; label: string }[]
+  disabled?: boolean
 }) {
   return (
     <div>
@@ -175,7 +182,8 @@ function SelectField({
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full appearance-none px-3 py-2 pr-9 rounded-xl border border-border bg-background text-sm text-foreground outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all cursor-pointer"
+          disabled={disabled}
+          className="w-full appearance-none px-3 py-2 pr-9 rounded-xl border border-border bg-background text-sm text-foreground outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {options.map((opt) => {
             const val = typeof opt === "string" ? opt : opt.value
@@ -193,7 +201,8 @@ function SelectField({
   )
 }
 
-export function EditorPanel({ data, onChange }: EditorPanelProps) {
+export function EditorPanel({ data, onChange, documentStatus }: EditorPanelProps) {
+  const isPaid = documentStatus === "paid"
   const [openStep, setOpenStep] = useState(1)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [isLogoUploading, setIsLogoUploading] = useState(false)
@@ -318,6 +327,16 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
 
       {/* Steps — scrollable, flex-1 fills remaining height */}
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24 flex flex-col gap-3 min-h-0">
+        {/* Read-only banner when document is paid */}
+        {isPaid && (
+          <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 px-4 py-3 flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Invoice Paid</p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">This document is read-only. Payment has been received.</p>
+            </div>
+          </div>
+        )}
         {/* ═══ Step 1: Document Type, Currency, Branding ═══ */}
         <Step
           number={1}
@@ -334,14 +353,16 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   <button
                     key={type.label}
                     type="button"
+                    disabled={isPaid}
                     onClick={() => {
+                      if (isPaid) return
                       onChange({ documentType: isActive ? null : type.label })
                       if (!isActive) setOpenStep(2)
                     }}
                     className={`flex items-center gap-2.5 px-3 py-3 rounded-xl border text-left transition-all ${isActive
                       ? "border-primary bg-primary/10 shadow-sm"
                       : "border-border bg-background hover:border-primary/30"
-                      }`}
+                      } ${isPaid ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
                     <type.icon
                       className={`w-4 h-4 shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`}
@@ -372,7 +393,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   id="currency"
                   value={data.currency}
                   onChange={(e) => onChange({ currency: e.target.value })}
-                  className="w-full appearance-none px-3 py-2 pr-9 rounded-xl border border-border bg-background text-sm text-foreground outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all cursor-pointer"
+                  disabled={isPaid}
+                  className="w-full appearance-none px-3 py-2 pr-9 rounded-xl border border-border bg-background text-sm text-foreground outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {CURRENCIES.map((c) => (
                     <option key={c.code} value={c.code}>
@@ -419,7 +441,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                     <button
                       type="button"
                       onClick={() => onChange({ fromLogo: "" })}
-                      className="w-6 h-6 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive transition-colors"
+                      disabled={isPaid}
+                      className="w-6 h-6 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       aria-label="Remove logo"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -431,7 +454,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                     <button
                       type="button"
                       onClick={() => onChange({ logoShape: "rounded" })}
-                      className={`w-7 h-7 rounded-md border-2 transition-all ${data.logoShape !== "circle" ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"}`}
+                      disabled={isPaid}
+                      className={`w-7 h-7 rounded-md border-2 transition-all ${data.logoShape !== "circle" ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"} ${isPaid ? "opacity-60 cursor-not-allowed" : ""}`}
                       aria-label="Rounded square logo"
                       title="Rounded square"
                     >
@@ -440,7 +464,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                     <button
                       type="button"
                       onClick={() => onChange({ logoShape: "circle" })}
-                      className={`w-7 h-7 rounded-md border-2 transition-all flex items-center justify-center ${data.logoShape === "circle" ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"}`}
+                      disabled={isPaid}
+                      className={`w-7 h-7 rounded-md border-2 transition-all flex items-center justify-center ${data.logoShape === "circle" ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"} ${isPaid ? "opacity-60 cursor-not-allowed" : ""}`}
                       aria-label="Circle logo"
                       title="Circle"
                     >
@@ -460,7 +485,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                       step={4}
                       value={data.logoSize ?? 44}
                       onChange={(e) => onChange({ logoSize: Number(e.target.value) })}
-                      className="w-full h-1.5 rounded-full appearance-none bg-secondary cursor-pointer accent-primary"
+                      disabled={isPaid}
+                      className="w-full h-1.5 rounded-full appearance-none bg-secondary cursor-pointer accent-primary disabled:opacity-60 disabled:cursor-not-allowed"
                       aria-label="Logo size"
                     />
                     <div className="flex justify-between text-[9px] text-muted-foreground/50">
@@ -474,7 +500,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                       type="checkbox"
                       checked={data.showLogo !== false}
                       onChange={(e) => onChange({ showLogo: e.target.checked })}
-                      className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                      disabled={isPaid}
+                      className="w-4 h-4 rounded border-border text-primary focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                     <span className="text-xs text-muted-foreground">Show logo on document</span>
                   </label>
@@ -488,7 +515,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 <button
                   type="button"
                   onClick={() => logoInputRef.current?.click()}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-border bg-background text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all"
+                  disabled={isPaid}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-border bg-background text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <ImageIcon className="w-4 h-4" />
                   <span>Upload logo</span>
@@ -526,6 +554,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 value={data.fromName}
                 onChange={(v) => onChange({ fromName: v })}
                 placeholder="e.g. Acme Corp"
+                disabled={isPaid}
               />
               <Field
                 id="from-email"
@@ -534,6 +563,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 onChange={(v) => onChange({ fromEmail: v })}
                 placeholder="billing@acme.com"
                 type="email"
+                disabled={isPaid}
               />
               <Field
                 id="from-address"
@@ -541,6 +571,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 value={data.fromAddress}
                 onChange={(v) => onChange({ fromAddress: v })}
                 placeholder="123 Main St, City, Country"
+                disabled={isPaid}
               />
               <div className="grid grid-cols-2 gap-2">
                 <Field
@@ -550,6 +581,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   onChange={(v) => onChange({ fromPhone: v })}
                   placeholder="+1 555 000 0000"
                   optional
+                  disabled={isPaid}
                 />
                 <Field
                   id="from-taxid"
@@ -558,6 +590,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   onChange={(v) => onChange({ fromTaxId: v })}
                   placeholder="e.g. GB123456789"
                   optional
+                  disabled={isPaid}
                 />
               </div>
               <Field
@@ -567,6 +600,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 onChange={(v) => onChange({ fromWebsite: v })}
                 placeholder="https://acme.com"
                 optional
+                disabled={isPaid}
               />
             </div>
 
@@ -583,6 +617,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 value={data.toName}
                 onChange={(v) => onChange({ toName: v })}
                 placeholder="e.g. John Doe"
+                disabled={isPaid}
               />
               <Field
                 id="to-email"
@@ -591,6 +626,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 onChange={(v) => onChange({ toEmail: v })}
                 placeholder="john@example.com"
                 type="email"
+                disabled={isPaid}
               />
               <Field
                 id="to-address"
@@ -598,6 +634,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 value={data.toAddress}
                 onChange={(v) => onChange({ toAddress: v })}
                 placeholder="456 Elm St, City, Country"
+                disabled={isPaid}
               />
               <div className="grid grid-cols-2 gap-2">
                 <Field
@@ -607,6 +644,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   onChange={(v) => onChange({ toPhone: v })}
                   placeholder="+1 555 111 1111"
                   optional
+                  disabled={isPaid}
                 />
                 <Field
                   id="to-taxid"
@@ -615,6 +653,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   onChange={(v) => onChange({ toTaxId: v })}
                   placeholder="e.g. US987654321"
                   optional
+                  disabled={isPaid}
                 />
               </div>
             </div>
@@ -630,6 +669,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   value={data.invoiceNumber}
                   onChange={(v) => onChange({ invoiceNumber: v })}
                   placeholder="INV-0001"
+                  disabled={isPaid}
                 />
               )}
               <Field
@@ -639,6 +679,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 onChange={(v) => onChange({ referenceNumber: v })}
                 placeholder={isInvoice ? "PO-1234" : data.documentType === "Quotation" ? "QUO-0001" : data.documentType === "Proposal" ? "PROP-0001" : "CTR-0001"}
                 optional={isInvoice}
+                disabled={isPaid}
               />
               <Field
                 id="invoice-date"
@@ -646,6 +687,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 value={data.invoiceDate}
                 onChange={(v) => onChange({ invoiceDate: v })}
                 type="date"
+                disabled={isPaid}
               />
               {hasLineItems && (
                 <Field
@@ -654,6 +696,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   value={data.dueDate}
                   onChange={(v) => onChange({ dueDate: v })}
                   type="date"
+                  disabled={isPaid}
                 />
               )}
               {hasLineItems && (
@@ -663,6 +706,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   value={data.paymentTerms}
                   onChange={(v) => onChange({ paymentTerms: v })}
                   options={PAYMENT_TERMS}
+                  disabled={isPaid}
                 />
               )}
             </div>
@@ -699,12 +743,13 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                       value={item.description}
                       onChange={(e) => updateItem(item.id, { description: e.target.value })}
                       placeholder={`Item ${idx + 1} description`}
-                      className="flex-1 px-3 py-2 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                      disabled={isPaid}
+                      className="flex-1 px-3 py-2 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                     <button
                       type="button"
                       onClick={() => removeItem(item.id)}
-                      disabled={data.items.length <= 1}
+                      disabled={data.items.length <= 1 || isPaid}
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
                       aria-label={`Remove item ${idx + 1}`}
                     >
@@ -719,7 +764,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                         min="1"
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, { quantity: Math.max(1, Number(e.target.value) || 1) })}
-                        className="w-full px-2 py-1.5 rounded-lg border border-border bg-card text-sm text-foreground text-center outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                        disabled={isPaid}
+                        className="w-full px-2 py-1.5 rounded-lg border border-border bg-card text-sm text-foreground text-center outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
@@ -731,7 +777,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                         value={item.rate || ""}
                         onChange={(e) => updateItem(item.id, { rate: Number(e.target.value) || 0 })}
                         placeholder="0.00"
-                        className="w-full px-2 py-1.5 rounded-lg border border-border bg-card text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                        disabled={isPaid}
+                        className="w-full px-2 py-1.5 rounded-lg border border-border bg-card text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
@@ -744,7 +791,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                         value={item.discount || ""}
                         onChange={(e) => updateItem(item.id, { discount: Number(e.target.value) || 0 })}
                         placeholder="0"
-                        className="w-full px-2 py-1.5 rounded-lg border border-border bg-card text-sm text-foreground text-center outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                        disabled={isPaid}
+                        className="w-full px-2 py-1.5 rounded-lg border border-border bg-card text-sm text-foreground text-center outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       />
                     </div>
                   </div>
@@ -754,7 +802,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
               <button
                 type="button"
                 onClick={addItem}
-                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline self-start mt-1"
+                disabled={isPaid}
+                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline self-start mt-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Add item
@@ -774,7 +823,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   <select
                     value={data.taxLabel}
                     onChange={(e) => onChange({ taxLabel: e.target.value })}
-                    className="appearance-none px-2 py-1 rounded-lg border border-border bg-background text-xs text-foreground outline-none focus:border-primary/40 transition-all cursor-pointer"
+                    disabled={isPaid}
+                    className="appearance-none px-2 py-1 rounded-lg border border-border bg-background text-xs text-foreground outline-none focus:border-primary/40 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {TAX_LABELS.map((t) => (
                       <option key={t} value={t}>
@@ -794,7 +844,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                     onChange({ taxRate: Number(e.target.value) || 0 })
                   }
                   placeholder="0"
-                  className="w-20 px-2 py-1.5 rounded-xl border border-border bg-background text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                  disabled={isPaid}
+                  className="w-20 px-2 py-1.5 rounded-xl border border-border bg-background text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -809,7 +860,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                         discountType: e.target.value as "percent" | "flat",
                       })
                     }
-                    className="appearance-none px-2 py-1.5 rounded-xl border border-border bg-background text-xs text-foreground outline-none focus:border-primary/40 transition-all cursor-pointer"
+                    disabled={isPaid}
+                    className="appearance-none px-2 py-1.5 rounded-xl border border-border bg-background text-xs text-foreground outline-none focus:border-primary/40 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <option value="percent">%</option>
                     <option value="flat">{currencyObj.symbol}</option>
@@ -823,7 +875,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                       onChange({ discountValue: Number(e.target.value) || 0 })
                     }
                     placeholder="0"
-                    className="w-20 px-2 py-1.5 rounded-xl border border-border bg-background text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                    disabled={isPaid}
+                    className="w-20 px-2 py-1.5 rounded-xl border border-border bg-background text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -846,7 +899,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                     onChange({ shippingFee: Number(e.target.value) || 0 })
                   }
                   placeholder="0.00"
-                  className="w-24 px-2 py-1.5 rounded-xl border border-border bg-background text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+                  disabled={isPaid}
+                  className="w-24 px-2 py-1.5 rounded-xl border border-border bg-background text-sm text-foreground text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -877,7 +931,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                     : "Describe the document you need..."
                 }
                 rows={5}
-                className="w-full px-3.5 py-3 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed"
+                disabled={isPaid}
+                className="w-full px-3.5 py-3 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <div className="flex items-center justify-between">
                 <button
@@ -922,6 +977,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 value={data.paymentMethod}
                 onChange={(v) => onChange({ paymentMethod: v })}
                 options={paymentMethods}
+                disabled={isPaid}
               />
 
               {/* Connected gateways info */}
@@ -940,25 +996,21 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 <div className="rounded-xl border border-border bg-background p-3 space-y-3">
                   <p className="text-xs font-semibold text-foreground">Payment Link & QR</p>
 
-                  {/* Show payment link in PDF toggle */}
-                  <label className="flex items-center justify-between gap-3 cursor-pointer select-none">
-                    <div>
-                      <p className="text-xs font-medium text-foreground">Embed payment link in PDF</p>
-                      <p className="text-[10px] text-muted-foreground">Shows the payment URL at the bottom of the PDF</p>
-                    </div>
-                    <div
-                      onClick={() => {
-                        // Toggle by setting/clearing paymentLink — if no link yet, just mark intent
-                        // The actual link is created via the toolbar button
-                        if (data.paymentLink) {
-                          onChange({ paymentLink: "", paymentLinkStatus: undefined })
-                        }
-                      }}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer ${data.paymentLink ? "bg-primary" : "bg-muted"}`}
-                    >
-                      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.paymentLink ? "translate-x-[18px]" : "translate-x-0.5"}`} />
-                    </div>
-                  </label>
+                  {/* Show payment link in PDF toggle — hidden when document is paid */}
+                  {documentStatus !== "paid" && (
+                    <label className="flex items-center justify-between gap-3 cursor-pointer select-none">
+                      <div>
+                        <p className="text-xs font-medium text-foreground">Embed payment link in PDF</p>
+                        <p className="text-[10px] text-muted-foreground">Shows the payment URL at the bottom of the PDF</p>
+                      </div>
+                      <div
+                        onClick={() => onChange({ showPaymentLinkInPdf: !data.showPaymentLinkInPdf })}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer ${data.showPaymentLinkInPdf ? "bg-primary" : "bg-muted"}`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.showPaymentLinkInPdf ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                      </div>
+                    </label>
+                  )}
 
                   {data.paymentLink ? (
                     <div className="space-y-2">
@@ -1000,7 +1052,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   }
                   placeholder="Bank: Example Bank&#10;Account: 1234567890&#10;Routing: 021000021&#10;SWIFT: EXAMUS33"
                   rows={4}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed font-mono text-xs"
+                  disabled={isPaid}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed font-mono text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -1020,7 +1073,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   onChange={(e) => onChange({ notes: e.target.value })}
                   placeholder="e.g. Thank you for your business!"
                   rows={2}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed"
+                  disabled={isPaid}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -1038,7 +1092,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   onChange={(e) => onChange({ terms: e.target.value })}
                   placeholder="e.g. Payment is due within 30 days of issue date..."
                   rows={2}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed"
+                  disabled={isPaid}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -1075,7 +1130,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   onChange={(e) => onChange({ notes: e.target.value })}
                   placeholder="Additional notes..."
                   rows={2}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed"
+                  disabled={isPaid}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -1091,7 +1147,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                   onChange={(e) => onChange({ terms: e.target.value })}
                   placeholder="Terms and conditions..."
                   rows={2}
-                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed"
+                  disabled={isPaid}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -1118,6 +1175,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 value={data.signatureName}
                 onChange={(v) => onChange({ signatureName: v })}
                 placeholder="e.g. Jane Smith"
+                disabled={isPaid}
               />
               <Field
                 id="sig-title"
@@ -1126,6 +1184,7 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 onChange={(v) => onChange({ signatureTitle: v })}
                 placeholder="e.g. CEO, Founder"
                 optional
+                disabled={isPaid}
               />
             </div>
           </Step>
@@ -1146,7 +1205,8 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 onChange={(e) => onChange({ description: e.target.value })}
                 placeholder="Any additional context or instructions for this invoice..."
                 rows={3}
-                className="w-full px-3.5 py-3 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed"
+                disabled={isPaid}
+                className="w-full px-3.5 py-3 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all resize-none leading-relaxed disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
           </Step>

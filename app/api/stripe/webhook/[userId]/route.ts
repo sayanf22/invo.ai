@@ -69,6 +69,34 @@ export async function POST(
                     message: `Payment of ${currency} ${(amountTotal / 100).toFixed(2)} received for ${referenceId || "your invoice"}.`,
                     metadata: { stripe_session_id: session.id, amount: amountTotal, currency, reference_id: referenceId },
                 })
+
+                // Also update document_sessions.status to "paid"
+                try {
+                    if (sessionId) {
+                        await supabaseAdmin
+                            .from("document_sessions")
+                            .update({ status: "paid" })
+                            .eq("id", sessionId)
+                            .eq("user_id", userId)
+                    } else if (referenceId) {
+                        const { data: invoicePayment } = await supabaseAdmin
+                            .from("invoice_payments")
+                            .select("session_id")
+                            .eq("reference_id", referenceId)
+                            .eq("user_id", userId)
+                            .maybeSingle()
+
+                        if (invoicePayment?.session_id) {
+                            await supabaseAdmin
+                                .from("document_sessions")
+                                .update({ status: "paid" })
+                                .eq("id", invoicePayment.session_id)
+                                .eq("user_id", userId)
+                        }
+                    }
+                } catch (err) {
+                    console.error(`[stripe-webhook/${userId}] Failed to update document_sessions:`, err)
+                }
             }
             break
         }

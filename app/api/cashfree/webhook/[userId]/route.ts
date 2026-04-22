@@ -66,6 +66,26 @@ export async function POST(
                 message: `Payment of ${currency} ${amount} received for ${linkId || "your invoice"}.`,
                 metadata: { cashfree_link_id: linkId, amount, currency },
             })
+
+            // Also update document_sessions.status to "paid"
+            try {
+                const { data: invoicePayment } = await supabaseAdmin
+                    .from("invoice_payments")
+                    .select("session_id")
+                    .eq("reference_id", linkId)
+                    .eq("user_id", userId)
+                    .maybeSingle()
+
+                if (invoicePayment?.session_id) {
+                    await supabaseAdmin
+                        .from("document_sessions")
+                        .update({ status: "paid" })
+                        .eq("id", invoicePayment.session_id)
+                        .eq("user_id", userId)
+                }
+            } catch (err) {
+                console.error(`[cashfree-webhook/${userId}] Failed to update document_sessions:`, err)
+            }
         } else if (status === "PARTIALLY_PAID") {
             await supabaseAdmin.from("invoice_payments").update({
                 status: "partially_paid",

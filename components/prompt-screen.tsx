@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { ArrowLeft, Eye, PenLine, MessageSquare, History as HistoryIcon } from "lucide-react"
 import { EditorPanel } from "@/components/editor-panel"
 import { DocumentPreview } from "@/components/document-preview"
@@ -43,8 +43,26 @@ export function PromptScreen({
   // Lock invoice editing after payment link is created (anti-fraud)
   const [invoiceLocked, setInvoiceLocked] = useState(false)
 
+  // Ref to the DB save function exposed by InvoiceChat once session is ready
+  const saveContextRef = useRef<((data: InvoiceData) => Promise<void>) | null>(null)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleSaveContextReady = useCallback((saveFn: (data: InvoiceData) => Promise<void>) => {
+    saveContextRef.current = saveFn
+  }, [])
+
   const handleChange = useCallback((updates: Partial<InvoiceData>) => {
-    setData((prev) => ({ ...prev, ...updates }))
+    setData((prev) => {
+      const next = { ...prev, ...updates }
+      // Debounce-persist to DB so the public /pay page always shows current data
+      if (saveContextRef.current) {
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = setTimeout(() => {
+          saveContextRef.current?.(next)
+        }, 800)
+      }
+      return next
+    })
   }, [])
 
   const handleSessionSelect = useCallback((sessionId: string) => {
@@ -181,6 +199,7 @@ export function PromptScreen({
                 onLinkedSessionCreate={handleLinkedSessionCreate}
                 onChainSessionSelect={handleSessionSelect}
                 onMessageCountChange={setMessageCount}
+                onSaveContext={handleSaveContextReady}
                 initialPrompt={initialPrompt}
               />
             </div>
@@ -224,6 +243,7 @@ export function PromptScreen({
                 onLinkedSessionCreate={handleLinkedSessionCreate}
                 onChainSessionSelect={handleSessionSelect}
                 onMessageCountChange={setMessageCount}
+                onSaveContext={handleSaveContextReady}
                 initialPrompt={initialPrompt}
               />
             </div>

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import type { InvoiceData } from "@/lib/invoice-types"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface PaymentLinkButtonProps {
     sessionId: string | null
@@ -181,7 +182,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
     const isInvoice = documentType.toLowerCase() === "invoice"
     const hasFetchedRef = useRef(false)
 
-    const fetchExisting = useCallback(async () => {
+    const fetchExisting = useCallback(async (showErrors = false) => {
         if (!sessionId || !isInvoice) return
         setIsFetching(true)
         try {
@@ -199,14 +200,21 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                         isExisting: true,
                     }
                     setPaymentLink(link)
-                    onPaymentLinkChange?.(link.shortUrl, link.status)
+                    const existingPlatformLink = `${window.location.origin}/pay/${sessionId}`
+                    onPaymentLinkChange?.(existingPlatformLink, link.status)
                     // Lock invoice if active link exists
                     if (link.status === "created" || link.status === "partially_paid" || link.status === "paid") {
                         onLockChange?.(true)
                     }
                 }
+            } else if (showErrors) {
+                toast.error("Failed to refresh payment status. Please try again.")
             }
-        } catch { /* silent */ } finally {
+        } catch {
+            if (showErrors) {
+                toast.error("Failed to refresh payment status. Please try again.")
+            }
+        } finally {
             setIsFetching(false)
         }
     }, [sessionId, onPaymentLinkChange, onLockChange, isInvoice, invoiceData.currency])
@@ -247,6 +255,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                     customerEmail: invoiceData.toEmail || undefined,
                     customerPhone: invoiceData.toPhone || undefined,
                     dueDate: invoiceData.dueDate || undefined,
+                    contextSnapshot: invoiceData, // snapshot current invoice data for public /pay page
                 }),
             })
 
@@ -271,7 +280,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                 currency,
             }
             setPaymentLink(link)
-            onPaymentLinkChange?.(data.paymentLink.shortUrl, data.paymentLink.status)
+            onPaymentLinkChange?.(`${window.location.origin}/pay/${sessionId}`, data.paymentLink.status)
             onLockChange?.(true) // Lock invoice after link creation
             toast.success("Payment link created! Invoice is now locked.")
         } catch {
@@ -282,17 +291,19 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
         }
     }
 
+    const platformLink = sessionId ? `${window.location.origin}/pay/${sessionId}` : ""
+
     const handleCopy = async () => {
-        if (!paymentLink?.shortUrl) return
-        await navigator.clipboard.writeText(paymentLink.shortUrl)
+        if (!platformLink) return
+        await navigator.clipboard.writeText(platformLink)
         setCopied(true)
         toast.success("Payment link copied!")
         setTimeout(() => setCopied(false), 2000)
     }
 
     const handleWhatsApp = () => {
-        if (!paymentLink?.shortUrl) return
-        const msg = `Hi ${clientName || ""},\n\nPlease find the payment link for ${invoiceRef || "your invoice"} (${formatAmount(total, currency)}):\n${paymentLink.shortUrl}\n\nThank you,\n${invoiceData.fromName || ""}`
+        if (!platformLink) return
+        const msg = `Hi ${clientName || ""},\n\nPlease find the payment link for ${invoiceRef || "your invoice"} (${formatAmount(total, currency)}):\n${platformLink}\n\nThank you,\n${invoiceData.fromName || ""}`
         window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank")
     }
 
@@ -312,10 +323,14 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                 toast.success("Payment link cancelled. Invoice is now editable again.")
             } else {
                 const d = await res.json()
-                toast.error(d.error || "Failed to cancel")
+                toast.error(d.error || "Failed to cancel payment link", {
+                    description: "The payment link is still active. Please try again.",
+                })
             }
         } catch {
-            toast.error("Failed to cancel payment link")
+            toast.error("Failed to cancel payment link", {
+                description: "The payment link is still active. Please try again.",
+            })
         } finally {
             setIsLoading(false)
         }
@@ -388,10 +403,19 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
 
             {/* Lock indicator */}
             {(paymentLink.status === "created" || paymentLink.status === "partially_paid") && (
-                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Lock className="w-3 h-3" />
-                    <span className="hidden sm:inline">Locked</span>
-                </span>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground cursor-default">
+                                <Lock className="w-3 h-3" />
+                                <span className="hidden sm:inline">Locked</span>
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            Invoice is locked while a payment link is active
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
 
             {(paymentLink.status === "created" || paymentLink.status === "partially_paid") && (
@@ -408,7 +432,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                         <span className="hidden sm:inline">WhatsApp</span>
                     </button>
 
-                    <button type="button" onClick={fetchExisting} disabled={isFetching}
+                    <button type="button" onClick={() => fetchExisting(true)} disabled={isFetching}
                         className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground bg-card border border-border hover:bg-secondary/60 transition-colors disabled:opacity-50">
                         <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} />
                     </button>

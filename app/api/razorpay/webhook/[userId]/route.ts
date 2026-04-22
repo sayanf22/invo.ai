@@ -108,6 +108,26 @@ export async function POST(
                     reference_id: paymentLink.reference_id,
                 },
             })
+
+            // Also update document_sessions.status to "paid"
+            try {
+                const { data: invoicePayment } = await supabaseAdmin
+                    .from("invoice_payments")
+                    .select("session_id")
+                    .eq("razorpay_payment_link_id", paymentLink.id)
+                    .eq("user_id", userId)
+                    .maybeSingle()
+
+                if (invoicePayment?.session_id) {
+                    await supabaseAdmin
+                        .from("document_sessions")
+                        .update({ status: "paid" })
+                        .eq("id", invoicePayment.session_id)
+                        .eq("user_id", userId)
+                }
+            } catch (err) {
+                console.error(`[webhook/${userId}] Failed to update document_sessions:`, err)
+            }
             break
         }
 

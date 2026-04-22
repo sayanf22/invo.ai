@@ -27,9 +27,11 @@ interface InvoiceChatProps {
     onChainSessionSelect?: (sessionId: string) => void
     onMessageCountChange?: (count: number) => void
     initialPrompt?: string
+    /** Called once the session is ready with a function to persist context to DB */
+    onSaveContext?: (saveFn: (data: InvoiceData) => Promise<void>) => void
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, initialPrompt }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, initialPrompt, onSaveContext }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
 
     // Hook handles session init + switching when selectedSessionId changes
@@ -65,6 +67,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const initialPromptSentRef = useRef(false)
     const lastSyncedSessionRef = useRef<string | null>(null)
     const pendingAutoGenerateRef = useRef<string | null>(null)
+
+    // Expose updateSessionContext to parent once session is ready
+    useEffect(() => {
+        if (!session || !onSaveContext) return
+        onSaveContext(updateSessionContext)
+    }, [session?.id, onSaveContext, updateSessionContext]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Sync messages from hook when session changes (new session loaded or switched)
     useEffect(() => {

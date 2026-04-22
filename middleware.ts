@@ -54,6 +54,7 @@ const PUBLIC_PATHS = [
   "/use-cases",
   "/developers",
   "/sign",
+  "/pay", // public payment pages — /pay/[sessionId] accessible without auth
   "/api",
   "/about",
   "/contact",
@@ -485,7 +486,8 @@ function writeAuthCookies(response: NextResponse, rawJson: string, request: Next
   if (!authCookie) return
 
   const baseName = authCookie.name.replace(/\.\d+$/, "")
-  const encoded = encodeURIComponent(rawJson)
+  // Use base64- prefix format (same as @supabase/ssr) — avoids % chars that break Base64-URL parsing
+  const encoded = "base64-" + btoa(rawJson)
   const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
   const cookieOpts = {
     path: "/",

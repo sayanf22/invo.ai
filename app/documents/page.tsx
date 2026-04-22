@@ -230,10 +230,31 @@ function DocCard({
             {/* Payment status badge — show for invoices always */}
             {docType === "invoice" && (
               payment
-                ? <PaymentBadge payment={payment} />
-                : <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground shrink-0">
-                    No link
-                  </span>
+                ? (session.status === "paid" && payment.status !== "paid")
+                  ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">
+                      <CheckCircle2 size={10} />
+                      Paid
+                    </span>
+                  )
+                  : <PaymentBadge payment={payment} />
+                : session.status === "paid"
+                  ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">
+                      <CheckCircle2 size={10} />
+                      Paid
+                    </span>
+                  )
+                  : <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground shrink-0">
+                      No link
+                    </span>
+            )}
+            {/* Show Paid badge for non-invoice docs with paid session status */}
+            {docType !== "invoice" && session.status === "paid" && (
+              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">
+                <CheckCircle2 size={10} />
+                Paid
+              </span>
             )}
           </div>
 
@@ -434,19 +455,19 @@ export default function MyDocumentsPage() {
     { key: "contract", label: "Contracts", count: sessions.filter(s => s.document_type === "contract").length },
     { key: "quotation", label: "Quotations", count: sessions.filter(s => s.document_type === "quotation").length },
     { key: "proposal", label: "Proposals", count: sessions.filter(s => s.document_type === "proposal").length },
-    { key: "paid", label: "Paid", count: sessions.filter(s => s.payment?.status === "paid").length },
+    { key: "paid", label: "Paid", count: sessions.filter(s => s.payment?.status === "paid" || s.status === "paid").length },
     { key: "pending", label: "Pending", count: sessions.filter(s => s.payment?.status === "created").length },
   ].filter(f => f.key === "all" || f.count > 0)
 
   const filtered = sessions.filter(s => {
     if (filter === "all") return true
-    if (filter === "paid") return s.payment?.status === "paid"
+    if (filter === "paid") return s.payment?.status === "paid" || s.status === "paid"
     if (filter === "pending") return s.payment?.status === "created"
     return s.document_type === filter
   })
 
   // Summary stats
-  const totalPaid = sessions.filter(s => s.payment?.status === "paid").length
+  const totalPaid = sessions.filter(s => s.payment?.status === "paid" || s.status === "paid").length
   const totalPending = sessions.filter(s => s.payment?.status === "created").length
   const totalAmount = sessions
     .filter(s => s.payment?.status === "paid" && s.payment?.amount_paid)

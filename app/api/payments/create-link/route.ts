@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
-    const sizeError = validateBodySize(body, 10 * 1024) // 10KB max
+    const sizeError = validateBodySize(body, 50 * 1024) // 50KB max (includes contextSnapshot)
     if (sizeError) return sizeError
 
     const {
@@ -105,11 +105,13 @@ export async function POST(request: NextRequest) {
 
     if (existingLink) {
         // Return the existing active link instead of creating a duplicate
+        const platformLink = `${process.env.NEXT_PUBLIC_APP_URL}/pay/${sessionId}`
         return NextResponse.json({
             success: true,
             paymentLink: {
                 id: existingLink.id,
                 shortUrl: existingLink.short_url,
+                platformLink,
                 status: existingLink.status,
                 razorpayId: existingLink.razorpay_payment_link_id,
                 isExisting: true,
@@ -202,10 +204,16 @@ export async function POST(request: NextRequest) {
         // Link was created in Razorpay but not saved — still return it to user
     }
 
-    // Mark session as sent (payment link was shared)
+    // Mark session as sent (payment link was shared) + snapshot current context from request
+    // The client sends the current invoiceData so the public /pay page shows up-to-date info
+    const contextSnapshot = (body as Record<string, unknown>).contextSnapshot
+    const sessionUpdate: Record<string, unknown> = { sent_at: new Date().toISOString() }
+    if (contextSnapshot && typeof contextSnapshot === "object" && !Array.isArray(contextSnapshot)) {
+        sessionUpdate.context = contextSnapshot
+    }
     await supabaseAdmin
         .from("document_sessions")
-        .update({ sent_at: new Date().toISOString() })
+        .update(sessionUpdate)
         .eq("id", sessionId)
         .eq("user_id", auth.user.id)
         .is("sent_at", null) // Only set once
@@ -225,11 +233,14 @@ export async function POST(request: NextRequest) {
         } as any,
     }, request)
 
+    const platformLink = `${process.env.NEXT_PUBLIC_APP_URL}/pay/${sessionId}`
+
     return NextResponse.json({
         success: true,
         paymentLink: {
             id: savedLink?.id,
             shortUrl: razorpayLink.short_url,
+            platformLink,
             status: "created",
             razorpayId: razorpayLink.id,
             isExisting: false,
@@ -264,5 +275,5 @@ export async function GET(request: NextRequest) {
         .limit(1)
         .maybeSingle()
 
-    return NextResponse.json({ paymentLink: link ?? null })
+    return NextResponse.json({ paymentLink: link ? { ...link, platformLink: `${process.env.NEXT_PUBLIC_APP_URL}/pay/${sessionId}` } : null })
 }

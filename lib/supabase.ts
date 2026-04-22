@@ -41,10 +41,11 @@ export function clearAuthTokens() {
     } catch {}
 }
 
-/** Scan localStorage for corrupted Supabase tokens and remove them. */
+/** Scan localStorage and cookies for corrupted Supabase tokens and remove them. */
 export function clearCorruptedAuthTokens() {
     if (typeof window === "undefined") return
     try {
+        // Clear corrupted localStorage tokens
         Object.keys(localStorage)
             .filter(k => k.startsWith("sb-"))
             .forEach(k => {
@@ -53,13 +54,28 @@ export function clearCorruptedAuthTokens() {
                     if (!val) return
                     // If the value contains URL-encoded characters, it's corrupted
                     if (val.includes("%")) {
-                        console.warn("[auth] Removing corrupted token:", k)
+                        console.warn("[auth] Removing corrupted localStorage token:", k)
                         localStorage.removeItem(k)
                     }
                 } catch {
                     localStorage.removeItem(k)
                 }
             })
+    } catch {}
+
+    // Also clear corrupted cookies (URL-encoded % chars are invalid Base64-URL)
+    try {
+        const past = "Thu, 01 Jan 1970 00:00:00 GMT"
+        document.cookie.split(";").forEach(c => {
+            const [rawName, ...rest] = c.trim().split("=")
+            const name = rawName?.trim()
+            if (!name?.startsWith("sb-") || !name.includes("-auth-token")) return
+            const val = rest.join("=")
+            if (val && val.includes("%")) {
+                console.warn("[auth] Removing corrupted cookie token:", name)
+                document.cookie = `${name}=;path=/;expires=${past};SameSite=Lax`
+            }
+        })
     } catch {}
 }
 

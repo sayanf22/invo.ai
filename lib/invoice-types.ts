@@ -89,6 +89,7 @@ export interface InvoiceData {
   paymentMethod: string
   paymentLink?: string        // Razorpay short_url e.g. https://rzp.io/i/xxx
   paymentLinkStatus?: "created" | "paid" | "partially_paid" | "expired" | "cancelled"
+  showPaymentLinkInPdf?: boolean  // Controls whether payment link & QR code are embedded in PDF
 
   // Additional
   notes: string

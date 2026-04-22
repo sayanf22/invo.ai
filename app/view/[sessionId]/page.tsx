@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
+import { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import {
@@ -91,7 +91,7 @@ function PdfViewer({ pdfBytes, zoom }: { pdfBytes: Uint8Array; zoom: number }) {
     return () => obs.disconnect()
   }, [])
 
-  const fileData = { data: pdfBytes.slice() }
+  const fileData = useMemo(() => ({ data: pdfBytes.slice() }), [pdfBytes])
   const baseWidth = containerWidth > 0 ? Math.min(containerWidth - 32, 800) : 600
   const pageWidth = Math.round(baseWidth * (zoom / 100))
 
@@ -364,7 +364,10 @@ export default function ViewDocumentPage() {
         if (payment?.short_url && payment.status !== "paid" && payment.status !== "expired" && payment.status !== "cancelled") {
           qr = await generateQRDataUrl(payment.short_url)
         }
-        const blob = await buildPdfBlob(docData, qr)
+        const blob = await buildPdfBlob(
+          payment?.status === "paid" ? { ...docData, status: "paid" } : docData,
+          qr
+        )
         if (cancelled) return
         const buf = await blob.arrayBuffer()
         setPdfBytes(new Uint8Array(buf))
@@ -384,7 +387,10 @@ export default function ViewDocumentPage() {
     try {
       let qr: string | null = null
       if (payment?.short_url) qr = await generateQRDataUrl(payment.short_url)
-      const blob = await buildPdfBlob(docData, qr)
+      const blob = await buildPdfBlob(
+        payment?.status === "paid" ? { ...docData, status: "paid" } : docData,
+        qr
+      )
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -427,7 +433,7 @@ export default function ViewDocumentPage() {
         <div className="max-w-4xl mx-auto px-3 sm:px-4 h-14 flex items-center gap-2 sm:gap-3">
           {/* Back */}
           <button
-            onClick={() => router.push("/documents")}
+            onClick={() => router.back()}
             className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-secondary/60 transition-colors shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
