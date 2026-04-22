@@ -49,6 +49,10 @@ export function PromptScreen({
     setSelectedSessionId(sessionId)
   }, [])
 
+  const handlePaymentLinkChange = useCallback((url: string, status: string) => {
+    handleChange({ paymentLink: url, paymentLinkStatus: status as any })
+  }, [handleChange])
+
   const handleLinkedSessionCreate = useCallback((sessionId: string, docType: string) => {
     const capitalized = docType.charAt(0).toUpperCase() + docType.slice(1)
     // Preserve current design when creating a linked document
@@ -186,7 +190,7 @@ export function PromptScreen({
                 onToggleEditor={() => setMobileTab("edit")}
                 showEditor={mobileTab === "edit"}
                 sessionId={selectedSessionId}
-                onPaymentLinkChange={(url, status) => handleChange({ paymentLink: url, paymentLinkStatus: status as any })}
+                onPaymentLinkChange={handlePaymentLinkChange}
               />
             </div>
           </div>
@@ -234,7 +238,7 @@ export function PromptScreen({
             onToggleEditor={() => setShowEditor(e => !e)}
             showEditor={showEditor}
             sessionId={selectedSessionId}
-            onPaymentLinkChange={(url, status) => handleChange({ paymentLink: url, paymentLinkStatus: status as any })}
+            onPaymentLinkChange={handlePaymentLinkChange}
           />
         </div>
       </div>

@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    // 2. Rate limit
-    const rateLimitError = await checkRateLimit(auth.user.id, "general")
+    // 2. Rate limit — use payment category (20/min, separate from general)
+    const rateLimitError = await checkRateLimit(auth.user.id, "payment")
     if (rateLimitError) return rateLimitError
 
     // 3. Parse + validate body

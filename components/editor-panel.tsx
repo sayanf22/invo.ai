@@ -923,6 +923,55 @@ export function EditorPanel({ data, onChange }: EditorPanelProps) {
                 options={PAYMENT_METHODS}
               />
 
+              {/* Payment link options — only for invoices */}
+              {data.documentType === "Invoice" && (
+                <div className="rounded-xl border border-border bg-background p-3 space-y-3">
+                  <p className="text-xs font-semibold text-foreground">Payment Link & QR</p>
+
+                  {/* Show payment link in PDF toggle */}
+                  <label className="flex items-center justify-between gap-3 cursor-pointer select-none">
+                    <div>
+                      <p className="text-xs font-medium text-foreground">Embed payment link in PDF</p>
+                      <p className="text-[10px] text-muted-foreground">Shows the payment URL at the bottom of the PDF</p>
+                    </div>
+                    <div
+                      onClick={() => {
+                        // Toggle by setting/clearing paymentLink — if no link yet, just mark intent
+                        // The actual link is created via the toolbar button
+                        if (data.paymentLink) {
+                          onChange({ paymentLink: "", paymentLinkStatus: undefined })
+                        }
+                      }}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer ${data.paymentLink ? "bg-primary" : "bg-muted"}`}
+                    >
+                      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.paymentLink ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                    </div>
+                  </label>
+
+                  {data.paymentLink ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-muted/40 border border-border">
+                        <span className="text-[11px] font-mono text-foreground/70 truncate flex-1">{data.paymentLink}</span>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
+                          data.paymentLinkStatus === "paid" ? "bg-emerald-100 text-emerald-700" :
+                          data.paymentLinkStatus === "created" ? "bg-blue-100 text-blue-700" :
+                          "bg-muted text-muted-foreground"
+                        }`}>
+                          {data.paymentLinkStatus === "paid" ? "Paid ✓" : data.paymentLinkStatus === "created" ? "Pending" : data.paymentLinkStatus || "Active"}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        QR code will be auto-generated and embedded in the PDF when you download it.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">
+                      Use the <span className="font-semibold text-primary">Get Payment Link</span> button in the preview toolbar to create a payment link. It will automatically appear in the PDF with a QR code.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Payment instructions */}
               <div>
                 <label
