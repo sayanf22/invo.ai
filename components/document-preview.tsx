@@ -9,6 +9,7 @@ import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { PDFDownloadButton } from "@/components/pdf-download-button"
 import { TemplatePicker } from "@/components/template-picker"
 import { ShareButton } from "@/components/share-button"
+import { PaymentLinkButton } from "@/components/payment-link-button"
 import { cn } from "@/lib/utils"
 
 interface DocumentPreviewProps {
@@ -16,6 +17,8 @@ interface DocumentPreviewProps {
   onChange?: (updates: Partial<InvoiceData>) => void
   onToggleEditor?: () => void
   showEditor?: boolean
+  sessionId?: string | null
+  onPaymentLinkChange?: (shortUrl: string, status: string) => void
 }
 
 function EmptyState() {
@@ -309,7 +312,7 @@ function ToolbarSep() {
 }
 
 /* ─── Main DocumentPreview ─── */
-export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: DocumentPreviewProps) {
+export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange }: DocumentPreviewProps) {
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [pageCount, setPageCount] = useState(0)
   const hasContent = data.documentType || data.fromName || data.toName || data.description
@@ -431,8 +434,16 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor }: 
           </span>
         )}
 
-        {/* Right: Share + Print + Download */}
+        {/* Right: Payment Link (invoices) + Share + Print + Download */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {sessionId && (
+            <PaymentLinkButton
+              sessionId={sessionId}
+              invoiceData={data}
+              documentType={data.documentType || "invoice"}
+              onPaymentLinkChange={onPaymentLinkChange}
+            />
+          )}
           <ShareButton data={data} />
           <button
             type="button"

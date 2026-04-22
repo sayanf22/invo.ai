@@ -185,6 +185,8 @@ export function PromptScreen({
                 onChange={handleChange}
                 onToggleEditor={() => setMobileTab("edit")}
                 showEditor={mobileTab === "edit"}
+                sessionId={selectedSessionId}
+                onPaymentLinkChange={(url, status) => handleChange({ paymentLink: url, paymentLinkStatus: status as any })}
               />
             </div>
           </div>
@@ -226,7 +228,14 @@ export function PromptScreen({
 
         {/* ── DESKTOP: preview panel ── */}
         <div className="hidden md:flex flex-1 bg-background overflow-hidden flex-col transition-opacity duration-300">
-          <DocumentPreview data={data} onChange={handleChange} onToggleEditor={() => setShowEditor(e => !e)} showEditor={showEditor} />
+          <DocumentPreview
+            data={data}
+            onChange={handleChange}
+            onToggleEditor={() => setShowEditor(e => !e)}
+            showEditor={showEditor}
+            sessionId={selectedSessionId}
+            onPaymentLinkChange={(url, status) => handleChange({ paymentLink: url, paymentLinkStatus: status as any })}
+          />
         </div>
       </div>
 

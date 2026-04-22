@@ -69,12 +69,11 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
     const [paymentLink, setPaymentLink] = useState<PaymentLinkState | null>(null)
     const [copied, setCopied] = useState(false)
 
-    // Only show for invoices
-    if (documentType.toLowerCase() !== "invoice") return null
+    const isInvoice = documentType.toLowerCase() === "invoice"
 
-    // Fetch existing payment link on mount
+    // Fetch existing payment link on mount — always call hooks, guard inside
     const fetchExisting = useCallback(async () => {
-        if (!sessionId) return
+        if (!sessionId || !isInvoice) return
         setIsFetching(true)
         try {
             const res = await authFetch(`/api/payments/create-link?sessionId=${sessionId}`)
@@ -95,11 +94,14 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
         } catch { /* silent */ } finally {
             setIsFetching(false)
         }
-    }, [sessionId, onPaymentLinkChange])
+    }, [sessionId, onPaymentLinkChange, isInvoice])
 
     useEffect(() => {
         fetchExisting()
     }, [fetchExisting])
+
+    // Only show for invoices — AFTER all hooks
+    if (!isInvoice) return null
 
     const handleCreate = async () => {
         if (!sessionId || isLoading) return
