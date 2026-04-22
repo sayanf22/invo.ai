@@ -101,7 +101,7 @@ export default function AdminSidebar({ adminEmail }: AdminSidebarProps) {
   })
 
   useEffect(() => {
-    const handleResize = () => setCollapsed(window.innerWidth < 1024)
+    const handleResize = () => setCollapsed(window.innerWidth < 1280)
     handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)

@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { LogOut } from 'lucide-react'
+import { LogOut, Menu, X } from 'lucide-react'
 import { useAdminTheme } from './admin-theme-provider'
 import AdminThemeToggle from './theme-toggle'
 
 interface AdminHeaderProps {
   adminEmail: string
   sessionExpiresAt: number
+  onToggleSidebar?: () => void
+  sidebarOpen?: boolean
 }
 
 function formatCountdown(ms: number): string {
@@ -19,7 +21,6 @@ function formatCountdown(ms: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
-// Map pathname → readable section name
 function getSectionName(pathname: string): string {
   if (pathname === '/clorefy-ctrl-8x2m') return 'Dashboard'
   if (pathname.startsWith('/clorefy-ctrl-8x2m/analytics/engagement')) return 'User Engagement'
@@ -35,7 +36,7 @@ function getSectionName(pathname: string): string {
   return 'Admin'
 }
 
-export default function AdminHeader({ adminEmail, sessionExpiresAt }: AdminHeaderProps) {
+export default function AdminHeader({ adminEmail, sessionExpiresAt, onToggleSidebar, sidebarOpen }: AdminHeaderProps) {
   const router = useRouter()
   const pathname = usePathname()
   const { theme } = useAdminTheme()
@@ -58,25 +59,38 @@ export default function AdminHeader({ adminEmail, sessionExpiresAt }: AdminHeade
 
   return (
     <header
-      className="flex items-center justify-between h-14 px-5 shrink-0"
+      className="flex items-center justify-between h-14 px-4 sm:px-5 shrink-0"
       style={{
         backgroundColor: isDark ? '#000000' : '#FFFFFF',
         borderBottom: `1px solid ${border}`,
       }}
     >
-      {/* Section breadcrumb */}
       <div className="flex items-center gap-2">
-        <span className="text-xs" style={{ color: '#52525B' }}>Admin</span>
-        <span className="text-xs" style={{ color: '#3F3F46' }}>/</span>
+        {/* Mobile hamburger */}
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg transition-colors"
+            style={{ color: isDark ? '#A1A1AA' : '#52525B' }}
+            aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+          >
+            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        )}
+
+        {/* Section breadcrumb */}
+        <span className="text-xs hidden sm:inline" style={{ color: '#52525B' }}>Admin</span>
+        <span className="text-xs hidden sm:inline" style={{ color: '#3F3F46' }}>/</span>
         <span className="text-sm font-medium" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
           {getSectionName(pathname)}
         </span>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         {/* Session countdown */}
         <span
-          className="text-xs font-mono px-2 py-1 rounded-md"
+          className="text-[10px] sm:text-xs font-mono px-1.5 sm:px-2 py-1 rounded-md"
           style={{
             color: isCritical ? '#EF4444' : isWarning ? '#F59E0B' : '#71717A',
             backgroundColor: isCritical
