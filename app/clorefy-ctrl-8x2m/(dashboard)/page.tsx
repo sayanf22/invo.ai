@@ -122,7 +122,7 @@ export default function AdminOverviewPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>Overview</h1>
-          <p className="text-sm mt-1" style={{ color: '#71717A' }}>{today}</p>
+          <p className="text-sm mt-1" style={{ color: '#71717A' }} suppressHydrationWarning>{today}</p>
         </div>
         <button onClick={fetchData}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all active:scale-95"
