@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
-import { Settings, Bell, Lock, User } from "lucide-react"
+import { Settings, Bell, Lock, User, CreditCard } from "lucide-react"
+import { PaymentSettings } from "@/components/payment-settings"
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -86,10 +87,14 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="account" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="account">
             <User className="w-4 h-4 mr-2" />
             Account
+          </TabsTrigger>
+          <TabsTrigger value="payments">
+            <CreditCard className="w-4 h-4 mr-2" />
+            Payments
           </TabsTrigger>
           <TabsTrigger value="notifications">
             <Bell className="w-4 h-4 mr-2" />
@@ -101,8 +106,7 @@ export default function SettingsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="account" className="space-y-4">
-          <Card>
+        <TabsContent value="account" className="space-y-4">          <Card>
             <CardHeader>
               <CardTitle>Email Address</CardTitle>
               <CardDescription>
@@ -146,6 +150,20 @@ export default function SettingsPage() {
                   {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A"}
                 </p>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="payments" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment Collection</CardTitle>
+              <CardDescription>
+                Connect your Razorpay account to collect payments from invoices. Money goes directly to your bank account.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PaymentSettings />
             </CardContent>
           </Card>
         </TabsContent>

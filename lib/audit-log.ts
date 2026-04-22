@@ -46,6 +46,12 @@ export type AuditAction =
     | "admin.pin_change"
     | "admin.maintenance_enable"
     | "admin.maintenance_disable"
+    | "payment_settings.removed"
+    | "payment_settings.razorpay_connected"
+    | "payment_settings.stripe_connected"
+    | "payment_settings.cashfree_connected"
+    | "payment_link.created"
+    | "payment_link.cancelled"
 
 export type ResourceType =
     | "document"
@@ -53,6 +59,7 @@ export type ResourceType =
     | "business"
     | "user"
     | "compliance_rule"
+    | "invoice_payment"
 
 interface AuditLogEntry {
     user_id: string

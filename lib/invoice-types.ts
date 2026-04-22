@@ -87,6 +87,8 @@ export interface InvoiceData {
   // Payment
   paymentInstructions: string
   paymentMethod: string
+  paymentLink?: string        // Razorpay short_url e.g. https://rzp.io/i/xxx
+  paymentLinkStatus?: "created" | "paid" | "partially_paid" | "expired" | "cancelled"
 
   // Additional
   notes: string

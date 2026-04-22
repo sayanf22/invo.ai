@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { ProfileUpdateChat } from "@/components/profile-update-chat"
 import { LogoUploader } from "@/components/logo-uploader"
 import { authFetch } from "@/lib/auth-fetch"
+import { PaymentSettings } from "@/components/payment-settings"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -619,6 +620,11 @@ export default function ProfilePage() {
                             ) : <p className="text-[14px] text-muted-foreground">No bank details added. Click Edit to add your bank information.</p>}
                         </div>
                         {isEditing("payment") && userTier !== "free" && <SectionChatBar section="payment" sectionTitle="payment settings" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
+                    </Card>
+
+                    {/* ── Payment Gateways ── */}
+                    <Card className="p-6 shadow-sm">
+                        <PaymentSettings />
                     </Card>
 
                     {/* ── Additional Notes ── */}

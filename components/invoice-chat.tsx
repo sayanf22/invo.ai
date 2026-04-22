@@ -749,6 +749,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 currentDocType={docType}
                                 parentSessionId={session.id}
                                 onCreateLinked={handleCreateLinked}
+                                invoiceData={data}
+                                onPaymentLinkChange={(shortUrl, status) => {
+                                    onChange({
+                                        paymentLink: shortUrl,
+                                        paymentLinkStatus: status as any,
+                                    })
+                                }}
                                 clientSelectorSlot={
                                     <ClientSelector
                                         onChange={(fields) =>

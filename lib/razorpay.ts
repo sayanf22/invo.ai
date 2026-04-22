@@ -242,3 +242,219 @@ export async function verifyWebhookSignature(
 
     return expectedSignature === signature
 }
+
+// ── Payment Links ──────────────────────────────────────────────────────
+
+export interface CreatePaymentLinkParams {
+    amount: number           // in smallest currency unit (paise for INR, cents for USD)
+    currency: string         // ISO 3-letter code e.g. "INR", "USD"
+    description: string      // shown on the payment page
+    referenceId: string      // your invoice number — MUST be unique per link
+    customerName?: string
+    customerEmail?: string
+    customerPhone?: string
+    sessionId?: string       // stored in notes for webhook correlation
+    userId?: string          // stored in notes for webhook correlation
+    acceptPartial?: boolean  // allow partial payments
+    expireInDays?: number    // default: smart expiry based on industry standard
+    dueDateIso?: string      // invoice due date — used for smart expiry calculation
+    // User's own Razorpay credentials (money goes to their account)
+    userKeyId?: string
+    userKeySecret?: string
+}
+
+export interface RazorpayPaymentLink {
+    id: string               // plink_xxx
+    short_url: string        // https://rzp.io/i/xxx
+    status: string           // created | paid | partially_paid | expired | cancelled
+    amount: number
+    currency: string
+    reference_id: string
+    expire_by: number        // unix timestamp
+}
+
+/**
+ * Create a Razorpay Payment Link for an invoice.
+ * Server-side only — never call from client.
+ * 
+ * SECURITY:
+ * - Amount is set server-side from the invoice data
+ * - reference_id must be unique (prevents duplicate links)
+ * - notes store session/user IDs for webhook correlation
+ */
+export async function createPaymentLink(params: CreatePaymentLinkParams): Promise<RazorpayPaymentLink> {
+    // Use user's own keys if provided — money goes to their account
+    // Fall back to platform keys only if user hasn't set up their own
+    let keyId: string | null = params.userKeyId ?? null
+    let keySecret: string | null = params.userKeySecret ?? null
+
+    if (!keyId || !keySecret) {
+        const { getSecret } = await import("@/lib/secrets")
+        keyId = await getSecret("RAZORPAY_KEY_ID")
+        keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+    }
+
+    if (!keyId || !keySecret) {
+        throw new Error("Razorpay API keys not configured")
+    }
+
+    // Validate amount — must be positive integer
+    if (!Number.isInteger(params.amount) || params.amount <= 0) {
+        throw new Error("Amount must be a positive integer in smallest currency unit")
+    }
+
+    // Validate currency
+    const supportedCurrencies = ["INR", "USD", "EUR", "GBP", "SGD", "AED", "CAD", "AUD", "PHP", "MYR"]
+    if (!supportedCurrencies.includes(params.currency.toUpperCase())) {
+        throw new Error(`Unsupported currency: ${params.currency}`)
+    }
+
+    // ── Smart Expiry (Industry Standard) ──────────────────────────────────────
+    // Stripe: "active for 10 days or more depending on when the invoice is due"
+    // Zoho:   default 15 days, editable
+    // Zoho Payments API: default 30 days
+    // Stripe hosted invoices: expire 30 days after due date
+    //
+    // Our approach (best of all):
+    //   - If due date is provided: expire 30 days AFTER the due date (Stripe standard)
+    //   - Minimum: always at least 15 days from now (Zoho standard)
+    //   - Maximum: 180 days from now (Razorpay hard limit)
+    //   - If expireInDays is explicitly passed, use that (user override)
+    let expireByUnix: number
+
+    if (params.expireInDays !== undefined) {
+        // Explicit override
+        const days = Math.min(Math.max(params.expireInDays, 1), 180)
+        expireByUnix = Math.floor(Date.now() / 1000) + days * 86400
+    } else if (params.dueDateIso) {
+        // Smart: 30 days after due date, minimum 15 days from now
+        const dueDate = new Date(params.dueDateIso)
+        const thirtyAfterDue = new Date(dueDate.getTime() + 30 * 86400 * 1000)
+        const fifteenFromNow = new Date(Date.now() + 15 * 86400 * 1000)
+        const sixMonthsFromNow = new Date(Date.now() + 180 * 86400 * 1000)
+        const expireDate = new Date(Math.max(thirtyAfterDue.getTime(), fifteenFromNow.getTime()))
+        const capped = new Date(Math.min(expireDate.getTime(), sixMonthsFromNow.getTime()))
+        expireByUnix = Math.floor(capped.getTime() / 1000)
+    } else {
+        // Default: 30 days from now (Zoho Payments API default)
+        expireByUnix = Math.floor(Date.now() / 1000) + 30 * 86400
+    }
+
+    const body: Record<string, unknown> = {
+        amount: params.amount,
+        currency: params.currency.toUpperCase(),
+        description: params.description.slice(0, 2048), // Razorpay max
+        reference_id: params.referenceId.slice(0, 40),  // Razorpay max
+        expire_by: expireByUnix,
+        reminder_enable: true,  // Razorpay sends automatic reminders
+        accept_partial: params.acceptPartial ?? false,
+        notes: {
+            session_id: params.sessionId ?? "",
+            user_id: params.userId ?? "",
+            platform: "invo-ai",
+        },
+        callback_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/api/razorpay/payment-link-callback`,
+        callback_method: "get",
+    }
+
+    // Add customer details if provided
+    if (params.customerName || params.customerEmail || params.customerPhone) {
+        body.customer = {
+            ...(params.customerName ? { name: params.customerName } : {}),
+            ...(params.customerEmail ? { email: params.customerEmail } : {}),
+            ...(params.customerPhone ? { contact: params.customerPhone } : {}),
+        }
+    }
+
+    const response = await fetch("https://api.razorpay.com/v1/payment_links/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}`,
+        },
+        body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+        const error = await response.json()
+        console.error("Razorpay payment link creation failed:", error)
+        throw new Error(error.error?.description || "Failed to create payment link")
+    }
+
+    return response.json()
+}
+
+/**
+ * Fetch a payment link by ID from Razorpay.
+ * Used to sync status if webhook was missed.
+ */
+export async function getPaymentLink(paymentLinkId: string): Promise<RazorpayPaymentLink> {
+    const { getSecret } = await import("@/lib/secrets")
+    const keyId = await getSecret("RAZORPAY_KEY_ID")
+    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+
+    if (!keyId || !keySecret) throw new Error("Razorpay API keys not configured")
+
+    const response = await fetch(`https://api.razorpay.com/v1/payment_links/${paymentLinkId}`, {
+        headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+    })
+
+    if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error?.description || "Failed to fetch payment link")
+    }
+
+    return response.json()
+}
+
+/**
+ * Cancel a payment link.
+ */
+export async function cancelPaymentLink(paymentLinkId: string): Promise<void> {
+    const { getSecret } = await import("@/lib/secrets")
+    const keyId = await getSecret("RAZORPAY_KEY_ID")
+    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+
+    if (!keyId || !keySecret) throw new Error("Razorpay API keys not configured")
+
+    const response = await fetch(`https://api.razorpay.com/v1/payment_links/${paymentLinkId}/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+    })
+
+    if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error?.description || "Failed to cancel payment link")
+    }
+}
+
+// ── Per-User Webhook Helpers ───────────────────────────────────────────
+
+/**
+ * Generate a unique webhook secret for a user.
+ * This secret is stored in DB and shown to the user so they can
+ * manually add it in their Razorpay Dashboard → Settings → Webhooks.
+ *
+ * NOTE: Razorpay does NOT have a public API for merchants to
+ * programmatically create webhooks on their own account.
+ * The /v2/accounts/:id/webhooks endpoint is Partners API only.
+ * 
+ * The correct approach (same as Invoice Ninja with Stripe):
+ * 1. Generate a webhook URL + secret for the user
+ * 2. Show it in Settings UI
+ * 3. User manually adds it in their Razorpay Dashboard
+ * 4. Razorpay fires events to our per-user endpoint
+ */
+export function generateWebhookSecret(): string {
+    return Array.from(crypto.getRandomValues(new Uint8Array(32)))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("")
+}
+
+/**
+ * Get the per-user webhook URL for display in Settings.
+ */
+export function getUserWebhookUrl(userId: string): string {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"
+    return `${appUrl}/api/razorpay/webhook/${userId}`
+}

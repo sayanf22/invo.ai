@@ -6,6 +6,7 @@ import {
     StyleSheet,
     Font,
     Image,
+    Link,
 } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 
@@ -113,7 +114,94 @@ function getTpl(data: InvoiceData): Tpl {
     return "modern"
 }
 
-interface Props { data: InvoiceData; logoUrl?: string | null }
+interface Props { data: InvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }
+
+// ─── Payment Link Section (Invoice only) ───────────────────────────────────
+// Renders a "Pay Now" section with a clickable URL + QR code.
+// Industry standard: Stripe, Zoho, FreshBooks all embed payment links in PDFs.
+function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn, bTopFn }: {
+    data: InvoiceData
+    paymentQrCode?: string | null
+    c: ReturnType<typeof getTheme>
+    bold: (c: any) => { fontWeight: number }
+    bNoneFn: () => any
+    bAllFn: (w: number, color: string) => any
+    bTopFn: (w: number, color: string) => any
+}) {
+    const url = data.paymentLink
+    if (!url || data.paymentLinkStatus === "paid" || data.paymentLinkStatus === "expired" || data.paymentLinkStatus === "cancelled") {
+        return null
+    }
+
+    return (
+        <View style={{
+            marginBottom: 16,
+            padding: 14,
+            backgroundColor: c.acc,
+            borderTopLeftRadius: 8, borderTopRightRadius: 8,
+            borderBottomLeftRadius: 8, borderBottomRightRadius: 8,
+            ...bAllFn(1, c.bdr),
+            flexDirection: "row",
+            alignItems: "flex-start",
+            gap: 14,
+        }} wrap={false}>
+            {/* Left: text + button */}
+            <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>
+                    Pay Online
+                </Text>
+                <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.5, marginBottom: 8 }}>
+                    Click the link below or scan the QR code to pay securely online.
+                </Text>
+                {/* Clickable "Pay Now" button */}
+                <Link src={url} style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: c.pri,
+                    paddingHorizontal: 14,
+                    paddingVertical: 7,
+                    borderTopLeftRadius: 6, borderTopRightRadius: 6,
+                    borderBottomLeftRadius: 6, borderBottomRightRadius: 6,
+                    ...bNoneFn(),
+                    alignSelf: "flex-start",
+                    textDecoration: "none",
+                }}>
+                    <Text style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>
+                        Pay Now →
+                    </Text>
+                </Link>
+                {/* Short URL as text fallback */}
+                <Text style={{ fontSize: 8, color: c.mut, marginTop: 6, textDecoration: "underline" }}>
+                    {url}
+                </Text>
+                {data.paymentLinkStatus === "partially_paid" && (
+                    <Text style={{ fontSize: 8, color: "#d97706", marginTop: 4, fontWeight: 700 }}>
+                        Partial payment received — balance still due
+                    </Text>
+                )}
+            </View>
+            {/* Right: QR code */}
+            {paymentQrCode && (
+                <View style={{ alignItems: "center" }}>
+                    <Image
+                        src={paymentQrCode}
+                        style={{
+                            width: 72,
+                            height: 72,
+                            borderTopLeftRadius: 4, borderTopRightRadius: 4,
+                            borderBottomLeftRadius: 4, borderBottomRightRadius: 4,
+                            ...bNoneFn(),
+                        }}
+                    />
+                    <Text style={{ fontSize: 7, color: c.mut, marginTop: 3, textAlign: "center" }}>
+                        Scan to pay
+                    </Text>
+                </View>
+            )}
+        </View>
+    )
+}
 
 // ─── Theme palettes per template ───
 function getTheme(tpl: Tpl, data: InvoiceData) {
@@ -248,7 +336,7 @@ function PdfLogo({ url, show, shape, size: sizeProp }: { url?: string | null; sh
 // INVOICE PDF
 // ═══════════════════════════════════════════════════════
 
-export function InvoicePDF({ data, logoUrl }: Props) {
+export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
@@ -372,6 +460,19 @@ export function InvoicePDF({ data, logoUrl }: Props) {
 
                 {data.notes ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Notes</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text></View> : null}
                 {data.terms ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Terms & Conditions</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text></View> : null}
+
+                {/* Payment Link Section — only for invoices with an active payment link */}
+                <View style={s.nWrap}>
+                    <PaymentSection
+                        data={data}
+                        paymentQrCode={paymentQrCode}
+                        c={c}
+                        bold={bold}
+                        bNoneFn={bNone}
+                        bAllFn={bAll}
+                        bTopFn={bTop}
+                    />
+                </View>
 
                 {tpl === "modern" && <View style={s.bBar} fixed />}
                 <View style={s.footer} fixed>

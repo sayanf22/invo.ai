@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import { createClient, clearAuthTokens, resetSupabaseClient } from "@/lib/supabase"
+import { createClient, clearAuthTokens, resetSupabaseClient, clearCorruptedAuthTokens } from "@/lib/supabase"
 import type { User, Session, SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database.types"
 
@@ -15,7 +15,11 @@ type SupabaseContext = {
 const Context = createContext<SupabaseContext | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [supabase] = useState(() => createClient())
+    const [supabase] = useState(() => {
+        // Proactively clear any corrupted tokens before creating the client
+        clearCorruptedAuthTokens()
+        return createClient()
+    })
     const [user, setUser] = useState<User | null>(null)
     const [session, setSession] = useState<Session | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -33,6 +37,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 if (error) {
                     console.warn("Session load warning:", error.message)
+                    // If the token is corrupted (invalid Base64-URL), clear it and start fresh
+                    if (error.message?.includes("Base64") || error.message?.includes("base64") || error.message?.includes("invalid")) {
+                        clearAuthTokens()
+                        resetSupabaseClient()
+                    }
                     setSession(null)
                     setUser(null)
                 } else if (session) {
@@ -55,9 +64,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         setUser(null)
                     }
                 }
-            } catch (err) {
+            } catch (err: any) {
                 if (!mounted) return
                 console.warn("Session init error:", err)
+                // Clear corrupted tokens — invalid Base64-URL means localStorage has garbage
+                if (err?.message?.includes("Base64") || err?.message?.includes("base64") ||
+                    err?.message?.includes("invalid") || err?.message?.includes("%")) {
+                    clearAuthTokens()
+                    resetSupabaseClient()
+                }
                 setSession(null)
                 setUser(null)
             } finally {

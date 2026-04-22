@@ -41,6 +41,28 @@ export function clearAuthTokens() {
     } catch {}
 }
 
+/** Scan localStorage for corrupted Supabase tokens and remove them. */
+export function clearCorruptedAuthTokens() {
+    if (typeof window === "undefined") return
+    try {
+        Object.keys(localStorage)
+            .filter(k => k.startsWith("sb-"))
+            .forEach(k => {
+                try {
+                    const val = localStorage.getItem(k)
+                    if (!val) return
+                    // If the value contains URL-encoded characters, it's corrupted
+                    if (val.includes("%")) {
+                        console.warn("[auth] Removing corrupted token:", k)
+                        localStorage.removeItem(k)
+                    }
+                } catch {
+                    localStorage.removeItem(k)
+                }
+            })
+    } catch {}
+}
+
 /** Reset the singleton Supabase client. */
 export function resetSupabaseClient() {
     supabaseInstance = null

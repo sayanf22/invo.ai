@@ -16,6 +16,22 @@ interface PDFDownloadButtonProps {
     size?: "default" | "sm" | "lg" | "icon"
 }
 
+/** Generate QR code as base64 PNG data URL — client-side */
+async function generateQRCode(url: string): Promise<string | null> {
+    if (!url) return null
+    try {
+        const QRCode = await import("qrcode")
+        return await QRCode.default.toDataURL(url, {
+            width: 200,
+            margin: 1,
+            color: { dark: "#000000", light: "#FFFFFF" },
+            errorCorrectionLevel: "M",
+        })
+    } catch {
+        return null
+    }
+}
+
 export function PDFDownloadButton({
     data,
     filename,
@@ -34,11 +50,22 @@ export function PDFDownloadButton({
             // Resolve logo URL from R2 key before PDF generation
             const logoUrl = await resolveLogoUrl(cleanedData.fromLogo)
 
+            // Generate QR code for payment link (invoices only)
+            let paymentQrCode: string | null = null
+            const isInvoice = (cleanedData.documentType || "").toLowerCase() === "invoice" ||
+                (!cleanedData.documentType)
+            if (isInvoice && cleanedData.paymentLink &&
+                cleanedData.paymentLinkStatus !== "paid" &&
+                cleanedData.paymentLinkStatus !== "expired" &&
+                cleanedData.paymentLinkStatus !== "cancelled") {
+                paymentQrCode = await generateQRCode(cleanedData.paymentLink)
+            }
+
             // Dynamically import templates
             const templates = await import("@/lib/pdf-templates")
 
             // Select the correct PDF component based on document type
-            let PdfComponent: React.ComponentType<{ data: typeof data; logoUrl?: string | null }>
+            let PdfComponent: React.ComponentType<{ data: typeof data; logoUrl?: string | null; paymentQrCode?: string | null }>
             let filePrefix: string
 
             switch ((cleanedData.documentType || "").toLowerCase()) {
@@ -67,7 +94,7 @@ export function PDFDownloadButton({
             }
 
             // Generate the PDF blob
-            const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
+            const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />).toBlob()
 
             // Create download link with timestamp to avoid caching
             const url = URL.createObjectURL(blob)

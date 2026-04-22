@@ -137,6 +137,118 @@ export async function POST(request: Request) {
                 break
             }
 
+            // ── Payment Link Events ────────────────────────────────────────────
+
+            case "payment_link.paid": {
+                const paymentLink = event.payload.payment_link.entity
+                const payment = event.payload.payment?.entity
+                console.log("Payment link paid:", paymentLink.id, paymentLink.amount)
+
+                await supabase
+                    .from("invoice_payments" as any)
+                    .update({
+                        status: "paid",
+                        razorpay_payment_id: payment?.id ?? null,
+                        amount_paid: paymentLink.amount_paid ?? paymentLink.amount,
+                        paid_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("razorpay_payment_link_id", paymentLink.id)
+
+                // Create a notification for the user
+                const notes = paymentLink.notes ?? {}
+                const userId = notes.user_id
+                if (userId) {
+                    const amountDisplay = ((paymentLink.amount_paid ?? paymentLink.amount) / 100).toFixed(2)
+                    const currency = paymentLink.currency ?? "INR"
+                    await supabase
+                        .from("notifications")
+                        .insert({
+                            user_id: userId,
+                            type: "general",
+                            title: "Invoice Paid! 🎉",
+                            message: `Payment of ${currency} ${amountDisplay} received for ${paymentLink.reference_id ?? "your invoice"}.`,
+                            metadata: {
+                                payment_link_id: paymentLink.id,
+                                razorpay_payment_id: payment?.id,
+                                amount: paymentLink.amount_paid ?? paymentLink.amount,
+                                currency,
+                                reference_id: paymentLink.reference_id,
+                            },
+                        })
+                }
+                break
+            }
+
+            case "payment_link.partially_paid": {
+                const paymentLink = event.payload.payment_link.entity
+                const payment = event.payload.payment?.entity
+                console.log("Payment link partially paid:", paymentLink.id, paymentLink.amount_paid)
+
+                await supabase
+                    .from("invoice_payments" as any)
+                    .update({
+                        status: "partially_paid",
+                        razorpay_payment_id: payment?.id ?? null,
+                        amount_paid: paymentLink.amount_paid ?? 0,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("razorpay_payment_link_id", paymentLink.id)
+
+                // Notify user of partial payment
+                const notes = paymentLink.notes ?? {}
+                const userId = notes.user_id
+                if (userId) {
+                    const paidDisplay = ((paymentLink.amount_paid ?? 0) / 100).toFixed(2)
+                    const totalDisplay = (paymentLink.amount / 100).toFixed(2)
+                    const currency = paymentLink.currency ?? "INR"
+                    await supabase
+                        .from("notifications")
+                        .insert({
+                            user_id: userId,
+                            type: "general",
+                            title: "Partial Payment Received",
+                            message: `${currency} ${paidDisplay} of ${totalDisplay} received for ${paymentLink.reference_id ?? "your invoice"}.`,
+                            metadata: {
+                                payment_link_id: paymentLink.id,
+                                amount_paid: paymentLink.amount_paid,
+                                amount_total: paymentLink.amount,
+                                currency,
+                                reference_id: paymentLink.reference_id,
+                            },
+                        })
+                }
+                break
+            }
+
+            case "payment_link.expired": {
+                const paymentLink = event.payload.payment_link.entity
+                console.log("Payment link expired:", paymentLink.id)
+
+                await supabase
+                    .from("invoice_payments" as any)
+                    .update({
+                        status: "expired",
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("razorpay_payment_link_id", paymentLink.id)
+                break
+            }
+
+            case "payment_link.cancelled": {
+                const paymentLink = event.payload.payment_link.entity
+                console.log("Payment link cancelled:", paymentLink.id)
+
+                await supabase
+                    .from("invoice_payments" as any)
+                    .update({
+                        status: "cancelled",
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("razorpay_payment_link_id", paymentLink.id)
+                break
+            }
+
             default:
                 console.log("Unhandled webhook event:", eventType)
         }

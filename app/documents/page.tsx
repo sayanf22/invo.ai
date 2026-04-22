@@ -1,15 +1,38 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
-import { Button } from "@/components/ui/button"
-import { FileText, Download, Eye, Calendar, Loader2, ArrowRight, ArrowLeft, Plus } from "lucide-react"
+import {
+  FileText, Download, Eye, Calendar, Loader2, ArrowLeft, Plus,
+  CheckCircle2, Clock, AlertCircle, XCircle, Link2, ExternalLink,
+  RefreshCw, ChevronDown, ChevronUp, CreditCard, Send,
+} from "lucide-react"
 import { toast } from "sonner"
-import { format } from "date-fns"
+import { format, formatDistanceToNow } from "date-fns"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
+import { cn } from "@/lib/utils"
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface PaymentRecord {
+  id: string
+  short_url: string
+  amount: number
+  currency: string
+  status: "created" | "paid" | "partially_paid" | "expired" | "cancelled"
+  amount_paid: number | null
+  paid_at: string | null
+  expires_at: string | null
+  created_at: string
+  view_count: number
+  link_viewed_at: string | null
+  reference_id: string | null
+  customer_name: string | null
+  gateway: string
+}
 
 interface DocSession {
   id: string
@@ -18,8 +41,12 @@ interface DocSession {
   client_name: string | null
   created_at: string
   updated_at: string | null
+  sent_at: string | null
   context: any
+  payment?: PaymentRecord | null
 }
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const TYPE_COLORS: Record<string, string> = {
   invoice: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -28,26 +55,288 @@ const TYPE_COLORS: Record<string, string> = {
   proposal: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 }
 
+const PAYMENT_STATUS_CONFIG = {
+  paid: {
+    label: "Paid",
+    icon: CheckCircle2,
+    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    dot: "bg-emerald-500",
+  },
+  partially_paid: {
+    label: "Partial",
+    icon: Clock,
+    className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    dot: "bg-amber-500",
+  },
+  created: {
+    label: "Pending",
+    icon: Clock,
+    className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    dot: "bg-blue-500",
+  },
+  expired: {
+    label: "Expired",
+    icon: AlertCircle,
+    className: "bg-muted text-muted-foreground",
+    dot: "bg-muted-foreground",
+  },
+  cancelled: {
+    label: "Cancelled",
+    icon: XCircle,
+    className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    dot: "bg-red-500",
+  },
+}
+
+// ── Payment Status Badge ──────────────────────────────────────────────────────
+
+function PaymentBadge({ payment }: { payment: PaymentRecord }) {
+  const cfg = PAYMENT_STATUS_CONFIG[payment.status] ?? PAYMENT_STATUS_CONFIG.created
+  const Icon = cfg.icon
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", cfg.className)}>
+      <Icon size={10} />
+      {cfg.label}
+    </span>
+  )
+}
+
+// ── Payment Detail Panel ──────────────────────────────────────────────────────
+
+function PaymentPanel({ payment, currency }: { payment: PaymentRecord; currency: string }) {
+  const fmt = (paise: number) => {
+    const amount = paise / 100
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: payment.currency || currency, maximumFractionDigits: 2 }).format(amount)
+  }
+
+  const isOverdue = payment.status === "created" && payment.expires_at && new Date(payment.expires_at) < new Date()
+
+  return (
+    <div className="mt-2 rounded-xl border border-border/50 bg-muted/20 overflow-hidden">
+      {/* Amount row */}
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/40">
+        <div className="flex items-center gap-2">
+          <CreditCard size={13} className="text-muted-foreground shrink-0" />
+          <span className="text-sm font-semibold text-foreground">{fmt(payment.amount)}</span>
+          {payment.status === "partially_paid" && payment.amount_paid && (
+            <span className="text-xs text-muted-foreground">({fmt(payment.amount_paid)} paid)</span>
+          )}
+        </div>
+        <PaymentBadge payment={payment} />
+      </div>
+
+      {/* Tracking info */}
+      <div className="px-3 py-2 space-y-1.5">
+        {/* View tracking */}
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground flex items-center gap-1.5">
+            <Eye size={11} />
+            {payment.view_count > 0
+              ? `Viewed ${payment.view_count} time${payment.view_count > 1 ? "s" : ""}`
+              : "Not yet viewed"}
+          </span>
+          {payment.link_viewed_at && (
+            <span className="text-muted-foreground">
+              Last: {formatDistanceToNow(new Date(payment.link_viewed_at), { addSuffix: true })}
+            </span>
+          )}
+        </div>
+
+        {/* Paid at */}
+        {payment.paid_at && (
+          <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 size={11} />
+            Paid {format(new Date(payment.paid_at), "MMM d, yyyy 'at' h:mm a")}
+          </div>
+        )}
+
+        {/* Expiry */}
+        {payment.expires_at && payment.status === "created" && (
+          <div className={cn("flex items-center gap-1.5 text-xs", isOverdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+            <Clock size={11} />
+            {isOverdue
+              ? `Expired ${formatDistanceToNow(new Date(payment.expires_at), { addSuffix: true })}`
+              : `Expires ${format(new Date(payment.expires_at), "MMM d, yyyy")}`}
+          </div>
+        )}
+
+        {/* Payment link */}
+        {payment.status !== "paid" && payment.status !== "cancelled" && (
+          <div className="flex items-center gap-2 pt-0.5">
+            <a
+              href={payment.short_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+            >
+              <Link2 size={11} />
+              Open payment link
+              <ExternalLink size={10} />
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Document Card ─────────────────────────────────────────────────────────────
+
+function DocCard({
+  session,
+  onDownload,
+  downloading,
+}: {
+  session: DocSession
+  onDownload: (s: DocSession) => void
+  downloading: boolean
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const docType = (session.document_type || "invoice").toLowerCase()
+  const ctx = session.context || {}
+
+  const title = ctx.invoiceNumber || ctx.referenceNumber || session.client_name ||
+    `${docType.charAt(0).toUpperCase() + docType.slice(1)}`
+
+  const total = (() => {
+    if (!ctx.items || !Array.isArray(ctx.items) || ctx.items.length === 0) return null
+    const subtotal = ctx.items.reduce((sum: number, item: any) =>
+      sum + (Number(item.quantity) || 1) * (Number(item.rate) || 0), 0)
+    return `${ctx.currency || "₹"}${subtotal.toLocaleString()}`
+  })()
+
+  const payment = session.payment
+  const hasPayment = !!payment
+
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border bg-card overflow-hidden transition-shadow duration-200",
+        "shadow-sm hover:shadow-md",
+        payment?.status === "paid" ? "border-emerald-200 dark:border-emerald-800/40" : "border-border/60",
+      )}
+    >
+      {/* Main row */}
+      <div className="flex items-start gap-3 p-3.5">
+        {/* Type badge */}
+        <div className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5", TYPE_COLORS[docType] || "bg-muted text-muted-foreground")}>
+          {docType}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-semibold text-sm leading-tight truncate">{title}</p>
+            {/* Payment status badge — show for invoices always */}
+            {docType === "invoice" && (
+              payment
+                ? <PaymentBadge payment={payment} />
+                : <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground shrink-0">
+                    No link
+                  </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
+            {session.client_name && session.client_name !== title && (
+              <span className="truncate max-w-[120px]">{session.client_name}</span>
+            )}
+            <span className="flex items-center gap-1 shrink-0">
+              <Calendar size={10} />
+              {format(new Date(session.created_at), "MMM d, yyyy")}
+            </span>
+            {total && <span className="font-semibold text-foreground/80 shrink-0">{total}</span>}
+            {session.sent_at && (
+              <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 shrink-0">
+                <Send size={10} />
+                Sent
+              </span>
+            )}
+          </div>
+
+          {/* View tracking summary (compact) */}
+          {payment && payment.view_count > 0 && payment.status !== "paid" && (
+            <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+              <Eye size={10} />
+              Viewed {payment.view_count}×
+              {payment.link_viewed_at && ` · ${formatDistanceToNow(new Date(payment.link_viewed_at), { addSuffix: true })}`}
+            </p>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* View (read-only static view) */}
+          <a
+            href={`/view/${session.id}`}
+            className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground"
+            aria-label="View document"
+          >
+            <Eye size={15} />
+          </a>
+
+          {/* Download */}
+          <button
+            className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-40"
+            disabled={downloading}
+            onClick={() => onDownload(session)}
+            aria-label="Download PDF"
+          >
+            {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+          </button>
+
+          {/* Expand payment details — only if payment exists */}
+          {hasPayment && (
+            <button
+              className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground"
+              onClick={() => setExpanded(v => !v)}
+              aria-label="Toggle payment details"
+            >
+              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Expandable payment panel */}
+      {hasPayment && (
+        <div className={cn(
+          "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}>
+          <div className="min-h-0 overflow-hidden">
+            <div className="px-3.5 pb-3.5">
+              <PaymentPanel payment={payment!} currency={ctx.currency || "INR"} />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function MyDocumentsPage() {
   const router = useRouter()
   const supabase = useSupabase()
   const user = useUser()
   const [sessions, setSessions] = useState<DocSession[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>("all")
 
-  useEffect(() => {
-    if (!user) return
-    loadSessions()
-  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async (silent = false) => {
     if (!user?.id) { setLoading(false); return }
+    if (!silent) setLoading(true)
+    else setRefreshing(true)
+
     try {
-      const { data, error } = await supabase
+      // Load sessions
+      const { data: rawSessions, error } = await supabase
         .from("document_sessions")
-        .select("id, document_type, status, client_name, created_at, updated_at, context")
+        .select("id, document_type, status, client_name, created_at, updated_at, sent_at, context")
         .eq("user_id", user.id)
         .not("context", "eq", "{}")
         .order("created_at", { ascending: false })
@@ -55,20 +344,50 @@ export default function MyDocumentsPage() {
 
       if (error) throw error
 
-      const withContent = (data || []).filter((s: any) => {
+      const withContent = (rawSessions || []).filter((s: any) => {
         const ctx = s.context
         if (!ctx || typeof ctx !== "object") return false
         return ctx.documentType || ctx.fromName || ctx.toName || (Array.isArray(ctx.items) && ctx.items.length > 0)
       })
 
-      setSessions(withContent as DocSession[])
+      // Load payment records for all sessions
+      const sessionIds = withContent.map((s: any) => s.id)
+      let paymentMap: Record<string, PaymentRecord> = {}
+
+      if (sessionIds.length > 0) {
+        const { data: payments } = await (supabase as any)
+          .from("invoice_payments")
+          .select("id, session_id, short_url, amount, currency, status, amount_paid, paid_at, expires_at, created_at, view_count, link_viewed_at, reference_id, customer_name, gateway")
+          .in("session_id", sessionIds)
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+
+        // Keep only the most recent payment per session
+        for (const p of (payments || [])) {
+          if (!paymentMap[p.session_id]) {
+            paymentMap[p.session_id] = p as PaymentRecord
+          }
+        }
+      }
+
+      const merged: DocSession[] = withContent.map((s: any) => ({
+        ...s,
+        payment: paymentMap[s.id] ?? null,
+      }))
+
+      setSessions(merged)
     } catch (error: any) {
       console.error("Error loading sessions:", error?.message || error)
       toast.error("Failed to load documents")
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
-  }
+  }, [user, supabase])
+
+  useEffect(() => {
+    if (user) loadSessions()
+  }, [user, loadSessions])
 
   const downloadDocument = async (session: DocSession) => {
     if (!session.context) { toast.error("No document data available"); return }
@@ -108,22 +427,30 @@ export default function MyDocumentsPage() {
     }
   }
 
-  const getDocTitle = (s: DocSession): string => {
-    const ctx = s.context || {}
-    return ctx.invoiceNumber || ctx.referenceNumber || s.client_name ||
-      `${(s.document_type || "document").charAt(0).toUpperCase() + (s.document_type || "document").slice(1)}`
-  }
+  // Filter options with counts
+  const filterOptions = [
+    { key: "all", label: "All", count: sessions.length },
+    { key: "invoice", label: "Invoices", count: sessions.filter(s => s.document_type === "invoice").length },
+    { key: "contract", label: "Contracts", count: sessions.filter(s => s.document_type === "contract").length },
+    { key: "quotation", label: "Quotations", count: sessions.filter(s => s.document_type === "quotation").length },
+    { key: "proposal", label: "Proposals", count: sessions.filter(s => s.document_type === "proposal").length },
+    { key: "paid", label: "Paid", count: sessions.filter(s => s.payment?.status === "paid").length },
+    { key: "pending", label: "Pending", count: sessions.filter(s => s.payment?.status === "created").length },
+  ].filter(f => f.key === "all" || f.count > 0)
 
-  const getDocTotal = (s: DocSession): string | null => {
-    const ctx = s.context || {}
-    if (!ctx.items || !Array.isArray(ctx.items) || ctx.items.length === 0) return null
-    const subtotal = ctx.items.reduce((sum: number, item: any) => {
-      return sum + (Number(item.quantity) || 1) * (Number(item.rate) || 0)
-    }, 0)
-    return `${ctx.currency || "₹"}${subtotal.toLocaleString()}`
-  }
+  const filtered = sessions.filter(s => {
+    if (filter === "all") return true
+    if (filter === "paid") return s.payment?.status === "paid"
+    if (filter === "pending") return s.payment?.status === "created"
+    return s.document_type === filter
+  })
 
-  const filtered = filter === "all" ? sessions : sessions.filter(s => s.document_type === filter)
+  // Summary stats
+  const totalPaid = sessions.filter(s => s.payment?.status === "paid").length
+  const totalPending = sessions.filter(s => s.payment?.status === "created").length
+  const totalAmount = sessions
+    .filter(s => s.payment?.status === "paid" && s.payment?.amount_paid)
+    .reduce((sum, s) => sum + (s.payment!.amount_paid! / 100), 0)
 
   if (loading) {
     return (
@@ -135,7 +462,7 @@ export default function MyDocumentsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Sticky header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/50">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <button
@@ -147,10 +474,16 @@ export default function MyDocumentsPage() {
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-semibold">My Documents</h1>
-            <p className="text-xs text-muted-foreground">
-              {sessions.length} document{sessions.length !== 1 ? "s" : ""}
-            </p>
+            <p className="text-xs text-muted-foreground">{sessions.length} document{sessions.length !== 1 ? "s" : ""}</p>
           </div>
+          <button
+            onClick={() => loadSessions(true)}
+            disabled={refreshing}
+            className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-secondary/60 transition-colors shrink-0 text-muted-foreground"
+            aria-label="Refresh"
+          >
+            <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
+          </button>
           <button
             onClick={() => router.push("/")}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity active:scale-[0.97] shrink-0"
@@ -161,27 +494,43 @@ export default function MyDocumentsPage() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-4">
+      <div className="max-w-3xl mx-auto px-4 py-4 space-y-4">
+
+        {/* Summary stats — only show if there are payments */}
+        {(totalPaid > 0 || totalPending > 0) && (
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-border/60 bg-card p-3 text-center">
+              <p className="text-lg font-bold text-foreground">{sessions.length}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Total</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/20 p-3 text-center">
+              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{totalPaid}</p>
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-500 mt-0.5">Paid</p>
+            </div>
+            <div className="rounded-2xl border border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-950/20 p-3 text-center">
+              <p className="text-lg font-bold text-blue-700 dark:text-blue-400">{totalPending}</p>
+              <p className="text-[11px] text-blue-600 dark:text-blue-500 mt-0.5">Pending</p>
+            </div>
+          </div>
+        )}
+
         {/* Filter pills */}
         {sessions.length > 0 && (
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-none">
-            {["all", "invoice", "contract", "quotation", "proposal"].map(f => {
-              const count = f === "all" ? sessions.length : sessions.filter(s => s.document_type === f).length
-              if (f !== "all" && count === 0) return null
-              return (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-                    filter === f
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80 active:bg-muted/60"
-                  }`}
-                >
-                  {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)} ({count})
-                </button>
-              )
-            })}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4">
+            {filterOptions.map(f => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap shrink-0",
+                  filter === f.key
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                {f.label} ({f.count})
+              </button>
+            ))}
           </div>
         )}
 
@@ -202,74 +551,30 @@ export default function MyDocumentsPage() {
             {sessions.length === 0 && (
               <button
                 onClick={() => router.push("/")}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity active:scale-[0.97]"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
               >
-                Create your first document <ArrowRight className="w-4 h-4" />
+                Create your first document
               </button>
             )}
           </div>
         ) : (
           <div className="space-y-2">
-            {filtered.map((s) => {
-              const total = getDocTotal(s)
-              const docType = (s.document_type || "invoice").toLowerCase()
-              const title = getDocTitle(s)
-              return (
-                <div
-                  key={s.id}
-                  className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/60 hover:border-border transition-colors active:bg-secondary/30"
-                  style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
-                >
-                  {/* Type badge */}
-                  <div className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0 ${TYPE_COLORS[docType] || "bg-muted text-muted-foreground"}`}>
-                    {docType}
-                  </div>
-
-                  {/* Info — tappable to open */}
-                  <button
-                    className="flex-1 min-w-0 text-left"
-                    onClick={() => router.push(`/?sessionId=${s.id}`)}
-                  >
-                    <p className="font-medium text-sm truncate">{title}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                      {s.client_name && s.client_name !== title && (
-                        <span className="truncate max-w-[120px]">{s.client_name}</span>
-                      )}
-                      <span className="flex items-center gap-1 shrink-0">
-                        <Calendar className="w-3 h-3" />
-                        {format(new Date(s.created_at), "MMM d, yyyy")}
-                      </span>
-                      {total && (
-                        <span className="font-medium text-foreground shrink-0">{total}</span>
-                      )}
-                    </div>
-                  </button>
-
-                  {/* Actions — always visible */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 active:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                      onClick={() => router.push(`/?sessionId=${s.id}`)}
-                      aria-label="Open document"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 active:bg-secondary transition-colors text-muted-foreground hover:text-foreground disabled:opacity-40"
-                      disabled={downloadingId === s.id}
-                      onClick={() => downloadDocument(s)}
-                      aria-label="Download PDF"
-                    >
-                      {downloadingId === s.id
-                        ? <Loader2 className="w-4 h-4 animate-spin" />
-                        : <Download className="w-4 h-4" />
-                      }
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
+            {filtered.map(s => (
+              <DocCard
+                key={s.id}
+                session={s}
+                onDownload={downloadDocument}
+                downloading={downloadingId === s.id}
+              />
+            ))}
           </div>
+        )}
+
+        {/* Read-only notice */}
+        {sessions.length > 0 && (
+          <p className="text-center text-xs text-muted-foreground/60 pb-4">
+            Documents are read-only records. Open to view, download to export.
+          </p>
         )}
       </div>
     </div>

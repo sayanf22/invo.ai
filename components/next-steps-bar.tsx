@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { FileText, ScrollText, ClipboardList, Lightbulb, Loader2, ChevronDown, FilePlus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PaymentLinkButton } from "@/components/payment-link-button"
+import type { InvoiceData } from "@/lib/invoice-types"
 
 const DOC_OPTIONS: Record<string, { label: string; icon: React.ElementType }> = {
     invoice:   { label: "Invoice",   icon: FileText },
@@ -18,6 +20,10 @@ interface NextStepsBarProps {
     onCreateLinked: (parentSessionId: string, targetType: string) => Promise<void>
     /** Slot for the Select Client button — rendered inline in the toolbar row */
     clientSelectorSlot?: React.ReactNode
+    /** Invoice data for payment link generation */
+    invoiceData?: InvoiceData
+    /** Called when payment link is created — syncs into invoice data */
+    onPaymentLinkChange?: (shortUrl: string, status: string) => void
 }
 
 export function NextStepsBar({
@@ -26,6 +32,8 @@ export function NextStepsBar({
     parentSessionId,
     onCreateLinked,
     clientSelectorSlot,
+    invoiceData,
+    onPaymentLinkChange,
 }: NextStepsBarProps) {
     const [open, setOpen] = useState(false)
     const [loadingType, setLoadingType] = useState<string | null>(null)
@@ -86,6 +94,16 @@ export function NextStepsBar({
 
                 {/* Select Client slot */}
                 {clientSelectorSlot}
+
+                {/* Payment Link button — only for invoices */}
+                {invoiceData && (
+                    <PaymentLinkButton
+                        sessionId={parentSessionId}
+                        invoiceData={invoiceData}
+                        documentType={currentDocType}
+                        onPaymentLinkChange={onPaymentLinkChange}
+                    />
+                )}
 
             </div>
 
