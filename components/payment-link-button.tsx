@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Link2, Copy, Check, Loader2, MessageCircle, RefreshCw, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -70,6 +70,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
     const [copied, setCopied] = useState(false)
 
     const isInvoice = documentType.toLowerCase() === "invoice"
+    const hasFetchedRef = useRef(false)
 
     // Fetch existing payment link on mount — always call hooks, guard inside
     const fetchExisting = useCallback(async () => {
@@ -97,6 +98,9 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
     }, [sessionId, onPaymentLinkChange, isInvoice])
 
     useEffect(() => {
+        // Only fetch once on mount — don't re-fetch on every render
+        if (hasFetchedRef.current) return
+        hasFetchedRef.current = true
         fetchExisting()
     }, [fetchExisting])
 
