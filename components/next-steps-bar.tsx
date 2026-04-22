@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { FileText, ScrollText, ClipboardList, Lightbulb, Loader2, ChevronDown, FilePlus } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PaymentLinkButton } from "@/components/payment-link-button"
 import type { InvoiceData } from "@/lib/invoice-types"
 
 const DOC_OPTIONS: Record<string, { label: string; icon: React.ElementType }> = {
@@ -20,9 +19,9 @@ interface NextStepsBarProps {
     onCreateLinked: (parentSessionId: string, targetType: string) => Promise<void>
     /** Slot for the Select Client button — rendered inline in the toolbar row */
     clientSelectorSlot?: React.ReactNode
-    /** Invoice data for payment link generation */
+    /** Invoice data — kept for API compatibility but payment link button moved to toolbar */
     invoiceData?: InvoiceData
-    /** Called when payment link is created — syncs into invoice data */
+    /** Called when payment link is created — syncs into invoice data for PDF embedding */
     onPaymentLinkChange?: (shortUrl: string, status: string) => void
 }
 
@@ -95,15 +94,7 @@ export function NextStepsBar({
                 {/* Select Client slot */}
                 {clientSelectorSlot}
 
-                {/* Payment Link button — only for invoices */}
-                {invoiceData && (
-                    <PaymentLinkButton
-                        sessionId={parentSessionId}
-                        invoiceData={invoiceData}
-                        documentType={currentDocType}
-                        onPaymentLinkChange={onPaymentLinkChange}
-                    />
-                )}
+                {/* Payment Link button removed from chat bar — now only in preview toolbar */}
 
             </div>
 

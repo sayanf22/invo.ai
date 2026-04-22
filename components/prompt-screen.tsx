@@ -40,6 +40,8 @@ export function PromptScreen({
   const [showHistory, setShowHistory] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(initialSessionId)
   const [messageCount, setMessageCount] = useState(0)
+  // Lock invoice editing after payment link is created (anti-fraud)
+  const [invoiceLocked, setInvoiceLocked] = useState(false)
 
   const handleChange = useCallback((updates: Partial<InvoiceData>) => {
     setData((prev) => ({ ...prev, ...updates }))
@@ -52,6 +54,10 @@ export function PromptScreen({
   const handlePaymentLinkChange = useCallback((url: string, status: string) => {
     handleChange({ paymentLink: url, paymentLinkStatus: status as any })
   }, [handleChange])
+
+  const handleLockChange = useCallback((locked: boolean) => {
+    setInvoiceLocked(locked)
+  }, [])
 
   const handleLinkedSessionCreate = useCallback((sessionId: string, docType: string) => {
     const capitalized = docType.charAt(0).toUpperCase() + docType.slice(1)
@@ -186,11 +192,12 @@ export function PromptScreen({
             <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col">
               <DocumentPreview
                 data={data}
-                onChange={handleChange}
+                onChange={invoiceLocked ? undefined : handleChange}
                 onToggleEditor={() => setMobileTab("edit")}
                 showEditor={mobileTab === "edit"}
                 sessionId={selectedSessionId}
                 onPaymentLinkChange={handlePaymentLinkChange}
+                onLockChange={handleLockChange}
               />
             </div>
           </div>
@@ -234,11 +241,12 @@ export function PromptScreen({
         <div className="hidden md:flex flex-1 bg-background overflow-hidden flex-col transition-opacity duration-300">
           <DocumentPreview
             data={data}
-            onChange={handleChange}
+            onChange={invoiceLocked ? undefined : handleChange}
             onToggleEditor={() => setShowEditor(e => !e)}
             showEditor={showEditor}
             sessionId={selectedSessionId}
             onPaymentLinkChange={handlePaymentLinkChange}
+            onLockChange={handleLockChange}
           />
         </div>
       </div>

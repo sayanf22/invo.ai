@@ -19,6 +19,8 @@ interface DocumentPreviewProps {
   showEditor?: boolean
   sessionId?: string | null
   onPaymentLinkChange?: (shortUrl: string, status: string) => void
+  /** Called when invoice lock state changes (true = locked after payment link created) */
+  onLockChange?: (locked: boolean) => void
 }
 
 function EmptyState() {
@@ -312,7 +314,7 @@ function ToolbarSep() {
 }
 
 /* ─── Main DocumentPreview ─── */
-export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange }: DocumentPreviewProps) {
+export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onLockChange }: DocumentPreviewProps) {
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [pageCount, setPageCount] = useState(0)
   const hasContent = data.documentType || data.fromName || data.toName || data.description
@@ -442,6 +444,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               invoiceData={data}
               documentType={data.documentType || "invoice"}
               onPaymentLinkChange={onPaymentLinkChange}
+              onLockChange={onLockChange}
             />
           )}
           <ShareButton data={data} />

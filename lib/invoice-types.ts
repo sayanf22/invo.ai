@@ -143,10 +143,13 @@ export const PAYMENT_TERMS = [
 
 export const PAYMENT_METHODS = [
   "Bank Transfer",
-  "Credit Card",
-  "PayPal",
-  "Stripe",
+  "UPI",
   "Cash",
+  "Credit Card",
+  "Razorpay",
+  "Stripe",
+  "Cashfree",
+  "PayPal",
   "Check",
   "Wire Transfer",
   "Crypto",
