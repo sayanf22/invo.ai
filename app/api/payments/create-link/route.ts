@@ -209,7 +209,12 @@ export async function POST(request: NextRequest) {
     const contextSnapshot = (body as Record<string, unknown>).contextSnapshot
     const sessionUpdate: Record<string, unknown> = { sent_at: new Date().toISOString() }
     if (contextSnapshot && typeof contextSnapshot === "object" && !Array.isArray(contextSnapshot)) {
-        sessionUpdate.context = contextSnapshot
+        // Validate it's a plain object with expected InvoiceData shape before storing
+        const ctx = contextSnapshot as Record<string, unknown>
+        // Only store if it has at least one expected InvoiceData field
+        if (ctx.documentType !== undefined || ctx.fromName !== undefined || ctx.items !== undefined) {
+            sessionUpdate.context = contextSnapshot
+        }
     }
     await supabaseAdmin
         .from("document_sessions")

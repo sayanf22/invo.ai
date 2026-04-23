@@ -56,7 +56,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://*.supabase.co https://*.razorpay.com https://upload.wikimedia.org https://cashfreelogo.cashfree.com https://stripe.com https://js.stripe.com",
-              "connect-src 'self' blob: data: https://*.supabase.co https://api.deepseek.com https://api.openai.com https://api.razorpay.com https://lumberjack.razorpay.com",
+              "connect-src 'self' blob: data: https://*.supabase.co https://api.deepseek.com https://api.openai.com https://api.razorpay.com https://lumberjack.razorpay.com https://api.cashfree.com https://api.stripe.com",
               "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com",
               "frame-ancestors 'none'",
               "worker-src 'self' blob:",

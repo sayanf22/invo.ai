@@ -133,10 +133,12 @@ function PdfViewer({ pdfBytes, zoom }: { pdfBytes: Uint8Array; zoom: number }) {
 function ShareSheet({
   data,
   payment,
+  sessionId,
   onClose,
 }: {
   data: InvoiceData
   payment: PaymentInfo | null
+  sessionId: string
   onClose: () => void
 }) {
   const [copied, setCopied] = useState<string | null>(null)
@@ -190,8 +192,12 @@ function ShareSheet({
   const total = data.items?.reduce((s, i) => s + i.quantity * i.rate, 0) ?? 0
   const currency = data.currency || "INR"
 
-  const paymentMsg = payment?.short_url
-    ? `Hi ${data.toName || ""},\n\nPlease find your ${docType} ${invoiceRef} for ${currency} ${total.toFixed(2)}.\n\nPay here: ${payment.short_url}\n\nThank you,\n${data.fromName || ""}`
+  // Use platform link for sharing (not raw gateway URL)
+  const platformLink = sessionId ? `${window.location.origin}/pay/${sessionId}` : null
+  const shareLink = platformLink || payment?.short_url || null
+
+  const paymentMsg = shareLink
+    ? `Hi ${data.toName || ""},\n\nPlease find your ${docType} ${invoiceRef} for ${currency} ${total.toFixed(2)}.\n\nPay here: ${shareLink}\n\nThank you,\n${data.fromName || ""}`
     : `Hi ${data.toName || ""},\n\nPlease find your ${docType} ${invoiceRef} for ${currency} ${total.toFixed(2)}.\n\nThank you,\n${data.fromName || ""}`
 
   return (
@@ -215,15 +221,15 @@ function ShareSheet({
           </div>
 
           {/* Payment link section */}
-          {payment?.short_url && payment.status !== "paid" && (
+          {shareLink && payment?.status !== "paid" && (
             <div className="rounded-2xl border border-border bg-muted/30 p-3 space-y-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Payment Link</p>
 
               {/* URL + copy */}
               <div className="flex items-center gap-2 bg-background rounded-xl border border-border px-3 py-2">
                 <Link2 size={13} className="text-muted-foreground shrink-0" />
-                <span className="flex-1 text-xs font-mono truncate text-foreground/80">{payment.short_url}</span>
-                <button onClick={() => copy(payment.short_url, "link")}
+                <span className="flex-1 text-xs font-mono truncate text-foreground/80">{shareLink}</span>
+                <button onClick={() => copy(shareLink, "link")}
                   className="shrink-0 p-1 rounded-lg hover:bg-muted transition-colors">
                   {copied === "link" ? <Check size={13} className="text-primary" /> : <Copy size={13} className="text-muted-foreground" />}
                 </button>
@@ -281,7 +287,7 @@ function ShareSheet({
               Email
             </button>
 
-            {payment?.short_url && (
+            {shareLink && (
               <button
                 onClick={() => shareWhatsApp(paymentMsg)}
                 className="flex items-center gap-2 px-3 py-3 rounded-2xl bg-[#25D366]/10 border border-[#25D366]/30 text-[#128C7E] dark:text-[#25D366] hover:bg-[#25D366]/20 transition-colors text-sm font-medium"
@@ -535,7 +541,7 @@ export default function ViewDocumentPage() {
 
       {/* Share sheet */}
       {showShare && (
-        <ShareSheet data={docData} payment={payment} onClose={() => setShowShare(false)} />
+        <ShareSheet data={docData} payment={payment} sessionId={sessionId} onClose={() => setShowShare(false)} />
       )}
     </div>
   )

@@ -100,7 +100,8 @@ function PdfViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
   }, [])
 
   const fileData = useMemo(() => ({ data: pdfBytes.slice() }), [pdfBytes])
-  const pageWidth = containerWidth > 0 ? Math.min(containerWidth - 16, 800) : 600
+  // On mobile, use full container width minus minimal padding to avoid overflow
+  const pageWidth = containerWidth > 0 ? Math.min(containerWidth - 8, 800) : 320
 
   if (!ViewerComponents) {
     return (
@@ -111,7 +112,7 @@ function PdfViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
   }
 
   return (
-    <div ref={containerRef} className="w-full">
+    <div ref={containerRef} className="w-full overflow-x-hidden">
       <ViewerComponents.Document
         file={fileData}
         onLoadSuccess={({ numPages: n }: { numPages: number }) => setNumPages(n)}
@@ -299,12 +300,19 @@ export function PayDocumentView({ docData, payment }: Props) {
                   Complete your payment
                 </p>
 
-                {/* Pay Now button */}
+                {/* Pay Now button — use location.href for mobile compatibility */}
                 <a
                   href={payment.short_url}
-                  target="_blank"
+                  onClick={(e) => {
+                    // On mobile, target="_blank" can be blocked; use direct navigation as fallback
+                    if (typeof window !== "undefined") {
+                      e.preventDefault()
+                      window.open(payment.short_url, "_blank", "noopener,noreferrer") ||
+                        (window.location.href = payment.short_url)
+                    }
+                  }}
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center w-full px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-base transition-colors shadow-sm"
+                  className="flex items-center justify-center w-full px-6 py-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-base transition-colors shadow-sm touch-manipulation select-none"
                 >
                   Pay Now — {currencySymbol} {total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </a>
@@ -340,14 +348,14 @@ export function PayDocumentView({ docData, payment }: Props) {
       )}
 
       {/* PDF Preview */}
-      <div className="max-w-2xl mx-auto px-2 sm:px-4 pb-8">
+      <div className="max-w-2xl mx-auto px-2 sm:px-4 pb-8 overflow-x-hidden">
         <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
             <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               {docTypeLabel} Preview
             </p>
           </div>
-          <div className="p-2 sm:p-4 bg-neutral-100 dark:bg-neutral-950 min-h-[300px]">
+          <div className="p-1 sm:p-4 bg-neutral-100 dark:bg-neutral-950 min-h-[300px] overflow-x-hidden">
             {rendering && !pdfBytes && (
               <div className="flex items-center justify-center py-16">
                 <div className="flex items-center gap-2.5 bg-white dark:bg-neutral-900 px-4 py-2.5 rounded-xl shadow border border-neutral-200 dark:border-neutral-800">

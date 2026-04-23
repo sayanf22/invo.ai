@@ -217,7 +217,7 @@ function DocCard({
       )}
     >
       {/* Main row */}
-      <div className="flex items-start gap-3 p-3.5">
+      <div className="flex items-start gap-2 p-3 sm:p-3.5">
         {/* Type badge */}
         <div className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5", TYPE_COLORS[docType] || "bg-muted text-muted-foreground")}>
           {docType}
@@ -286,7 +286,7 @@ function DocCard({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
           {/* View (read-only static view) */}
           <a
             href={`/view/${session.id}`}
