@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { createServerClient } from "@supabase/ssr"
 import {
   RATE_LIMITS,
   ipStore,
@@ -74,50 +75,6 @@ function isPublicPath(pathname: string): boolean {
 
 // ── URL Normalization ──────────────────────────────────────────────────
 // normalizePathname is imported from @/lib/url-utils
-
-// ── Cookie helpers (same chunked format as lib/supabase.ts) ────────────
-function getAuthTokenFromCookies(request: NextRequest): string | null {
-  const allCookies = request.cookies.getAll()
-  const authCookies = allCookies.filter(
-    (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token")
-  )
-  if (authCookies.length === 0) return null
-
-  const baseName = authCookies[0].name.replace(/\.\d+$/, "")
-  const chunks = allCookies
-    .filter((c) => c.name === baseName || c.name.startsWith(baseName + "."))
-    .sort((a, b) => {
-      const aIdx = a.name.includes(".") ? parseInt(a.name.split(".").pop()!) : -1
-      const bIdx = b.name.includes(".") ? parseInt(b.name.split(".").pop()!) : -1
-      return aIdx - bIdx
-    })
-    .map((c) => c.value)
-    .join("")
-
-  return chunks || null
-}
-
-function parseAuthToken(raw: string): { access_token?: string; refresh_token?: string } | null {
-  // Handle base64-prefixed cookies (from @supabase/ssr or newer client versions)
-  let decoded = raw
-  if (decoded.startsWith("base64-")) {
-    try {
-      decoded = atob(decoded.slice(7))
-    } catch {
-      // Not valid base64, try as-is
-    }
-  }
-  try {
-    return JSON.parse(decoded)
-  } catch {
-    // Cookie value might still be URL-encoded
-    try {
-      return JSON.parse(decodeURIComponent(decoded))
-    } catch {
-      return null
-    }
-  }
-}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -260,68 +217,68 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Read auth token from cookies ─────────────────────────────────────
-  // Fast local JWT check — no network call. Only refresh if expired.
-  // Skip auth check entirely for public pages — no need to validate/refresh tokens
+  // Use @supabase/ssr createServerClient — handles token refresh and cookie writing
+  // in the same format as the browser client. This is the ONLY correct way to
+  // refresh sessions in middleware without causing client/server cookie format conflicts.
   const isPublic = isPublicPath(pathname)
-  const rawToken = getAuthTokenFromCookies(request)
-  const parsed = rawToken ? parseAuthToken(rawToken) : null
-  const accessToken = parsed?.access_token
-  const refreshToken = parsed?.refresh_token
 
   let isAuthenticated = false
+  let userId: string | null = null
 
-  // For public pages, just check if a token exists (no refresh needed)
-  if (isPublic && rawToken) {
-    isAuthenticated = true
-  } else if (accessToken) {
-    try {
-      const payload = JSON.parse(atob(accessToken.split(".")[1]))
-      const exp = payload.exp * 1000
-      const now = Date.now()
+  // Create a mutable response so @supabase/ssr can write refreshed cookies
+  const supabaseResponse = NextResponse.next({
+    request: { headers: requestHeaders },
+  })
 
-      if (exp > now + 60_000) {
-        // Token is valid and not about to expire — trust it locally
-        isAuthenticated = true
-
-        // Update last_active_at (fire-and-forget, non-blocking)
-        const userId = getUserIdFromToken(accessToken)
-        if (userId) {
-          const nowMs = Date.now()
-          const lastUpdate = lastActiveCache.get(userId) ?? 0
-          if (nowMs - lastUpdate > LAST_ACTIVE_THROTTLE) {
-            lastActiveCache.set(userId, nowMs)
-            updateLastActive(userId).catch(() => {})
-          }
-        }
-      } else if (refreshToken) {
-        // Token expired — try to refresh
-        const refreshed = await refreshSession(accessToken, refreshToken)
-        if (refreshed) {
-          isAuthenticated = true
-          writeAuthCookies(response, refreshed.rawJson, request)
-        }
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            // Write refreshed cookies to both the request (for downstream) and response
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            )
+            // Also copy to the main response
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            )
+          },
+        },
       }
-    } catch {
-      // JWT parse failed — try refresh
-      if (refreshToken) {
-        const refreshed = await refreshSession(accessToken, refreshToken)
-        if (refreshed) {
-          isAuthenticated = true
-          writeAuthCookies(response, refreshed.rawJson, request)
-        }
-      }
-    }
-  } else {
-    // No old-format cookie — check for @supabase/ssr format cookies
-    // These use base64- prefix and different chunking
-    const allCookies = request.cookies.getAll()
-    const hasSupabaseCookie = allCookies.some(c =>
-      c.name.startsWith("sb-") && c.name.includes("-auth-token")
     )
-    if (hasSupabaseCookie) {
-      // Cookie exists but our parser couldn't read it — likely @supabase/ssr format
-      // Trust it and let the page-level auth handle validation
-      isAuthenticated = true
+
+    // For public pages, use getSession() (fast, no network) — just check if logged in
+    // For protected pages, use getUser() (network call) — validates token server-side
+    if (isPublic) {
+      const { data: { session } } = await supabase.auth.getSession()
+      isAuthenticated = !!session?.user
+      userId = session?.user?.id ?? null
+    } else {
+      // getUser() makes a network call to validate the JWT — more secure for protected routes
+      // It also triggers token refresh if needed, writing new cookies via setAll above
+      const { data: { user } } = await supabase.auth.getUser()
+      isAuthenticated = !!user
+      userId = user?.id ?? null
+    }
+  } catch {
+    // Auth check failed — treat as unauthenticated for protected routes
+    isAuthenticated = isPublic // Public pages are always accessible
+  }
+
+  // Update last_active_at (fire-and-forget, non-blocking)
+  if (isAuthenticated && userId) {
+    const nowMs = Date.now()
+    const lastUpdate = lastActiveCache.get(userId) ?? 0
+    if (nowMs - lastUpdate > LAST_ACTIVE_THROTTLE) {
+      lastActiveCache.set(userId, nowMs)
+      updateLastActive(userId).catch(() => {})
     }
   }
 
@@ -404,16 +361,6 @@ async function logBruteForceBlock(ip: string, request: NextRequest): Promise<voi
   }
 }
 
-/** Extract user ID (sub) from a JWT access token */
-function getUserIdFromToken(token: string): string | null {
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]))
-    return payload.sub || null
-  } catch {
-    return null
-  }
-}
-
 /** Update last_active_at for the user — fire-and-forget */
 async function updateLastActive(userId: string): Promise<void> {
   try {
@@ -433,86 +380,6 @@ async function updateLastActive(userId: string): Promise<void> {
     })
   } catch {
     // Non-blocking
-  }
-}
-
-// ── Refresh session via Supabase REST API (edge-compatible) ────────────
-async function refreshSession(
-  _accessToken: string,
-  refreshToken: string
-): Promise<{ rawJson: string } | null> {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (!supabaseUrl || !supabaseKey) return null
-
-    const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: supabaseKey,
-      },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    })
-
-    if (!res.ok) return null
-
-    const data = await res.json()
-    if (!data.access_token || !data.refresh_token) return null
-
-    const tokenObj = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      token_type: data.token_type || "bearer",
-      expires_in: data.expires_in || 3600,
-      expires_at: data.expires_at || Math.floor(Date.now() / 1000) + (data.expires_in || 3600),
-      user: data.user,
-    }
-
-    return { rawJson: JSON.stringify(tokenObj) }
-  } catch {
-    return null
-  }
-}
-
-// ── Write refreshed auth cookies (chunked, same format as client) ──────
-const CHUNK_SIZE = 3500
-
-function writeAuthCookies(response: NextResponse, rawJson: string, request: NextRequest): void {
-  const allCookies = request.cookies.getAll()
-  const authCookie = allCookies.find(
-    (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token")
-  )
-  if (!authCookie) return
-
-  const baseName = authCookie.name.replace(/\.\d+$/, "")
-  // Use base64- prefix format (same as @supabase/ssr) — avoids % chars that break Base64-URL parsing
-  const encoded = "base64-" + btoa(rawJson)
-  const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-  const cookieOpts = {
-    path: "/",
-    expires,
-    sameSite: "lax" as const,
-    ...(process.env.NODE_ENV === "production" ? { secure: true } : {}),
-  }
-
-  // Clear old chunks first
-  for (let i = 0; i < 10; i++) {
-    response.cookies.delete(`${baseName}.${i}`)
-  }
-  response.cookies.delete(baseName)
-
-  if (encoded.length <= CHUNK_SIZE) {
-    response.cookies.set(baseName, encoded, cookieOpts)
-  } else {
-    const count = Math.ceil(encoded.length / CHUNK_SIZE)
-    for (let i = 0; i < count; i++) {
-      response.cookies.set(
-        `${baseName}.${i}`,
-        encoded.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
-        cookieOpts
-      )
-    }
   }
 }
 
