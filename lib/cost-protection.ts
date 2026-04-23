@@ -19,6 +19,7 @@ export type UserTier = "free" | "starter" | "pro" | "agency"
 interface TierLimits {
     documentsPerMonth: number  // 0 = unlimited
     messagesPerSession: number // 0 = unlimited
+    emailsPerMonth: number     // 0 = unlimited
     allowedDocTypes: string[]
 }
 
@@ -26,21 +27,25 @@ const TIER_LIMITS: Record<UserTier, TierLimits> = {
     free: {
         documentsPerMonth: 5,
         messagesPerSession: 10,
+        emailsPerMonth: 5,       // 1 email per document — matches doc limit
         allowedDocTypes: ["invoice", "contract"],
     },
     starter: {
         documentsPerMonth: 50,
         messagesPerSession: 30,
+        emailsPerMonth: 75,      // 1.5× doc limit — allows resends
         allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
     },
     pro: {
         documentsPerMonth: 150,
         messagesPerSession: 50,
+        emailsPerMonth: 300,     // 2× doc limit — comfortable for resends + follow-ups
         allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
     },
     agency: {
-        documentsPerMonth: 0, // unlimited
-        messagesPerSession: 0, // unlimited
+        documentsPerMonth: 0,    // unlimited
+        messagesPerSession: 0,   // unlimited
+        emailsPerMonth: 0,       // unlimited
         allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
     },
 }
@@ -213,7 +218,100 @@ export async function checkMessageLimit(
     }
 }
 
-// ─── Document Type Check ──────────────────────────────────────────────────────
+// ─── Email Limit Check ────────────────────────────────────────────────────────
+
+/**
+ * Check if user can send another email this month.
+ * Returns null if allowed, or a 429 NextResponse if limit exceeded.
+ *
+ * Limits by tier:
+ *   free    →   5 emails/month  (matches doc limit — 1 send per doc)
+ *   starter →  75 emails/month  (1.5× doc limit — allows resends)
+ *   pro     → 300 emails/month  (2× doc limit — comfortable for follow-ups)
+ *   agency  → unlimited
+ */
+export async function checkEmailLimit(
+    supabase: SupabaseClient<Database>,
+    userId: string,
+    userTier: UserTier = "free"
+): Promise<NextResponse | null> {
+    try {
+        const limits = TIER_LIMITS[userTier]
+
+        // Unlimited tier
+        if (limits.emailsPerMonth === 0) return null
+
+        const usage = await getUserUsage(supabase, userId)
+        const currentEmails = (usage as any)?.emails_count || 0
+
+        if (currentEmails >= limits.emailsPerMonth) {
+            return NextResponse.json(
+                {
+                    error: "Monthly email limit reached",
+                    currentUsage: currentEmails,
+                    limit: limits.emailsPerMonth,
+                    tier: userTier,
+                    message: userTier === "free"
+                        ? "Upgrade to Starter for 75 emails/month"
+                        : userTier === "starter"
+                        ? "Upgrade to Pro for 300 emails/month"
+                        : "Upgrade to Agency for unlimited emails",
+                },
+                { status: 429 }
+            )
+        }
+
+        return null
+    } catch (error) {
+        console.error("Email limit check failed:", error)
+        return null // fail open
+    }
+}
+
+/**
+ * Increment email count for the user's current month.
+ * Call this AFTER a successful email send.
+ */
+export async function incrementEmailCount(
+    supabase: SupabaseClient<Database>,
+    userId: string
+): Promise<void> {
+    try {
+        const month = getCurrentMonth()
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase.rpc as any)("increment_email_count", {
+            p_user_id: userId,
+            p_month: month,
+        })
+
+        if (error) {
+            console.error("RPC increment_email_count failed, using upsert fallback:", error)
+            const { data: existing } = await supabase
+                .from("user_usage")
+                .select("*")
+                .eq("user_id", userId)
+                .eq("month", month)
+                .single()
+
+            if (existing) {
+                await supabase
+                    .from("user_usage")
+                    .update({ emails_count: ((existing as any).emails_count || 0) + 1 })
+                    .eq("user_id", userId)
+                    .eq("month", month)
+            } else {
+                await supabase
+                    .from("user_usage")
+                    .insert({ user_id: userId, month, emails_count: 1 } as any)
+            }
+        }
+    } catch (error) {
+        console.error("Email count increment failed:", error)
+    }
+}
+
+// ─── Document Type Check ───────────────────────────────────────────────────────
 
 /**
  * Check if user's tier allows the requested document type.

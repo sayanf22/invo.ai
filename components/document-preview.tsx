@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer } from "lucide-react"
+import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, Mail } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
@@ -9,6 +9,7 @@ import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { PDFDownloadButton } from "@/components/pdf-download-button"
 import { TemplatePicker } from "@/components/template-picker"
 import { ShareButton } from "@/components/share-button"
+import { SendEmailDialog } from "@/components/send-email-dialog"
 import { PaymentLinkButton } from "@/components/payment-link-button"
 import { cn } from "@/lib/utils"
 
@@ -317,6 +318,7 @@ function ToolbarSep() {
 export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onLockChange }: DocumentPreviewProps) {
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [pageCount, setPageCount] = useState(0)
+  const [sendEmailDialogOpen, setSendEmailDialogOpen] = useState(false)
   const hasContent = data.documentType || data.fromName || data.toName || data.description
 
   const handleZoomIn = useCallback(() => {
@@ -447,7 +449,17 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               onLockChange={onLockChange}
             />
           )}
-          <ShareButton data={data} />
+          <ShareButton data={data} sessionId={sessionId ?? null} onOpenSendDialog={() => setSendEmailDialogOpen(true)} />
+          {sessionId && (
+            <button
+              type="button"
+              onClick={() => setSendEmailDialogOpen(true)}
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[13px] font-medium bg-card border border-border hover:border-primary/40 hover:bg-secondary/60 transition-all duration-150 touch-manipulation select-none"
+            >
+              <Mail className="w-3.5 h-3.5 shrink-0" />
+              <span>Send</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={handlePrint}
@@ -466,6 +478,16 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       <div className="flex-1 overflow-hidden bg-neutral-100 dark:bg-neutral-900">
         <LivePDFPreview data={data} zoom={zoom} onPageCount={setPageCount} />
       </div>
+
+      {sessionId && (
+        <SendEmailDialog
+          open={sendEmailDialogOpen}
+          onClose={() => setSendEmailDialogOpen(false)}
+          sessionId={sessionId}
+          invoiceData={data}
+          documentType={data.documentType || "invoice"}
+        />
+      )}
     </div>
   )
 }

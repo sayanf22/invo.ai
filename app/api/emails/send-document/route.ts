@@ -1,0 +1,233 @@
+import { NextRequest, NextResponse } from "next/server"
+import { authenticateRequest, sanitizeError } from "@/lib/api-auth"
+import { checkRateLimit } from "@/lib/rate-limiter"
+import { sanitizeEmail, sanitizeText } from "@/lib/sanitize"
+import { sendEmail } from "@/lib/mailtrap"
+import { generateEmailSubject, renderEmailTemplate } from "@/lib/email-template"
+import { logAudit } from "@/lib/audit-log"
+import { checkEmailLimit, incrementEmailCount } from "@/lib/cost-protection"
+import type { UserTier } from "@/lib/cost-protection"
+
+interface SendDocumentRequest {
+  sessionId: string
+  recipientEmail: string
+  personalMessage?: string
+  resend?: boolean
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // 1. Authenticate
+    const auth = await authenticateRequest(request)
+    if (auth.error) return auth.error
+
+    const { user, supabase } = auth
+    const userId = user.id
+
+    // 2. Parse body
+    let body: SendDocumentRequest
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    }
+
+    // 3. Rate limit (per-minute burst protection)
+    const rateLimitError = await checkRateLimit(userId, "email")
+    if (rateLimitError) return rateLimitError
+
+    // 3b. Monthly email limit (tier-based)
+    const { data: subscription } = await (supabase as any)
+      .from("subscriptions")
+      .select("plan")
+      .eq("user_id", userId)
+      .single()
+    const userTier: UserTier = (subscription?.plan as UserTier) || "free"
+
+    const emailLimitError = await checkEmailLimit(supabase, userId, userTier)
+    if (emailLimitError) return emailLimitError
+
+    // 4. Validate required fields
+    if (!body.sessionId || !body.recipientEmail) {
+      return NextResponse.json(
+        { error: "Missing required fields: sessionId, recipientEmail" },
+        { status: 400 }
+      )
+    }
+
+    // 5. Validate email
+    let recipientEmail: string
+    try {
+      recipientEmail = sanitizeEmail(body.recipientEmail)
+    } catch {
+      return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
+    }
+
+    // 6. Sanitize personal message
+    let personalMessage: string | undefined
+    if (body.personalMessage) {
+      personalMessage = sanitizeText(body.personalMessage)
+      if (personalMessage.length > 500) {
+        return NextResponse.json(
+          { error: "Personal message must be 500 characters or less" },
+          { status: 400 }
+        )
+      }
+    }
+
+    const { sessionId } = body
+
+    // 7. Fetch document session (verify ownership)
+    const { data: session, error: sessionError } = await supabase
+      .from("document_sessions")
+      .select("id, document_type, context")
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .maybeSingle()
+
+    if (sessionError || !session) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 })
+    }
+
+    const documentType = session.document_type as "invoice" | "contract" | "quotation" | "proposal"
+    const context = (session.context ?? {}) as Record<string, unknown>
+
+    // Extract fields from context
+    const referenceNumber =
+      (context.invoiceNumber as string) ||
+      (context.referenceNumber as string) ||
+      "N/A"
+    const totalAmount =
+      (context.total as string) ||
+      (context.totalAmount as string) ||
+      null
+    const currency = (context.currency as string) || null
+    const dueDate = (context.dueDate as string) || null
+    const description = (context.description as string) || null
+    const recipientName = (context.toName as string) || "Valued Client"
+
+    // 8. Fetch business info
+    const { data: business } = await supabase
+      .from("businesses")
+      .select("name, logo_url")
+      .eq("user_id", userId)
+      .maybeSingle()
+
+    const businessName = business?.name || "Your Business"
+    const businessLogoUrl = business?.logo_url || null
+
+    // 9. For invoices: fetch active payment link
+    let payNowUrl: string | null = null
+    if (documentType === "invoice") {
+      const { data: payment } = await supabase
+        .from("invoice_payments")
+        .select("id")
+        .eq("session_id", sessionId)
+        .in("status", ["created", "partially_paid"])
+        .maybeSingle()
+
+      if (payment) {
+        payNowUrl = `https://clorefy.com/pay/${sessionId}`
+      }
+    }
+
+    // 10. Generate subject
+    const subject = generateEmailSubject(documentType, referenceNumber, businessName)
+
+    // 11. Render HTML
+    const html = renderEmailTemplate({
+      businessName,
+      businessLogoUrl,
+      documentType,
+      referenceNumber,
+      recipientName,
+      totalAmount,
+      currency,
+      dueDate,
+      description,
+      personalMessage: personalMessage || null,
+      viewDocumentUrl: `https://clorefy.com/view/${sessionId}`,
+      payNowUrl,
+    })
+
+    // 12. Send email
+    const sendResult = await sendEmail({
+      to: recipientEmail,
+      subject,
+      html,
+      senderName: businessName,
+      category: documentType,
+    })
+
+    // 13 & 14. Handle Mailtrap errors
+    if (!sendResult.success) {
+      if (sendResult.statusCode === 429) {
+        return NextResponse.json(
+          { error: "Daily email limit reached. Please try again later." },
+          { status: 429 }
+        )
+      }
+      return NextResponse.json(
+        { error: "Failed to send email. Please try again." },
+        { status: 502 }
+      )
+    }
+
+    const mailtrapMessageId = sendResult.messageIds[0] ?? null
+
+    // 15. Insert into document_emails
+    const { data: emailRecord, error: insertError } = await supabase
+      .from("document_emails")
+      .insert({
+        user_id: userId,
+        session_id: sessionId,
+        recipient_email: recipientEmail,
+        document_type: documentType,
+        personal_message: personalMessage || null,
+        mailtrap_message_id: mailtrapMessageId,
+        status: "sent",
+        subject,
+      })
+      .select("id")
+      .single()
+
+    if (insertError || !emailRecord) {
+      console.error("Failed to insert email record:", insertError)
+      return NextResponse.json(
+        { error: "Email sent but failed to save record. Please contact support." },
+        { status: 500 }
+      )
+    }
+
+    // 16. Audit log
+    await logAudit(
+      supabase,
+      {
+        user_id: userId,
+        action: "email.send",
+        resource_type: "email",
+        resource_id: emailRecord.id,
+        metadata: {
+          document_type: documentType,
+          recipient_email: recipientEmail,
+        },
+      },
+      request
+    )
+
+    // 17. Increment monthly email count
+    await incrementEmailCount(supabase, userId)
+
+    // 18. Return success
+    return NextResponse.json(
+      { emailId: emailRecord.id, message: "Email sent successfully" },
+      { status: 200 }
+    )
+  } catch (error) {
+    console.error("Unexpected error in send-document:", error)
+    return NextResponse.json(
+      { error: sanitizeError(error) },
+      { status: 500 }
+    )
+  }
+}

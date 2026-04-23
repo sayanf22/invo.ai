@@ -18,6 +18,8 @@ import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 interface ShareButtonProps {
   data: InvoiceData
   className?: string
+  sessionId?: string | null
+  onOpenSendDialog?: () => void
 }
 
 async function generateQRDataUrl(url: string): Promise<string | null> {
@@ -57,7 +59,7 @@ function getFileName(data: InvoiceData): string {
   return `${type}-${safe}.pdf`
 }
 
-export function ShareButton({ data, className }: ShareButtonProps) {
+export function ShareButton({ data, className, sessionId, onOpenSendDialog }: ShareButtonProps) {
   const [isSharing, setIsSharing] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [canNativeShare, setCanNativeShare] = useState(false)
@@ -168,6 +170,12 @@ export function ShareButton({ data, className }: ShareButtonProps) {
         <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-3 py-1">
           Share Document
         </DropdownMenuLabel>
+        {sessionId && onOpenSendDialog && (
+          <DropdownMenuItem onClick={onOpenSendDialog} className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium">
+            <Mail className="w-4 h-4 text-primary" />
+            <span>Send via Clorefy Email</span>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={handleSharePdf} className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium">
           {canNativeShare
             ? <Share2 className="w-4 h-4 text-muted-foreground" />
@@ -178,7 +186,7 @@ export function ShareButton({ data, className }: ShareButtonProps) {
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleEmail} className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium">
           <Mail className="w-4 h-4 text-muted-foreground" />
-          <span>Send via Email</span>
+          <span>Open in Email App</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleWhatsApp} className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium">
           <MessageCircle className="w-4 h-4 text-[#25D366]" />

@@ -6,7 +6,7 @@ import { useSupabase, useUser } from "@/components/auth-provider"
 import {
   FileText, Download, Eye, Calendar, Loader2, ArrowLeft, Plus,
   CheckCircle2, Clock, AlertCircle, XCircle, Link2, ExternalLink,
-  RefreshCw, ChevronDown, ChevronUp, CreditCard, Send,
+  RefreshCw, ChevronDown, ChevronUp, CreditCard, Send, Mail,
 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
@@ -51,6 +51,13 @@ interface PaymentRecord {
   gateway: string
 }
 
+interface EmailRecord {
+  id: string
+  session_id: string
+  status: "sent" | "delivered" | "opened" | "bounced" | "failed"
+  created_at: string
+}
+
 interface DocSession {
   id: string
   document_type: string
@@ -61,6 +68,7 @@ interface DocSession {
   sent_at: string | null
   context: any
   payment?: PaymentRecord | null
+  email?: EmailRecord | null
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -114,6 +122,25 @@ function PaymentBadge({ payment }: { payment: PaymentRecord }) {
     <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", cfg.className)}>
       <Icon size={10} />
       {cfg.label}
+    </span>
+  )
+}
+
+// ── Email Status Badge ────────────────────────────────────────────────────────
+
+function EmailBadge({ email }: { email: EmailRecord }) {
+  const config = {
+    sent: { label: "Sent", className: "bg-muted text-muted-foreground" },
+    delivered: { label: "Delivered", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+    opened: { label: "Opened", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+    bounced: { label: "Bounced", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+    failed: { label: "Failed", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  }
+  const { label, className } = config[email.status] || config.sent
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", className)}>
+      <Mail size={10} />
+      {label}
     </span>
   )
 }
@@ -290,6 +317,9 @@ function DocCard({
                 Sent
               </span>
             )}
+            {session.email && (
+              <EmailBadge email={session.email} />
+            )}
           </div>
 
           {/* View tracking summary (compact) */}
@@ -408,9 +438,28 @@ export default function MyDocumentsPage() {
         }
       }
 
+      // Load most recent email per session
+      let emailMap: Record<string, EmailRecord> = {}
+      if (sessionIds.length > 0) {
+        const { data: emails } = await (supabase as any)
+          .from("document_emails")
+          .select("id, session_id, status, created_at")
+          .in("session_id", sessionIds)
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+
+        // Keep only the most recent email per session
+        for (const e of (emails || [])) {
+          if (!emailMap[e.session_id]) {
+            emailMap[e.session_id] = e as EmailRecord
+          }
+        }
+      }
+
       const merged: DocSession[] = withContent.map((s: any) => ({
         ...s,
         payment: paymentMap[s.id] ?? null,
+        email: emailMap[s.id] ?? null,
       }))
 
       setSessions(merged)

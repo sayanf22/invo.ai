@@ -52,6 +52,9 @@ export type AuditAction =
     | "payment_settings.cashfree_connected"
     | "payment_link.created"
     | "payment_link.cancelled"
+    | "email.send"
+    | "email.resend"
+    | "email.webhook"
 
 export type ResourceType =
     | "document"
@@ -60,6 +63,7 @@ export type ResourceType =
     | "user"
     | "compliance_rule"
     | "invoice_payment"
+    | "email"
 
 interface AuditLogEntry {
     user_id: string
