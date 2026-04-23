@@ -297,7 +297,7 @@ export function BillingToggle({ plans }: BillingToggleProps) {
       </section>
 
       {/* ── Value comparison ── */}
-      <section className="py-24 px-6" style={{ backgroundColor: "#ffffff" }}>
+      <section className="py-24 px-6 bg-white dark:bg-slate-950">
         <div className="max-w-4xl mx-auto">
 
           <motion.div
@@ -307,18 +307,18 @@ export function BillingToggle({ plans }: BillingToggleProps) {
             transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
             className="text-center mb-14"
           >
-            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "#e07b39" }}>The real cost</p>
-            <h2 className="font-display text-4xl sm:text-5xl font-medium leading-tight" style={{ color: "#1a1a1a" }}>
+            <p className="text-xs font-bold uppercase tracking-widest mb-3 text-primary">The real cost</p>
+            <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
               What are you actually<br />
-              <span className="font-serif italic" style={{ color: "#e07b39" }}>paying right now?</span>
+              <span className="text-primary">paying right now?</span>
             </h2>
-            <p className="mt-4 text-stone-400 text-base max-w-md mx-auto">
+            <p className="mt-4 text-slate-500 dark:text-slate-400 text-[15px] max-w-md mx-auto">
               A freelancer spending 3 hours drafting one invoice at $50/hr loses $150 in billable time. Every single time.
             </p>
           </motion.div>
 
           {/* Comparison rows */}
-          <div className="space-y-3">
+          <div className="space-y-4">
 
             {/* Manual drafting */}
             <motion.div
@@ -326,31 +326,30 @@ export function BillingToggle({ plans }: BillingToggleProps) {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="flex items-center gap-4 rounded-2xl px-6 py-5 bg-white"
-              style={{ border: "1px solid #ebe8e3" }}
+              className="flex items-center gap-4 rounded-2xl px-6 py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:shadow-md"
             >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#fee2e2" }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="#ef4444" strokeWidth="2"/>
-                  <polyline points="12,6 12,12 16,14" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-red-50 dark:bg-red-500/10 text-red-500">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>Manual drafting</p>
-                <p className="text-xs text-stone-400 mt-0.5">Word, Google Docs, or from scratch</p>
+                <p className="text-[15px] font-semibold text-slate-900 dark:text-white">Manual drafting</p>
+                <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">Word, Google Docs, or from scratch</p>
               </div>
-              <div className="hidden sm:flex items-center gap-8 shrink-0">
-                <div className="text-center">
-                  <p className="font-display text-lg font-bold text-red-500">2–4 hrs</p>
-                  <p className="text-xs text-stone-400">per doc</p>
+              <div className="hidden sm:flex items-center gap-10 shrink-0">
+                <div className="text-right">
+                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">2–4 hrs</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">per doc</p>
                 </div>
-                <div className="text-center">
-                  <p className="font-display text-lg font-bold text-red-500">$100–200</p>
-                  <p className="text-xs text-stone-400">lost time</p>
+                <div className="text-right">
+                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">$100–200</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">lost time</p>
                 </div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-stone-500">~$3,000+/mo</p>
-                  <span className="text-xs px-2 py-0.5 rounded-full text-red-500" style={{ backgroundColor: "#fee2e2" }}>ouch</span>
+                <div className="text-right w-28">
+                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">~$3,000+/mo</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-red-500">Ouch</p>
                 </div>
               </div>
             </motion.div>
@@ -361,31 +360,30 @@ export function BillingToggle({ plans }: BillingToggleProps) {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-              className="flex items-center gap-4 rounded-2xl px-6 py-5 bg-white"
-              style={{ border: "1px solid #ebe8e3" }}
+              className="flex items-center gap-4 rounded-2xl px-6 py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:shadow-md"
             >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#ffedd5" }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#f97316" strokeWidth="2"/>
-                  <circle cx="9" cy="7" r="4" stroke="#f97316" strokeWidth="2"/>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-amber-50 dark:bg-amber-500/10 text-amber-500">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>Hiring a VA</p>
-                <p className="text-xs text-stone-400 mt-0.5">Virtual assistant at $15–25/hr</p>
+                <p className="text-[15px] font-semibold text-slate-900 dark:text-white">Hiring a VA</p>
+                <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">Virtual assistant at $15–25/hr</p>
               </div>
-              <div className="hidden sm:flex items-center gap-8 shrink-0">
-                <div className="text-center">
-                  <p className="font-display text-lg font-bold text-orange-500">1–2 hrs</p>
-                  <p className="text-xs text-stone-400">per doc</p>
+              <div className="hidden sm:flex items-center gap-10 shrink-0">
+                <div className="text-right">
+                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">1–2 hrs</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">per doc</p>
                 </div>
-                <div className="text-center">
-                  <p className="font-display text-lg font-bold text-orange-500">$15–25</p>
-                  <p className="text-xs text-stone-400">per doc</p>
+                <div className="text-right">
+                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">$15–25</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">per doc</p>
                 </div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-stone-500">$450–750/mo</p>
-                  <span className="text-xs px-2 py-0.5 rounded-full text-orange-500" style={{ backgroundColor: "#ffedd5" }}>expensive</span>
+                <div className="text-right w-28">
+                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">$450–750/mo</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-amber-500">Expensive</p>
                 </div>
               </div>
             </motion.div>
@@ -396,46 +394,41 @@ export function BillingToggle({ plans }: BillingToggleProps) {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
-              className="flex items-center gap-4 rounded-2xl px-6 py-5 relative overflow-hidden"
-              style={{
-                background: "linear-gradient(135deg, #232323 0%, #1a1a1a 100%)",
-                boxShadow: "0 0 0 1px rgba(224,123,57,0.3), 0 8px 32px -8px rgba(0,0,0,0.3)",
-              }}
+              className="flex items-center gap-4 rounded-2xl px-6 py-5 relative overflow-hidden bg-slate-900 border border-slate-800 shadow-xl"
             >
-              {/* Subtle glow */}
-              <div className="absolute top-0 left-0 w-32 h-full pointer-events-none" style={{ background: "linear-gradient(90deg, rgba(224,123,57,0.08) 0%, transparent 100%)" }} />
-
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 relative z-10" style={{ backgroundColor: "rgba(224,123,57,0.2)" }}>
-                <motion.svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+              <div className="absolute top-0 left-0 w-full h-full pointer-events-none bg-gradient-to-r from-primary/10 to-transparent" />
+              
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 relative z-10 bg-primary/20 text-primary">
+                <motion.svg width="20" height="20" viewBox="0 0 24 24" fill="none"
                   animate={{ scale: [1, 1.15, 1] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="#e07b39"/>
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="currentColor"/>
                 </motion.svg>
               </div>
               <div className="flex-1 min-w-0 relative z-10">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-bold text-white">Clorefy Pro</p>
-                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "rgba(224,123,57,0.2)", color: "#e07b39" }}>recommended</span>
+                  <p className="text-[15px] font-bold text-white">Clorefy Pro</p>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-primary/20 text-primary">Recommended</span>
                 </div>
-                <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>AI-generated, compliant, ready in seconds</p>
+                <p className="text-[13px] text-slate-400 mt-0.5">AI-generated, compliant, ready in seconds</p>
               </div>
-              <div className="hidden sm:flex items-center gap-8 shrink-0 relative z-10">
-                <div className="text-center">
+              <div className="hidden sm:flex items-center gap-10 shrink-0 relative z-10">
+                <div className="text-right">
                   <motion.p
-                    className="font-display text-lg font-bold text-white"
-                    animate={{ opacity: [0.6, 1, 0.6] }}
+                    className="text-[15px] font-bold text-white"
+                    animate={{ opacity: [0.7, 1, 0.7] }}
                     transition={{ duration: 2.5, repeat: Infinity }}
                   >&lt; 30s</motion.p>
-                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>per doc</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">per doc</p>
                 </div>
-                <div className="text-center">
-                  <p className="font-display text-lg font-bold" style={{ color: "#e07b39" }}>~$0.13</p>
-                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>per doc</p>
+                <div className="text-right">
+                  <p className="text-[15px] font-bold text-primary">~$0.13</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">per doc</p>
                 </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-white">{getPrice("pro", "yearly")}/mo</p>
-                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "rgba(224,123,57,0.15)", color: "#e07b39" }}>150 docs</span>
+                <div className="text-right w-28">
+                  <p className="text-[15px] font-bold text-white">{getPrice("pro", "yearly")}/mo</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-primary">150 docs</p>
                 </div>
               </div>
             </motion.div>
@@ -447,12 +440,12 @@ export function BillingToggle({ plans }: BillingToggleProps) {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.3, duration: 0.6 }}
-            className="mt-8 grid grid-cols-3 gap-3"
+            className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4"
           >
             {[
-              { num: "99%", label: "faster than manual" },
-              { num: "$5,000+", label: "saved annually" },
-              { num: "30s", label: "avg generation time" },
+              { num: "99%", label: "Faster than manual" },
+              { num: "$5,000+", label: "Saved annually" },
+              { num: "30s", label: "Avg generation time" },
             ].map((stat, i) => (
               <motion.div
                 key={i}
@@ -460,11 +453,10 @@ export function BillingToggle({ plans }: BillingToggleProps) {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.35 + i * 0.07 }}
-                className="rounded-2xl px-5 py-4 text-center"
-                style={{ backgroundColor: "#faf8f5", border: "1px solid #ebe8e3" }}
+                className="rounded-2xl px-6 py-5 text-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm"
               >
-                <div className="font-display text-2xl font-bold mb-0.5" style={{ color: "#1a1a1a" }}>{stat.num}</div>
-                <div className="text-xs text-stone-400">{stat.label}</div>
+                <div className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">{stat.num}</div>
+                <div className="text-[13px] font-medium text-slate-500 dark:text-slate-400">{stat.label}</div>
               </motion.div>
             ))}
           </motion.div>
@@ -472,31 +464,29 @@ export function BillingToggle({ plans }: BillingToggleProps) {
       </section>
 
       {/* ── CTA ── */}
-      <section className="py-24 px-6 bg-white">
+      <section className="py-24 px-6 bg-white dark:bg-slate-950">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-          className="max-w-3xl mx-auto rounded-[2.5rem] p-14 sm:p-20 text-center relative overflow-hidden"
-          style={{ backgroundColor: "#1a1a1a" }}
+          className="max-w-4xl mx-auto rounded-[2.5rem] p-14 sm:p-20 text-center relative overflow-hidden bg-slate-900 shadow-2xl"
         >
-          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 30% 0%, rgba(224,123,57,0.12) 0%, transparent 60%)" }} />
-          <p className="text-xs font-bold uppercase tracking-widest mb-4 relative z-10" style={{ color: "#e07b39" }}>Start today</p>
-          <h2 className="font-display text-4xl sm:text-5xl font-medium mb-4 relative z-10 leading-tight" style={{ color: "#faf8f5" }}>
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-primary/10 to-transparent" />
+          <p className="text-xs font-bold uppercase tracking-widest mb-4 relative z-10 text-primary">Start today</p>
+          <h2 className="text-4xl sm:text-5xl font-bold tracking-tight mb-6 relative z-10 leading-tight text-white">
             Your first document<br />
-            <span className="font-serif italic" style={{ color: "#e07b39" }}>in 30 seconds</span>
+            <span className="text-primary">in 30 seconds</span>
           </h2>
-          <p className="text-white/40 text-sm mb-8 relative z-10 max-w-sm mx-auto">
+          <p className="text-slate-400 text-[15px] mb-10 relative z-10 max-w-md mx-auto">
             Free forever. No credit card. No setup. Just describe what you need.
           </p>
           <Link
             href={isLoggedIn ? "/choose-plan" : "/auth/signup"}
-            className="group relative z-10 inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-semibold text-sm hover:scale-105 transition-transform"
-            style={{ backgroundColor: "#faf8f5", color: "#1a1a1a" }}
+            className="group relative z-10 inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold text-[15px] bg-white text-slate-900 hover:bg-slate-100 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
           >
             Get Started Free
-            <ArrowRight className="transition-transform group-hover:translate-x-1" size={16} />
+            <ArrowRight className="transition-transform group-hover:translate-x-1" size={18} />
           </Link>
         </motion.div>
       </section>
