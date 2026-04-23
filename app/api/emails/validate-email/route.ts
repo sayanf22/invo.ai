@@ -9,11 +9,11 @@ const DISPOSABLE_DOMAINS = new Set([
   "guerrillamail.org", "spam4.me", "trashmail.com", "trashmail.me", "trashmail.net",
   "dispostable.com", "mailnull.com", "spamgourmet.com", "spamgourmet.net",
   "spamgourmet.org", "maildrop.cc", "discard.email", "fakeinbox.com",
-  "mailnesia.com", "mailnull.com", "spamfree24.org", "spamfree24.de",
-  "spamfree24.eu", "spamfree24.info", "spamfree24.net", "spamfree24.org",
-  "tempinbox.com", "tempinbox.co.uk", "tempr.email", "temp-mail.org",
-  "temp-mail.io", "10minutemail.com", "10minutemail.net", "10minutemail.org",
-  "20minutemail.com", "20minutemail.it", "mohmal.com", "getairmail.com",
+  "mailnesia.com", "spamfree24.org", "spamfree24.de", "spamfree24.eu",
+  "spamfree24.info", "spamfree24.net", "tempinbox.com", "tempinbox.co.uk",
+  "tempr.email", "temp-mail.org", "temp-mail.io", "10minutemail.com",
+  "10minutemail.net", "10minutemail.org", "20minutemail.com", "20minutemail.it",
+  "mohmal.com", "getairmail.com",
 ])
 
 export async function POST(request: NextRequest) {
@@ -30,63 +30,83 @@ export async function POST(request: NextRequest) {
 
     const email = (body.email || "").trim().toLowerCase()
 
-    // 1. Basic format check
-    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/
-    if (!emailRegex.test(email)) {
+    // ── 1. Strict format check ──────────────────────────────────────────────
+    // Must have: local@domain.tld where TLD is at least 2 chars
+    // Rejects: hello@whycreatives (no TLD), hello@domain (no dot after @)
+    const strictEmailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/
+    if (!strictEmailRegex.test(email)) {
       return NextResponse.json({ valid: false, reason: "Invalid email format" })
     }
 
-    const domain = email.split("@")[1]
+    const parts = email.split("@")
+    if (parts.length !== 2) {
+      return NextResponse.json({ valid: false, reason: "Invalid email format" })
+    }
+    const domain = parts[1]
 
-    // 2. Disposable domain check
+    // ── 2. TLD must be at least 2 chars and only letters ───────────────────
+    const tld = domain.split(".").pop() || ""
+    if (tld.length < 2 || !/^[a-zA-Z]+$/.test(tld)) {
+      return NextResponse.json({ valid: false, reason: "Invalid email domain" })
+    }
+
+    // ── 3. Disposable domain check ─────────────────────────────────────────
     if (DISPOSABLE_DOMAINS.has(domain)) {
       return NextResponse.json({ valid: false, reason: "Disposable email addresses are not allowed" })
     }
 
-    // 3. DNS MX record check via Cloudflare DNS-over-HTTPS (works in Cloudflare Workers)
+    // ── 4. DNS MX record check — STRICT: must have MX records ─────────────
+    // We do NOT fall back to A records. A website having an A record does NOT
+    // mean it can receive email. Only MX records prove email deliverability.
     try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 4000)
+
       const dnsRes = await fetch(
         `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX`,
         {
           headers: { "Accept": "application/dns-json" },
-          signal: AbortSignal.timeout(3000),
+          signal: controller.signal,
         }
       )
+      clearTimeout(timeout)
 
       if (dnsRes.ok) {
         const dnsData = await dnsRes.json()
-        // Status 0 = NOERROR, Status 3 = NXDOMAIN (domain doesn't exist)
+
+        // NXDOMAIN — domain doesn't exist at all
         if (dnsData.Status === 3) {
           return NextResponse.json({ valid: false, reason: "Email domain does not exist" })
         }
-        // Check if MX records exist
-        const hasMx = dnsData.Answer?.some((r: any) => r.type === 15) // type 15 = MX
-        if (dnsData.Status === 0 && dnsData.Answer && !hasMx) {
-          // Domain exists but no MX records — try A record fallback
-          const aRes = await fetch(
-            `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`,
-            {
-              headers: { "Accept": "application/dns-json" },
-              signal: AbortSignal.timeout(2000),
-            }
-          )
-          if (aRes.ok) {
-            const aData = await aRes.json()
-            const hasA = aData.Answer?.some((r: any) => r.type === 1)
-            if (!hasA) {
-              return NextResponse.json({ valid: false, reason: "Email domain cannot receive emails" })
-            }
-          }
-        }
-      }
-    } catch {
-      // DNS check failed (timeout, network error) — fail open, don't block the user
-    }
 
-    return NextResponse.json({ valid: true })
+        // NOERROR but check for MX records specifically
+        if (dnsData.Status === 0) {
+          const mxRecords = (dnsData.Answer || []).filter((r: any) => r.type === 15)
+
+          if (mxRecords.length === 0) {
+            // No MX records — domain exists (website) but cannot receive email
+            return NextResponse.json({
+              valid: false,
+              reason: "This domain cannot receive emails (no mail server configured)",
+            })
+          }
+
+          // Has MX records — valid email domain
+          return NextResponse.json({ valid: true })
+        }
+
+        // Other DNS error codes — fail open (don't block user)
+        return NextResponse.json({ valid: true })
+      }
+
+      // DNS API unreachable — fail open
+      return NextResponse.json({ valid: true })
+    } catch {
+      // Timeout or network error — fail open, don't block the user
+      return NextResponse.json({ valid: true })
+    }
   } catch (error) {
     console.error("Email validation error:", error)
-    // Fail open — don't block sending if validation itself errors
-    return NextResponse.json({ valid: true })
+    return NextResponse.json({ valid: true }) // fail open
   }
 }

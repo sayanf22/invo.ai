@@ -200,6 +200,7 @@ export function getInitialInvoiceData(): InvoiceData {
     shippingFee: 0,
     paymentInstructions: "",
     paymentMethod: "",
+    showPaymentLinkInPdf: true,
     notes: "",
     terms: "",
     description: "",

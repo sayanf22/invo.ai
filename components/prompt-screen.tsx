@@ -70,7 +70,7 @@ export function PromptScreen({
   }, [])
 
   const handlePaymentLinkChange = useCallback((url: string, status: string) => {
-    handleChange({ paymentLink: url, paymentLinkStatus: status as any })
+    handleChange({ paymentLink: url, paymentLinkStatus: status as any, showPaymentLinkInPdf: true })
   }, [handleChange])
 
   const handleLockChange = useCallback((locked: boolean) => {

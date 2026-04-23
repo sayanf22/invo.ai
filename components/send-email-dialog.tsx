@@ -17,6 +17,8 @@ interface SendEmailDialogProps {
   onEmailSent?: () => void
 }
 
+// Step 1: Compose (enter email + subject, no AI yet)
+// Step 2: Confirm (AI generates message, user sees lock warning, confirms)
 type Step = "compose" | "confirm"
 
 function generateSubject(invoiceData: InvoiceData, documentType: string): string {
@@ -65,10 +67,12 @@ export function SendEmailDialog({
   const [step, setStep] = useState<Step>("compose")
   const [email, setEmail] = useState("")
   const [subject, setSubject] = useState("")
+  // Message is only generated when user proceeds to confirm step
   const [message, setMessage] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [scheduleFollowUps, setScheduleFollowUps] = useState(true)
+
   // Email validation state
   const [emailValidating, setEmailValidating] = useState(false)
   const [emailValid, setEmailValid] = useState<boolean | null>(null)
@@ -76,22 +80,20 @@ export function SendEmailDialog({
   const emailValidationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const emailInputRef = useRef<HTMLInputElement>(null)
 
-  // Validate email with debounce — format check immediately, DNS check after 600ms
+  // ── Email validation ────────────────────────────────────────────────────────
   const validateEmail = useCallback(async (value: string) => {
     const trimmed = value.trim()
-    if (!trimmed) {
-      setEmailValid(null)
-      setEmailError(null)
-      return
-    }
-    // Immediate format check
-    const formatOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
-    if (!formatOk) {
+    if (!trimmed) { setEmailValid(null); setEmailError(null); return }
+
+    // Immediate strict format check — must have TLD (dot after domain)
+    const strictFormat = /^[^\s@]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/
+    if (!strictFormat.test(trimmed)) {
       setEmailValid(false)
-      setEmailError("Enter a valid email address")
+      setEmailError("Enter a valid email address (e.g. name@company.com)")
       return
     }
-    // DNS check via API
+
+    // DNS MX check via API
     setEmailValidating(true)
     setEmailValid(null)
     setEmailError(null)
@@ -106,14 +108,10 @@ export function SendEmailDialog({
         setEmailValid(data.valid)
         setEmailError(data.valid ? null : (data.reason || "Email address is not valid"))
       } else {
-        // API error — fail open
-        setEmailValid(true)
-        setEmailError(null)
+        setEmailValid(true) // fail open on API error
       }
     } catch {
-      // Network error — fail open
-      setEmailValid(true)
-      setEmailError(null)
+      setEmailValid(true) // fail open on network error
     } finally {
       setEmailValidating(false)
     }
@@ -125,10 +123,11 @@ export function SendEmailDialog({
     setEmailError(null)
     if (emailValidationTimer.current) clearTimeout(emailValidationTimer.current)
     if (value.trim().length > 5) {
-      emailValidationTimer.current = setTimeout(() => validateEmail(value), 600)
+      emailValidationTimer.current = setTimeout(() => validateEmail(value), 700)
     }
   }, [validateEmail])
 
+  // ── AI message generation — only called when proceeding to confirm ──────────
   const generateMessage = useCallback(async () => {
     setIsGenerating(true)
     setMessage("")
@@ -153,7 +152,6 @@ export function SendEmailDialog({
         const data = await res.json()
         setMessage(data.message || "")
       } else {
-        // Fallback to local template if API fails
         setMessage(localFallback(invoiceData, documentType))
       }
     } catch {
@@ -163,7 +161,7 @@ export function SendEmailDialog({
     }
   }, [invoiceData, documentType])
 
-  // Reset and populate when dialog opens
+  // ── Reset when dialog opens — NO AI generation yet ─────────────────────────
   useEffect(() => {
     if (open) {
       setStep("compose")
@@ -171,15 +169,15 @@ export function SendEmailDialog({
       setSubject(generateSubject(invoiceData, documentType))
       setEmailValid(null)
       setEmailError(null)
-      generateMessage()
+      setMessage("") // clear previous message
     }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Focus email input when dialog opens
+  // Focus email input on open
   useEffect(() => {
     if (open && step === "compose") {
-      const timer = setTimeout(() => emailInputRef.current?.focus(), 100)
-      return () => clearTimeout(timer)
+      const t = setTimeout(() => emailInputRef.current?.focus(), 100)
+      return () => clearTimeout(t)
     }
   }, [open, step])
 
@@ -199,12 +197,17 @@ export function SendEmailDialog({
   if (!open) return null
 
   const docTypeLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
-  const isEmailFormatValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-  // Can proceed if: email format valid, not currently validating, and DNS check passed (or not yet run)
-  const canProceed = isEmailFormatValid && !isGenerating && subject.trim().length > 0 && emailValid !== false && !emailValidating
+  const isEmailFormatValid = /^[^\s@]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/.test(email.trim())
+  const canProceed = isEmailFormatValid && !emailValidating && emailValid !== false && subject.trim().length > 0
+
+  // Proceed to confirm: lock document intent + generate AI message
+  const handleProceedToConfirm = () => {
+    setStep("confirm")
+    generateMessage() // generate NOW, only when user actually wants to send
+  }
 
   const handleSend = async () => {
-    if (isSending) return
+    if (isSending || isGenerating) return
     setIsSending(true)
     try {
       const res = await authFetch("/api/emails/send-document", {
@@ -242,14 +245,12 @@ export function SendEmailDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => !isSending && (step === "confirm" ? setStep("compose") : onClose())}
         aria-hidden="true"
       />
 
-      {/* Dialog */}
       <div
         role="dialog"
         aria-modal="true"
@@ -268,7 +269,6 @@ export function SendEmailDialog({
         {/* ── STEP 1: COMPOSE ── */}
         {step === "compose" && (
           <>
-            {/* Header */}
             <div className="flex items-center justify-between px-5 pt-3 pb-3 shrink-0 border-b border-border/50">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
@@ -278,17 +278,12 @@ export function SendEmailDialog({
                   Send {docTypeLabel}
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 transition-colors"
-              >
+              <button type="button" onClick={onClose} aria-label="Close"
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4 min-h-0">
 
               {/* To */}
@@ -304,8 +299,8 @@ export function SendEmailDialog({
                     required
                     value={email}
                     onChange={(e) => handleEmailChange(e.target.value)}
-                    onBlur={() => email.trim() && validateEmail(email)}
-                    placeholder="client@example.com"
+                    onBlur={() => email.trim().length > 5 && validateEmail(email)}
+                    placeholder="client@company.com"
                     className={cn(
                       "w-full px-3.5 py-2.5 pr-10 rounded-xl text-sm bg-background border",
                       "placeholder:text-muted-foreground text-foreground",
@@ -315,7 +310,6 @@ export function SendEmailDialog({
                       "border-border"
                     )}
                   />
-                  {/* Validation indicator */}
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {emailValidating && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
                     {!emailValidating && emailValid === true && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
@@ -324,12 +318,11 @@ export function SendEmailDialog({
                 </div>
                 {emailError && (
                   <p className="text-xs text-red-500 flex items-center gap-1">
-                    <XCircle className="w-3 h-3 shrink-0" />
-                    {emailError}
+                    <XCircle className="w-3 h-3 shrink-0" />{emailError}
                   </p>
                 )}
                 {emailValidating && (
-                  <p className="text-xs text-muted-foreground">Checking email address...</p>
+                  <p className="text-xs text-muted-foreground">Verifying email address...</p>
                 )}
               </div>
 
@@ -348,70 +341,23 @@ export function SendEmailDialog({
                 />
               </div>
 
-              {/* Message */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="email-message" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Message
-                  </label>
-                  <button
-                    type="button"
-                    onClick={generateMessage}
-                    disabled={isGenerating}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 disabled:opacity-40 transition-colors"
-                  >
-                    {isGenerating
-                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : <RefreshCw className="w-3 h-3" />
-                    }
-                    {isGenerating ? "Writing..." : "Regenerate"}
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/5 border border-primary/10 w-fit">
-                  <span className="text-[11px] font-medium text-primary">AI-written · edit freely</span>
-                </div>
-
-                <div className="relative">
-                  {isGenerating && (
-                    <div className="absolute inset-0 rounded-xl bg-background/70 backdrop-blur-[2px] flex items-center justify-center z-10 pointer-events-none">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card px-3 py-2 rounded-lg border border-border shadow-sm">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                        Writing your message...
-                      </div>
-                    </div>
-                  )}
-                  <textarea
-                    id="email-message"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    disabled={isGenerating}
-                    rows={10}
-                    placeholder="Your message will appear here..."
-                    className={cn(
-                      "w-full px-3.5 py-3 rounded-xl text-sm resize-none leading-relaxed",
-                      "bg-background border border-border",
-                      "placeholder:text-muted-foreground text-foreground",
-                      "focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors",
-                      "disabled:opacity-60 font-[inherit]"
-                    )}
-                  />
-                </div>
+              {/* Info about what happens next */}
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-muted/40 border border-border/50">
+                <Lock className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Clicking "Review & Send" will show you the AI-written message and lock confirmation before anything is sent.
+                </p>
               </div>
             </div>
 
-            {/* Footer */}
             <div className="shrink-0 px-5 py-4 border-t border-border/50 flex gap-2.5">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border border-border hover:bg-muted/60 transition-colors"
-              >
+              <button type="button" onClick={onClose}
+                className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border border-border hover:bg-muted/60 transition-colors">
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => setStep("confirm")}
+                onClick={handleProceedToConfirm}
                 disabled={!canProceed}
                 className={cn(
                   "flex-1 inline-flex items-center justify-center gap-2",
@@ -430,28 +376,22 @@ export function SendEmailDialog({
         {/* ── STEP 2: CONFIRM ── */}
         {step === "confirm" && (
           <>
-            {/* Header */}
             <div className="flex items-center justify-between px-5 pt-3 pb-3 shrink-0 border-b border-border/50">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
                   <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 </div>
                 <h2 id="send-email-title" className="text-base font-semibold text-foreground">
-                  Confirm Send
+                  Confirm & Send
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={() => setStep("compose")}
-                disabled={isSending}
+              <button type="button" onClick={() => setStep("compose")} disabled={isSending}
                 aria-label="Back"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
-              >
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-50">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Confirm body */}
             <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-4 min-h-0">
 
               {/* Lock warning */}
@@ -462,7 +402,7 @@ export function SendEmailDialog({
                     Document will be locked after sending
                   </p>
                   <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
-                    Once sent, this {documentType.toLowerCase()} cannot be edited. This prevents fraud and ensures your client receives the exact document you approved. You can still view and download it.
+                    Once sent, this {documentType.toLowerCase()} cannot be edited. You can still view and download it.
                   </p>
                 </div>
               </div>
@@ -470,18 +410,52 @@ export function SendEmailDialog({
               {/* Summary */}
               <div className="rounded-2xl border border-border bg-muted/20 overflow-hidden">
                 <div className="px-4 py-3 border-b border-border/50">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sending to</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">To</p>
                   <p className="text-sm font-medium text-foreground mt-0.5">{email}</p>
                 </div>
                 <div className="px-4 py-3 border-b border-border/50">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Subject</p>
                   <p className="text-sm font-medium text-foreground mt-0.5 truncate">{subject}</p>
                 </div>
+                {/* AI-generated message */}
                 <div className="px-4 py-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Message preview</p>
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-3 leading-relaxed whitespace-pre-line">
-                    {message.slice(0, 150)}{message.length > 150 ? "..." : ""}
-                  </p>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Message</p>
+                    {!isGenerating && message && (
+                      <button
+                        type="button"
+                        onClick={generateMessage}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary/80 transition-colors"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Regenerate
+                      </button>
+                    )}
+                  </div>
+                  {isGenerating ? (
+                    <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                      Writing your message with AI...
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <textarea
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        rows={7}
+                        className={cn(
+                          "w-full px-3 py-2.5 rounded-xl text-xs resize-none leading-relaxed",
+                          "bg-background border border-border",
+                          "text-foreground placeholder:text-muted-foreground",
+                          "focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors",
+                          "font-[inherit]"
+                        )}
+                      />
+                      <div className="absolute top-2 right-2">
+                        <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-md">AI</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -498,8 +472,8 @@ export function SendEmailDialog({
                         <p className="text-sm font-medium text-foreground">Auto follow-up reminders</p>
                         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                           {scheduleFollowUps
-                            ? "Automatic reminders will be sent if unpaid. Stops when paid."
-                            : "No automatic reminders. You can send manually anytime."
+                            ? "Reminders sent automatically if unpaid. Stops when paid."
+                            : "No automatic reminders. Send manually anytime."
                           }
                         </p>
                       </div>
@@ -520,15 +494,15 @@ export function SendEmailDialog({
                   </div>
                   {scheduleFollowUps && (
                     <div className="px-4 pb-3 border-t border-border/40">
-                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-2.5 mb-1.5">Reminder schedule</p>
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-2.5 mb-1.5">Schedule</p>
                       <div className="space-y-1">
                         {[
-                          { day: 3, label: "Day 3 — Polite reminder" },
-                          { day: 7, label: "Day 7 — Follow-up" },
-                          { day: 14, label: "Day 14 — Urgent reminder" },
-                          { day: 30, label: "Day 30 — Final notice" },
-                        ].map(({ day, label }) => (
-                          <div key={day} className="flex items-center gap-2">
+                          { label: "Day 3 — Polite reminder" },
+                          { label: "Day 7 — Follow-up" },
+                          { label: "Day 14 — Urgent reminder" },
+                          { label: "Day 30 — Final notice" },
+                        ].map(({ label }) => (
+                          <div key={label} className="flex items-center gap-2">
                             <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
                             <span className="text-xs text-muted-foreground">{label}</span>
                           </div>
@@ -539,23 +513,17 @@ export function SendEmailDialog({
                   )}
                 </div>
               )}
-
             </div>
 
-            {/* Footer */}
             <div className="shrink-0 px-5 py-4 border-t border-border/50 flex gap-2.5">
-              <button
-                type="button"
-                onClick={() => setStep("compose")}
-                disabled={isSending}
-                className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border border-border hover:bg-muted/60 transition-colors disabled:opacity-50"
-              >
+              <button type="button" onClick={() => setStep("compose")} disabled={isSending}
+                className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border border-border hover:bg-muted/60 transition-colors disabled:opacity-50">
                 ← Edit
               </button>
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={isSending}
+                disabled={isSending || isGenerating}
                 className={cn(
                   "flex-1 inline-flex items-center justify-center gap-2",
                   "py-2.5 px-4 rounded-xl text-sm font-semibold",
@@ -565,6 +533,8 @@ export function SendEmailDialog({
               >
                 {isSending ? (
                   <><Loader2 className="w-4 h-4 animate-spin" />Sending...</>
+                ) : isGenerating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" />Preparing...</>
                 ) : (
                   <><Send className="w-4 h-4" />Send & Lock</>
                 )}
@@ -590,42 +560,12 @@ function localFallback(invoiceData: InvoiceData, documentType: string): string {
 
   switch (documentType.toLowerCase()) {
     case "invoice":
-      return `${greeting}
-
-Please find your invoice${refText}${formatted ? ` for ${formatted}` : ""}${dueText} attached.
-
-Kindly review the details and process the payment at your earliest convenience. Please don't hesitate to reach out if you have any questions.
-
-Thank you for your business.
-
-Best regards,
-${senderName}`
+      return `${greeting}\n\nPlease find your invoice${refText}${formatted ? ` for ${formatted}` : ""}${dueText} attached.\n\nKindly review the details and process the payment at your earliest convenience. Please don't hesitate to reach out if you have any questions.\n\nThank you for your business.\n\nBest regards,\n${senderName}`
     case "quotation":
-      return `${greeting}
-
-Please find your quotation${refText}${formatted ? ` totalling ${formatted}` : ""} attached.
-
-This quote is valid for 30 days. Let us know if you'd like to proceed or have any questions.
-
-Best regards,
-${senderName}`
+      return `${greeting}\n\nPlease find your quotation${refText}${formatted ? ` totalling ${formatted}` : ""} attached.\n\nThis quote is valid for 30 days. Let us know if you'd like to proceed or have any questions.\n\nBest regards,\n${senderName}`
     case "contract":
-      return `${greeting}
-
-Please find the contract${refText} attached for your review.
-
-Kindly review the terms and sign at your earliest convenience. Feel free to reach out with any questions.
-
-Best regards,
-${senderName}`
+      return `${greeting}\n\nPlease find the contract${refText} attached for your review.\n\nKindly review the terms and sign at your earliest convenience. Feel free to reach out with any questions.\n\nBest regards,\n${senderName}`
     default:
-      return `${greeting}
-
-Please find the ${docLabel.toLowerCase()}${refText} attached for your review.
-
-Feel free to reach out if you have any questions.
-
-Best regards,
-${senderName}`
+      return `${greeting}\n\nPlease find the ${docLabel.toLowerCase()}${refText} attached for your review.\n\nFeel free to reach out if you have any questions.\n\nBest regards,\n${senderName}`
   }
 }
