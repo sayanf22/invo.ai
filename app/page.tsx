@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
 import { LandingPage } from "@/components/landing/landing-page"
 import { useAuth } from "@/components/auth-provider"
-import { Loader2 } from "lucide-react"
 import { Suspense } from "react"
 
 /**
@@ -71,21 +70,25 @@ export default function Page() {
     checkProfile()
   }, [user, isLoading, supabase, router])
 
-  // Loading or grace period
   if (isLoading || !ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 rounded-full border-[3px] border-transparent animate-spin" style={{ borderTopColor: 'hsl(33 17% 10%)', borderRightColor: 'hsl(33 17% 10% / 0.15)', animationDuration: '0.75s' }} />
+        </div>
+        <p className="text-xs font-medium text-muted-foreground tracking-wide">Clorefy</p>
       </div>
     )
   }
 
-  // Authenticated and profile complete
   if (user && showApp) {
     return (
       <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
+          <div className="relative w-12 h-12">
+            <div className="absolute inset-0 rounded-full border-[3px] border-transparent animate-spin" style={{ borderTopColor: 'hsl(33 17% 10%)', borderRightColor: 'hsl(33 17% 10% / 0.15)', animationDuration: '0.75s' }} />
+          </div>
+          <p className="text-xs font-medium text-muted-foreground tracking-wide">Clorefy</p>
         </div>
       }>
         <AppShell />
@@ -100,8 +103,11 @@ export default function Page() {
 
   // Redirecting to onboarding/choose-plan
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
+      <div className="relative w-12 h-12">
+        <div className="absolute inset-0 rounded-full border-[3px] border-transparent animate-spin" style={{ borderTopColor: 'hsl(33 17% 10%)', borderRightColor: 'hsl(33 17% 10% / 0.15)', animationDuration: '0.75s' }} />
+      </div>
+      <p className="text-xs font-medium text-muted-foreground tracking-wide">Clorefy</p>
     </div>
   )
 }

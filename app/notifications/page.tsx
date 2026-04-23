@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/components/auth-provider"
 import { createClient } from "@/lib/supabase"
-import { Bell, CheckCircle2, Gift, CreditCard, XCircle, RefreshCw, Info, Loader2, Check } from "lucide-react"
+import { Bell, CheckCircle2, Gift, CreditCard, XCircle, RefreshCw, Info, Loader2, Check, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
@@ -96,12 +96,24 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 max-w-2xl pb-20">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <Link href="/"><ClorefyLogo size={36} /></Link>
-        <HamburgerMenu />
+    <div className="min-h-screen bg-background pb-20">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div className="hidden sm:flex items-center gap-2">
+              <ClorefyLogo size={24} />
+              <span className="font-semibold text-sm">Notifications</span>
+            </div>
+          </div>
+          <HamburgerMenu />
+        </div>
       </div>
+
+      <div className="container mx-auto p-4 sm:p-6 max-w-2xl pt-6 sm:pt-10">
 
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -169,6 +181,7 @@ export default function NotificationsPage() {
           })}
         </div>
       )}
+      </div>
     </div>
   )
 }

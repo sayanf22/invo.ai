@@ -21,8 +21,8 @@ export const viewport: Viewport = {
   maximumScale: 5,
   userScalable: true,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#FBF7F0" },
+    { media: "(prefers-color-scheme: dark)", color: "#1a1a18" },
   ],
 }
 
@@ -111,6 +111,14 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Critical: Set brand background color BEFORE CSS loads to prevent flash */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          html, body { background-color: #FBF7F0 !important; }
+          @media (min-width: 768px) {
+            html { background-color: #e8ddd0 !important; }
+            body { background-color: #e8ddd0 !important; }
+          }
+        ` }} />
         {/* JSON-LD — WebSite schema (enables sitelinks search box in Google) */}
         <script
           type="application/ld+json"

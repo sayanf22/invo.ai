@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
-import { InvoLogo } from "@/components/invo-logo"
+import { ClorefyLogo } from "@/components/clorefy-logo"
+import { HamburgerMenu } from "@/components/hamburger-menu"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -440,7 +441,7 @@ export default function ProfilePage() {
         }
     }, [user, profile, loadProfile])
 
-    if (authLoading || isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+    if (authLoading || isLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
     if (!profile) return null
 
     const taxIdLabel = profile.country ? getTaxIdFieldName(profile.country) : "Tax ID"
@@ -450,16 +451,24 @@ export default function ProfilePage() {
     const isEditing = (s: string) => editingSection === s
 
     return (
-        <div className="min-h-screen flex flex-col bg-background">
-            <header className="border-b py-4 px-6 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="rounded-xl"><ArrowLeft className="h-5 w-5" /></Button>
-                    <InvoLogo size={40} />
+        <div className="min-h-screen flex flex-col bg-background pb-20">
+            {/* Sticky header */}
+            <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 shadow-sm shrink-0">
+                <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
+                            <ArrowLeft className="w-4 h-4" />
+                        </button>
+                        <div className="hidden sm:flex items-center gap-2">
+                            <ClorefyLogo size={24} />
+                            <span className="font-semibold text-sm">Business Profile</span>
+                        </div>
+                    </div>
+                    <HamburgerMenu />
                 </div>
-                <div className="text-[15px] text-muted-foreground font-medium">Business Profile</div>
-            </header>
+            </div>
 
-            <main className="flex-1 p-6 overflow-auto">
+            <main className="flex-1 p-4 sm:p-6 overflow-visible pt-6 sm:pt-10">
                 <div className="max-w-4xl mx-auto space-y-6">
                     <div className="flex items-center justify-between">
                         <div>

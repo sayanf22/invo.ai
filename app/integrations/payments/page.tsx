@@ -26,13 +26,35 @@ export const metadata: Metadata = {
 
 // ── Gateway Logo ─────────────────────────────────────────────────────────────
 
-function GatewayLogo({ url, alt, bg, size = 40 }: { url: string; alt: string; bg: string; size?: number }) {
+const RazorpayLogoSVG = () => (
+  <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M30 70L70 30" stroke="#2563eb" strokeWidth="12" strokeLinecap="square" />
+    <path d="M30 30H50C65 30 65 50 50 50H30V30Z" stroke="white" strokeWidth="10" strokeLinejoin="round" />
+  </svg>
+)
+
+const StripeLogoSVG = () => (
+  <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M65.4 46.1C65.4 37.8 59 34.6 51 34.6C41.2 34.6 34.6 40.5 34.6 49.3C34.6 62.4 53.6 60.5 53.6 66.2C53.6 69.1 50.5 70.8 46.4 70.8C40.6 70.8 35.5 68.3 33.3 65.6L30.5 76C33.4 78 39.4 79.5 45.4 79.5C55.7 79.5 63 73.6 63 64.6C63 50.8 44.1 52.8 44.1 47.7C44.1 45.2 46.8 43.4 51.1 43.4C55.7 43.4 59.8 45.2 62.3 47.7L65.4 46.1Z" fill="white" />
+  </svg>
+)
+
+const CashfreeLogoSVG = () => (
+  <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M70 30L30 70M30 30L70 70" stroke="white" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="50" cy="50" r="30" stroke="white" strokeWidth="8" />
+  </svg>
+)
+
+function GatewayLogo({ LogoComponent, bg, size = 48 }: { LogoComponent: React.ComponentType; bg: string; size?: number }) {
   return (
     <div
-      className={`rounded-lg flex items-center justify-center shrink-0 ${bg}`}
+      className={`rounded-2xl flex items-center justify-center shrink-0 shadow-md ${bg}`}
       style={{ width: size, height: size }}
     >
-      <img src={url} alt={alt} className="w-[60%] h-[60%] object-contain" />
+      <div className="w-[55%] h-[55%] drop-shadow-sm flex items-center justify-center">
+        <LogoComponent />
+      </div>
     </div>
   )
 }
@@ -43,13 +65,13 @@ const gateways = [
   {
     id: "razorpay",
     name: "Razorpay",
-    logoUrl: "https://razorpay.com/assets/razorpay-glyph.svg",
-    logoBg: "bg-[#072654]",
-    tagline: "Best for India",
+    LogoComponent: RazorpayLogoSVG,
+    logoBg: "bg-gradient-to-br from-[#072654] to-[#123970]",
+    tagline: "Global & India",
     description:
-      "Accept UPI, credit/debit cards, netbanking, wallets, and EMI. Razorpay is the most popular payment gateway for Indian businesses.",
-    bestFor: "India-based businesses",
-    currencies: "INR",
+      "Accept UPI, credit/debit cards, netbanking, wallets, and EMI. Razorpay is a powerful payment gateway for global and Indian businesses.",
+    bestFor: "Global & Indian businesses",
+    currencies: "100+ currencies",
     webhookSetup: "Manual — copy URL + secret from settings",
     steps: [
       "Go to Settings → Payment Gateways in your Clorefy dashboard",
@@ -60,14 +82,15 @@ const gateways = [
       "In Razorpay Dashboard → Settings → Webhooks, add a new webhook",
       "Paste the URL and secret, then select payment.captured and payment.failed events",
     ],
-    color: "border-blue-200 bg-blue-50/50 dark:border-blue-800/40 dark:bg-blue-950/20",
+    color: "border-blue-200 bg-white dark:border-blue-800/40 dark:bg-slate-900",
+    shadow: "shadow-xl shadow-blue-900/5",
     accentColor: "text-blue-900 dark:text-blue-300",
   },
   {
     id: "stripe",
     name: "Stripe",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg",
-    logoBg: "bg-[#635BFF]",
+    LogoComponent: StripeLogoSVG,
+    logoBg: "bg-gradient-to-br from-[#635BFF] to-[#7A73FF]",
     tagline: "Global payments",
     description:
       "Accept cards, Apple Pay, Google Pay, and 135+ currencies worldwide. Stripe's webhook is registered automatically — no manual setup.",
@@ -82,19 +105,20 @@ const gateways = [
       "Paste it in Clorefy and click Connect",
       "Webhook is registered automatically via Stripe API",
     ],
-    color: "border-indigo-200 bg-indigo-50/50 dark:border-indigo-800/40 dark:bg-indigo-950/20",
+    color: "border-indigo-200 bg-white dark:border-indigo-800/40 dark:bg-slate-900",
+    shadow: "shadow-xl shadow-indigo-900/5",
     accentColor: "text-indigo-900 dark:text-indigo-300",
   },
   {
     id: "cashfree",
     name: "Cashfree",
-    logoUrl: "https://cashfreelogo.cashfree.com/cashfreepayments/logoAssets/cf-primary-logo.png",
-    logoBg: "bg-[#00B050]",
-    tagline: "Fast settlements",
+    LogoComponent: CashfreeLogoSVG,
+    logoBg: "bg-gradient-to-br from-[#00B050] to-[#00C95B]",
+    tagline: "Fast global settlements",
     description:
-      "India-focused gateway with fast T+1 settlements and payment links. Webhook URL is embedded automatically in every payment link.",
-    bestFor: "India — fast settlement priority",
-    currencies: "INR",
+      "Gateway with fast T+1 settlements and payment links. Webhook URL is embedded automatically in every payment link.",
+    bestFor: "Global businesses needing fast settlements",
+    currencies: "100+ currencies",
     webhookSetup: "Embedded in payment link — no manual setup",
     steps: [
       "Go to Settings → Payment Gateways in your Clorefy dashboard",
@@ -105,7 +129,8 @@ const gateways = [
       "Paste credentials in Clorefy and click Connect",
       "Webhook URL is embedded in each payment link automatically",
     ],
-    color: "border-green-200 bg-green-50/50 dark:border-green-800/40 dark:bg-green-950/20",
+    color: "border-green-200 bg-white dark:border-green-800/40 dark:bg-slate-900",
+    shadow: "shadow-xl shadow-green-900/5",
     accentColor: "text-green-900 dark:text-green-300",
   },
 ]
@@ -141,318 +166,361 @@ const faqs = [
   },
 ]
 
+// ── Realistic SVGs ─────────────────────────────────────────────────────────────
+
+const InvoiceGeneratedSVG = () => (
+  <svg width="100%" height="100%" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="25" y="15" width="70" height="90" rx="8" fill="#ffffff" stroke="#cbd5e1" strokeWidth="2"/>
+    <path d="M40 35H80M40 50H80M40 65H60" stroke="#94a3b8" strokeWidth="4" strokeLinecap="round"/>
+    <rect x="65" y="60" width="15" height="15" rx="3" fill="#e2e8f0"/>
+    <circle cx="80" cy="85" r="16" fill="#3b82f6" fillOpacity="0.1" stroke="#3b82f6" strokeWidth="2"/>
+    <path d="M75 85L78 88L85 81" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M20 30L10 20M10 50H5M30 10V5" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" strokeDasharray="4 4" className="animate-pulse"/>
+  </svg>
+)
+
+const PaymentLinkSVG = () => (
+  <svg width="100%" height="100%" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="15" y="30" width="90" height="60" rx="12" fill="#ffffff" stroke="#cbd5e1" strokeWidth="2"/>
+    <circle cx="35" cy="60" r="8" fill="#e2e8f0"/>
+    <path d="M55 55H85M55 65H70" stroke="#94a3b8" strokeWidth="4" strokeLinecap="round"/>
+    <rect x="70" y="20" width="30" height="30" rx="15" fill="#8b5cf6" className="animate-bounce" style={{animationDuration: '3s'}}/>
+    <path d="M80 35C80 32.2386 82.2386 30 85 30C87.7614 30 90 32.2386 90 35M85 35V40" stroke="#ffffff" strokeWidth="3" strokeLinecap="round"/>
+  </svg>
+)
+
+const PaymentReceivedSVG = () => (
+  <svg width="100%" height="100%" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="20" y="35" width="80" height="50" rx="8" fill="#ffffff" stroke="#cbd5e1" strokeWidth="2"/>
+    <rect x="20" y="45" width="80" height="15" fill="#cbd5e1"/>
+    <rect x="30" y="68" width="20" height="8" rx="4" fill="#e2e8f0"/>
+    <circle cx="85" cy="85" r="24" fill="#22c55e" stroke="#ffffff" strokeWidth="4"/>
+    <path d="M76 85L82 91L94 79" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PaymentIntegrationsPage() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-screen bg-background text-foreground overflow-hidden">
 
       {/* Hero */}
-      <section className="border-b border-border bg-gradient-to-b from-muted/40 to-background">
-        <div className="max-w-4xl mx-auto px-6 py-16 text-center">
-          <div className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 mb-6">
+      <section className="relative overflow-hidden bg-white dark:bg-slate-950 border-b border-border shadow-sm">
+        {/* Background Decorative Blobs */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-5xl pointer-events-none opacity-40 dark:opacity-20 flex justify-center">
+          <div className="w-[500px] h-[500px] bg-primary/20 rounded-full blur-3xl absolute -top-32 -left-32"></div>
+          <div className="w-[500px] h-[500px] bg-blue-500/20 rounded-full blur-3xl absolute top-32 -right-32"></div>
+        </div>
+
+        <div className="max-w-4xl mx-auto px-6 py-20 text-center relative z-10">
+          <div className="inline-flex items-center gap-2 text-[13px] font-semibold px-4 py-2 rounded-full bg-white dark:bg-slate-900 text-primary border border-primary/20 shadow-lg shadow-primary/5 mb-8">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+            </span>
             Payment Integrations
           </div>
-          <h1 className="text-4xl font-bold tracking-tight mb-4">
-            Collect payments directly from your invoices
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-6 text-slate-900 dark:text-white drop-shadow-sm">
+            Collect payments directly <br className="hidden sm:block" /> from your invoices
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-            Connect Razorpay, Stripe, or Cashfree to Clorefy and add a &quot;Pay Now&quot; button to every invoice you generate. Payments go straight to your account.
+          <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+            Connect Razorpay, Stripe, or Cashfree to Clorefy and add a "Pay Now" button to every invoice you generate. Payments go straight to your bank account.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/auth/signup"
-              className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
-            >
-              Get started free
-            </Link>
+          <div className="flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/settings"
-              className="px-6 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
+              className="px-8 py-3.5 rounded-2xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 hover:shadow-primary/40 hover:-translate-y-0.5"
             >
-              Go to settings
+              Integrate Now
+            </Link>
+            <Link
+              href="/"
+              className="px-8 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm font-semibold hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-md hover:shadow-lg"
+            >
+              Go to Dashboard
             </Link>
           </div>
         </div>
       </section>
 
       {/* Visual payment flow */}
-      <section className="max-w-4xl mx-auto px-6 py-14">
-        <h2 className="text-2xl font-bold mb-2">How payment collection works</h2>
-        <p className="text-muted-foreground mb-10">
-          Clorefy generates your invoice with AI, then adds a payment link powered by your chosen gateway.
-        </p>
-
-        {/* 3-step visual flow */}
-        <div className="flex items-center justify-center gap-0 sm:gap-2 mb-10">
-          {/* Step 1 */}
-          <div className="flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-300 dark:border-blue-700 flex items-center justify-center mb-2">
-              <svg className="w-7 h-7 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-              </svg>
-            </div>
-            <p className="text-xs font-semibold text-foreground">Invoice Generated</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">AI creates your document</p>
-          </div>
-
-          {/* Arrow 1 */}
-          <div className="flex-1 max-w-[80px] flex items-center justify-center -mt-6">
-            <div className="w-full h-0.5 bg-gradient-to-r from-blue-300 to-purple-300 dark:from-blue-700 dark:to-purple-700 relative">
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-l-[8px] border-l-purple-300 dark:border-l-purple-700" />
-            </div>
-          </div>
-
-          {/* Step 2 */}
-          <div className="flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-purple-100 dark:bg-purple-900/30 border-2 border-purple-300 dark:border-purple-700 flex items-center justify-center mb-2">
-              <svg className="w-7 h-7 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-2.54a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L5.25 9.879" />
-              </svg>
-            </div>
-            <p className="text-xs font-semibold text-foreground">Payment Link Shared</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Client receives pay link</p>
-          </div>
-
-          {/* Arrow 2 */}
-          <div className="flex-1 max-w-[80px] flex items-center justify-center -mt-6">
-            <div className="w-full h-0.5 bg-gradient-to-r from-purple-300 to-green-300 dark:from-purple-700 dark:to-green-700 relative">
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-l-[8px] border-l-green-300 dark:border-l-green-700" />
-            </div>
-          </div>
-
-          {/* Step 3 */}
-          <div className="flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 border-2 border-green-300 dark:border-green-700 flex items-center justify-center mb-2">
-              <svg className="w-7 h-7 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-              </svg>
-            </div>
-            <p className="text-xs font-semibold text-foreground">Payment Received</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Status updates automatically</p>
-          </div>
+      <section className="max-w-5xl mx-auto px-6 py-20">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl font-bold mb-4 text-slate-900 dark:text-white">How payment collection works</h2>
+          <p className="text-lg text-slate-600 dark:text-slate-400">
+            Clorefy generates your invoice with AI, then adds a secure payment link powered by your chosen gateway.
+          </p>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-4">
+        {/* 3-step visual flow */}
+        <div className="grid md:grid-cols-3 gap-8 relative">
+          {/* Connecting Lines (Desktop only) */}
+          <div className="hidden md:block absolute top-[40%] left-[20%] right-[20%] h-0.5 bg-gradient-to-r from-blue-200 via-purple-200 to-green-200 dark:from-blue-900 dark:via-purple-900 dark:to-green-900 z-0 border-t-2 border-dashed border-slate-300 dark:border-slate-700 opacity-50"></div>
+
           {[
-            { step: "1", title: "Connect your gateway", desc: "Add your API keys in Settings → Payment Gateways. Takes under 2 minutes." },
-            { step: "2", title: "Generate an invoice", desc: "Describe what you need — Clorefy's AI writes a complete, compliant invoice." },
-            { step: "3", title: "Share the payment link", desc: "Send the invoice link to your client. They click Pay Now and pay instantly." },
-          ].map(item => (
-            <div key={item.step} className="p-5 rounded-xl border border-border bg-card">
-              <div className="w-8 h-8 rounded-full bg-primary/10 text-primary text-sm font-bold flex items-center justify-center mb-3">
-                {item.step}
+            { 
+              step: "1", 
+              title: "Invoice Generated", 
+              desc: "AI creates your document flawlessly.", 
+              color: "text-blue-600", 
+              bg: "bg-blue-50 dark:bg-blue-900/20",
+              border: "border-blue-100 dark:border-blue-800",
+              svg: <InvoiceGeneratedSVG />
+            },
+            { 
+              step: "2", 
+              title: "Payment Link Shared", 
+              desc: "Client receives secure pay link.", 
+              color: "text-purple-600", 
+              bg: "bg-purple-50 dark:bg-purple-900/20",
+              border: "border-purple-100 dark:border-purple-800",
+              svg: <PaymentLinkSVG />
+            },
+            { 
+              step: "3", 
+              title: "Payment Received", 
+              desc: "Status updates automatically.", 
+              color: "text-green-600", 
+              bg: "bg-green-50 dark:bg-green-900/20",
+              border: "border-green-100 dark:border-green-800",
+              svg: <PaymentReceivedSVG />
+            },
+          ].map((item, idx) => (
+            <div key={item.step} className="relative z-10 flex flex-col items-center">
+              <div className={`w-32 h-32 mb-6 rounded-[2rem] shadow-xl shadow-slate-200/50 dark:shadow-none p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center transform transition-transform hover:-translate-y-2 duration-300`}>
+                {item.svg}
               </div>
-              <h3 className="font-semibold text-sm mb-1">{item.title}</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+              <div className={`w-8 h-8 rounded-full ${item.bg} ${item.border} border flex items-center justify-center mb-4 shadow-sm`}>
+                <span className={`text-sm font-bold ${item.color}`}>{item.step}</span>
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{item.title}</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 text-center max-w-[200px]">{item.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Gateways */}
-      <section className="max-w-4xl mx-auto px-6 py-6">
-        <h2 className="text-2xl font-bold mb-2">Supported payment gateways</h2>
-        <p className="text-muted-foreground mb-8">
-          Choose the gateway that fits your business. You can connect all three simultaneously.
-        </p>
-        <div className="space-y-6">
-          {gateways.map(gw => (
-            <div key={gw.id} className={`rounded-2xl border p-6 ${gw.color}`}>
-              <div className="flex items-start gap-4">
-                <GatewayLogo url={gw.logoUrl} alt={`${gw.name} logo`} bg={gw.logoBg} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <h3 className={`text-lg font-bold ${gw.accentColor}`}>{gw.name}</h3>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-white/60 dark:bg-black/20 text-muted-foreground font-medium">
-                      {gw.tagline}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-4">{gw.description}</p>
+      <section className="bg-slate-50 dark:bg-slate-900/50 py-20 border-y border-border">
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold mb-4 text-slate-900 dark:text-white">Supported payment gateways</h2>
+            <p className="text-lg text-slate-600 dark:text-slate-400">
+              Choose the gateway that fits your business. You can connect all three simultaneously.
+            </p>
+          </div>
+          
+          <div className="space-y-8">
+            {gateways.map(gw => (
+              <div key={gw.id} id={gw.id} className={`rounded-[2rem] border ${gw.color} ${gw.shadow} p-8 scroll-mt-24 transition-all duration-300 hover:shadow-2xl hover:scale-[1.01]`}>
+                <div className="flex flex-col sm:flex-row items-start gap-6">
+                  <GatewayLogo LogoComponent={gw.LogoComponent} bg={gw.logoBg} size={64} />
+                  <div className="flex-1 min-w-0 w-full">
+                    <div className="flex items-center gap-3 flex-wrap mb-2">
+                      <h3 className={`text-2xl font-bold ${gw.accentColor}`}>{gw.name}</h3>
+                      <span className="text-xs px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700 shadow-sm">
+                        {gw.tagline}
+                      </span>
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">{gw.description}</p>
 
-                  <div className="grid sm:grid-cols-3 gap-3 mb-5 text-xs">
-                    <div>
-                      <p className="font-medium text-foreground/70 uppercase tracking-wide mb-0.5">Best for</p>
-                      <p className="text-foreground">{gw.bestFor}</p>
+                    <div className="grid sm:grid-cols-3 gap-4 mb-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-800">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Best for</p>
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{gw.bestFor}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Currencies</p>
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{gw.currencies}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Webhook setup</p>
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{gw.webhookSetup}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-foreground/70 uppercase tracking-wide mb-0.5">Currencies</p>
-                      <p className="text-foreground">{gw.currencies}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground/70 uppercase tracking-wide mb-0.5">Webhook setup</p>
-                      <p className="text-foreground">{gw.webhookSetup}</p>
-                    </div>
-                  </div>
 
-                  <details className="group">
-                    <summary className="cursor-pointer text-xs font-medium text-primary hover:underline list-none flex items-center gap-1">
-                      <span>Step-by-step setup guide</span>
-                      <svg className="w-3 h-3 transition-transform group-open:rotate-180" viewBox="0 0 12 12" fill="none">
-                        <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </summary>
-                    <ol className="mt-3 space-y-2">
-                      {gw.steps.map((step, i) => (
-                        <li key={i} className="flex gap-2.5 text-xs text-muted-foreground">
-                          <span className="shrink-0 w-5 h-5 rounded-full bg-white/70 dark:bg-black/20 text-foreground/70 flex items-center justify-center text-[10px] font-bold mt-0.5">
-                            {i + 1}
-                          </span>
-                          <span>{step}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  </details>
+                    <details className="group">
+                      <summary className="cursor-pointer text-sm font-semibold text-primary hover:text-primary/80 transition-colors list-none flex items-center gap-2 bg-primary/5 hover:bg-primary/10 w-fit px-4 py-2 rounded-xl">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                        </svg>
+                        <span>Step-by-step setup guide</span>
+                        <svg className="w-4 h-4 transition-transform group-open:rotate-180 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </summary>
+                      <div className="mt-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 shadow-inner">
+                        <ol className="space-y-3">
+                          {gw.steps.map((step, i) => (
+                            <li key={i} className="flex gap-3 text-sm text-slate-600 dark:text-slate-400">
+                              <span className="shrink-0 w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-xs font-bold border border-slate-200 dark:border-slate-700 shadow-sm">
+                                {i + 1}
+                              </span>
+                              <span className="mt-0.5">{step}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    </details>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
       {/* Webhook setup guide */}
-      <section id="webhooks" className="max-w-4xl mx-auto px-6 py-10 scroll-mt-20">
-        <h2 className="text-2xl font-bold mb-2">Webhook configuration</h2>
-        <p className="text-muted-foreground mb-8">
-          Webhooks ensure your invoice status updates reliably, even if the client closes their browser after paying.
-        </p>
+      <section id="webhooks" className="max-w-4xl mx-auto px-6 py-20 scroll-mt-20">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl font-bold mb-4 text-slate-900 dark:text-white">Webhook configuration</h2>
+          <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+            Webhooks ensure your invoice status updates reliably in real-time, even if the client closes their browser immediately after paying.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6 mb-10">
+          <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-red-100 dark:border-red-900/30 shadow-lg shadow-red-900/5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-red-400"></div>
+            <p className="font-bold text-red-600 dark:text-red-400 mb-2 flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600">✕</span> 
+              Callback URL only
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">If the client closes the browser tab after paying, the redirect never fires. Your invoice stays "pending" even though payment was actually received.</p>
+          </div>
+          <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-green-100 dark:border-green-900/30 shadow-lg shadow-green-900/5 relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+            <p className="font-bold text-green-600 dark:text-green-400 mb-2 flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600">✓</span> 
+              Webhook (Required)
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">Fires server-to-server reliably regardless of client behavior. Invoice status updates to "paid" securely every single time.</p>
+          </div>
+        </div>
 
         <div className="space-y-6">
           {/* Razorpay webhooks */}
-          <div className="rounded-2xl border border-blue-200 dark:border-blue-800/40 bg-blue-50/50 dark:bg-blue-950/20 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <GatewayLogo url="https://razorpay.com/assets/razorpay-glyph.svg" alt="Razorpay" bg="bg-[#072654]" size={32} />
-              <h3 className="text-base font-bold text-blue-900 dark:text-blue-300">Razorpay Webhook Events</h3>
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/50 p-8 shadow-sm">
+            <div className="flex items-center gap-4 mb-6">
+              <GatewayLogo LogoComponent={RazorpayLogoSVG} bg="bg-gradient-to-br from-[#072654] to-[#123970]" size={40} />
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">Razorpay Webhook Events</h3>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              In your Razorpay Dashboard → Settings → Webhooks, create a new webhook and select these events:
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              In your Razorpay Dashboard → Settings → Webhooks, create a new webhook and select exactly these events:
             </p>
-            <div className="grid sm:grid-cols-2 gap-2 mb-4">
+            <div className="grid sm:grid-cols-2 gap-3 mb-6">
               {[
                 { event: "payment_link.paid", desc: "Payment completed successfully" },
                 { event: "payment_link.partially_paid", desc: "Partial payment received" },
                 { event: "payment_link.expired", desc: "Payment link has expired" },
                 { event: "payment_link.cancelled", desc: "Payment link was cancelled" },
               ].map(e => (
-                <div key={e.event} className="flex items-start gap-2 p-2.5 rounded-lg bg-white/60 dark:bg-black/20 border border-blue-100 dark:border-blue-800/30">
-                  <code className="text-xs font-mono text-blue-800 dark:text-blue-300 font-semibold shrink-0">{e.event}</code>
-                  <span className="text-[11px] text-muted-foreground ml-auto">{e.desc}</span>
+                <div key={e.event} className="flex flex-col gap-1 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 hover:border-blue-200 transition-colors">
+                  <code className="text-xs font-mono text-blue-700 dark:text-blue-400 font-bold">{e.event}</code>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{e.desc}</span>
                 </div>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Paste the <strong>Webhook URL</strong> and <strong>Webhook Secret</strong> shown in your Clorefy payment settings into the Razorpay webhook form.
-            </p>
+            <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-sm text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-blue-800/50">
+              Paste the <strong>Webhook URL</strong> and <strong>Webhook Secret</strong> shown in your Clorefy payment settings directly into the Razorpay webhook form.
+            </div>
           </div>
 
           {/* Stripe webhooks */}
-          <div className="rounded-2xl border border-indigo-200 dark:border-indigo-800/40 bg-indigo-50/50 dark:bg-indigo-950/20 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <GatewayLogo url="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" bg="bg-[#635BFF]" size={32} />
-              <h3 className="text-base font-bold text-indigo-900 dark:text-indigo-300">Stripe Webhook Events</h3>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-medium ml-auto">Auto-registered</span>
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/50 p-8 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-4">
+                <GatewayLogo LogoComponent={StripeLogoSVG} bg="bg-gradient-to-br from-[#635BFF] to-[#7A73FF]" size={40} />
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Stripe Webhook Events</h3>
+              </div>
+              <span className="text-xs px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold shadow-sm">Auto-registered</span>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              Stripe webhooks are registered automatically when you connect. These events are listened for:
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              Stripe webhooks are registered automatically via API when you connect. These events are actively monitored:
             </p>
-            <div className="grid sm:grid-cols-3 gap-2 mb-4">
+            <div className="grid sm:grid-cols-3 gap-3 mb-6">
               {[
                 { event: "checkout.session.completed", desc: "Checkout finished" },
                 { event: "payment_intent.succeeded", desc: "Payment succeeded" },
                 { event: "payment_intent.payment_failed", desc: "Payment failed" },
               ].map(e => (
-                <div key={e.event} className="p-2.5 rounded-lg bg-white/60 dark:bg-black/20 border border-indigo-100 dark:border-indigo-800/30">
-                  <code className="text-xs font-mono text-indigo-800 dark:text-indigo-300 font-semibold block">{e.event}</code>
-                  <span className="text-[11px] text-muted-foreground">{e.desc}</span>
+                <div key={e.event} className="flex flex-col gap-1 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 hover:border-indigo-200 transition-colors">
+                  <code className="text-xs font-mono text-indigo-700 dark:text-indigo-400 font-bold">{e.event}</code>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{e.desc}</span>
                 </div>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              No manual setup needed — Stripe&apos;s API allows programmatic webhook creation.
-            </p>
+            <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-sm text-indigo-800 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800/50">
+              No manual setup needed in your Stripe dashboard — Clorefy handles the programmatic webhook creation for you securely.
+            </div>
           </div>
 
           {/* Cashfree webhooks */}
-          <div className="rounded-2xl border border-green-200 dark:border-green-800/40 bg-green-50/50 dark:bg-green-950/20 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <GatewayLogo url="https://cashfreelogo.cashfree.com/cashfreepayments/logoAssets/cf-primary-logo.png" alt="Cashfree" bg="bg-[#00B050]" size={32} />
-              <h3 className="text-base font-bold text-green-900 dark:text-green-300">Cashfree Webhook</h3>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-medium ml-auto">Embedded</span>
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/50 p-8 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+               <div className="flex items-center gap-4">
+                <GatewayLogo LogoComponent={CashfreeLogoSVG} bg="bg-gradient-to-br from-[#00B050] to-[#00C95B]" size={40} />
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Cashfree Webhook</h3>
+              </div>
+              <span className="text-xs px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-bold shadow-sm">Embedded</span>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              Cashfree uses a different approach — the webhook URL is embedded directly in each payment link via the <code className="text-xs font-mono bg-green-100 dark:bg-green-900/40 px-1.5 py-0.5 rounded">notify_url</code> parameter.
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              Cashfree uses an embedded approach. The webhook URL is passed dynamically in each payment link payload.
             </p>
-            <div className="p-3 rounded-lg bg-white/60 dark:bg-black/20 border border-green-100 dark:border-green-800/30 text-xs text-muted-foreground">
-              When Clorefy creates a Cashfree payment link, it automatically includes <code className="font-mono text-green-800 dark:text-green-300">notify_url</code> pointing to your Clorefy webhook endpoint. Cashfree sends payment status updates to this URL for each individual transaction. No global webhook configuration is needed in the Cashfree dashboard.
+            <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 text-sm text-slate-600 dark:text-slate-400 shadow-inner">
+              When Clorefy creates a Cashfree payment link, it automatically injects a <code className="font-mono text-green-700 dark:text-green-400 font-bold bg-green-100 dark:bg-green-900/40 px-2 py-0.5 rounded">notify_url</code> pointing to your secure Clorefy webhook endpoint. Cashfree securely sends payment status updates to this URL for each transaction. <strong>No global webhook configuration is needed</strong> in the Cashfree dashboard.
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Webhook explainer */}
-      <section className="max-w-4xl mx-auto px-6 py-10">
-        <div className="rounded-2xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/20 p-6">
-          <h2 className="text-lg font-bold text-amber-900 dark:text-amber-300 mb-2">
-            Why webhooks are required
-          </h2>
-          <p className="text-sm text-amber-800 dark:text-amber-400 leading-relaxed mb-4">
-            Payment gateways offer two ways to notify your app about a completed payment: a <strong>callback URL</strong> (redirect after payment) and a <strong>webhook</strong> (server-to-server notification).
-          </p>
-          <div className="grid sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-3 rounded-lg bg-red-100 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50">
-              <p className="font-semibold text-red-700 dark:text-red-400 mb-1">❌ Callback URL only</p>
-              <p className="text-red-700 dark:text-red-400">If the client closes the browser tab after paying, the redirect never fires. Invoice stays &quot;pending&quot; even though payment was received.</p>
-            </div>
-            <div className="p-3 rounded-lg bg-green-100 dark:bg-green-950/30 border border-green-200 dark:border-green-800/50">
-              <p className="font-semibold text-green-700 dark:text-green-400 mb-1">✅ Webhook (required)</p>
-              <p className="text-green-700 dark:text-green-400">Fires server-to-server regardless of client behavior. Invoice status updates to &quot;paid&quot; reliably every time.</p>
-            </div>
-          </div>
-          <p className="text-xs text-amber-700 dark:text-amber-500 mt-3 italic">
-            Razorpay&apos;s own documentation: &quot;Implement webhooks to avoid callback failure.&quot;
-          </p>
         </div>
       </section>
 
       {/* FAQ */}
-      <section className="max-w-4xl mx-auto px-6 py-6 pb-16">
-        <h2 className="text-2xl font-bold mb-8">Frequently asked questions</h2>
-        <div className="space-y-4">
-          {faqs.map((faq, i) => (
-            <details key={i} className="group rounded-xl border border-border bg-card overflow-hidden">
-              <summary className="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer list-none font-medium text-sm hover:bg-muted/40 transition-colors">
-                <span>{faq.q}</span>
-                <svg className="w-4 h-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" viewBox="0 0 16 16" fill="none">
-                  <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </summary>
-              <div className="px-5 pb-4 text-sm text-muted-foreground leading-relaxed border-t border-border/50 pt-3">
-                {faq.a}
-              </div>
-            </details>
-          ))}
+      <section className="bg-slate-50 dark:bg-slate-900/50 py-20 border-t border-border">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4 text-slate-900 dark:text-white">Frequently asked questions</h2>
+          </div>
+          <div className="space-y-4">
+            {faqs.map((faq, i) => (
+              <details key={i} className="group rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+                <summary className="flex items-center justify-between gap-4 px-6 py-5 cursor-pointer list-none font-semibold text-slate-900 dark:text-white hover:text-primary transition-colors">
+                  <span className="text-[15px]">{faq.q}</span>
+                  <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 group-open:bg-primary/10 group-open:text-primary transition-colors">
+                    <svg className="w-4 h-4 transition-transform duration-300 group-open:rotate-180" viewBox="0 0 16 16" fill="none">
+                      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </summary>
+                <div className="px-6 pb-6 text-sm text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800 pt-4">
+                  {faq.a}
+                </div>
+              </details>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="border-t border-border bg-muted/30">
-        <div className="max-w-4xl mx-auto px-6 py-14 text-center">
-          <h2 className="text-2xl font-bold mb-3">Ready to collect payments?</h2>
-          <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
-            Connect your payment gateway in under 2 minutes and start collecting payments from your AI-generated invoices.
+      <section className="relative overflow-hidden bg-primary text-primary-foreground">
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+        <div className="max-w-4xl mx-auto px-6 py-20 text-center relative z-10">
+          <h2 className="text-3xl sm:text-4xl font-bold mb-6 drop-shadow-sm">Ready to collect payments?</h2>
+          <p className="text-lg text-primary-foreground/80 mb-10 max-w-xl mx-auto">
+            Connect your payment gateway in under 2 minutes and start getting paid instantly from your AI-generated invoices.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/auth/signup"
-              className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
-            >
-              Create free account
-            </Link>
+          <div className="flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/settings"
-              className="px-6 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
+              className="px-8 py-4 rounded-2xl bg-white text-primary text-sm font-bold hover:bg-slate-50 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5"
             >
-              Go to payment settings
+              Integrate Now
+            </Link>
+            <Link
+              href="/"
+              className="px-8 py-4 rounded-2xl border-2 border-primary-foreground/20 text-primary-foreground text-sm font-bold hover:bg-primary-foreground/10 transition-all shadow-md"
+            >
+              Go to Dashboard
             </Link>
           </div>
         </div>

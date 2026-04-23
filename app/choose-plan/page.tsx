@@ -114,7 +114,7 @@ export default function ChoosePlanPage() {
     }, [subscribe, billingCycle, countryPricing])
 
     if (isLoading) {
-        return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+        return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
     }
 
     return (

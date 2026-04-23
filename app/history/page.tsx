@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
+import { ClorefyLogo } from "@/components/clorefy-logo"
+import { HamburgerMenu } from "@/components/hamburger-menu"
 import { History, FileText, Calendar, Link2, ChevronRight, ArrowRight, ScrollText, ClipboardList, Lightbulb, ChevronDown, ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
@@ -111,24 +113,29 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-2xl mx-auto px-4 pt-6 pb-20">
-
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={() => router.back()}
-            className="w-9 h-9 rounded-2xl border border-border bg-card flex items-center justify-center hover:bg-secondary transition-colors shrink-0"
-            style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
-          >
-            <ArrowLeft className="w-4 h-4 text-foreground/70" />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">History</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {groups.length} document{groups.length !== 1 ? "s" : ""}
-            </p>
+    <div className="min-h-screen bg-background pb-20">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div className="hidden sm:flex items-center gap-2">
+              <ClorefyLogo size={24} />
+              <span className="font-semibold text-sm">History</span>
+            </div>
           </div>
+          <HamburgerMenu />
+        </div>
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 pt-6 pb-20">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight">History</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {groups.length} document{groups.length !== 1 ? "s" : ""}
+          </p>
         </div>
 
         {/* Filter pills */}

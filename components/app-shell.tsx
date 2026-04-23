@@ -249,8 +249,11 @@ export function AppShell() {
 
   if (authLoading || checkingOnboarding) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 rounded-full border-[3px] border-transparent animate-spin" style={{ borderTopColor: 'hsl(33 17% 10%)', borderRightColor: 'hsl(33 17% 10% / 0.15)', animationDuration: '0.75s' }} />
+        </div>
+        <p className="text-xs font-medium text-muted-foreground tracking-wide">Clorefy</p>
       </div>
     )
   }
@@ -280,7 +283,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="animate-in fade-in duration-300 min-h-screen flex flex-col">
+    <div className="animate-in fade-in duration-300 min-h-screen flex flex-col bg-background">
       <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
         <InvoLogo size={36} />
         <HamburgerMenu />
@@ -303,11 +306,11 @@ export function AppShell() {
         <section className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center px-4 py-12">
           <div className="flex flex-col items-center gap-6 w-full max-w-[720px]">
             <InvoLogo size={80} />
-            <h1 className="text-[40px] md:text-[48px] font-light tracking-tight text-foreground text-center text-balance leading-tight">
+            <h1 className="text-[40px] md:text-[48px] font-display font-medium tracking-tight text-foreground text-center text-balance leading-tight">
               {selectedCategory ? (
-                <>{"Describe your "}<span className="font-medium relative">{selectedCategory.toLowerCase()}<span className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-primary" /></span></>
+                <>{"Describe your "}<span className="font-medium relative text-amber-700 dark:text-amber-500">{selectedCategory.toLowerCase()}<span className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-amber-700/30 dark:bg-amber-500/30" /></span></>
               ) : (
-                <>{"What do you want to "}<span className="font-medium relative">{"create"}<span className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-primary" /></span>{"?"}</>
+                <>{"What do you want to "}<span className="font-medium relative text-amber-700 dark:text-amber-500">{"create"}<span className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-amber-700/30 dark:bg-amber-500/30" /></span>{"?"}</>
               )}
             </h1>
             <div className="w-full mt-2">

@@ -5,7 +5,8 @@ import { authFetch } from "@/lib/auth-fetch"
 import { useUser } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { ExternalLink, Trash2, Loader2, Eye, EyeOff, CheckCircle2, Lock, Pencil, Copy, Check, ChevronDown } from "lucide-react"
+import { ExternalLink, Trash2, Loader2, Eye, EyeOff, CheckCircle2, Lock, Pencil, Copy, Check, ChevronDown, BookOpen } from "lucide-react"
+import Link from "next/link"
 
 type Gateway = "razorpay" | "stripe" | "cashfree"
 
@@ -30,7 +31,7 @@ interface GatewayDef {
 function RazorpayIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-      <path d="M21.153 0H2.847A2.847 2.847 0 0 0 0 2.847v18.306A2.847 2.847 0 0 0 2.847 24h18.306A2.847 2.847 0 0 0 24 21.153V2.847A2.847 2.847 0 0 0 21.153 0zM9.927 16.17l-1.496-3.99H6.44v3.99H4.5V7.83h4.388c1.98 0 3.195 1.08 3.195 2.7 0 1.26-.72 2.16-1.8 2.52l1.71 4.12H9.927zm5.58 0l-3.51-8.34h2.07l2.43 6.03 2.43-6.03h2.07l-3.51 8.34h-1.98z"/>
+      <path d="M22.436 0l-11.91 7.773-1.174 4.276 6.625-4.297L11.65 24h4.391l6.395-24zM14.26 10.098L3.389 17.166 1.564 24h9.008l3.688-13.902Z"/>
     </svg>
   )
 }
@@ -46,15 +47,15 @@ function StripeIcon({ size = 20 }: { size?: number }) {
 function CashfreeIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm.75 15.25h-1.5v-4.5H9v-1.5h2.25V9h1.5v2.25H15v1.5h-2.25v4.5z"/>
+      <path d="M11.66 3.655A8.344 8.344 0 0 0 3.656 12a8.344 8.344 0 0 0 8.004 8.345 8.167 8.167 0 0 0 6.697-3.414l-2.73-2.072a4.935 4.935 0 0 1-3.967 2.015A5.02 5.02 0 0 1 6.942 12a5.02 5.02 0 0 1 4.718-4.874 4.88 4.88 0 0 1 3.967 1.936l2.766-2.015a8.214 8.214 0 0 0-6.733-3.392z"/>
     </svg>
   )
 }
 
 const GATEWAYS: GatewayDef[] = [
-  { id: "razorpay", name: "Razorpay", description: "UPI, cards, netbanking, wallets", countries: "India", accentBg: "#072654", Icon: RazorpayIcon, apiKeyUrl: "https://dashboard.razorpay.com/app/keys", webhookPath: "/integrations/payments/razorpay" },
+  { id: "razorpay", name: "Razorpay", description: "UPI, cards, netbanking, wallets", countries: "India", accentBg: "#0A2E65", Icon: RazorpayIcon, apiKeyUrl: "https://dashboard.razorpay.com/app/keys", webhookPath: "/integrations/payments/razorpay" },
   { id: "stripe", name: "Stripe", description: "Cards, wallets, 135+ currencies", countries: "Global", accentBg: "#635BFF", Icon: StripeIcon, apiKeyUrl: "https://dashboard.stripe.com/apikeys", webhookPath: "/integrations/payments/stripe" },
-  { id: "cashfree", name: "Cashfree", description: "Fast settlements, payment links", countries: "India", accentBg: "#00A550", Icon: CashfreeIcon, apiKeyUrl: "https://merchant.cashfree.com/merchants/developer/api-keys", webhookPath: "/integrations/payments/cashfree" },
+  { id: "cashfree", name: "Cashfree", description: "Fast settlements, payment links", countries: "India", accentBg: "#F37021", Icon: CashfreeIcon, apiKeyUrl: "https://merchant.cashfree.com/merchants/developer/api-keys", webhookPath: "/integrations/payments/cashfree" },
 ]
 
 function GatewayAvatar({ gw, size = 44 }: { gw: GatewayDef; size?: number }) {
@@ -161,9 +162,20 @@ function CredentialForm({ gw, isUpdate, saving, showSecret, setShowSecret,
     <div className="px-4 pb-5 pt-4 space-y-4 border-t border-border/50">
       <div className="flex items-center justify-between">
         <span className="text-[13px] font-semibold text-foreground">{isUpdate ? "Update credentials" : "Enter credentials"}</span>
-        <a href={gw.apiKeyUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-          Get API Keys <ExternalLink size={11} />
-        </a>
+        <div className="flex items-center gap-3">
+          <Link
+            href={"/integrations/payments/" + gw.id}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-primary bg-primary/8 hover:bg-primary/15 px-2.5 py-1 rounded-lg transition-colors"
+          >
+            <BookOpen size={11} />
+            Full Setup Guide
+          </Link>
+          <a href={gw.apiKeyUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-foreground/50 hover:text-foreground/80 transition-colors">
+            Get API Keys <ExternalLink size={10} />
+          </a>
+        </div>
       </div>
       <div className="space-y-3">
         {gw.id === "razorpay" && (<>
@@ -304,7 +316,7 @@ export function PaymentSettings() {
   }
 
   return (
-    <div className="space-y-8 max-w-2xl font-sans">
+    <div className="space-y-8 w-full font-sans">
       {connectedGateways.length > 0 && (
         <section className="space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/50 px-0.5">Connected</p>

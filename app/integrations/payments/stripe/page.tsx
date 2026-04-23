@@ -1,197 +1,265 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
+import { ClorefyLogo } from "@/components/clorefy-logo"
+import { HamburgerMenu } from "@/components/hamburger-menu"
 
 export const metadata: Metadata = {
   title: "Stripe Integration Guide | Clorefy",
   description:
     "Step-by-step guide to connect Stripe with Clorefy. Set up your API key, understand auto-registered webhooks, and start accepting global payments.",
-  keywords: [
-    "Stripe integration",
-    "Stripe API keys",
-    "Stripe webhook",
-    "Clorefy Stripe",
-    "payment gateway international",
-    "Stripe India",
-    "global payments",
-  ],
 }
+
+// Inline Stripe Logo SVG
+const StripeLogoSVG = () => (
+  <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" rx="20" fill="#635BFF" />
+    <path d="M65.4 46.1C65.4 37.8 59 34.6 51 34.6C41.2 34.6 34.6 40.5 34.6 49.3C34.6 62.4 53.6 60.5 53.6 66.2C53.6 69.1 50.5 70.8 46.4 70.8C40.6 70.8 35.5 68.3 33.3 65.6L30.5 76C33.4 78 39.4 79.5 45.4 79.5C55.7 79.5 63 73.6 63 64.6C63 50.8 44.1 52.8 44.1 47.7C44.1 45.2 46.8 43.4 51.1 43.4C55.7 43.4 59.8 45.2 62.3 47.7L65.4 46.1Z" fill="white" />
+  </svg>
+)
+
+// Mini Dashboard Mockup Component
+const DashboardMockup = ({ children, title }: { children: React.ReactNode, title: string }) => (
+  <div className="mt-6 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none bg-slate-50 dark:bg-slate-900/80">
+    <div className="h-10 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-2">
+      <div className="flex gap-1.5">
+        <div className="w-3 h-3 rounded-full bg-red-400"></div>
+        <div className="w-3 h-3 rounded-full bg-amber-400"></div>
+        <div className="w-3 h-3 rounded-full bg-green-400"></div>
+      </div>
+      <div className="mx-auto bg-slate-100 dark:bg-slate-900 px-4 py-1 rounded-md text-[10px] font-mono text-slate-500">{title}</div>
+    </div>
+    <div className="p-0">
+      {children}
+    </div>
+  </div>
+)
 
 export default function StripeGuidePage() {
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto px-4 py-12 sm:py-16">
-        <Link
-          href="/integrations/payments"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8"
-        >
-          ← Back to Payment Integrations
-        </Link>
-
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-lg bg-[#635BFF] flex items-center justify-center">
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg"
-              alt="Stripe"
-              className="w-6 h-6 object-contain"
-            />
+    <div className="min-h-screen bg-background pb-20">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-20 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/integrations/payments" className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-all shadow-sm">
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div className="hidden sm:flex items-center gap-3">
+              <ClorefyLogo size={24} />
+              <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Integration Guide</span>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Stripe Integration Guide
-          </h1>
+          <HamburgerMenu />
         </div>
-        <p className="text-muted-foreground mb-10">
-          Connect Stripe to accept cards, wallets, and bank transfers across
-          135+ currencies worldwide.
-        </p>
+      </div>
 
-        {/* ── Step 1: API Key ──────────────────────────────────── */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-foreground mb-4">
+      <div className="max-w-4xl mx-auto px-6 py-12 sm:py-20">
+
+        {/* Hero Section */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-12">
+          <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#635BFF] to-[#7A73FF] flex items-center justify-center shadow-lg shadow-indigo-900/10 shrink-0">
+            <StripeLogoSVG />
+          </div>
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-3">
+              Stripe Integration Guide
+            </h1>
+            <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl">
+              Connect Stripe to accept cards and bank transfers globally. Learn where to find your API keys and how auto-webhooks work.
+            </p>
+          </div>
+        </div>
+
+        {/* ── What are Webhooks? ────────────────────────────────── */}
+        <section className="mb-12">
+          <div className="rounded-[2rem] border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-950/20 p-8 shadow-sm">
+            <h2 className="text-xl font-bold text-blue-900 dark:text-blue-200 mb-3">What are Webhooks and why are they important?</h2>
+            <p className="text-[15px] text-blue-800 dark:text-blue-300 leading-relaxed mb-4">
+              A webhook is a way for Stripe to securely send real-time payment status updates directly to Clorefy's servers. 
+              Instead of Clorefy constantly asking Stripe "Did the user pay yet?", Stripe instantly sends a cryptographic message to Clorefy saying "The payment was successful!" 
+            </p>
+            <p className="text-[15px] text-blue-800 dark:text-blue-300 leading-relaxed">
+              <strong>Why it matters:</strong> If a customer completes a payment but their internet drops or they close their browser before being redirected back to your invoice, the payment is still securely recorded. The webhook ensures the invoice is marked as "Paid" flawlessly in the background.
+            </p>
+          </div>
+        </section>
+
+        {/* ── Step 1: API Keys ──────────────────────────────────── */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
             Step 1 — Get your Secret Key
           </h2>
-          <ol className="space-y-3 text-sm text-muted-foreground list-decimal list-inside">
-            <li>
-              Log in to{" "}
-              <a
-                href="https://dashboard.stripe.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                dashboard.stripe.com
-              </a>
-            </li>
-            <li>
-              In the left sidebar (bottom-left), click{" "}
-              <strong className="text-foreground">
-                &quot;Developers&quot;
-              </strong>
-            </li>
-            <li>
-              Click the{" "}
-              <strong className="text-foreground">
-                &quot;API Keys&quot;
-              </strong>{" "}
-              tab
-            </li>
-            <li>
-              Under &quot;Standard keys&quot;, click{" "}
-              <strong className="text-foreground">
-                &quot;Reveal test key&quot;
-              </strong>{" "}
-              or{" "}
-              <strong className="text-foreground">
-                &quot;Reveal live key&quot;
-              </strong>{" "}
-              next to Secret key
-            </li>
-            <li>
-              Copy the{" "}
-              <strong className="text-foreground">Secret key</strong> (starts
-              with{" "}
-              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">
-                sk_live_
-              </code>{" "}
-              or{" "}
-              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">
-                sk_test_
-              </code>
-              )
-            </li>
-            <li>
-              Go to{" "}
-              <strong className="text-foreground">
-                Clorefy Settings → Payment Gateways → Select Stripe
-              </strong>{" "}
-              → Paste key → Connect
-            </li>
-          </ol>
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-8 shadow-sm">
+            <ol className="space-y-4 text-[15px] text-slate-600 dark:text-slate-400 mb-8">
+              <li className="flex gap-4">
+                <span className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-sm font-bold border border-slate-200/60 dark:border-slate-700/60">1</span>
+                <span className="mt-1">Log in to <a href="https://dashboard.stripe.com" target="_blank" rel="noopener noreferrer" className="text-primary font-semibold hover:underline">dashboard.stripe.com</a></span>
+              </li>
+              <li className="flex gap-4">
+                <span className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-sm font-bold border border-slate-200/60 dark:border-slate-700/60">2</span>
+                <span className="mt-1">In the top right navigation, click the <strong className="text-slate-900 dark:text-white">"Developers"</strong> button.</span>
+              </li>
+              <li className="flex gap-4">
+                <span className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-sm font-bold border border-slate-200/60 dark:border-slate-700/60">3</span>
+                <span className="mt-1">Click the <strong className="text-slate-900 dark:text-white">"API Keys"</strong> tab.</span>
+              </li>
+              <li className="flex gap-4">
+                <span className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-sm font-bold border border-slate-200/60 dark:border-slate-700/60">4</span>
+                <span className="mt-1">Under Standard keys, click <strong className="text-slate-900 dark:text-white">"Reveal live key"</strong> (or test key) next to Secret key.</span>
+              </li>
+              <li className="flex gap-4">
+                <span className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-sm font-bold border border-slate-200/60 dark:border-slate-700/60">5</span>
+                <span className="mt-1">Copy the <strong className="text-slate-900 dark:text-white">Secret key</strong> (starts with <code className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-mono">sk_live_</code> or <code className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-mono">sk_test_</code>).</span>
+              </li>
+              <li className="flex gap-4">
+                <span className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-sm font-bold border border-slate-200/60 dark:border-slate-700/60">6</span>
+                <span className="mt-1">Go to <strong className="text-slate-900 dark:text-white">Clorefy Settings → Payment Gateways → Select Stripe</strong> → Paste key → Connect.</span>
+              </li>
+            </ol>
+
+            {/* Dashboard Mockup - API Keys */}
+            <DashboardMockup title="dashboard.stripe.com/apikeys">
+              <div className="flex h-64 text-sm">
+                {/* Sidebar */}
+                <div className="w-48 bg-slate-50 dark:bg-slate-950/50 border-r border-slate-200 dark:border-slate-800 p-4 hidden sm:block">
+                  <div className="space-y-3 mt-4">
+                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1.5 rounded-lg -ml-2">
+                      API keys
+                    </div>
+                    <div className="text-slate-600 dark:text-slate-400 px-2">Webhooks</div>
+                    <div className="text-slate-600 dark:text-slate-400 px-2">Events</div>
+                    <div className="text-slate-600 dark:text-slate-400 px-2">Logs</div>
+                  </div>
+                </div>
+                {/* Main Content */}
+                <div className="flex-1 p-6 bg-white dark:bg-slate-900">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">API keys</h3>
+                    <div className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs px-3 py-1.5 rounded-full font-medium border border-slate-200 dark:border-slate-700">Test mode</div>
+                  </div>
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">Name</th>
+                          <th className="px-4 py-3 font-medium">Token</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                        <tr>
+                          <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">Publishable key</td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">pk_test_51Nx...</td>
+                        </tr>
+                        <tr>
+                          <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">Secret key</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-xs bg-slate-100 dark:bg-slate-950 px-2 py-1 rounded text-slate-800 dark:text-slate-200">sk_test_••••••••</span>
+                              <span className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs font-medium cursor-pointer shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Reveal test key</span>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </DashboardMockup>
+          </div>
         </section>
 
         {/* ── Step 2: Webhooks (Auto) ──────────────────────────── */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-foreground mb-4">
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
             Step 2 — Webhooks (Auto-Registered)
           </h2>
-          <div className="rounded-lg border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50 dark:bg-indigo-950/30 p-4 mb-4">
-            <p className="text-sm text-indigo-800 dark:text-indigo-300">
-              <strong>No manual setup needed.</strong> Clorefy automatically
-              registers a webhook endpoint via the Stripe API when you connect
-              your account.
-            </p>
-          </div>
-          <p className="text-sm text-muted-foreground mb-3">
-            The following events are listened to automatically:
-          </p>
-          <ul className="space-y-1.5 ml-4">
-            <li>
-              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">
-                checkout.session.completed
-              </code>
-            </li>
-            <li>
-              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">
-                payment_intent.succeeded
-              </code>
-            </li>
-            <li>
-              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">
-                payment_intent.payment_failed
-              </code>
-            </li>
-          </ul>
-        </section>
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-8 shadow-sm">
+            
+            <div className="rounded-2xl border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/50 dark:bg-indigo-950/20 p-5 mb-8">
+              <p className="text-[15px] text-indigo-800 dark:text-indigo-300 leading-relaxed">
+                <strong>No manual setup needed.</strong> Clorefy automatically registers a webhook endpoint via the Stripe API when you securely connect your account. We handle the URL, the secret verification, and the events automatically.
+              </p>
+            </div>
 
-        {/* ── India Note ───────────────────────────────────────── */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-foreground mb-4">
-            Important: Stripe in India
-          </h2>
-          <div className="rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/30 p-4">
-            <p className="text-sm text-amber-800 dark:text-amber-300">
-              Since May 2024, Stripe operates on an{" "}
-              <strong>invite-only basis in India</strong>. New Indian businesses
-              cannot sign up directly. Stripe is best suited for{" "}
-              <strong>international businesses</strong> or Indian companies that
-              already have an active Stripe account. If you primarily serve
-              Indian customers, consider using Razorpay or Cashfree instead.
+            <p className="text-[15px] text-slate-600 dark:text-slate-400 mb-6 font-medium">
+              If you navigate to Developers → Webhooks in your Stripe Dashboard, you will see the endpoint Clorefy created for you automatically:
             </p>
+            
+            {/* Dashboard Mockup - Webhooks */}
+            <DashboardMockup title="dashboard.stripe.com/webhooks">
+              <div className="flex h-56 text-sm">
+                {/* Sidebar */}
+                <div className="w-48 bg-slate-50 dark:bg-slate-950/50 border-r border-slate-200 dark:border-slate-800 p-4 hidden sm:block">
+                  <div className="space-y-3 mt-4">
+                    <div className="text-slate-600 dark:text-slate-400 px-2">API keys</div>
+                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1.5 rounded-lg -ml-2">
+                      Webhooks
+                    </div>
+                    <div className="text-slate-600 dark:text-slate-400 px-2">Events</div>
+                  </div>
+                </div>
+                {/* Main Content */}
+                <div className="flex-1 p-6 bg-white dark:bg-slate-900">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Webhooks</h3>
+                  </div>
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">URL</th>
+                          <th className="px-4 py-3 font-medium">Events</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                        <tr>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-800 dark:text-slate-200">
+                            https://clorefy.com/api/stripe/webhook/...
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-1 rounded text-xs">3 events</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </DashboardMockup>
           </div>
         </section>
 
         {/* ── Security Notes ───────────────────────────────────── */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-foreground mb-4">
+        <section className="mb-16">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
             Security Notes
           </h2>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex items-start gap-2">
-              <span className="text-green-500 mt-0.5">✓</span>
-              Your Secret Key is encrypted with AES-256 before storage — it is
-              never logged or exposed in API responses.
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-green-500 mt-0.5">✓</span>
-              Webhook signatures are verified using the Stripe signing secret on
-              every incoming request.
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-green-500 mt-0.5">✓</span>
-              Use <strong>test mode keys</strong> (
-              <code className="px-1 py-0.5 rounded bg-muted text-xs font-mono">
-                sk_test_
-              </code>
-              ) during development, then switch to live keys for production.
-            </li>
-          </ul>
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-8 shadow-sm">
+            <ul className="space-y-4 text-[15px] text-slate-600 dark:text-slate-400">
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Your Secret Key is encrypted with AES-256 before storage — it is never logged or exposed in API responses.</span>
+              </li>
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Webhook signatures are verified using the Stripe signing secret on every incoming request to guarantee authenticity.</span>
+              </li>
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Use <strong>test mode keys</strong> (<code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs font-mono">sk_test_</code>) during development, then switch to live keys for production.</span>
+              </li>
+            </ul>
+          </div>
         </section>
 
-        <div className="border-t border-border pt-6">
+        <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-8 flex justify-center">
           <Link
             href="/integrations/payments"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            className="inline-flex items-center gap-2 text-[15px] font-semibold text-primary hover:text-primary/80 transition-colors bg-primary/5 px-6 py-3 rounded-2xl"
           >
-            ← Back to Payment Integrations
+            <ArrowLeft className="w-4 h-4" />
+            Back to Payment Integrations
           </Link>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { MenuToggleIcon } from "@/components/ui/menu-toggle-icon"
@@ -16,6 +17,11 @@ export function HamburgerMenu() {
     const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
     const [visibleOpen, setVisibleOpen] = useState(false)
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     const handleOpen = useCallback(() => {
         setIsOpen(true)
@@ -80,111 +86,117 @@ export function HamburgerMenu() {
                 <MenuToggleIcon open={visibleOpen} className="w-9 h-9" strokeWidth={3} duration={350} />
             </button>
 
-            {/* Overlay */}
-            <div
-                className={cn(
-                    "fixed inset-0 z-40 transition-opacity duration-300",
-                    isOpen ? "pointer-events-auto" : "pointer-events-none",
-                    visibleOpen ? "opacity-100" : "opacity-0"
-                )}
-                style={{ background: "rgba(0,0,0,0.25)", backdropFilter: "blur(3px)" }}
-                onClick={handleClose}
-            />
+            {/* Render Overlay and Panel in a Portal to escape stacking contexts (e.g. backdrop-filter) */}
+            {mounted && createPortal(
+                <div className="hamburger-menu-portal">
+                    {/* Overlay */}
+                    <div
+                        className={cn(
+                            "fixed inset-0 z-[100] transition-opacity duration-300",
+                            isOpen ? "pointer-events-auto" : "pointer-events-none",
+                            visibleOpen ? "opacity-100" : "opacity-0"
+                        )}
+                        style={{ background: "rgba(0,0,0,0.25)", backdropFilter: "blur(3px)" }}
+                        onClick={handleClose}
+                    />
 
-            {/* Panel */}
-            <div
-                className={cn(
-                    "fixed top-0 right-0 h-full w-[380px] max-w-[calc(100vw-16px)] z-50 flex flex-col",
-                    "transition-transform ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform",
-                    visibleOpen ? "translate-x-0" : "translate-x-full",
-                    !isOpen && !visibleOpen && "invisible"
-                )}
-                style={{
-                    transitionDuration: "350ms",
-                    background: "hsl(36 33% 97%)",
-                    borderRadius: "20px 0 0 20px",
-                    boxShadow: "-16px 0 48px -8px rgba(0,0,0,0.14), -2px 0 8px -2px rgba(0,0,0,0.06)",
-                    borderLeft: "1px solid hsl(36 20% 90%)",
-                }}
-            >
-                {/* User header */}
-                {user ? (
-                    <div className="px-6 pt-6 pb-5 shrink-0" style={{ borderBottom: "1px solid hsl(36 20% 90%)" }}>
-                        <div className="flex items-center gap-3.5">
-                            {avatarUrl ? (
-                                <Image src={avatarUrl} alt={fullName || email} width={44} height={44}
-                                    className="w-11 h-11 rounded-2xl object-cover"
-                                    style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}
-                                />
-                            ) : (
-                                <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-primary/10"
-                                    style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
-                                >
-                                    <span className="text-sm font-bold text-primary">{initials}</span>
+                    {/* Panel */}
+                    <div
+                        className={cn(
+                            "fixed top-0 right-0 h-full w-[380px] max-w-[calc(100vw-16px)] z-[110] flex flex-col",
+                            "transition-transform ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform",
+                            visibleOpen ? "translate-x-0" : "translate-x-full",
+                            !isOpen && !visibleOpen && "invisible"
+                        )}
+                        style={{
+                            transitionDuration: "350ms",
+                            backgroundColor: "#FBF7F0",
+                            borderRadius: "20px 0 0 20px",
+                            boxShadow: "-16px 0 48px -8px rgba(0,0,0,0.14), -2px 0 8px -2px rgba(0,0,0,0.06)",
+                            borderLeft: "1px solid hsl(var(--border)/0.5)",
+                        }}
+                    >
+                        {/* User header */}
+                        {user ? (
+                            <div className="px-6 pt-6 pb-5 shrink-0 border-b border-border/50">
+                                <div className="flex items-center gap-3.5">
+                                    {avatarUrl ? (
+                                        <Image src={avatarUrl} alt={fullName || email} width={44} height={44}
+                                            className="w-11 h-11 rounded-2xl object-cover"
+                                            style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}
+                                        />
+                                    ) : (
+                                        <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-primary/10"
+                                            style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
+                                        >
+                                            <span className="text-sm font-bold text-primary">{initials}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-foreground truncate">{fullName || "User"}</p>
+                                        <p className="text-xs text-muted-foreground truncate mt-0.5">{email}</p>
+                                    </div>
                                 </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-foreground truncate">{fullName || "User"}</p>
-                                <p className="text-xs text-muted-foreground truncate mt-0.5">{email}</p>
                             </div>
+                        ) : (
+                            <div className="h-4 shrink-0" />
+                        )}
+
+                        {/* Scrollable content */}
+                        <div className="flex-1 overflow-y-auto scrollbar-none px-4 py-5 space-y-5">
+
+                            <MenuSection label="Navigation">
+                                <MenuItem icon={Home} label="Home" onClick={() => navigate("/")} />
+                                {user && <>
+                                    <MenuItem icon={FileText} label="My Documents" onClick={() => navigate("/documents")} divider />
+                                    <MenuItem icon={Users} label="Clients" onClick={() => navigate("/clients")} divider />
+                                    <MenuItem icon={History} label="History" onClick={() => navigate("/history")} divider />
+                                </>}
+                            </MenuSection>
+
+                            {user && (
+                                <MenuSection label="Account">
+                                    <MenuItem icon={User} label="Business Profile" onClick={() => navigate("/profile")} />
+                                    <MenuItem icon={Settings} label="Settings" onClick={() => navigate("/settings")} divider />
+                                    <MenuItem icon={Bell} label="Notifications" onClick={() => navigate("/notifications")} divider />
+                                    <MenuItem icon={CreditCard} label="Billing & Plans" onClick={() => navigate("/billing")} divider />
+                                </MenuSection>
+                            )}
+
+                            <MenuSection label="Support & Legal">
+                                <MenuItem icon={HelpCircle} label="Help Center" onClick={() => navigate("/contact")} />
+                                <MenuItem icon={BookOpen} label="Blog" onClick={() => navigate("/blog")} divider />
+                                <MenuItem icon={Mail} label="Contact Us" onClick={() => navigate("/contact")} divider />
+                                <MenuItem icon={Info} label="About Us" onClick={() => navigate("/about")} divider />
+                                <MenuItem icon={Shield} label="Privacy Policy" onClick={() => navigate("/privacy")} divider />
+                                <MenuItem icon={FileCheck} label="Terms & Conditions" onClick={() => navigate("/terms")} divider />
+                                <MenuItem icon={Lock} label="Refund Policy" onClick={() => navigate("/refund-policy")} divider />
+                            </MenuSection>
+
+                            {user && (
+                                <MenuSection>
+                                    <MenuItem icon={LogOut} label="Sign Out" onClick={handleSignOut} variant="danger" />
+                                </MenuSection>
+                            )}
+
+                            {!user && !isLoading && (
+                                <button onClick={() => navigate("/auth/login")}
+                                    className="w-full py-3.5 rounded-2xl font-semibold text-sm bg-primary text-primary-foreground transition-all active:scale-[0.98] hover:opacity-90"
+                                    style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
+                                >
+                                    Sign In
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="shrink-0 py-3 px-6 border-t border-border/50">
+                            <p className="text-[11px] text-center text-muted-foreground/50">Clorefy © 2026 · v1.0.0</p>
                         </div>
                     </div>
-                ) : (
-                    <div className="h-4 shrink-0" />
-                )}
-
-                {/* Scrollable content */}
-                <div className="flex-1 overflow-y-auto scrollbar-none px-4 py-5 space-y-5">
-
-                    <MenuSection label="Navigation">
-                        <MenuItem icon={Home} label="Home" onClick={() => navigate("/")} />
-                        {user && <>
-                            <MenuItem icon={FileText} label="My Documents" onClick={() => navigate("/documents")} divider />
-                            <MenuItem icon={Users} label="Clients" onClick={() => navigate("/clients")} divider />
-                            <MenuItem icon={History} label="History" onClick={() => navigate("/history")} divider />
-                        </>}
-                    </MenuSection>
-
-                    {user && (
-                        <MenuSection label="Account">
-                            <MenuItem icon={User} label="Business Profile" onClick={() => navigate("/profile")} />
-                            <MenuItem icon={Settings} label="Settings" onClick={() => navigate("/settings")} divider />
-                            <MenuItem icon={Bell} label="Notifications" onClick={() => navigate("/notifications")} divider />
-                            <MenuItem icon={CreditCard} label="Billing & Plans" onClick={() => navigate("/billing")} divider />
-                        </MenuSection>
-                    )}
-
-                    <MenuSection label="Support & Legal">
-                        <MenuItem icon={HelpCircle} label="Help Center" onClick={() => navigate("/contact")} />
-                        <MenuItem icon={BookOpen} label="Blog" onClick={() => navigate("/blog")} divider />
-                        <MenuItem icon={Mail} label="Contact Us" onClick={() => navigate("/contact")} divider />
-                        <MenuItem icon={Info} label="About Us" onClick={() => navigate("/about")} divider />
-                        <MenuItem icon={Shield} label="Privacy Policy" onClick={() => navigate("/privacy")} divider />
-                        <MenuItem icon={FileCheck} label="Terms & Conditions" onClick={() => navigate("/terms")} divider />
-                        <MenuItem icon={Lock} label="Refund Policy" onClick={() => navigate("/refund-policy")} divider />
-                    </MenuSection>
-
-                    {user && (
-                        <MenuSection>
-                            <MenuItem icon={LogOut} label="Sign Out" onClick={handleSignOut} variant="danger" />
-                        </MenuSection>
-                    )}
-
-                    {!user && !isLoading && (
-                        <button onClick={() => navigate("/auth/login")}
-                            className="w-full py-3.5 rounded-2xl font-semibold text-sm bg-primary text-primary-foreground transition-all active:scale-[0.98] hover:opacity-90"
-                            style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
-                        >
-                            Sign In
-                        </button>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="shrink-0 py-3 px-6" style={{ borderTop: "1px solid hsl(36 20% 90%)" }}>
-                    <p className="text-[11px] text-center text-muted-foreground/50">Clorefy © 2026 · v1.0.0</p>
-                </div>
-            </div>
+                </div>,
+                document.body
+            )}
         </div>
     )
 }
@@ -195,10 +207,9 @@ function MenuSection({ label, children }: { label?: string; children: React.Reac
             {label && (
                 <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest px-1 mb-2">{label}</p>
             )}
-            <div className="rounded-2xl overflow-hidden bg-card"
+            <div className="rounded-2xl overflow-hidden bg-card border border-border/50 shadow-sm"
                 style={{
                     boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 12px -4px rgba(0,0,0,0.07)",
-                    border: "1px solid hsl(36 20% 90%)",
                 }}
             >
                 {children}
@@ -219,7 +230,7 @@ function MenuItem({ icon: Icon, label, onClick, variant = "default", divider = f
     return (
         <>
             {divider && (
-                <div className="mx-4" style={{ height: "1px", background: "hsl(36 20% 90%)" }} />
+                <div className="mx-4 h-px bg-border/50" />
             )}
             <button
                 type="button"

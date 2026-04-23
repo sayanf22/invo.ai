@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { ClorefyLogo } from "@/components/clorefy-logo"
+import { HamburgerMenu } from "@/components/hamburger-menu"
 
 interface LegalPageLayoutProps {
     title: string
@@ -13,17 +14,21 @@ interface LegalPageLayoutProps {
 export function LegalPageLayout({ title, lastUpdated, children }: LegalPageLayoutProps) {
     return (
         <div className="min-h-screen bg-background">
-            <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-30">
+            {/* Sticky header */}
+            <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 shadow-sm">
                 <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-2">
-                        <ClorefyLogo size={32} />
-                    </Link>
-                    <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                        <ArrowLeft className="h-3.5 w-3.5" />
-                        Back to home
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        <Link href="/" className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
+                            <ArrowLeft className="w-4 h-4" />
+                        </Link>
+                        <div className="hidden sm:flex items-center gap-2">
+                            <ClorefyLogo size={24} />
+                            <span className="font-semibold text-sm">{title}</span>
+                        </div>
+                    </div>
+                    <HamburgerMenu />
                 </div>
-            </header>
+            </div>
             <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
                 <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2">{title}</h1>
                 <p className="text-sm text-muted-foreground mb-10">Last updated: {lastUpdated}</p>

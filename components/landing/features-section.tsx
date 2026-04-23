@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Wand2, Clock, Share2, FileText, Zap, ArrowRight } from "lucide-react"
+import { Wand2, Clock, Share2, FileText, Zap, ArrowRight, CreditCard } from "lucide-react"
 
 const features = [
     {
@@ -35,8 +35,8 @@ const features = [
         className: "md:col-span-1 bg-white border border-stone-100 shadow-xl"
     },
     {
-        title: "Lightning Fast",
-        desc: "From simple prompt to finished document in under 30 seconds.",
+        title: "Payments Integration",
+        desc: "Seamlessly accept payments via Razorpay, Cashfree, and Stripe directly from your generated documents.",
         icon: Zap,
         className: "md:col-span-2 bg-gradient-to-br from-[var(--landing-amber)] to-[var(--landing-amber-light)] text-white shadow-2xl"
     }

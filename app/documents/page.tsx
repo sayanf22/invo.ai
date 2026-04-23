@@ -14,6 +14,23 @@ import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { cn } from "@/lib/utils"
+import { motion, AnimatePresence } from "framer-motion"
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.05 } }
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } }
+}
+
+const slideVariants = {
+  enter: { opacity: 0, x: 15 },
+  center: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" } },
+  exit: { opacity: 0, x: -15, transition: { duration: 0.2, ease: "easeIn" } }
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -211,15 +228,15 @@ function DocCard({
   return (
     <div
       className={cn(
-        "rounded-2xl border bg-card overflow-hidden transition-shadow duration-200",
-        "shadow-sm hover:shadow-md",
-        payment?.status === "paid" ? "border-emerald-200 dark:border-emerald-800/40" : "border-border/60",
+        "rounded-xl border bg-card overflow-hidden transition-all duration-300",
+        "shadow-[0_8px_24px_rgb(0,0,0,0.06)] hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)] hover:border-border/80 hover:-translate-y-1",
+        payment?.status === "paid" ? "border-emerald-200/50 dark:border-emerald-800/40" : "border-border/50",
       )}
     >
       {/* Main row */}
-      <div className="flex items-start gap-2 p-3 sm:p-3.5">
+      <div className="flex items-start gap-3 px-3.5 py-5 sm:px-4 sm:py-6">
         {/* Type badge */}
-        <div className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5", TYPE_COLORS[docType] || "bg-muted text-muted-foreground")}>
+        <div className={cn("px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5", TYPE_COLORS[docType] || "bg-muted text-muted-foreground")}>
           {docType}
         </div>
 
@@ -494,7 +511,7 @@ export default function MyDocumentsPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-semibold">My Documents</h1>
+            <h1 className="text-xl font-display font-bold">My Documents</h1>
             <p className="text-xs text-muted-foreground">{sessions.length} document{sessions.length !== 1 ? "s" : ""}</p>
           </div>
           <button
@@ -517,79 +534,99 @@ export default function MyDocumentsPage() {
 
       <div className="max-w-3xl mx-auto px-4 py-4 space-y-4">
 
-        {/* Summary stats — only show if there are payments */}
+        {/* Summary stats */}
         {(totalPaid > 0 || totalPending > 0) && (
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-2xl border border-border/60 bg-card p-3 text-center">
-              <p className="text-lg font-bold text-foreground">{sessions.length}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Total</p>
+          <motion.div variants={itemVariants} className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col justify-center shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-shadow hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)]">
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-2 h-2 rounded-full bg-foreground/40" />
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total</p>
+              </div>
+              <p className="text-2xl font-semibold text-foreground tracking-tight">{sessions.length}</p>
             </div>
-            <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/20 p-3 text-center">
-              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{totalPaid}</p>
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-500 mt-0.5">Paid</p>
+            <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col justify-center shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-shadow hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)]">
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Paid</p>
+              </div>
+              <p className="text-2xl font-semibold text-foreground tracking-tight">{totalPaid}</p>
             </div>
-            <div className="rounded-2xl border border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-950/20 p-3 text-center">
-              <p className="text-lg font-bold text-blue-700 dark:text-blue-400">{totalPending}</p>
-              <p className="text-[11px] text-blue-600 dark:text-blue-500 mt-0.5">Pending</p>
+            <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col justify-center shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-shadow hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)]">
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pending</p>
+              </div>
+              <p className="text-2xl font-semibold text-foreground tracking-tight">{totalPending}</p>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Filter pills */}
         {sessions.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4">
+          <motion.div variants={itemVariants} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
             {filterOptions.map(f => (
               <button
                 key={f.key}
                 onClick={() => setFilter(f.key)}
                 className={cn(
-                  "px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap shrink-0",
+                  "px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 whitespace-nowrap shrink-0 shadow-sm",
                   filter === f.key
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    ? "bg-zinc-900 text-zinc-50 shadow-md scale-105"
+                    : "bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                {f.label} ({f.count})
+                {f.label} <span className={cn("ml-1", filter === f.key ? "opacity-70" : "opacity-60")}>({f.count})</span>
               </button>
             ))}
-          </div>
+          </motion.div>
         )}
 
-        {/* Empty state */}
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center mb-4">
-              <FileText className="w-7 h-7 text-muted-foreground/50" />
-            </div>
-            <p className="font-semibold text-base mb-1">
-              {sessions.length === 0 ? "No documents yet" : "No matching documents"}
-            </p>
-            <p className="text-sm text-muted-foreground mb-6 max-w-xs">
-              {sessions.length === 0
-                ? "Describe a document to the AI and it will appear here."
-                : "Try a different filter."}
-            </p>
-            {sessions.length === 0 && (
-              <button
-                onClick={() => router.push("/")}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                Create your first document
-              </button>
+        {/* Document List with AnimatePresence */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={filter}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            className="space-y-3 pt-2"
+          >
+            {filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center mb-4">
+                  <FileText className="w-7 h-7 text-muted-foreground/50" />
+                </div>
+                <p className="font-semibold text-base mb-1">
+                  {sessions.length === 0 ? "No documents yet" : "No matching documents"}
+                </p>
+                <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+                  {sessions.length === 0
+                    ? "Describe a document to the AI and it will appear here."
+                    : "Try a different filter."}
+                </p>
+                {sessions.length === 0 && (
+                  <button
+                    onClick={() => router.push("/")}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Create your first document
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filtered.map(s => (
+                  <DocCard
+                    key={s.id}
+                    session={s}
+                    onDownload={downloadDocument}
+                    downloading={downloadingId === s.id}
+                  />
+                ))}
+              </div>
             )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filtered.map(s => (
-              <DocCard
-                key={s.id}
-                session={s}
-                onDownload={downloadDocument}
-                downloading={downloadingId === s.id}
-              />
-            ))}
-          </div>
-        )}
+          </motion.div>
+        </AnimatePresence>
 
         {/* Read-only notice */}
         {sessions.length > 0 && (

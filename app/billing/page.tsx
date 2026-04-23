@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
-import { Check, Zap, Crown, Loader2, FileText, MessageSquare, Download, Receipt } from "lucide-react"
+import { Check, Zap, Crown, Loader2, FileText, MessageSquare, Download, Receipt, ArrowLeft } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useRazorpay } from "@/hooks/use-razorpay"
 import { authFetch } from "@/lib/auth-fetch"
@@ -15,6 +15,7 @@ import { ClorefyLogo } from "@/components/clorefy-logo"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase"
 import { format } from "date-fns"
+import { cn } from "@/lib/utils"
 
 const plans = [
     {
@@ -142,7 +143,7 @@ export default function BillingPage() {
     const currentPlan = data?.plan || "free"
 
     if (loading) {
-        return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+        return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
     }
 
     const usage = data?.usage
@@ -151,63 +152,87 @@ export default function BillingPage() {
     const docsPercent = usage?.documentsPercent || 0
 
     return (
-        <div className="container mx-auto p-4 sm:p-6 max-w-5xl pb-20">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <Link href="/"><ClorefyLogo size={36} /></Link>
-                <HamburgerMenu />
+        <div className="min-h-screen bg-background pb-20">
+            {/* Sticky header */}
+            <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/50">
+                <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => router.back()}
+                            className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-secondary/60 transition-colors shrink-0"
+                            aria-label="Go back"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <Link href="/" className="flex items-center gap-2"><ClorefyLogo size={28} /><span className="font-bold text-lg hidden sm:block">Clorefy</span></Link>
+                    </div>
+                    <HamburgerMenu />
+                </div>
             </div>
 
-            <div className="mb-6">
-                <h1 className="text-2xl sm:text-3xl font-bold mb-1">Billing & Plans</h1>
-                <p className="text-sm text-muted-foreground">Manage your subscription and track usage</p>
-            </div>
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10 space-y-8">
+                <div className="mb-2">
+                    <h1 className="text-2xl sm:text-3xl font-bold mb-1 tracking-tight">Billing & Plans</h1>
+                    <p className="text-sm text-muted-foreground">Manage your subscription and track usage</p>
+                </div>
 
             {/* Usage Overview */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
-                <div className="rounded-2xl border bg-card p-4 sm:p-5">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-                            <Crown className="w-4 h-4 text-primary" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-muted-foreground">Current Plan</p>
-                            <p className="font-semibold">{data?.planName || "Free"}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-shadow hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)] flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 rounded-xl bg-primary/5 border border-border/40 flex items-center justify-center">
+                                <Crown className="w-5 h-5 text-primary/70" />
+                            </div>
+                            <div>
+                                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Current Plan</p>
+                                <p className="font-semibold text-lg leading-tight">{data?.planName || "Free"}</p>
+                            </div>
                         </div>
                     </div>
                     {data?.subscription?.current_period_end && (
-                        <p className="text-xs text-muted-foreground">Renews {new Date(data.subscription.current_period_end).toLocaleDateString()}</p>
+                        <p className="text-[11px] text-muted-foreground font-medium pt-3 mt-1 border-t border-border/40">
+                            Renews {new Date(data.subscription.current_period_end).toLocaleDateString()}
+                        </p>
                     )}
                 </div>
 
-                <div className="rounded-2xl border bg-card p-4 sm:p-5">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center">
-                            <FileText className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-muted-foreground">Documents This Month</p>
-                            <p className="font-semibold">{docsUsed} <span className="text-muted-foreground font-normal">/ {docsLimit === -1 ? "∞" : docsLimit}</span></p>
+                <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-shadow hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)] flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 flex items-center justify-center">
+                                <FileText className="w-5 h-5 text-blue-600/70 dark:text-blue-400" />
+                            </div>
+                            <div>
+                                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Documents Used</p>
+                                <p className="font-semibold text-lg leading-tight">{docsUsed} <span className="text-muted-foreground text-sm font-medium">/ {docsLimit === -1 ? "∞" : docsLimit}</span></p>
+                            </div>
                         </div>
                     </div>
                     {docsLimit > 0 && (
-                        <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full transition-all duration-500 ${docsPercent > 80 ? "bg-red-500" : docsPercent > 50 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${docsPercent}%` }} />
+                        <div className="pt-2">
+                            <div className="w-full h-2 bg-secondary/80 rounded-full overflow-hidden border border-border/40">
+                                <div className={`h-full rounded-full transition-all duration-500 ${docsPercent > 80 ? "bg-red-500/80" : docsPercent > 50 ? "bg-amber-500/80" : "bg-emerald-500/80"}`} style={{ width: `${docsPercent}%` }} />
+                            </div>
                         </div>
                     )}
                 </div>
 
-                <div className="rounded-2xl border bg-card p-4 sm:p-5">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/30 flex items-center justify-center">
-                            <MessageSquare className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-muted-foreground">AI Requests</p>
-                            <p className="font-semibold">{usage?.aiRequests || 0}</p>
+                <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-shadow hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)] flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30 flex items-center justify-center">
+                                <MessageSquare className="w-5 h-5 text-purple-600/70 dark:text-purple-400" />
+                            </div>
+                            <div>
+                                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">AI Requests</p>
+                                <p className="font-semibold text-lg leading-tight">{usage?.aiRequests || 0}</p>
+                            </div>
                         </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">Month: {usage?.currentMonth || "—"}</p>
+                    <p className="text-[11px] text-muted-foreground font-medium pt-3 mt-1 border-t border-border/40">
+                        Period: {usage?.currentMonth || "—"}
+                    </p>
                 </div>
             </div>
 
@@ -248,10 +273,10 @@ export default function BillingPage() {
             )}
 
             {/* Billing Toggle */}
-            <div className="flex items-center justify-center gap-1 mb-6 bg-secondary/50 rounded-2xl p-1 w-fit mx-auto">
-                <button onClick={() => setBillingCycle("monthly")} className={`px-5 py-2 rounded-xl text-sm font-medium transition-all ${billingCycle === "monthly" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>Monthly</button>
-                <button onClick={() => setBillingCycle("yearly")} className={`px-5 py-2 rounded-xl text-sm font-medium transition-all ${billingCycle === "yearly" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
-                    Yearly <span className="text-emerald-600 text-xs font-bold">-20%</span>
+            <div className="flex items-center justify-center gap-1 mb-6 bg-secondary/60 border border-border/40 rounded-2xl p-1 w-fit mx-auto shadow-sm">
+                <button onClick={() => setBillingCycle("monthly")} className={`px-5 py-2.5 rounded-[10px] text-sm font-semibold transition-all duration-200 ${billingCycle === "monthly" ? "bg-background shadow-[0_2px_8px_rgba(0,0,0,0.08)] text-foreground" : "text-muted-foreground hover:text-foreground"}`}>Monthly</button>
+                <button onClick={() => setBillingCycle("yearly")} className={`px-5 py-2.5 rounded-[10px] text-sm font-semibold transition-all duration-200 flex items-center gap-1.5 ${billingCycle === "yearly" ? "bg-background shadow-[0_2px_8px_rgba(0,0,0,0.08)] text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                    Yearly <span className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider">-20%</span>
                 </button>
             </div>
 
@@ -266,36 +291,37 @@ export default function BillingPage() {
                     const isDowngrade = plans.findIndex(p => p.id === plan.id) < plans.findIndex(p => p.id === currentPlan)
 
                     return (
-                        <div key={plan.id} className={`relative flex flex-col rounded-2xl border bg-card overflow-hidden ${plan.popular ? "border-primary shadow-md ring-1 ring-primary/10" : ""}`}>
-                            {plan.popular && <div className="absolute top-0 left-0 right-0 h-1 bg-primary" />}
-                            <div className="p-5 pb-3">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="font-semibold text-base">{plan.name}</h3>
-                                    {plan.popular && <Badge variant="secondary" className="text-[10px] px-1.5 py-0"><Zap className="w-2.5 h-2.5 mr-0.5" />Popular</Badge>}
-                                    {isCurrent && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Current</Badge>}
+                        <div key={plan.id} className={`relative flex flex-col rounded-3xl border bg-card overflow-hidden transition-all duration-300 shadow-[0_8px_24px_rgb(0,0,0,0.06)] hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)] hover:-translate-y-1 ${plan.popular ? "border-primary/50 ring-1 ring-primary/20" : "border-border/60"}`}>
+                            {plan.popular && <div className="absolute top-0 left-0 right-0 h-1.5 bg-primary" />}
+                            <div className="p-6 pb-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="font-semibold text-lg">{plan.name}</h3>
+                                    {plan.popular && <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 border-none text-[10px] px-2 py-0.5"><Zap className="w-3 h-3 mr-1" />Popular</Badge>}
                                 </div>
-                                <div className="mt-2 mb-1">
-                                    {plan.id === "free" ? <span className="text-2xl font-bold">Free</span> : <><span className="text-2xl font-bold">{priceDisplay}</span><span className="text-muted-foreground text-xs">/mo</span></>}
+                                <div className="mt-4 mb-1 h-[40px] flex items-end">
+                                    {plan.id === "free" ? <span className="text-3xl font-bold">Free</span> : <div className="flex items-end gap-1"><span className="text-3xl font-bold leading-none">{priceDisplay}</span><span className="text-muted-foreground text-sm mb-1 font-medium">/mo</span></div>}
                                 </div>
-                                {billingCycle === "yearly" && price > 0 && <p className="text-xs text-muted-foreground">Billed {formatPrice(price * 12, countryPricing)}/year</p>}
+                                <div className="h-5">
+                                    {billingCycle === "yearly" && price > 0 && <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium tracking-wide">Billed {formatPrice(price * 12, countryPricing)}/year</p>}
+                                </div>
                             </div>
-                            <div className="flex-1 px-5 pb-3">
-                                <ul className="space-y-2">
+                            <div className="flex-1 px-6 pb-4 pt-2">
+                                <ul className="space-y-3">
                                     {plan.features.map((f, i) => (
-                                        <li key={i} className="flex items-start gap-2 text-[13px] leading-snug">
-                                            <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /><span>{f}</span>
+                                        <li key={i} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                                            <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" /><span>{f}</span>
                                         </li>
                                     ))}
                                 </ul>
                             </div>
-                            <div className="p-5 pt-3">
-                                <Button className="w-full" variant={isCurrent ? "outline" : isDowngrade ? "ghost" : "default"} size="sm"
+                            <div className="p-6 pt-4 border-t border-border/40 mt-auto bg-muted/10">
+                                <Button className={cn("w-full rounded-xl py-5 font-semibold", plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90" : "")} variant={isCurrent ? "outline" : isDowngrade ? "ghost" : "default"} size="default"
                                     disabled={isCurrent || plan.comingSoon || isProcessing || isDowngrading || (plan.id === "free" && currentPlan === "free")}
                                     onClick={() => {
                                         if (isDowngrade) setDowngradeTarget(plan.id)
                                         else if (plan.id !== "free" && !plan.comingSoon) subscribe(plan.id, billingCycle, countryPricing.countryCode)
                                     }}>
-                                    {(isProcessing || isDowngrading) ? <Loader2 className="w-4 h-4 animate-spin" />
+                                    {(isProcessing || isDowngrading) ? <Loader2 className="w-5 h-5 animate-spin" />
                                         : isCurrent ? "Current Plan"
                                         : plan.comingSoon ? "Coming Soon"
                                         : isUpgrade ? "Upgrade"
@@ -356,6 +382,7 @@ export default function BillingPage() {
                     </div>
                 </div>
             )}
+            </div>
         </div>
     )
 }
