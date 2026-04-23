@@ -5,15 +5,16 @@ import { sanitizeEmail, sanitizeText } from "@/lib/sanitize"
 import { sendEmail } from "@/lib/mailtrap"
 import { generateEmailSubject, renderEmailTemplate } from "@/lib/email-template"
 import { logAudit } from "@/lib/audit-log"
-import { checkEmailLimit, incrementEmailCount } from "@/lib/cost-protection"
+import { checkEmailLimit, incrementEmailCount, getFollowUpSchedule } from "@/lib/cost-protection"
 import type { UserTier } from "@/lib/cost-protection"
 
 interface SendDocumentRequest {
   sessionId: string
   recipientEmail: string
   personalMessage?: string
-  subject?: string   // user-editable subject line
+  subject?: string        // user-editable subject line
   resend?: boolean
+  scheduleFollowUps?: boolean  // whether to schedule auto follow-ups (invoices only)
 }
 
 export async function POST(request: NextRequest) {
@@ -228,7 +229,51 @@ export async function POST(request: NextRequest) {
       .eq("id", sessionId)
       .eq("user_id", userId)
 
-    // 19. Return success
+    // 19. Schedule auto follow-up reminders (invoices only, paid tiers, when requested)
+    if (
+      body.scheduleFollowUps !== false &&  // default: schedule unless explicitly disabled
+      documentType === "invoice" &&
+      userTier !== "free"
+    ) {
+      const followUps = getFollowUpSchedule(userTier)
+      if (followUps.length > 0) {
+        // Cancel any existing pending schedules for this session first (idempotent)
+        await (supabase as any).rpc("cancel_email_schedules", {
+          p_session_id: sessionId,
+          p_reason: "resend",
+        })
+
+        const now = new Date()
+        const scheduleRows = followUps.map(({ daysFromNow, sequenceStep, sequenceType }) => {
+          const scheduledFor = new Date(now)
+          scheduledFor.setDate(scheduledFor.getDate() + daysFromNow)
+          // Set to 9 AM UTC for all follow-ups
+          scheduledFor.setUTCHours(9, 0, 0, 0)
+          return {
+            user_id: userId,
+            session_id: sessionId,
+            recipient_email: recipientEmail,
+            document_type: documentType,
+            subject: null, // will be generated at send time
+            scheduled_for: scheduledFor.toISOString(),
+            sequence_step: sequenceStep,
+            sequence_type: sequenceType,
+            status: "pending",
+          }
+        })
+
+        const { error: scheduleError } = await supabase
+          .from("email_schedules")
+          .insert(scheduleRows)
+
+        if (scheduleError) {
+          console.error("Failed to schedule follow-ups:", scheduleError)
+          // Non-fatal — email was sent successfully
+        }
+      }
+    }
+
+    // 20. Return success
     return NextResponse.json(
       { emailId: emailRecord.id, message: "Email sent successfully" },
       { status: 200 }

@@ -311,6 +311,52 @@ export async function incrementEmailCount(
     }
 }
 
+// ─── Email Follow-up Schedule by Tier ────────────────────────────────────────
+
+/**
+ * Returns the follow-up schedule for a given tier.
+ * Each entry: { daysFromNow, sequenceStep, sequenceType }
+ * Only invoices get follow-ups (contracts/quotations/proposals don't have payment links).
+ *
+ * Industry standard (FreshBooks/Stripe/invoicemojo.com):
+ *   - Day +3:  First overdue reminder (polite)
+ *   - Day +7:  Second reminder (firmer)
+ *   - Day +14: Third reminder (urgent)
+ *   - Day +30: Final notice
+ *   Max 4 follow-ups total. Stop on payment/bounce.
+ */
+export function getFollowUpSchedule(tier: UserTier): Array<{
+    daysFromNow: number
+    sequenceStep: number
+    sequenceType: "pre_due" | "due_today" | "followup" | "final"
+}> {
+    switch (tier) {
+        case "free":
+            return [] // No auto follow-ups on free tier
+        case "starter":
+            return [
+                { daysFromNow: 3,  sequenceStep: 2, sequenceType: "followup" },
+                { daysFromNow: 7,  sequenceStep: 3, sequenceType: "followup" },
+            ]
+        case "pro":
+            return [
+                { daysFromNow: 3,  sequenceStep: 2, sequenceType: "followup" },
+                { daysFromNow: 7,  sequenceStep: 3, sequenceType: "followup" },
+                { daysFromNow: 14, sequenceStep: 4, sequenceType: "followup" },
+                { daysFromNow: 30, sequenceStep: 5, sequenceType: "final"    },
+            ]
+        case "agency":
+            return [
+                { daysFromNow: 3,  sequenceStep: 2, sequenceType: "followup" },
+                { daysFromNow: 7,  sequenceStep: 3, sequenceType: "followup" },
+                { daysFromNow: 14, sequenceStep: 4, sequenceType: "followup" },
+                { daysFromNow: 30, sequenceStep: 5, sequenceType: "final"    },
+            ]
+        default:
+            return []
+    }
+}
+
 // ─── Document Type Check ───────────────────────────────────────────────────────
 
 /**

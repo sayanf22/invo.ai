@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Mail, Loader2, X, Send, RefreshCw, AlertTriangle, Lock, CheckCircle2, XCircle } from "lucide-react"
+import { Mail, Loader2, X, Send, RefreshCw, AlertTriangle, Lock, CheckCircle2, XCircle, Calendar, Bell, BellOff } from "lucide-react"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -68,6 +68,7 @@ export function SendEmailDialog({
   const [message, setMessage] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [scheduleFollowUps, setScheduleFollowUps] = useState(true)
   // Email validation state
   const [emailValidating, setEmailValidating] = useState(false)
   const [emailValid, setEmailValid] = useState<boolean | null>(null)
@@ -214,6 +215,7 @@ export function SendEmailDialog({
           recipientEmail: email.trim(),
           subject: subject.trim() || undefined,
           personalMessage: message.trim() || undefined,
+          scheduleFollowUps: scheduleFollowUps && documentType.toLowerCase() === "invoice",
         }),
       })
 
@@ -482,6 +484,61 @@ export function SendEmailDialog({
                   </p>
                 </div>
               </div>
+
+              {/* Auto follow-up toggle — invoices only */}
+              {documentType.toLowerCase() === "invoice" && (
+                <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                  <div className="px-4 py-3 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      {scheduleFollowUps
+                        ? <Bell className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                        : <BellOff className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                      }
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Auto follow-up reminders</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {scheduleFollowUps
+                            ? "Automatic reminders will be sent if unpaid. Stops when paid."
+                            : "No automatic reminders. You can send manually anytime."
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleFollowUps(v => !v)}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
+                        scheduleFollowUps ? "bg-primary" : "bg-muted"
+                      )}
+                    >
+                      <span className={cn(
+                        "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
+                        scheduleFollowUps ? "translate-x-[18px]" : "translate-x-0.5"
+                      )} />
+                    </button>
+                  </div>
+                  {scheduleFollowUps && (
+                    <div className="px-4 pb-3 border-t border-border/40">
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-2.5 mb-1.5">Reminder schedule</p>
+                      <div className="space-y-1">
+                        {[
+                          { day: 3, label: "Day 3 — Polite reminder" },
+                          { day: 7, label: "Day 7 — Follow-up" },
+                          { day: 14, label: "Day 14 — Urgent reminder" },
+                          { day: 30, label: "Day 30 — Final notice" },
+                        ].map(({ day, label }) => (
+                          <div key={day} className="flex items-center gap-2">
+                            <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
+                            <span className="text-xs text-muted-foreground">{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-2 italic">Stops automatically when payment is received.</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
             </div>
 
