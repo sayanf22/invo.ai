@@ -65,13 +65,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
     }
 
-    // 6. Sanitize personal message
+    // 6. Sanitize personal message (AI-generated messages can be up to 2000 chars)
     let personalMessage: string | undefined
     if (body.personalMessage) {
       personalMessage = sanitizeText(body.personalMessage)
-      if (personalMessage.length > 500) {
+      if (personalMessage.length > 2000) {
         return NextResponse.json(
-          { error: "Personal message must be 500 characters or less" },
+          { error: "Message must be 2000 characters or less" },
           { status: 400 }
         )
       }
