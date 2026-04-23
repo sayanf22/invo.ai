@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, sanitizeError } from "@/lib/api-auth"
-import { checkRateLimit } from "@/lib/rate-limiter"
 import { sanitizeEmail, sanitizeText } from "@/lib/sanitize"
 import { sendEmail } from "@/lib/mailtrap"
 import { generateEmailSubject, renderEmailTemplate } from "@/lib/email-template"
@@ -34,9 +33,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
-    // 3. Rate limit (per-minute burst protection)
-    const rateLimitError = await checkRateLimit(userId, "email")
-    if (rateLimitError) return rateLimitError
+    // 3. Rate limit — skip per-minute burst limiter for email sends
+    // The monthly tier-based email limit (step 3b) is sufficient protection.
+    // The Postgres-based rate limiter was causing false 429s in Cloudflare Workers
+    // due to cookie/auth issues with the RPC call.
 
     // 3b. Monthly email limit (tier-based)
     const { data: subscription } = await (supabase as any)
@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
 
     // 13 & 14. Handle Mailtrap errors
     if (!sendResult.success) {
+      console.error("Mailtrap send failed:", sendResult.statusCode, sendResult.message)
       if (sendResult.statusCode === 429) {
         return NextResponse.json(
           { error: "Daily email limit reached. Please try again later." },
@@ -172,7 +173,7 @@ export async function POST(request: NextRequest) {
         )
       }
       return NextResponse.json(
-        { error: "Failed to send email. Please try again." },
+        { error: `Failed to send email: ${sendResult.message || "Unknown error"}` },
         { status: 502 }
       )
     }
