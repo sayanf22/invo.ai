@@ -346,7 +346,22 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       const templates = await import("@/lib/pdf-templates")
       const docType = (cleanedData.documentType || "").toLowerCase()
 
-      let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
+      // Generate QR for payment link if enabled
+      let paymentQrCode: string | null = null
+      const shouldEmbedPaymentLink = cleanedData.showPaymentLinkInPdf !== false
+      if ((docType === "invoice" || !docType) && shouldEmbedPaymentLink && cleanedData.paymentLink &&
+          cleanedData.paymentLinkStatus !== "paid" &&
+          cleanedData.paymentLinkStatus !== "expired" &&
+          cleanedData.paymentLinkStatus !== "cancelled") {
+        try {
+          const QRCode = await import("qrcode")
+          paymentQrCode = await QRCode.default.toDataURL(cleanedData.paymentLink, {
+            width: 200, margin: 1, color: { dark: "#000000", light: "#FFFFFF" }, errorCorrectionLevel: "M",
+          })
+        } catch { /* ignore QR errors */ }
+      }
+
+      let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }>
       switch (docType) {
         case "contract": PdfComponent = templates.ContractPDF; break
         case "quotation": PdfComponent = templates.QuotationPDF; break
@@ -357,7 +372,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           : templates.InvoicePDF; break
       }
 
-      const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
+      const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />).toBlob()
       const url = URL.createObjectURL(blob)
       const printWindow = window.open(url)
       if (printWindow) {

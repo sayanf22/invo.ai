@@ -50,11 +50,12 @@ export function PDFDownloadButton({
             // Resolve logo URL from R2 key before PDF generation
             const logoUrl = await resolveLogoUrl(cleanedData.fromLogo)
 
-            // Generate QR code for payment link (invoices only)
+            // Generate QR code for payment link (invoices only, when enabled)
             let paymentQrCode: string | null = null
             const isInvoice = (cleanedData.documentType || "").toLowerCase() === "invoice" ||
                 (!cleanedData.documentType)
-            if (isInvoice && cleanedData.paymentLink &&
+            const shouldEmbedPaymentLink = cleanedData.showPaymentLinkInPdf !== false // default true
+            if (isInvoice && shouldEmbedPaymentLink && cleanedData.paymentLink &&
                 cleanedData.paymentLinkStatus !== "paid" &&
                 cleanedData.paymentLinkStatus !== "expired" &&
                 cleanedData.paymentLinkStatus !== "cancelled") {

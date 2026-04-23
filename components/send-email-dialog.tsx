@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Mail, Loader2, X, Send, Sparkles, RefreshCw, AlertTriangle, Lock } from "lucide-react"
+import { Mail, Loader2, X, Send, RefreshCw, AlertTriangle, Lock, CheckCircle2, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -68,7 +68,65 @@ export function SendEmailDialog({
   const [message, setMessage] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  // Email validation state
+  const [emailValidating, setEmailValidating] = useState(false)
+  const [emailValid, setEmailValid] = useState<boolean | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const emailValidationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const emailInputRef = useRef<HTMLInputElement>(null)
+
+  // Validate email with debounce — format check immediately, DNS check after 600ms
+  const validateEmail = useCallback(async (value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      setEmailValid(null)
+      setEmailError(null)
+      return
+    }
+    // Immediate format check
+    const formatOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+    if (!formatOk) {
+      setEmailValid(false)
+      setEmailError("Enter a valid email address")
+      return
+    }
+    // DNS check via API
+    setEmailValidating(true)
+    setEmailValid(null)
+    setEmailError(null)
+    try {
+      const res = await authFetch("/api/emails/validate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setEmailValid(data.valid)
+        setEmailError(data.valid ? null : (data.reason || "Email address is not valid"))
+      } else {
+        // API error — fail open
+        setEmailValid(true)
+        setEmailError(null)
+      }
+    } catch {
+      // Network error — fail open
+      setEmailValid(true)
+      setEmailError(null)
+    } finally {
+      setEmailValidating(false)
+    }
+  }, [])
+
+  const handleEmailChange = useCallback((value: string) => {
+    setEmail(value)
+    setEmailValid(null)
+    setEmailError(null)
+    if (emailValidationTimer.current) clearTimeout(emailValidationTimer.current)
+    if (value.trim().length > 5) {
+      emailValidationTimer.current = setTimeout(() => validateEmail(value), 600)
+    }
+  }, [validateEmail])
 
   const generateMessage = useCallback(async () => {
     setIsGenerating(true)
@@ -110,6 +168,8 @@ export function SendEmailDialog({
       setStep("compose")
       setEmail(defaultEmail || invoiceData.toEmail || "")
       setSubject(generateSubject(invoiceData, documentType))
+      setEmailValid(null)
+      setEmailError(null)
       generateMessage()
     }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -138,8 +198,9 @@ export function SendEmailDialog({
   if (!open) return null
 
   const docTypeLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-  const canProceed = isEmailValid && !isGenerating && subject.trim().length > 0
+  const isEmailFormatValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  // Can proceed if: email format valid, not currently validating, and DNS check passed (or not yet run)
+  const canProceed = isEmailFormatValid && !isGenerating && subject.trim().length > 0 && emailValid !== false && !emailValidating
 
   const handleSend = async () => {
     if (isSending) return
@@ -233,23 +294,40 @@ export function SendEmailDialog({
                 <label htmlFor="email-to" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   To
                 </label>
-                <input
-                  ref={emailInputRef}
-                  id="email-to"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="client@example.com"
-                  className={cn(
-                    "w-full px-3.5 py-2.5 rounded-xl text-sm bg-background border border-border",
-                    "placeholder:text-muted-foreground text-foreground",
-                    "focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors",
-                    email.length > 0 && !isEmailValid && "border-red-400 focus:ring-red-400/40"
-                  )}
-                />
-                {email.length > 0 && !isEmailValid && (
-                  <p className="text-xs text-red-500">Enter a valid email address</p>
+                <div className="relative">
+                  <input
+                    ref={emailInputRef}
+                    id="email-to"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => handleEmailChange(e.target.value)}
+                    onBlur={() => email.trim() && validateEmail(email)}
+                    placeholder="client@example.com"
+                    className={cn(
+                      "w-full px-3.5 py-2.5 pr-10 rounded-xl text-sm bg-background border",
+                      "placeholder:text-muted-foreground text-foreground",
+                      "focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors",
+                      emailValid === false ? "border-red-400 focus:ring-red-400/40" :
+                      emailValid === true ? "border-emerald-400 focus:ring-emerald-400/40" :
+                      "border-border"
+                    )}
+                  />
+                  {/* Validation indicator */}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {emailValidating && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                    {!emailValidating && emailValid === true && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                    {!emailValidating && emailValid === false && <XCircle className="w-4 h-4 text-red-500" />}
+                  </div>
+                </div>
+                {emailError && (
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <XCircle className="w-3 h-3 shrink-0" />
+                    {emailError}
+                  </p>
+                )}
+                {emailValidating && (
+                  <p className="text-xs text-muted-foreground">Checking email address...</p>
                 )}
               </div>
 
@@ -289,8 +367,7 @@ export function SendEmailDialog({
                 </div>
 
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/5 border border-primary/10 w-fit">
-                  <Sparkles className="w-3 h-3 text-primary shrink-0" />
-                  <span className="text-[11px] font-medium text-primary">AI-written by DeepSeek · edit freely</span>
+                  <span className="text-[11px] font-medium text-primary">AI-written · edit freely</span>
                 </div>
 
                 <div className="relative">

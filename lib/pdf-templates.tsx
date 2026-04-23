@@ -129,7 +129,12 @@ function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn,
     bTopFn: (w: number, color: string) => any
 }) {
     const url = data.paymentLink
+    // Don't show if: no URL, paid/expired/cancelled, or user explicitly disabled PDF embedding
     if (!url || data.paymentLinkStatus === "paid" || data.paymentLinkStatus === "expired" || data.paymentLinkStatus === "cancelled") {
+        return null
+    }
+    // showPaymentLinkInPdf defaults to true if undefined (backward compat)
+    if (data.showPaymentLinkInPdf === false) {
         return null
     }
 

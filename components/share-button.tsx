@@ -98,13 +98,14 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog }: Sh
     return lines.join("\n")
   }, [data, hasPaymentLink])
 
-  // Share PDF (with QR embedded if payment link exists)
+  // Share PDF (with QR embedded if payment link exists and enabled)
   const handleSharePdf = useCallback(async () => {
     if (isSharing) return
     setIsSharing(true)
     try {
       let qr: string | null = null
-      if (hasPaymentLink && data.paymentLink) {
+      const shouldEmbedPaymentLink = data.showPaymentLinkInPdf !== false
+      if (hasPaymentLink && data.paymentLink && shouldEmbedPaymentLink) {
         qr = await generateQRDataUrl(data.paymentLink)
       }
       const blob = await generatePdfBlob(data, qr)
@@ -182,7 +183,7 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog }: Sh
             : <Download className="w-4 h-4 text-muted-foreground" />
           }
           <span>{canNativeShare ? "Share as PDF" : "Download PDF"}</span>
-          {hasPaymentLink && <span className="ml-auto text-[10px] text-muted-foreground">+ QR</span>}
+          {hasPaymentLink && data.showPaymentLinkInPdf !== false && <span className="ml-auto text-[10px] text-muted-foreground">+ QR</span>}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleEmail} className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium">
           <Mail className="w-4 h-4 text-muted-foreground" />
