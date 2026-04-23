@@ -762,6 +762,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     onChange({
                                         paymentLink: shortUrl,
                                         paymentLinkStatus: status as any,
+                                        showPaymentLinkInPdf: true,
                                     })
                                 }}
                                 clientSelectorSlot={

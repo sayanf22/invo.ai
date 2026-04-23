@@ -998,18 +998,20 @@ export function EditorPanel({ data, onChange, documentStatus }: EditorPanelProps
 
                   {/* Show payment link in PDF toggle — hidden when document is paid */}
                   {documentStatus !== "paid" && (
-                    <label className="flex items-center justify-between gap-3 cursor-pointer select-none">
+                    <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-xs font-medium text-foreground">Embed payment link in PDF</p>
                         <p className="text-[10px] text-muted-foreground">Shows the payment URL at the bottom of the PDF</p>
                       </div>
-                      <div
+                      <button
+                        type="button"
                         onClick={() => onChange({ showPaymentLinkInPdf: !data.showPaymentLinkInPdf })}
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer ${data.showPaymentLinkInPdf ? "bg-primary" : "bg-muted"}`}
+                        aria-label={data.showPaymentLinkInPdf ? "Disable payment link in PDF" : "Enable payment link in PDF"}
                       >
                         <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.showPaymentLinkInPdf ? "translate-x-[18px]" : "translate-x-0.5"}`} />
-                      </div>
-                    </label>
+                      </button>
+                    </div>
                   )}
 
                   {data.paymentLink ? (

@@ -235,7 +235,11 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
     const clientName = invoiceData.toName || ""
 
     const doCreate = async () => {
-        if (!sessionId || isLoading || amountInSmallestUnit <= 0) return
+        if (!sessionId || isLoading) return
+        if (amountInSmallestUnit <= 0) {
+            toast.error("Invoice total must be greater than 0 to create a payment link")
+            return
+        }
 
         const referenceId = invoiceRef || `INV-${sessionId.slice(0, 8).toUpperCase()}`
         const description = ["Invoice", referenceId, clientName ? `for ${clientName}` : ""].filter(Boolean).join(" ")
@@ -255,7 +259,22 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                     customerEmail: invoiceData.toEmail || undefined,
                     customerPhone: invoiceData.toPhone || undefined,
                     dueDate: invoiceData.dueDate || undefined,
-                    contextSnapshot: invoiceData, // snapshot current invoice data for public /pay page
+                    // Minimal snapshot — only fields needed for the /pay page
+                    contextSnapshot: {
+                        documentType: invoiceData.documentType,
+                        invoiceNumber: invoiceData.invoiceNumber,
+                        fromName: invoiceData.fromName,
+                        toName: invoiceData.toName,
+                        currency: invoiceData.currency,
+                        items: invoiceData.items,
+                        taxRate: invoiceData.taxRate,
+                        taxLabel: invoiceData.taxLabel,
+                        discountType: invoiceData.discountType,
+                        discountValue: invoiceData.discountValue,
+                        shippingFee: invoiceData.shippingFee,
+                        dueDate: invoiceData.dueDate,
+                        notes: invoiceData.notes,
+                    },
                 }),
             })
 
