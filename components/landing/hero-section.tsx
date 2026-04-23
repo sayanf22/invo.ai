@@ -45,12 +45,14 @@ export function HeroSection() {
                             Get Started Free
                             <ArrowRight size={18} className="sm:w-5 sm:h-5 transition-transform group-hover:translate-x-1" />
                         </Link>
-                        <Link
-                            href="#how-it-works"
+                        <a
+                            href="https://www.youtube.com/@Clorefy"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 px-7 py-4 sm:px-10 sm:py-5 rounded-full border border-[var(--landing-text-dark)]/10 bg-white text-[var(--landing-text-dark)] font-semibold text-base sm:text-xl hover:border-[var(--landing-text-dark)]/30 transition-all duration-300 shadow-sm hover:shadow w-full sm:w-auto justify-center"
                         >
                             See How it Works
-                        </Link>
+                        </a>
                     </div>
                 </div>
 
