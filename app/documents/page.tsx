@@ -541,8 +541,64 @@ export default function MyDocumentsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-background">
+        {/* Skeleton header — matches real header exactly */}
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/50">
+          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-muted animate-pulse shrink-0" />
+            <div className="flex-1 space-y-1.5">
+              <div className="h-5 w-32 rounded-lg bg-muted animate-pulse" />
+              <div className="h-3 w-20 rounded-md bg-muted/60 animate-pulse" />
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-muted animate-pulse shrink-0" />
+            <div className="w-16 h-9 rounded-xl bg-muted animate-pulse shrink-0" />
+          </div>
+        </div>
+
+        <div className="max-w-3xl mx-auto px-4 py-4 space-y-4">
+          {/* Skeleton filter pills */}
+          <div className="flex gap-2 overflow-hidden">
+            {[56, 72, 80, 68, 76].map((w, i) => (
+              <div
+                key={i}
+                className="h-8 rounded-full bg-muted animate-pulse shrink-0"
+                style={{ width: w, animationDelay: `${i * 60}ms` }}
+              />
+            ))}
+          </div>
+
+          {/* Skeleton document cards */}
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-border/50 bg-card overflow-hidden"
+              style={{ animationDelay: `${i * 80}ms` }}
+            >
+              <div className="flex items-start gap-3 px-3.5 py-5 sm:px-4 sm:py-6">
+                {/* Type badge skeleton */}
+                <div className="w-14 h-6 rounded-lg bg-muted animate-pulse shrink-0 mt-0.5" />
+
+                {/* Content skeleton */}
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="h-4 rounded-md bg-muted animate-pulse" style={{ width: `${45 + (i * 17) % 35}%` }} />
+                    <div className="h-5 w-16 rounded-full bg-muted animate-pulse shrink-0" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-24 rounded-md bg-muted/60 animate-pulse" />
+                    <div className="h-3 w-16 rounded-md bg-muted/60 animate-pulse" />
+                  </div>
+                </div>
+
+                {/* Action buttons skeleton */}
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-muted animate-pulse" />
+                  <div className="w-8 h-8 rounded-xl bg-muted animate-pulse" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
