@@ -429,7 +429,7 @@ export function BillingToggle({ plans }: BillingToggleProps) {
                   <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#A9A8A5] mt-0.5">per doc</p>
                 </div>
                 <div className="text-right w-24 sm:w-28">
-                  <p className="text-[15px] font-semibold text-[#FDFCF7]">{getPrice("pro", "yearly")}/mo</p>
+                  <p className="text-[15px] font-semibold text-[#FDFCF7]">{formatPrice(COUNTRY_PRICING["US"].pro.yearly, COUNTRY_PRICING["US"])}/mo</p>
                   <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#D97757] mt-0.5">150 docs</p>
                 </div>
               </div>
