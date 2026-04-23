@@ -297,138 +297,140 @@ export function BillingToggle({ plans }: BillingToggleProps) {
       </section>
 
       {/* ── Value comparison ── */}
-      <section className="py-24 px-6 bg-white dark:bg-slate-950">
-        <div className="max-w-4xl mx-auto">
-
+      <section className="py-32 px-6 bg-[#FAF9F5] dark:bg-[#121212] relative overflow-hidden">
+        {/* Subtle background pattern/texture */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03] mix-blend-multiply" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231a1a1a' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
+        
+        <div className="max-w-4xl mx-auto relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-            className="text-center mb-14"
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="text-center mb-16"
           >
-            <p className="text-xs font-bold uppercase tracking-widest mb-3 text-primary">The real cost</p>
-            <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] mb-4 text-[#D97757]">The Real Cost</p>
+            <h2 className="text-4xl sm:text-[3.5rem] font-medium tracking-tight text-[#1A1A1A] dark:text-[#EDEDED] leading-[1.1]">
               What are you actually<br />
-              <span className="text-primary">paying right now?</span>
+              <span className="font-display italic text-[#D97757]">paying right now?</span>
             </h2>
-            <p className="mt-4 text-slate-500 dark:text-slate-400 text-[15px] max-w-md mx-auto">
+            <p className="mt-6 text-[#6B6A68] dark:text-[#A0A0A0] text-[15px] sm:text-base max-w-lg mx-auto leading-relaxed">
               A freelancer spending 3 hours drafting one invoice at $50/hr loses $150 in billable time. Every single time.
             </p>
           </motion.div>
 
           {/* Comparison rows */}
           <div className="space-y-4">
-
             {/* Manual drafting */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 15 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="flex items-center gap-4 rounded-2xl px-6 py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:shadow-md"
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="group flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-[24px] px-6 sm:px-8 py-6 bg-white dark:bg-[#1A1A1A] border border-[#EAE8E4] dark:border-[#2C2C2C] shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all hover:shadow-[0_8px_24px_rgba(0,0,0,0.04)] hover:-translate-y-0.5"
             >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-red-50 dark:bg-red-500/10 text-red-500">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/>
-                  <polyline points="12 6 12 12 16 14"/>
+              <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-[#F5F4EF] dark:bg-[#2C2C2C] text-[#8C8B88] dark:text-[#A0A0A0] transition-colors group-hover:text-[#D97757]">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-semibold text-slate-900 dark:text-white">Manual drafting</p>
-                <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">Word, Google Docs, or from scratch</p>
+                <p className="text-base font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">Manual drafting</p>
+                <p className="text-[13px] text-[#8C8B88] dark:text-[#808080] mt-1">Word, Google Docs, or from scratch</p>
               </div>
-              <div className="hidden sm:flex items-center gap-10 shrink-0">
-                <div className="text-right">
-                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">2–4 hrs</p>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">per doc</p>
+              <div className="flex items-center justify-between sm:justify-end gap-8 sm:gap-12 shrink-0 pt-4 sm:pt-0 border-t border-[#EAE8E4] dark:border-[#2C2C2C] sm:border-0 mt-2 sm:mt-0">
+                <div className="text-left sm:text-right">
+                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">2–4 hrs</p>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#8C8B88] dark:text-[#808080] mt-0.5">per doc</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">$100–200</p>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">lost time</p>
+                <div className="text-left sm:text-right">
+                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">$100–200</p>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#8C8B88] dark:text-[#808080] mt-0.5">lost time</p>
                 </div>
-                <div className="text-right w-28">
-                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">~$3,000+/mo</p>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-red-500">Ouch</p>
+                <div className="text-right w-24 sm:w-28">
+                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">~$3k/mo</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#D97757] mt-0.5">Ouch</p>
                 </div>
               </div>
             </motion.div>
 
             {/* Hiring a VA */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 15 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-              className="flex items-center gap-4 rounded-2xl px-6 py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:shadow-md"
+              transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+              className="group flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-[24px] px-6 sm:px-8 py-6 bg-white dark:bg-[#1A1A1A] border border-[#EAE8E4] dark:border-[#2C2C2C] shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all hover:shadow-[0_8px_24px_rgba(0,0,0,0.04)] hover:-translate-y-0.5"
             >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-amber-50 dark:bg-amber-500/10 text-amber-500">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-[#F5F4EF] dark:bg-[#2C2C2C] text-[#8C8B88] dark:text-[#A0A0A0] transition-colors group-hover:text-[#D97757]">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
                   <circle cx="9" cy="7" r="4"/>
+                  <line x1="19" y1="8" x2="19" y2="14"/>
+                  <line x1="22" y1="11" x2="16" y2="11"/>
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-semibold text-slate-900 dark:text-white">Hiring a VA</p>
-                <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">Virtual assistant at $15–25/hr</p>
+                <p className="text-base font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">Hiring a VA</p>
+                <p className="text-[13px] text-[#8C8B88] dark:text-[#808080] mt-1">Virtual assistant at $15–25/hr</p>
               </div>
-              <div className="hidden sm:flex items-center gap-10 shrink-0">
-                <div className="text-right">
-                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">1–2 hrs</p>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">per doc</p>
+              <div className="flex items-center justify-between sm:justify-end gap-8 sm:gap-12 shrink-0 pt-4 sm:pt-0 border-t border-[#EAE8E4] dark:border-[#2C2C2C] sm:border-0 mt-2 sm:mt-0">
+                <div className="text-left sm:text-right">
+                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">1–2 hrs</p>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#8C8B88] dark:text-[#808080] mt-0.5">per doc</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">$15–25</p>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">per doc</p>
+                <div className="text-left sm:text-right">
+                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">$15–25</p>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#8C8B88] dark:text-[#808080] mt-0.5">per doc</p>
                 </div>
-                <div className="text-right w-28">
-                  <p className="text-[15px] font-bold text-slate-900 dark:text-white">$450–750/mo</p>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-amber-500">Expensive</p>
+                <div className="text-right w-24 sm:w-28">
+                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">$450/mo</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#D97757] mt-0.5">Expensive</p>
                 </div>
               </div>
             </motion.div>
 
             {/* Clorefy — featured row */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 15 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
-              className="flex items-center gap-4 rounded-2xl px-6 py-5 relative overflow-hidden bg-slate-900 border border-slate-800 shadow-xl"
+              transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-[24px] px-6 sm:px-8 py-6 relative overflow-hidden bg-[#23221F] dark:bg-[#161616] border border-[#3A3935] dark:border-[#2A2A2A] shadow-[0_12px_32px_rgba(0,0,0,0.12)]"
             >
-              <div className="absolute top-0 left-0 w-full h-full pointer-events-none bg-gradient-to-r from-primary/10 to-transparent" />
+              <div className="absolute top-0 left-0 w-full h-full pointer-events-none bg-gradient-to-r from-[#D97757]/10 to-transparent" />
               
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 relative z-10 bg-primary/20 text-primary">
-                <motion.svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-                  animate={{ scale: [1, 1.15, 1] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 relative z-10 bg-[#D97757]/10 text-[#D97757]">
+                <motion.svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                  animate={{ rotate: 180 }}
+                  transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
                 >
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="currentColor"/>
+                  <path d="M12 2L12.5 11.5L22 12L12.5 12.5L12 22L11.5 12.5L2 12L11.5 11.5L12 2Z" fill="currentColor" />
                 </motion.svg>
               </div>
               <div className="flex-1 min-w-0 relative z-10">
-                <div className="flex items-center gap-2">
-                  <p className="text-[15px] font-bold text-white">Clorefy Pro</p>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-primary/20 text-primary">Recommended</span>
+                <div className="flex items-center gap-3">
+                  <p className="text-base font-semibold text-[#FDFCF7]">Clorefy Pro</p>
+                  <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-[0.15em] bg-[#D97757]/20 text-[#D97757] border border-[#D97757]/20">Recommended</span>
                 </div>
-                <p className="text-[13px] text-slate-400 mt-0.5">AI-generated, compliant, ready in seconds</p>
+                <p className="text-[13px] text-[#A9A8A5] mt-1">AI-generated, compliant, ready in seconds</p>
               </div>
-              <div className="hidden sm:flex items-center gap-10 shrink-0 relative z-10">
-                <div className="text-right">
+              <div className="flex items-center justify-between sm:justify-end gap-8 sm:gap-12 shrink-0 relative z-10 pt-4 sm:pt-0 border-t border-[#3A3935] dark:border-[#2A2A2A] sm:border-0 mt-2 sm:mt-0">
+                <div className="text-left sm:text-right">
                   <motion.p
-                    className="text-[15px] font-bold text-white"
+                    className="text-[15px] font-semibold text-[#FDFCF7]"
                     animate={{ opacity: [0.7, 1, 0.7] }}
-                    transition={{ duration: 2.5, repeat: Infinity }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                   >&lt; 30s</motion.p>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">per doc</p>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#A9A8A5] mt-0.5">per doc</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[15px] font-bold text-primary">~$0.13</p>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">per doc</p>
+                <div className="text-left sm:text-right">
+                  <p className="text-[15px] font-semibold text-[#D97757]">~$0.13</p>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#A9A8A5] mt-0.5">per doc</p>
                 </div>
-                <div className="text-right w-28">
-                  <p className="text-[15px] font-bold text-white">{getPrice("pro", "yearly")}/mo</p>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-primary">150 docs</p>
+                <div className="text-right w-24 sm:w-28">
+                  <p className="text-[15px] font-semibold text-[#FDFCF7]">{getPrice("pro", "yearly")}/mo</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#D97757] mt-0.5">150 docs</p>
                 </div>
               </div>
             </motion.div>
@@ -439,54 +441,49 @@ export function BillingToggle({ plans }: BillingToggleProps) {
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4"
+            transition={{ delay: 0.4, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4"
           >
             {[
               { num: "99%", label: "Faster than manual" },
               { num: "$5,000+", label: "Saved annually" },
               { num: "30s", label: "Avg generation time" },
             ].map((stat, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.35 + i * 0.07 }}
-                className="rounded-2xl px-6 py-5 text-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm"
-              >
-                <div className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">{stat.num}</div>
-                <div className="text-[13px] font-medium text-slate-500 dark:text-slate-400">{stat.label}</div>
-              </motion.div>
+               <div key={i} className="flex flex-col items-center justify-center p-6 rounded-[24px] bg-white dark:bg-[#1A1A1A] border border-[#EAE8E4] dark:border-[#2C2C2C]">
+                 <div className="text-[2rem] font-medium tracking-tight text-[#1A1A1A] dark:text-[#EDEDED] leading-none mb-2">{stat.num}</div>
+                 <div className="text-[13px] text-[#8C8B88] dark:text-[#808080]">{stat.label}</div>
+               </div>
             ))}
           </motion.div>
         </div>
       </section>
 
       {/* ── CTA ── */}
-      <section className="py-24 px-6 bg-white dark:bg-slate-950">
+      <section className="py-24 sm:py-32 px-6 bg-white dark:bg-[#121212]">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-          className="max-w-4xl mx-auto rounded-[2.5rem] p-14 sm:p-20 text-center relative overflow-hidden bg-slate-900 shadow-2xl"
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="max-w-4xl mx-auto rounded-[32px] p-12 sm:p-24 text-center relative overflow-hidden bg-[#FAF9F5] dark:bg-[#1A1A1A] border border-[#EAE8E4] dark:border-[#2C2C2C]"
         >
-          <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-primary/10 to-transparent" />
-          <p className="text-xs font-bold uppercase tracking-widest mb-4 relative z-10 text-primary">Start today</p>
-          <h2 className="text-4xl sm:text-5xl font-bold tracking-tight mb-6 relative z-10 leading-tight text-white">
+          {/* Claude-like subtle radial glow inside the card */}
+          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at 50% 0%, rgba(217,119,87,0.06) 0%, transparent 70%)" }} />
+          
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] mb-4 relative z-10 text-[#D97757]">Start Today</p>
+          <h2 className="text-4xl sm:text-[3.5rem] font-medium tracking-tight mb-6 relative z-10 leading-[1.1] text-[#1A1A1A] dark:text-[#EDEDED]">
             Your first document<br />
-            <span className="text-primary">in 30 seconds</span>
+            <span className="font-display italic text-[#D97757]">in 30 seconds</span>
           </h2>
-          <p className="text-slate-400 text-[15px] mb-10 relative z-10 max-w-md mx-auto">
-            Free forever. No credit card. No setup. Just describe what you need.
+          <p className="text-[#6B6A68] dark:text-[#A0A0A0] text-[15px] sm:text-base mb-10 relative z-10 max-w-md mx-auto leading-relaxed">
+            Free forever. No credit card. No setup. Just describe what you need and watch it generate magically.
           </p>
           <Link
             href={isLoggedIn ? "/choose-plan" : "/auth/signup"}
-            className="group relative z-10 inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold text-[15px] bg-white text-slate-900 hover:bg-slate-100 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+            className="group relative z-10 inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full font-medium text-[15px] bg-[#1A1A1A] text-white hover:bg-[#333333] dark:bg-[#EDEDED] dark:text-[#1A1A1A] dark:hover:bg-white transition-colors"
           >
             Get Started Free
-            <ArrowRight className="transition-transform group-hover:translate-x-1" size={18} />
+            <ArrowRight className="transition-transform group-hover:translate-x-1 opacity-70" size={18} />
           </Link>
         </motion.div>
       </section>
