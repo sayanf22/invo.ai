@@ -32,17 +32,19 @@ export function AppShell() {
       setView("prompt")
       loadSessionType(sessionId)
     } else {
-      // Check localStorage for last active session — but only restore if valid
+      // Check localStorage for last active session — but only restore if valid AND belongs to current user
       const lastSession = localStorage.getItem("clorefy_active_session")
-      if (lastSession) {
+      if (lastSession && user) {
         try {
-          const { sessionId: savedId, category } = JSON.parse(lastSession)
-          if (savedId) {
+          const { sessionId: savedId, category, userId: savedUserId } = JSON.parse(lastSession)
+          // Only restore if the session belongs to the currently logged-in user
+          if (savedId && savedUserId === user.id) {
             // Validate the session still exists before restoring
             supabase
               .from("document_sessions")
               .select("id")
               .eq("id", savedId)
+              .eq("user_id", user.id)
               .single()
               .then(({ data }) => {
                 if (data) {
@@ -53,13 +55,16 @@ export function AppShell() {
                   localStorage.removeItem("clorefy_active_session")
                 }
               })
+          } else {
+            // Session belongs to a different user or has no userId — clear it
+            localStorage.removeItem("clorefy_active_session")
           }
         } catch {
           localStorage.removeItem("clorefy_active_session")
         }
       }
     }
-  }, [searchParams])
+  }, [searchParams, user])
 
   const loadSessionType = async (sessionId: string) => {
     try {
@@ -230,14 +235,16 @@ export function AppShell() {
   }, [])
 
   // Persist active session to localStorage so it survives page refresh
+  // Always include userId so we can validate ownership on restore
   useEffect(() => {
-    if (view === "prompt" && selectedSessionId) {
+    if (view === "prompt" && selectedSessionId && user) {
       localStorage.setItem("clorefy_active_session", JSON.stringify({
         sessionId: selectedSessionId,
         category: selectedCategory,
+        userId: user.id,
       }))
     }
-  }, [view, selectedSessionId, selectedCategory])
+  }, [view, selectedSessionId, selectedCategory, user])
 
   const handleBack = useCallback(() => {
     setView("start")

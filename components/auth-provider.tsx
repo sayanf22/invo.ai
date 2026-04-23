@@ -93,6 +93,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(session?.user ?? null)
             } else if (event === "SIGNED_OUT") {
                 clearAuthTokens()
+                // Clear any persisted session so the next user doesn't see the previous user's work
+                if (typeof localStorage !== "undefined") {
+                    localStorage.removeItem("clorefy_active_session")
+                }
                 setSession(null)
                 setUser(null)
             } else {
