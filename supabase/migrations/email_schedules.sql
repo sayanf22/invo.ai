@@ -66,13 +66,17 @@ GRANT EXECUTE ON FUNCTION cancel_email_schedules(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION cancel_email_schedules(UUID, TEXT) TO service_role;
 
 -- Daily cron at 8 AM UTC
+-- NOTE: The Authorization header must use the SUPABASE_SERVICE_ROLE_KEY.
+-- This was applied directly via Supabase SQL editor with the actual key.
+-- The key is NOT stored in this file for security reasons.
+-- To re-apply: replace <SERVICE_ROLE_KEY> with your actual key in Supabase SQL editor.
 SELECT cron.schedule(
   'process-email-schedules',
   '0 8 * * *',
   $$
   SELECT net.http_post(
     url := 'https://tdeqauhtobtahncglqwq.supabase.co/functions/v1/process-email-schedules',
-    headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRkZXFhdWh0b2J0YWhuY2dscXdxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDM4ODA5MywiZXhwIjoyMDg1OTY0MDkzfQ.4BF86eizIXPdh1IM1dJ6UwnPi0FYNNy3kS0JygHE4Bw'),
+    headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer <SERVICE_ROLE_KEY>'),
     body := '{}'::jsonb
   );
   $$

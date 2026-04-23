@@ -358,11 +358,23 @@ export async function createPaymentLink(params: CreatePaymentLinkParams): Promis
     }
 
     // Add customer details if provided
-    if (params.customerName || params.customerEmail || params.customerPhone) {
+    // Razorpay requires contact to be 8-14 digits only (no spaces, dashes, or country code prefix)
+    let cleanPhone: string | undefined
+    if (params.customerPhone) {
+        const digitsOnly = params.customerPhone.replace(/\D/g, "")
+        // Take last 10-14 digits (strip country code if too long)
+        const trimmed = digitsOnly.length > 14 ? digitsOnly.slice(-14) : digitsOnly
+        if (trimmed.length >= 8 && trimmed.length <= 14) {
+            cleanPhone = trimmed
+        }
+        // If phone doesn't fit 8-14 digits after cleaning, skip it entirely
+    }
+
+    if (params.customerName || params.customerEmail || cleanPhone) {
         body.customer = {
             ...(params.customerName ? { name: params.customerName } : {}),
             ...(params.customerEmail ? { email: params.customerEmail } : {}),
-            ...(params.customerPhone ? { contact: params.customerPhone } : {}),
+            ...(cleanPhone ? { contact: cleanPhone } : {}),
         }
     }
 

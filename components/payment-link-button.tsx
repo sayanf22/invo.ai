@@ -281,6 +281,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
             const data = await res.json()
 
             if (!res.ok) {
+                console.error("Payment link creation failed:", res.status, data)
                 if (data.code === "NO_PAYMENT_SETTINGS") {
                     toast.error("Connect your Razorpay account first", {
                         description: "Go to Settings → Payments to add your API keys.",
@@ -302,7 +303,8 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
             onPaymentLinkChange?.(`${window.location.origin}/pay/${sessionId}`, data.paymentLink.status)
             onLockChange?.(true) // Lock invoice after link creation
             toast.success("Payment link created! Invoice is now locked.")
-        } catch {
+        } catch (err) {
+            console.error("Payment link creation error:", err)
             toast.error("Failed to create payment link. Please try again.")
         } finally {
             setIsLoading(false)
