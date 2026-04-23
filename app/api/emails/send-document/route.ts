@@ -221,7 +221,14 @@ export async function POST(request: NextRequest) {
     // 17. Increment monthly email count
     await incrementEmailCount(supabase, userId)
 
-    // 18. Return success
+    // 18. Lock the document session (finalize it — no more AI edits)
+    await supabase
+      .from("document_sessions")
+      .update({ status: "finalized", updated_at: new Date().toISOString() })
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+
+    // 19. Return success
     return NextResponse.json(
       { emailId: emailRecord.id, message: "Email sent successfully" },
       { status: 200 }
