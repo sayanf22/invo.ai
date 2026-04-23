@@ -12,6 +12,7 @@ interface SendDocumentRequest {
   sessionId: string
   recipientEmail: string
   personalMessage?: string
+  subject?: string   // user-editable subject line
   resend?: boolean
 }
 
@@ -131,8 +132,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 10. Generate subject
-    const subject = generateEmailSubject(documentType, referenceNumber, businessName)
+    // 10. Generate subject (use user-provided subject if available, otherwise auto-generate)
+    const subject = (body.subject && body.subject.trim())
+      ? sanitizeText(body.subject).slice(0, 200)
+      : generateEmailSubject(documentType, referenceNumber, businessName)
 
     // 11. Render HTML
     const html = renderEmailTemplate({

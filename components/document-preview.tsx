@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, Mail } from "lucide-react"
+import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
@@ -439,7 +439,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         )}
 
         {/* Right: Payment Link (invoices) + Share + Print + Download */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {sessionId && (
             <PaymentLinkButton
               sessionId={sessionId}
@@ -450,22 +450,12 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
             />
           )}
           <ShareButton data={data} sessionId={sessionId ?? null} onOpenSendDialog={() => setSendEmailDialogOpen(true)} />
-          {sessionId && (
-            <button
-              type="button"
-              onClick={() => setSendEmailDialogOpen(true)}
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[13px] font-medium bg-card border border-border hover:border-primary/40 hover:bg-secondary/60 transition-all duration-150 touch-manipulation select-none"
-            >
-              <Mail className="w-3.5 h-3.5 shrink-0" />
-              <span>Send</span>
-            </button>
-          )}
           <button
             type="button"
             onClick={handlePrint}
             title="Print document"
             aria-label="Print document"
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-md shadow-sm transition-all duration-200 active:scale-95"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-md shadow-sm transition-all duration-200 active:scale-95"
           >
             <Printer className="w-4 h-4" />
             <span className="hidden lg:inline">Print</span>
