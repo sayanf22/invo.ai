@@ -8,7 +8,7 @@ const personas = [
     { id: "freelancers", label: "Freelancers", icon: Briefcase, title: "Get paid faster", desc: "Turn a rough outline into a professional invoice and send it before you leave the meeting." },
     { id: "developers", label: "Developers", icon: Code2, title: "Docs that write themselves", desc: "Describe your project scope, deliverables, and terms. Clorefy generates polished proposals and contracts instantly." },
     { id: "students", label: "Students", icon: GraduationCap, title: "Professional docs, zero stress", desc: "Create internship contracts, project proposals, and freelance invoices. Free tier covers everything you need to start." },
-    { id: "agents", label: "Agents", icon: Bot, title: "Close deals with speed", desc: "Generate client proposals, service agreements, and quotations in seconds. Spend less time on paperwork, more time closing." },
+    { id: "agencies", label: "Agencies", icon: Bot, title: "Close deals with speed", desc: "Generate client proposals, service agreements, and quotations in seconds. Spend less time on paperwork, more time closing." },
     { id: "creatives", label: "Creatives", icon: Palette, title: "Capture fleeting ideas", desc: "Don't let inspiration slip away. Record your creative bursts and get organized project briefs instantly." },
 ]
 
