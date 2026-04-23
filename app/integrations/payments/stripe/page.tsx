@@ -22,14 +22,14 @@ const StripeLogoSVG = () => (
 const DashboardMockup = ({ children, title }: { children: React.ReactNode, title: string }) => (
   <div className="mt-6 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none bg-slate-50 dark:bg-slate-900/80">
     <div className="h-10 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-2">
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 shrink-0">
         <div className="w-3 h-3 rounded-full bg-red-400"></div>
         <div className="w-3 h-3 rounded-full bg-amber-400"></div>
         <div className="w-3 h-3 rounded-full bg-green-400"></div>
       </div>
-      <div className="mx-auto bg-slate-100 dark:bg-slate-900 px-4 py-1 rounded-md text-[10px] font-mono text-slate-500">{title}</div>
+      <div className="mx-auto bg-slate-100 dark:bg-slate-900 px-3 sm:px-4 py-1 rounded-md text-[10px] font-mono text-slate-500 truncate max-w-[60%] sm:max-w-[80%]">{title}</div>
     </div>
-    <div className="p-0">
+    <div className="p-0 overflow-x-auto">
       {children}
     </div>
   </div>
@@ -73,7 +73,7 @@ export default function StripeGuidePage() {
 
         {/* ── What are Webhooks? ────────────────────────────────── */}
         <section className="mb-12">
-          <div className="rounded-[2rem] border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-950/20 p-8 shadow-sm">
+          <div className="rounded-[2rem] border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-950/20 p-5 sm:p-8 shadow-sm">
             <h2 className="text-xl font-bold text-blue-900 dark:text-blue-200 mb-3">What are Webhooks and why are they important?</h2>
             <p className="text-[15px] text-blue-800 dark:text-blue-300 leading-relaxed mb-4">
               A webhook is a way for Stripe to securely send real-time payment status updates directly to Clorefy's servers. 
@@ -90,7 +90,7 @@ export default function StripeGuidePage() {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
             Step 1 — Get your Secret Key
           </h2>
-          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-8 shadow-sm">
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-5 sm:p-8 shadow-sm">
             <ol className="space-y-4 text-[15px] text-slate-600 dark:text-slate-400 mb-8">
               <li className="flex gap-4">
                 <span className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-sm font-bold border border-slate-200/60 dark:border-slate-700/60">1</span>
@@ -120,9 +120,9 @@ export default function StripeGuidePage() {
 
             {/* Dashboard Mockup - API Keys */}
             <DashboardMockup title="dashboard.stripe.com/apikeys">
-              <div className="flex h-64 text-sm">
+              <div className="flex min-h-[16rem] text-sm">
                 {/* Sidebar */}
-                <div className="w-48 bg-slate-50 dark:bg-slate-950/50 border-r border-slate-200 dark:border-slate-800 p-4 hidden sm:block">
+                <div className="w-48 bg-slate-50 dark:bg-slate-950/50 border-r border-slate-200 dark:border-slate-800 p-4 hidden sm:block shrink-0">
                   <div className="space-y-3 mt-4">
                     <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1.5 rounded-lg -ml-2">
                       API keys
@@ -133,7 +133,7 @@ export default function StripeGuidePage() {
                   </div>
                 </div>
                 {/* Main Content */}
-                <div className="flex-1 p-6 bg-white dark:bg-slate-900">
+                <div className="flex-1 p-4 sm:p-6 bg-white dark:bg-slate-900 min-w-[280px]">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white">API keys</h3>
                     <div className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs px-3 py-1.5 rounded-full font-medium border border-slate-200 dark:border-slate-700">Test mode</div>
@@ -154,9 +154,9 @@ export default function StripeGuidePage() {
                         <tr>
                           <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">Secret key</td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <span className="font-mono text-xs bg-slate-100 dark:bg-slate-950 px-2 py-1 rounded text-slate-800 dark:text-slate-200">sk_test_••••••••</span>
-                              <span className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs font-medium cursor-pointer shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Reveal test key</span>
+                            <div className="flex flex-col xl:flex-row items-start xl:items-center gap-2 xl:gap-3">
+                              <span className="font-mono text-[10px] sm:text-xs bg-slate-100 dark:bg-slate-950 px-2 py-1 rounded text-slate-800 dark:text-slate-200">sk_test_••••••••</span>
+                              <span className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-[10px] sm:text-xs font-medium cursor-pointer shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shrink-0">Reveal test key</span>
                             </div>
                           </td>
                         </tr>
@@ -174,7 +174,7 @@ export default function StripeGuidePage() {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
             Step 2 — Webhooks (Auto-Registered)
           </h2>
-          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-8 shadow-sm">
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-5 sm:p-8 shadow-sm">
             
             <div className="rounded-2xl border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/50 dark:bg-indigo-950/20 p-5 mb-8">
               <p className="text-[15px] text-indigo-800 dark:text-indigo-300 leading-relaxed">
@@ -188,9 +188,9 @@ export default function StripeGuidePage() {
             
             {/* Dashboard Mockup - Webhooks */}
             <DashboardMockup title="dashboard.stripe.com/webhooks">
-              <div className="flex h-56 text-sm">
+              <div className="flex min-h-[14rem] text-sm">
                 {/* Sidebar */}
-                <div className="w-48 bg-slate-50 dark:bg-slate-950/50 border-r border-slate-200 dark:border-slate-800 p-4 hidden sm:block">
+                <div className="w-48 bg-slate-50 dark:bg-slate-950/50 border-r border-slate-200 dark:border-slate-800 p-4 hidden sm:block shrink-0">
                   <div className="space-y-3 mt-4">
                     <div className="text-slate-600 dark:text-slate-400 px-2">API keys</div>
                     <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1.5 rounded-lg -ml-2">
@@ -200,7 +200,7 @@ export default function StripeGuidePage() {
                   </div>
                 </div>
                 {/* Main Content */}
-                <div className="flex-1 p-6 bg-white dark:bg-slate-900">
+                <div className="flex-1 p-4 sm:p-6 bg-white dark:bg-slate-900 min-w-[280px]">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white">Webhooks</h3>
                   </div>
@@ -214,7 +214,7 @@ export default function StripeGuidePage() {
                       </thead>
                       <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                         <tr>
-                          <td className="px-4 py-3 font-mono text-xs text-slate-800 dark:text-slate-200">
+                          <td className="px-4 py-3 font-mono text-[10px] sm:text-xs text-slate-800 dark:text-slate-200 break-all">
                             https://clorefy.com/api/stripe/webhook/...
                           </td>
                           <td className="px-4 py-3">
@@ -235,7 +235,7 @@ export default function StripeGuidePage() {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
             Security Notes
           </h2>
-          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-8 shadow-sm">
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-5 sm:p-8 shadow-sm">
             <ul className="space-y-4 text-[15px] text-slate-600 dark:text-slate-400">
               <li className="flex items-start gap-4">
                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>

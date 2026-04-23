@@ -24,15 +24,15 @@ const DashboardMockup = ({ children, title }: { children: React.ReactNode, title
   <div className="mt-6 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none bg-slate-50 dark:bg-slate-900/80">
     {/* Browser header */}
     <div className="h-10 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-2">
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 shrink-0">
         <div className="w-3 h-3 rounded-full bg-red-400"></div>
         <div className="w-3 h-3 rounded-full bg-amber-400"></div>
         <div className="w-3 h-3 rounded-full bg-green-400"></div>
       </div>
-      <div className="mx-auto bg-slate-100 dark:bg-slate-900 px-4 py-1 rounded-md text-[10px] font-mono text-slate-500">{title}</div>
+      <div className="mx-auto bg-slate-100 dark:bg-slate-900 px-3 sm:px-4 py-1 rounded-md text-[10px] font-mono text-slate-500 truncate max-w-[60%] sm:max-w-[80%]">{title}</div>
     </div>
     {/* Content */}
-    <div className="p-0">
+    <div className="p-0 overflow-x-auto">
       {children}
     </div>
   </div>
@@ -76,7 +76,7 @@ export default function CashfreeGuidePage() {
 
         {/* ── What are Webhooks? ────────────────────────────────── */}
         <section className="mb-12">
-          <div className="rounded-[2rem] border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-950/20 p-8 shadow-sm">
+          <div className="rounded-[2rem] border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-950/20 p-5 sm:p-8 shadow-sm">
             <h2 className="text-xl font-bold text-blue-900 dark:text-blue-200 mb-3">What are Webhooks and why are they important?</h2>
             <p className="text-[15px] text-blue-800 dark:text-blue-300 leading-relaxed mb-4">
               A webhook is a way for an app (like Cashfree) to send real-time information to another app (like Clorefy) the moment an event happens. 
@@ -93,7 +93,7 @@ export default function CashfreeGuidePage() {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
             Step 1 — Get your API Keys
           </h2>
-          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-8 shadow-sm">
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-5 sm:p-8 shadow-sm">
             <ol className="space-y-4 text-[15px] text-slate-600 dark:text-slate-400 mb-8">
               <li className="flex gap-4">
                 <span className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-sm font-bold border border-slate-200/60 dark:border-slate-700/60">1</span>
@@ -111,9 +111,9 @@ export default function CashfreeGuidePage() {
 
             {/* Dashboard Mockup - API Keys */}
             <DashboardMockup title="merchant.cashfree.com/developers/api-keys">
-              <div className="flex h-64 text-sm">
+              <div className="flex min-h-[16rem] text-sm">
                 {/* Sidebar */}
-                <div className="w-48 bg-slate-100/50 dark:bg-slate-950/50 border-r border-slate-200 dark:border-slate-800 p-4 hidden sm:block">
+                <div className="w-48 bg-slate-100/50 dark:bg-slate-950/50 border-r border-slate-200 dark:border-slate-800 p-4 hidden sm:block shrink-0">
                   <div className="h-6 w-24 bg-slate-200 dark:bg-slate-800 rounded mb-6"></div>
                   <div className="space-y-3">
                     <div className="h-4 w-full bg-slate-200 dark:bg-slate-800 rounded"></div>
@@ -132,7 +132,7 @@ export default function CashfreeGuidePage() {
                   </div>
                 </div>
                 {/* Main Content */}
-                <div className="flex-1 p-6">
+                <div className="flex-1 p-4 sm:p-6 min-w-[280px]">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">API Keys</h3>
                   <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-white dark:bg-slate-900 shadow-sm">
                     <div className="flex justify-between items-center mb-4">
@@ -148,7 +148,7 @@ export default function CashfreeGuidePage() {
                       </div>
                       <div>
                         <div className="text-xs text-slate-500 mb-1">Secret Key</div>
-                        <div className="font-mono text-xs bg-slate-100 dark:bg-slate-950 p-2 rounded border border-slate-200 dark:border-slate-800 text-slate-400">••••••••••••••••••••••••••••</div>
+                        <div className="font-mono text-[10px] sm:text-xs bg-slate-100 dark:bg-slate-950 p-2 rounded border border-slate-200 dark:border-slate-800 text-slate-400">••••••••••••••••••••••••••••</div>
                         <div className="mt-2 text-xs text-blue-600 font-semibold cursor-pointer">👁️ View API Key</div>
                       </div>
                     </div>
@@ -164,7 +164,7 @@ export default function CashfreeGuidePage() {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
             Step 2 — Webhook Configuration
           </h2>
-          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-8 shadow-sm">
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-5 sm:p-8 shadow-sm">
             
             <div className="rounded-2xl border border-green-200 dark:border-green-800/50 bg-green-50/50 dark:bg-green-950/20 p-5 mb-8">
               <p className="text-[15px] text-green-800 dark:text-green-300 leading-relaxed">
@@ -178,9 +178,9 @@ export default function CashfreeGuidePage() {
             
             {/* Dashboard Mockup - Webhooks */}
             <DashboardMockup title="merchant.cashfree.com/developers/webhooks">
-              <div className="flex h-64 text-sm">
+              <div className="flex min-h-[16rem] text-sm">
                 {/* Sidebar */}
-                <div className="w-48 bg-slate-100/50 dark:bg-slate-950/50 border-r border-slate-200 dark:border-slate-800 p-4 hidden sm:block">
+                <div className="w-48 bg-slate-100/50 dark:bg-slate-950/50 border-r border-slate-200 dark:border-slate-800 p-4 hidden sm:block shrink-0">
                   <div className="h-6 w-24 bg-slate-200 dark:bg-slate-800 rounded mb-6"></div>
                   <div className="space-y-3">
                     <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
@@ -196,18 +196,18 @@ export default function CashfreeGuidePage() {
                   </div>
                 </div>
                 {/* Main Content */}
-                <div className="flex-1 p-6">
+                <div className="flex-1 p-4 sm:p-6 min-w-[280px]">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Webhook Endpoints</h3>
                     <div className="bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Add Webhook Endpoint</div>
                   </div>
                   <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-white dark:bg-slate-900 shadow-sm">
                     <div className="text-xs text-slate-500 mb-2">Endpoint URL</div>
-                    <div className="font-mono text-xs bg-slate-100 dark:bg-slate-950 p-2 rounded border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
+                    <div className="font-mono text-[10px] sm:text-xs bg-slate-100 dark:bg-slate-950 p-2 rounded border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 break-all">
                       https://clorefy.com/api/cashfree/webhook/your-id
                     </div>
                     <div className="mt-4 text-xs text-slate-500 mb-2">Events</div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-xs font-mono">PAYMENT_SUCCESS</span>
                       <span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-xs font-mono">PAYMENT_FAILED</span>
                     </div>
@@ -223,7 +223,7 @@ export default function CashfreeGuidePage() {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
             Test / Sandbox Mode
           </h2>
-          <div className="rounded-[2rem] border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/30 dark:bg-amber-950/20 p-8 shadow-sm">
+          <div className="rounded-[2rem] border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/30 dark:bg-amber-950/20 p-5 sm:p-8 shadow-sm">
             <p className="text-[15px] text-amber-900 dark:text-amber-300 leading-relaxed">
               Cashfree provides a separate sandbox environment for testing. In the Cashfree dashboard, toggle between <strong>Production</strong> and <strong>Sandbox</strong> mode using the switch in the top navigation bar. Make sure to use the matching API keys for each environment. In Clorefy, enable the <strong>"Test Mode"</strong> toggle when using sandbox credentials.
             </p>
