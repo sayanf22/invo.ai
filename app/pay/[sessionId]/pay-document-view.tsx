@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useMemo } from "react"
-import { Loader2, FileText, CheckCircle2, XCircle, Clock } from "lucide-react"
+import { Loader2, FileText, CheckCircle2, Clock } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport, calculateTotal, getCurrencySymbol } from "@/lib/invoice-types"
@@ -159,13 +159,17 @@ function StatusBadge({ status }: { status: string }) {
       </span>
     )
   }
-  if (status === "expired" || status === "cancelled") {
+  if (status === "expired") {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-sm font-semibold">
-        <XCircle className="w-4 h-4" />
-        {status === "expired" ? "Expired" : "Cancelled"}
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 text-sm font-semibold">
+        <Clock className="w-4 h-4" />
+        Expired
       </span>
     )
+  }
+  // Don't show a badge for cancelled — just show the document normally
+  if (status === "cancelled") {
+    return null
   }
   return (
     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 text-sm font-semibold">
@@ -334,13 +338,12 @@ export function PayDocumentView({ docData, payment }: Props) {
 
           {/* Expired / Cancelled state */}
           {isInactive && (
-            <div className="rounded-2xl bg-neutral-100 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-4 text-center">
-              <XCircle className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-              <p className="font-semibold text-neutral-700 dark:text-neutral-300">
-                This payment link is no longer active
+            <div className="rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-5 text-center">
+              <p className="font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                {payment.status === "expired" ? "Payment link has expired" : "Payment link is no longer active"}
               </p>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-                Please contact {docData.fromName || "the sender"} for a new payment link.
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Please contact <strong>{docData.fromName || "the sender"}</strong> to arrange payment.
               </p>
             </div>
           )}
