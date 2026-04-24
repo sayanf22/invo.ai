@@ -295,15 +295,15 @@ export async function incrementEmailCount(
                 .single()
 
             if (existing) {
-                await supabase
+                await (supabase as any)
                     .from("user_usage")
                     .update({ emails_count: ((existing as any).emails_count || 0) + 1 })
                     .eq("user_id", userId)
                     .eq("month", month)
             } else {
-                await supabase
+                await (supabase as any)
                     .from("user_usage")
-                    .insert({ user_id: userId, month, emails_count: 1 } as any)
+                    .insert({ user_id: userId, month, emails_count: 1 })
             }
         }
     } catch (error) {
