@@ -84,8 +84,11 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
   const showPayNow = payNowUrl != null && payNowUrl !== ""
 
   // ── Logo / header ──────────────────────────────────────────────────────────
-  const logoHtml = businessLogoUrl
-    ? `<img src="${escapeAttr(businessLogoUrl)}" alt="${escapeAttr(businessName)} logo" width="40" height="40" style="display:block;border-radius:6px;margin-right:12px;" />`
+  // Only use logo if it's a full HTTPS URL (not an R2 key or relative path)
+  const isValidLogoUrl = businessLogoUrl &&
+    (businessLogoUrl.startsWith("https://") || businessLogoUrl.startsWith("http://"))
+  const logoHtml = isValidLogoUrl
+    ? `<img src="${escapeAttr(businessLogoUrl!)}" alt="" width="36" height="36" style="display:block;border-radius:6px;margin-right:14px;object-fit:cover;" />`
     : ""
 
   // ── Amount / due date row (invoice & quotation) ────────────────────────────
@@ -145,85 +148,111 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
 <meta name="color-scheme" content="light" />
 <title>${escapeHtml(docLabel)} ${escapeHtml(referenceNumber)} from ${escapeHtml(businessName)}</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f4f7;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f7;">
+<body style="margin:0;padding:0;background-color:#f6f6f6;font-family:Arial,Helvetica,sans-serif;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f6f6f6;padding:40px 16px;">
   <tr>
-    <td align="center" style="padding:32px 16px;">
+    <td align="center">
 
-      <!-- Outer wrapper: max 600px -->
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+      <!-- Card -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:8px;border:1px solid #e4e4e7;overflow:hidden;">
 
-        <!-- ── HEADER ── -->
+        <!-- Header: business name only, clean white -->
         <tr>
-          <td style="background-color:#1a1a2e;padding:24px 32px;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <td style="padding:28px 32px 24px 32px;border-bottom:1px solid #f0f0f0;">
+            <table cellpadding="0" cellspacing="0" border="0">
               <tr>
+                ${isValidLogoUrl ? `<td style="vertical-align:middle;padding-right:12px;">${logoHtml}</td>` : ""}
                 <td style="vertical-align:middle;">
-                  <table cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td style="vertical-align:middle;">${logoHtml}</td>
-                      <td style="vertical-align:middle;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;">${escapeHtml(businessName)}</td>
-                    </tr>
-                  </table>
+                  <span style="font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:bold;color:#111111;">${escapeHtml(businessName)}</span>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
 
-        <!-- ── BODY ── -->
+        <!-- Body -->
         <tr>
-          <td style="padding:32px 32px 24px 32px;">
+          <td style="padding:28px 32px;">
 
             <!-- Greeting -->
-            <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;color:#333333;">Hi ${escapeHtml(recipientName)},</p>
-            <p style="margin:0 0 20px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#555555;">You have received a ${escapeHtml(docLabel.toLowerCase())} from <strong>${escapeHtml(businessName)}</strong>.</p>
+            <p style="margin:0 0 6px 0;font-size:15px;color:#111111;font-family:Arial,Helvetica,sans-serif;">Hi ${escapeHtml(recipientName)},</p>
+            <p style="margin:0 0 24px 0;font-size:14px;color:#555555;font-family:Arial,Helvetica,sans-serif;line-height:1.5;">
+              ${escapeHtml(businessName)} has sent you a ${escapeHtml(docLabel.toLowerCase())}.
+            </p>
 
-            <!-- Document type + reference -->
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:8px;">
+            <!-- Invoice summary box -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9f9fb;border-radius:6px;border:1px solid #e4e4e7;margin-bottom:24px;">
               <tr>
-                <td style="padding:16px 20px;">
-                  <p style="margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;color:#888888;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(docLabel)}</p>
-                  <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#1a1a2e;">${escapeHtml(referenceNumber)}</p>
+                <td style="padding:20px 24px;">
+                  <p style="margin:0 0 2px 0;font-size:11px;font-weight:bold;color:#888888;text-transform:uppercase;letter-spacing:0.08em;font-family:Arial,Helvetica,sans-serif;">${escapeHtml(docLabel)}</p>
+                  <p style="margin:0 0 16px 0;font-size:24px;font-weight:bold;color:#111111;font-family:Arial,Helvetica,sans-serif;">${escapeHtml(referenceNumber)}</p>
+                  ${showAmount ? `
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="font-size:13px;color:#555555;font-family:Arial,Helvetica,sans-serif;padding-bottom:4px;">Amount due</td>
+                      ${dueDate ? `<td align="right" style="font-size:13px;color:#555555;font-family:Arial,Helvetica,sans-serif;padding-bottom:4px;">Due date</td>` : ""}
+                    </tr>
+                    <tr>
+                      <td style="font-size:20px;font-weight:bold;color:#111111;font-family:Arial,Helvetica,sans-serif;">${escapeHtml(totalAmount ?? "")}</td>
+                      ${dueDate ? `<td align="right" style="font-size:15px;font-weight:bold;color:#111111;font-family:Arial,Helvetica,sans-serif;">${escapeHtml(dueDate)}</td>` : ""}
+                    </tr>
+                  </table>` : ""}
+                  ${showDescription ? `<p style="margin:8px 0 0 0;font-size:13px;color:#555555;font-family:Arial,Helvetica,sans-serif;line-height:1.5;">${escapeHtml(description ?? "")}</p>` : ""}
                 </td>
               </tr>
             </table>
 
-            ${amountRowHtml}
-            ${descriptionRowHtml}
-            ${personalMessageHtml}
+            ${showPersonalMessage ? `
+            <!-- Personal message -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+              <tr>
+                <td style="padding:16px 20px;background-color:#f9f9fb;border-radius:6px;border:1px solid #e4e4e7;font-size:14px;color:#333333;line-height:1.7;font-family:Arial,Helvetica,sans-serif;">
+                  ${escapeHtml(personalMessage ?? "").replace(/\n/g, "<br/>")}
+                </td>
+              </tr>
+            </table>` : ""}
 
             <!-- CTA buttons -->
-            <table cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;">
+            <table cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td>
-                  <a href="${escapeAttr(viewDocumentUrl)}" target="_blank" style="display:inline-block;padding:12px 28px;background-color:#4f46e5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;border-radius:8px;">View Document</a>
+                  <a href="${escapeAttr(viewDocumentUrl)}" target="_blank"
+                    style="display:inline-block;padding:12px 24px;background-color:#18181b;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;border-radius:6px;">
+                    View ${escapeHtml(docLabel)}
+                  </a>
                 </td>
-                ${payNowButtonHtml}
+                ${showPayNow ? `
+                <td style="padding-left:10px;">
+                  <a href="${escapeAttr(payNowUrl ?? "")}" target="_blank"
+                    style="display:inline-block;padding:12px 24px;background-color:#16a34a;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;border-radius:6px;">
+                    Pay Now
+                  </a>
+                </td>` : ""}
               </tr>
             </table>
 
           </td>
         </tr>
 
-        <!-- ── FOOTER ── -->
+        <!-- Footer -->
         <tr>
-          <td style="background-color:#f8f9fa;padding:20px 32px;border-top:1px solid #e5e7eb;">
-            <p style="margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#999999;text-align:center;">
-              Sent via <a href="https://clorefy.com" target="_blank" style="color:#4f46e5;text-decoration:none;">Clorefy</a>
-            </p>
-            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#bbbbbb;text-align:center;">
+          <td style="padding:16px 32px;border-top:1px solid #f0f0f0;background-color:#fafafa;">
+            <p style="margin:0;font-size:12px;color:#aaaaaa;text-align:center;font-family:Arial,Helvetica,sans-serif;">
+              Sent via <a href="https://clorefy.com" target="_blank" style="color:#6366f1;text-decoration:none;">Clorefy</a>
+              &nbsp;·&nbsp;
               You received this because ${escapeHtml(businessName)} sent you a document.
             </p>
           </td>
         </tr>
 
       </table>
-      <!-- /Outer wrapper -->
+      <!-- /Card -->
 
     </td>
   </tr>
 </table>
+
 </body>
 </html>`
 }

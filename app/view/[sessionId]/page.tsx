@@ -318,7 +318,7 @@ export default function ViewDocumentPage() {
   const [loading, setLoading] = useState(true)
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [rendering, setRendering] = useState(false)
-  const [zoom, setZoom] = useState(100)
+  const [zoom, setZoom] = useState(typeof window !== "undefined" && window.innerWidth < 640 ? 75 : 100)
   const [showShare, setShowShare] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
@@ -477,8 +477,8 @@ export default function ViewDocumentPage() {
             )}
           </div>
 
-          {/* Zoom — desktop only */}
-          <div className="hidden sm:flex items-center gap-1 bg-secondary/60 border border-border rounded-xl px-2 py-1">
+          {/* Zoom — visible on all screen sizes */}
+          <div className="flex items-center gap-1 bg-secondary/60 border border-border rounded-xl px-2 py-1">
             <button
               onClick={() => setZoom(z => Math.max(ZOOM_LEVELS[0], ZOOM_LEVELS[ZOOM_LEVELS.indexOf(z) - 1] ?? z))}
               disabled={zoom <= ZOOM_LEVELS[0]}
@@ -524,21 +524,20 @@ export default function ViewDocumentPage() {
         </div>
       </div>
 
-      {/* Payment status banner */}
-      {payment && (
+      {/* Payment status banner — only show for active/paid states, not cancelled */}
+      {payment && payment.status !== "cancelled" && (
         <div className={cn(
           "border-b px-4 py-2 text-center text-xs font-medium",
           payment.status === "paid"
             ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400"
-            : payment.status === "created"
+            : payment.status === "created" || payment.status === "partially_paid"
             ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-400"
-            : "bg-muted border-border text-muted-foreground"
+            : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-400"
         )}>
           {payment.status === "paid" && `✓ Paid — ${payment.currency} ${((payment.amount_paid ?? payment.amount) / 100).toFixed(2)}`}
           {payment.status === "created" && `Payment pending — ${payment.currency} ${(payment.amount / 100).toFixed(2)}`}
           {payment.status === "partially_paid" && `Partially paid — ${payment.currency} ${((payment.amount_paid ?? 0) / 100).toFixed(2)} of ${(payment.amount / 100).toFixed(2)}`}
-          {payment.status === "expired" && "Payment link expired"}
-          {payment.status === "cancelled" && "Payment link cancelled"}
+          {payment.status === "expired" && "Payment link has expired"}
         </div>
       )}
 
