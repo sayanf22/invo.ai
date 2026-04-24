@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { Share2, Copy, Check, Mail, Download, Loader2, MessageCircle, Link2, QrCode } from "lucide-react"
+import { Share2, Copy, Check, Mail, Download, Loader2, MessageCircle, Link2, Bell, BellOff, Calendar, X, Trash2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,8 @@ import { toast } from "sonner"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
+import { authFetch } from "@/lib/auth-fetch"
+import { cn } from "@/lib/utils"
 
 interface ShareButtonProps {
   data: InvoiceData
@@ -63,6 +65,44 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog }: Sh
   const [isSharing, setIsSharing] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [canNativeShare, setCanNativeShare] = useState(false)
+  const [showSchedulePanel, setShowSchedulePanel] = useState(false)
+  const [schedules, setSchedules] = useState<Array<{
+    id: string
+    sequence_step: number
+    sequence_type: string
+    scheduled_for: string
+    status: string
+  }>>([])
+  const [loadingSchedules, setLoadingSchedules] = useState(false)
+  const [cancellingAll, setCancellingAll] = useState(false)
+
+  const loadSchedules = useCallback(async () => {
+    if (!sessionId) return
+    setLoadingSchedules(true)
+    try {
+      const res = await authFetch(`/api/emails/schedules?sessionId=${sessionId}`)
+      if (res.ok) {
+        const d = await res.json()
+        setSchedules((d.schedules || []).filter((s: any) => s.status === "pending"))
+      }
+    } catch { /* ignore */ }
+    finally { setLoadingSchedules(false) }
+  }, [sessionId])
+
+  const cancelAllSchedules = async () => {
+    if (!sessionId) return
+    setCancellingAll(true)
+    try {
+      const res = await authFetch(`/api/emails/schedules?sessionId=${sessionId}`, { method: "DELETE" })
+      if (res.ok) {
+        setSchedules([])
+        toast.success("All scheduled reminders cancelled")
+      } else {
+        toast.error("Failed to cancel reminders")
+      }
+    } catch { toast.error("Failed to cancel reminders") }
+    finally { setCancellingAll(false) }
+  }
 
   const hasContent = data.documentType || data.fromName || data.toName
   const hasPaymentLink = !!data.paymentLink && data.paymentLinkStatus !== "paid" && data.paymentLinkStatus !== "expired" && data.paymentLinkStatus !== "cancelled"
@@ -149,6 +189,7 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog }: Sh
   if (!hasContent) return null
 
   return (
+    <>
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
@@ -219,7 +260,108 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog }: Sh
           {copied === "msg" ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
           <span>{copied === "msg" ? "Copied!" : "Copy Message"}</span>
         </DropdownMenuItem>
+
+        {/* Manage Reminders — only when sessionId exists */}
+        {sessionId && (
+          <>
+            <DropdownMenuSeparator className="my-1 bg-border/50" />
+            <DropdownMenuItem
+              onClick={() => { loadSchedules(); setShowSchedulePanel(true) }}
+              className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium"
+            >
+              <Bell className="w-4 h-4 text-muted-foreground" />
+              <span>Manage Reminders</span>
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
+
+    {/* Schedule Panel Modal */}
+    {showSchedulePanel && (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowSchedulePanel(false)} />
+        <div className="relative w-full sm:max-w-md bg-card border border-border shadow-2xl flex flex-col rounded-t-3xl sm:rounded-3xl max-h-[80dvh]">
+          {/* Mobile handle */}
+          <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
+            <div className="w-10 h-1 rounded-full bg-border" />
+          </div>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 pt-3 pb-3 shrink-0 border-b border-border/50">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <Bell className="w-4 h-4 text-primary" />
+              </div>
+              <h2 className="text-base font-semibold text-foreground">Scheduled Reminders</h2>
+            </div>
+            <button type="button" onClick={() => setShowSchedulePanel(false)}
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
+            {loadingSchedules ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : schedules.length === 0 ? (
+              <div className="text-center py-8 space-y-2">
+                <BellOff className="w-8 h-8 text-muted-foreground/40 mx-auto" />
+                <p className="text-sm text-muted-foreground">No pending reminders</p>
+                <p className="text-xs text-muted-foreground/60">Reminders are scheduled when you send an invoice</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  {schedules.length} reminder{schedules.length !== 1 ? "s" : ""} scheduled. They stop automatically when payment is received.
+                </p>
+                <div className="space-y-2">
+                  {schedules.map(s => {
+                    const date = new Date(s.scheduled_for)
+                    const label = s.sequence_type === "final" ? "Final notice" :
+                                  s.sequence_type === "followup" ? `Reminder #${s.sequence_step - 1}` :
+                                  "Reminder"
+                    return (
+                      <div key={s.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-muted/40 border border-border">
+                        <div className="flex items-center gap-2.5">
+                          <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          <div>
+                            <p className="text-xs font-medium text-foreground">{label}</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                          Pending
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Footer */}
+          {schedules.length > 0 && (
+            <div className="shrink-0 px-5 py-4 border-t border-border/50">
+              <button
+                type="button"
+                onClick={cancelAllSchedules}
+                disabled={cancellingAll}
+                className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+              >
+                {cancellingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {cancellingAll ? "Cancelling..." : "Cancel All Reminders"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
   )
 }

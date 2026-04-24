@@ -72,6 +72,8 @@ export function SendEmailDialog({
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [scheduleFollowUps, setScheduleFollowUps] = useState(true)
+  // Payment link expiry (days from now) — only relevant for invoices
+  const [paymentLinkExpiryDays, setPaymentLinkExpiryDays] = useState(30)
 
   // Email validation state
   const [emailValidating, setEmailValidating] = useState(false)
@@ -219,6 +221,7 @@ export function SendEmailDialog({
           subject: subject.trim() || undefined,
           personalMessage: message.trim() || undefined,
           scheduleFollowUps: scheduleFollowUps && documentType.toLowerCase() === "invoice",
+          paymentLinkExpiryDays: documentType.toLowerCase() === "invoice" ? paymentLinkExpiryDays : undefined,
         }),
       })
 
@@ -511,6 +514,44 @@ export function SendEmailDialog({
                       <p className="text-[11px] text-muted-foreground mt-2 italic">Stops automatically when payment is received.</p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Payment link expiry — invoices only */}
+              {documentType.toLowerCase() === "invoice" && (
+                <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                  <div className="px-4 py-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <p className="text-sm font-medium text-foreground">Payment link expiry</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+                      How long should the client be able to pay? After this period, the payment link will expire automatically.
+                    </p>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[7, 14, 30, 60].map(days => (
+                        <button
+                          key={days}
+                          type="button"
+                          onClick={() => setPaymentLinkExpiryDays(days)}
+                          className={cn(
+                            "py-2 rounded-xl text-xs font-semibold transition-colors",
+                            paymentLinkExpiryDays === days
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                          )}
+                        >
+                          {days}d
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-2">
+                      {paymentLinkExpiryDays === 30 ? "Recommended — matches Net 30 payment terms" :
+                       paymentLinkExpiryDays === 7 ? "Short — good for urgent invoices" :
+                       paymentLinkExpiryDays === 14 ? "Standard — 2 weeks to pay" :
+                       "Extended — for long-term projects"}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
