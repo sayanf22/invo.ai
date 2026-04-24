@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     // 9. For invoices: fetch active payment link
     let payNowUrl: string | null = null
     if (documentType === "invoice") {
-      const { data: payment } = await supabase
+      const { data: payment } = await (supabase as any)
         .from("invoice_payments")
         .select("id")
         .eq("session_id", sessionId)
