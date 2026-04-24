@@ -54,6 +54,7 @@ interface PaymentRecord {
 interface EmailRecord {
   id: string
   session_id: string
+  recipient_email: string
   status: "sent" | "delivered" | "opened" | "bounced" | "failed"
   created_at: string
 }
@@ -138,7 +139,8 @@ function EmailBadge({ email }: { email: EmailRecord }) {
   }
   const { label, className } = config[email.status] || config.sent
   return (
-    <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", className)}>
+    <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", className)}
+      title={email.recipient_email ? `Sent to ${email.recipient_email}` : undefined}>
       <Mail size={10} />
       {label}
     </span>
@@ -443,7 +445,7 @@ export default function MyDocumentsPage() {
       if (sessionIds.length > 0) {
         const { data: emails } = await (supabase as any)
           .from("document_emails")
-          .select("id, session_id, status, created_at")
+          .select("id, session_id, recipient_email, status, created_at")
           .in("session_id", sessionIds)
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })

@@ -171,12 +171,6 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog }: Sh
         <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-3 py-1">
           Share Document
         </DropdownMenuLabel>
-        {sessionId && onOpenSendDialog && (
-          <DropdownMenuItem onClick={onOpenSendDialog} className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium">
-            <Mail className="w-4 h-4 text-primary" />
-            <span>Send via Clorefy Email</span>
-          </DropdownMenuItem>
-        )}
         <DropdownMenuItem onClick={handleSharePdf} className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium">
           {canNativeShare
             ? <Share2 className="w-4 h-4 text-muted-foreground" />

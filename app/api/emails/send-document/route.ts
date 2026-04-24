@@ -224,9 +224,16 @@ export async function POST(request: NextRequest) {
     await incrementEmailCount(supabase, userId)
 
     // 18. Lock the document session (finalize it — no more AI edits)
+    // Also stamp sent_at and client_name for the Documents page
+    const clientName = (context.toName as string) || null
     await supabase
       .from("document_sessions")
-      .update({ status: "finalized", updated_at: new Date().toISOString() })
+      .update({
+        status: "finalized",
+        sent_at: new Date().toISOString(),
+        client_name: clientName || undefined,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", sessionId)
       .eq("user_id", userId)
 
