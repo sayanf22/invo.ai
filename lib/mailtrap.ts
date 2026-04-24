@@ -37,9 +37,23 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailRespo
       ? `${params.senderName} via Clorefy`
       : "Clorefy"
 
+  // Generate business-specific from address: {businessname}.noreply@clorefy.com
+  // e.g., "WhyCreatives" → "whycreatives.noreply@clorefy.com"
+  // Falls back to "no-reply@clorefy.com" if no business name
+  let fromEmail = "no-reply@clorefy.com"
+  if (params.senderName && params.senderName.trim().length > 0) {
+    const slug = params.senderName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "") // strip everything except letters and numbers
+    if (slug.length > 0) {
+      fromEmail = `${slug}.noreply@clorefy.com`
+    }
+  }
+
   const payload: Record<string, unknown> = {
     from: {
-      email: "no-reply@clorefy.com",
+      email: fromEmail,
       name: fromName,
     },
     to: [{ email: params.to }],
