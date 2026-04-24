@@ -322,33 +322,55 @@ export default function ViewDocumentPage() {
   const [showShare, setShowShare] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
-  // Load session data
+  // Load session data — works for both logged-in users and public email recipients
   useEffect(() => {
-    if (!user || !sessionId) return
+    if (!sessionId) return
     const load = async () => {
       setLoading(true)
       try {
-        const { data: session } = await supabase
-          .from("document_sessions")
-          .select("context, document_type")
-          .eq("id", sessionId)
-          .eq("user_id", user.id)
-          .single()
+        // Try authenticated fetch first (for document owners)
+        if (user) {
+          const { data: session } = await supabase
+            .from("document_sessions")
+            .select("context, document_type")
+            .eq("id", sessionId)
+            .eq("user_id", user.id)
+            .single()
 
-        if (!session?.context) { router.push("/documents"); return }
-        setDocData(session.context as unknown as InvoiceData)
+          if (session?.context) {
+            setDocData(session.context as unknown as InvoiceData)
 
-        // Load payment info
-        const { data: pay } = await (supabase as any)
-          .from("invoice_payments")
-          .select("short_url, status, amount, currency, amount_paid")
-          .eq("session_id", sessionId)
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
+            // Load payment info
+            const { data: pay } = await (supabase as any)
+              .from("invoice_payments")
+              .select("short_url, status, amount, currency, amount_paid")
+              .eq("session_id", sessionId)
+              .eq("user_id", user.id)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle()
 
-        if (pay) setPayment(pay as PaymentInfo)
+            if (pay) setPayment(pay as PaymentInfo)
+            setLoading(false)
+            return
+          }
+        }
+
+        // Fallback: public API for email recipients (no auth needed)
+        const res = await fetch(`/api/emails/view-document?sessionId=${sessionId}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.context) {
+            setDocData(data.context as InvoiceData)
+            if (data.payment) setPayment(data.payment as PaymentInfo)
+            setLoading(false)
+            return
+          }
+        }
+
+        // Neither worked — document not found
+        toast.error("Document not found")
+        router.push("/")
       } catch (err) {
         console.error(err)
         toast.error("Failed to load document")

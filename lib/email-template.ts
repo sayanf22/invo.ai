@@ -123,8 +123,8 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
   const personalMessageHtml = showPersonalMessage
     ? `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;">
         <tr>
-          <td style="padding:16px 20px;background-color:#f8f9fa;border-radius:8px;border-left:4px solid #4f46e5;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333333;line-height:1.7;font-style:italic;">
-            ${escapeHtml(personalMessage ?? "")}
+          <td style="padding:16px 20px;background-color:#f8f9fa;border-radius:8px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333333;line-height:1.7;">
+            ${escapeHtml(personalMessage ?? "").replace(/\n/g, "<br/>")}
           </td>
         </tr>
       </table>`
