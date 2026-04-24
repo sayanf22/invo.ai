@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "sessionId required" }, { status: 400 })
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("email_schedules")
       .select("id, sequence_step, sequence_type, scheduled_for, status, sent_at, cancelled_reason")
       .eq("session_id", sessionId)
@@ -57,7 +57,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 })
     }
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("email_schedules")
       .update({
         status: "cancelled",

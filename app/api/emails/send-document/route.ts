@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
     const mailtrapMessageId = sendResult.messageIds[0] ?? null
 
     // 15. Insert into document_emails
-    const { data: emailRecord, error: insertError } = await supabase
+    const { data: emailRecord, error: insertError } = await (supabase as any)
       .from("document_emails")
       .insert({
         user_id: userId,
@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        const { error: scheduleError } = await supabase
+        const { error: scheduleError } = await (supabase as any)
           .from("email_schedules")
           .insert(scheduleRows)
 
