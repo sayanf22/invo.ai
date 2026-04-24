@@ -33,13 +33,13 @@ const TIER_LIMITS: Record<UserTier, TierLimits> = {
     starter: {
         documentsPerMonth: 50,
         messagesPerSession: 30,
-        emailsPerMonth: 75,      // 1.5× doc limit — allows resends
+        emailsPerMonth: 100,     // 2× doc limit — allows resends + follow-ups
         allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
     },
     pro: {
         documentsPerMonth: 150,
         messagesPerSession: 50,
-        emailsPerMonth: 300,     // 2× doc limit — comfortable for resends + follow-ups
+        emailsPerMonth: 250,     // comfortable for follow-ups across all docs
         allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
     },
     agency: {
@@ -252,9 +252,9 @@ export async function checkEmailLimit(
                     limit: limits.emailsPerMonth,
                     tier: userTier,
                     message: userTier === "free"
-                        ? "Upgrade to Starter for 75 emails/month"
+                        ? "Upgrade to Starter for 100 emails/month"
                         : userTier === "starter"
-                        ? "Upgrade to Pro for 300 emails/month"
+                        ? "Upgrade to Pro for 250 emails/month"
                         : "Upgrade to Agency for unlimited emails",
                 },
                 { status: 429 }
