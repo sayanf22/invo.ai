@@ -15,6 +15,8 @@ interface UserDetailData {
   usageStats: Record<string, unknown> | null
   recentDocuments: Array<Record<string, unknown>>
   recentAuditLogs: Array<Record<string, unknown>>
+  recentEmails: Array<Record<string, unknown>>
+  totalEmailsSent: number
 }
 
 interface Props {
@@ -258,6 +260,8 @@ export default function UserDetailDrawer({ userId, onClose }: Props) {
               {/* 3. Usage Stats */}
               <Section title="Usage Stats" isDark={isDark}>
                 <Field label="Documents" value={String(usage?.documents_count ?? 0)} isDark={isDark} />
+                <Field label="Emails Sent (this month)" value={String(usage?.emails_count ?? 0)} isDark={isDark} />
+                <Field label="Emails Sent (all time)" value={String(data.totalEmailsSent ?? 0)} isDark={isDark} />
                 <Field label="AI Requests" value={String(usage?.ai_requests_count ?? 0)} isDark={isDark} />
                 <Field label="Tokens Used" value={String(usage?.ai_tokens_used ?? 0)} isDark={isDark} />
                 <Field
@@ -267,7 +271,47 @@ export default function UserDetailDrawer({ userId, onClose }: Props) {
                 />
               </Section>
 
-              {/* 4. Recent Documents */}
+              {/* 4. Recent Emails */}
+              <Section title="Recent Emails" isDark={isDark}>
+                {data.recentEmails.length === 0 ? (
+                  <p className="text-sm" style={{ color: '#71717A' }}>No emails sent yet.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {data.recentEmails.map((email, i) => {
+                      const status = typeof email.status === 'string' ? email.status : 'sent'
+                      const statusColors: Record<string, string> = {
+                        opened: '#22C55E',
+                        delivered: '#3B82F6',
+                        sent: '#71717A',
+                        bounced: '#EF4444',
+                        failed: '#EF4444',
+                      }
+                      return (
+                        <li key={i} className="flex items-center justify-between gap-2 text-sm">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="truncate" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
+                              {typeof email.recipient_email === 'string' ? email.recipient_email : '—'}
+                            </span>
+                            <span className="text-xs capitalize shrink-0" style={{ color: '#71717A' }}>
+                              {typeof email.document_type === 'string' ? email.document_type : ''}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs font-medium capitalize" style={{ color: statusColors[status] ?? '#71717A' }}>
+                              {status}
+                            </span>
+                            <span className="text-xs" style={{ color: '#52525B' }}>
+                              {formatDate(email.created_at)}
+                            </span>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </Section>
+
+              {/* 5. Recent Documents */}
               <Section title="Recent Documents" isDark={isDark}>
                 {data.recentDocuments.length === 0 ? (
                   <p className="text-sm" style={{ color: '#71717A' }}>No documents yet.</p>
@@ -292,7 +336,7 @@ export default function UserDetailDrawer({ userId, onClose }: Props) {
                 )}
               </Section>
 
-              {/* 5. Recent Audit Logs */}
+              {/* 6. Recent Audit Logs */}
               <Section title="Recent Audit Logs" isDark={isDark}>
                 {data.recentAuditLogs.length === 0 ? (
                   <p className="text-sm" style={{ color: '#71717A' }}>No audit logs.</p>

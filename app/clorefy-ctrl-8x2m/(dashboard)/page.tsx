@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
-import { Users, FileText, MessageSquare, DollarSign, TrendingUp, Activity, ArrowRight, RefreshCw } from 'lucide-react'
+import { Users, FileText, MessageSquare, DollarSign, TrendingUp, Activity, ArrowRight, RefreshCw, Mail } from 'lucide-react'
 import Link from 'next/link'
 import {
   AreaChart, Area,
@@ -31,6 +31,13 @@ interface OverviewData {
   totalAIRequestsThisMonth: number
   estimatedAICostThisMonth: number
   currentMRR: number
+  // Emails
+  totalEmailsAllTime: number
+  totalEmailsThisMonth: number
+  totalEmailsToday: number
+  emailsOpenedThisMonth: number
+  emailsDeliveredThisMonth: number
+  emailsBouncedThisMonth: number
   signupsTrend: Array<{ date: string; count: number }>
   documentsTrend: Array<{ date: string; count: number }>
   revenueTrend: Array<{ month: string; amount: number }>
@@ -139,8 +146,8 @@ export default function AdminOverviewPage() {
         </div>
       )}
 
-      {/* ── 4 key KPI tiles — each links to its detail page ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── 5 key KPI tiles — each links to its detail page ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiTile label="Total Users" icon={Users} loading={loading} isDark={isDark}
           href="/clorefy-ctrl-8x2m/analytics/engagement"
           value={(data?.totalUsers ?? 0).toLocaleString()}
@@ -149,6 +156,10 @@ export default function AdminOverviewPage() {
           href="/clorefy-ctrl-8x2m/analytics/documents"
           value={(data?.totalDocumentsAllTime ?? 0).toLocaleString()}
           sub={`${data?.totalDocumentsToday ?? 0} today · ${data?.totalDocumentsThisMonth ?? 0} this month`} />
+        <KpiTile label="Emails Sent" icon={Mail} loading={loading} isDark={isDark}
+          href="/clorefy-ctrl-8x2m/analytics/documents"
+          value={(data?.totalEmailsAllTime ?? 0).toLocaleString()}
+          sub={`${data?.totalEmailsToday ?? 0} today · ${data?.totalEmailsThisMonth ?? 0} this month · ${data?.emailsOpenedThisMonth ?? 0} opened`} />
         <KpiTile label="Chat Messages" icon={MessageSquare} loading={loading} isDark={isDark}
           href="/clorefy-ctrl-8x2m/analytics/documents"
           value={(data?.totalMessagesAllTime ?? 0).toLocaleString()}

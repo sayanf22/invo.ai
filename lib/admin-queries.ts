@@ -55,6 +55,13 @@ export interface OverviewKPIs {
   totalMessagesAllTime: number
   totalMessagesThisMonth: number
   totalMessagesToday: number
+  // Emails
+  totalEmailsAllTime: number
+  totalEmailsThisMonth: number
+  totalEmailsToday: number
+  emailsOpenedThisMonth: number
+  emailsDeliveredThisMonth: number
+  emailsBouncedThisMonth: number
   // AI
   totalAIRequestsThisMonth: number
   totalTokensThisMonth: number
@@ -167,6 +174,8 @@ export interface UserDetail {
   usageStats: Record<string, unknown> | null
   recentDocuments: Array<Record<string, unknown>>
   recentAuditLogs: Array<Record<string, unknown>>
+  recentEmails: Array<Record<string, unknown>>
+  totalEmailsSent: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -417,6 +426,39 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .gte("created_at", todayISO)
     .then(r => ({ count: r.count ?? 0 }))
 
+  // Emails sent — from document_emails table (most accurate) + user_usage.emails_count
+  const { count: totalEmailsAllTime } = await supabase
+    .from("document_emails")
+    .select("*", { count: "exact", head: true })
+    .then(r => ({ count: r.count ?? 0 }))
+
+  const { count: totalEmailsThisMonth } = await supabase
+    .from("document_emails")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", monthISO)
+    .then(r => ({ count: r.count ?? 0 }))
+
+  const { count: totalEmailsToday } = await supabase
+    .from("document_emails")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", todayISO)
+    .then(r => ({ count: r.count ?? 0 }))
+
+  // Email delivery breakdown (opened, bounced, delivered)
+  const { data: emailStatusRows } = await supabase
+    .from("document_emails")
+    .select("status")
+    .gte("created_at", monthISO)
+
+  const emailStatusCounts: Record<string, number> = {}
+  for (const r of emailStatusRows ?? []) {
+    const s = r.status ?? "sent"
+    emailStatusCounts[s] = (emailStatusCounts[s] ?? 0) + 1
+  }
+  const emailsOpenedThisMonth = emailStatusCounts["opened"] ?? 0
+  const emailsDeliveredThisMonth = emailStatusCounts["delivered"] ?? 0
+  const emailsBouncedThisMonth = emailStatusCounts["bounced"] ?? 0
+
   // Tokens from generation_history (more accurate than user_usage)
   const { data: tokenRows } = await supabase
     .from("generation_history")
@@ -454,6 +496,12 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     totalMessagesAllTime,
     totalMessagesThisMonth,
     totalMessagesToday,
+    totalEmailsAllTime,
+    totalEmailsThisMonth,
+    totalEmailsToday,
+    emailsOpenedThisMonth,
+    emailsDeliveredThisMonth,
+    emailsBouncedThisMonth,
     totalAIRequestsThisMonth,
     totalTokensThisMonth,
     estimatedAICostThisMonth: Math.round(estimatedAICostThisMonth * 85 * 100) / 100,
@@ -531,7 +579,7 @@ export async function getUsersPage(params: UsersQueryParams): Promise<PaginatedU
     return { users: [], total: 0, page, pageSize }
   }
 
-  // Enrich with document counts
+  // Enrich with document counts and email counts
   if (data && data.length > 0) {
     const userIds = data.map((u: any) => u.id)
     const { data: docCounts } = await supabase
@@ -544,9 +592,21 @@ export async function getUsersPage(params: UsersQueryParams): Promise<PaginatedU
     for (const d of docCounts ?? []) {
       countMap[d.user_id] = (countMap[d.user_id] ?? 0) + 1
     }
+
+    // Email counts from document_emails table
+    const { data: emailCounts } = await supabase
+      .from("document_emails")
+      .select("user_id")
+      .in("user_id", userIds)
+
+    const emailCountMap: Record<string, number> = {}
+    for (const e of emailCounts ?? []) {
+      emailCountMap[e.user_id] = (emailCountMap[e.user_id] ?? 0) + 1
+    }
     
     for (const user of data as any[]) {
       user.documents_count = countMap[user.id] ?? 0
+      user.emails_count = emailCountMap[user.id] ?? 0
     }
   }
 
@@ -564,7 +624,7 @@ export async function getUserDetail(userId: string): Promise<UserDetail> {
   const supabase = getAdminClient()
   const monthKey = currentMonthKey()
 
-  const [profileRes, businessRes, usageRes, docsRes, auditRes] = await Promise.allSettled([
+  const [profileRes, businessRes, usageRes, docsRes, auditRes, emailsRes] = await Promise.allSettled([
     supabase.from("profiles").select("*").eq("id", userId).single(),
     supabase.from("businesses").select("*").eq("user_id", userId).single(),
     supabase.from("user_usage").select("*").eq("user_id", userId).eq("month", monthKey).single(),
@@ -580,6 +640,12 @@ export async function getUserDetail(userId: string): Promise<UserDetail> {
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("document_emails")
+      .select("id, document_type, status, created_at, recipient_email")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(10),
   ])
 
   const profile =
@@ -607,7 +673,19 @@ export async function getUserDetail(userId: string): Promise<UserDetail> {
       ? ((auditRes.value.data ?? []) as Array<Record<string, unknown>>)
       : []
 
-  return { profile, business, usageStats, recentDocuments, recentAuditLogs }
+  const recentEmails =
+    emailsRes.status === "fulfilled" && !(emailsRes.value as any).error
+      ? (((emailsRes.value as any).data ?? []) as Array<Record<string, unknown>>)
+      : []
+
+  // Total email count for this user (all time)
+  const { count: totalEmailsSent } = await supabase
+    .from("document_emails")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .then(r => ({ count: r.count ?? 0 }))
+
+  return { profile, business, usageStats, recentDocuments, recentAuditLogs, recentEmails, totalEmailsSent }
 }
 
 // ─── 6.4 getSubscriptions ─────────────────────────────────────────────────────

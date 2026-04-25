@@ -19,6 +19,7 @@ interface UserRow extends Record<string, unknown> {
   onboarding_complete: boolean | null
   plan_selected: boolean | null
   documents_count?: number
+  emails_count?: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -225,6 +226,15 @@ export default function UsersClient() {
       render: (row: UserRow) => (
         <span className="text-sm" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
           {(row.documents_count as number ?? 0).toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      key: 'emails_count',
+      header: 'Emails',
+      render: (row: UserRow) => (
+        <span className="text-sm" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
+          {(row.emails_count as number ?? 0).toLocaleString()}
         </span>
       ),
     },

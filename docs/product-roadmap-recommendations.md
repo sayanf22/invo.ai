@@ -8,12 +8,13 @@
 
 - ✅ AI document generation (invoice, contract, quotation, proposal) — 11 countries
 - ✅ Country-compliant tax rules (GST, VAT, USt, TVA, etc.)
-- ✅ Digital signatures (token-based, drawn signature)
+- ✅ Digital signatures — legally defensible with document fingerprinting (SHA-256), audit trail, certificate page, verification URL (`/verify/[signatureId]`)
+- ✅ Quotation Accept / Decline / Request Changes flow — clients respond directly from the public view page, owner gets in-app notifications
 - ✅ Client management (CRUD, CSV import/export, AI chat)
 - ✅ Document linking (invoice → contract → quotation chain)
 - ✅ 9 PDF templates, multi-format export (PDF, DOCX, Image)
 - ✅ Razorpay subscription billing
-- ✅ Admin dashboard
+- ✅ Admin dashboard — users, revenue, AI usage, security, email stats per user and platform-wide
 - ✅ Session history
 - ✅ Payment links on invoices (Razorpay, Stripe, Cashfree)
 - ✅ Public payment page (`/pay/[sessionId]`) — clients pay without logging in
@@ -25,9 +26,39 @@
 - ✅ Automated payment reminders (day +3, +7, +14, +30 — stops on payment)
 - ✅ Email delivery tracking (sent → delivered → opened → bounced)
 - ✅ Email follow-up management (stop reminders, view history per document)
-- ✅ Tier-based email limits (Free: 5, Starter: 100, Pro: 250, Agency: unlimited)
+- ✅ Tier-based email limits enforced (Free: 5, Starter: 100, Pro: 250, Agency: unlimited) — `emails_count` column in `user_usage`, `increment_email_count` RPC, `checkEmailLimit` reads live DB
 - ✅ Security hardening (4 audit passes, 17 vulnerabilities fixed)
 - ✅ Consistent loading screens and back navigation fixes
+
+---
+
+## ✅ How the E-Signature Upgrade Was Implemented
+
+The goal was to turn the basic drawn-signature capture into a legally defensible signing workflow that satisfies ESIGN (USA), eIDAS (EU), IT Act (India), and equivalent laws in all 11 supported countries.
+
+### What the user experiences
+
+A "Get Signature" button appears in the document toolbar for contracts, quotations, and proposals. Clicking it opens a modal where the owner enters the signer's name, email, party/role, and an optional personal message. On submit, a signing invitation email is sent to the signer — if the email fails, the signature record is never created (atomic operation). The toolbar then shows a "Pending Signature" amber badge. When all parties have signed, it switches to a green "Signed" badge and a "Download Signed PDF" button appears.
+
+Signers receive a branded email with a "Sign Document" button. The signing page shows the document preview, the business logo, the expiry date, and a consent checkbox with exact legal text. After signing, a confirmation screen shows the signing timestamp and a verification URL.
+
+### How it works under the hood
+
+**Document fingerprinting**: At signing request creation, a SHA-256 hash of the canonical document JSON (`document_sessions.context`, keys sorted recursively) is computed server-side and stored in `signatures.document_hash`. At submission time, the hash is recomputed and compared — a mismatch returns 409 and records a `signature.tamper_detected` audit event.
+
+**Audit trail**: Every lifecycle event (request_created, viewed, signed, completed, expired, tamper_detected, abuse_detected, r2_fallback) is written to `signature_audit_events` — an append-only table enforced by RLS (INSERT for service_role only, no UPDATE/DELETE policies).
+
+**Certificate page**: When all signers complete, a `CertificatePDF` react-pdf component generates a certificate page with signer table (name, email, party, signed_at UTC, masked IP), full SHA-256 hash, verification URL, and legal statement. It's stored in R2 at `certificates/[documentId]_certificate.pdf`.
+
+**Signed PDF download**: `GET /api/signatures/download/[sessionId]` generates the original document PDF via react-pdf, fetches the certificate from R2, and merges them using `pdf-lib`. The filename follows `[ref]_signed_[YYYY-MM-DD].pdf`.
+
+**Verification page**: `/verify/[signatureId]` is a public server component that shows signer name, email, signed_at, document type, hash (first 16 chars), and a verified/not-verified badge. It never exposes the full hash, IP address, or signature image URL.
+
+**Security**: Token format validated with `^sign_[0-9a-f]{32}$` before any DB lookup. Attempt count enforced (max 5 before 410 + abuse_detected event). Expiry is exactly `created_at + 604800 seconds`.
+
+### Quotation response flow
+
+Accept / Decline / Request Changes buttons appear on the public view page for quotation documents. Each action opens a dialog collecting client name, email, and optional/required reason. Responses are stored in `quotation_responses` (public INSERT, owner SELECT only via RLS). The owner receives in-app notifications (`quotation_accepted`, `quotation_declined`, `quotation_changes_requested`) with the full reason in metadata for changes requests.
 
 ---
 
@@ -71,6 +102,10 @@ When an email is sent, the system records it in the database, locks the document
 
 Delivery status (sent → delivered → opened → bounced) is tracked via **Mailtrap webhooks**. Every incoming webhook is signature-verified before processing. The My Documents page shows email stats inline — how many were sent, how many opened — and lets users stop reminders or cancel the payment link directly from the document list.
 
+### Email limits (enforced)
+
+Monthly email limits are enforced via `checkEmailLimit()` in `lib/cost-protection.ts`, which reads `user_usage.emails_count` (added via DB migration). After each successful send, `incrementEmailCount()` calls the `increment_email_count` Supabase RPC to atomically increment the counter. Limits: Free=5, Starter=100, Pro=250, Agency=unlimited.
+
 ### Security
 
 Every send is authenticated, rate-limited (burst: 3 per minute, monthly: tier-based), and the session ownership is verified before anything is sent. All user-provided inputs are sanitized before being injected into the AI prompt or email body. Webhook endpoints verify HMAC signatures. Public document view pages only serve documents that have actually been sent.
@@ -78,12 +113,6 @@ Every send is authenticated, rate-limited (burst: 3 per minute, monthly: tier-ba
 ---
 
 ## What's Next
-
-### 🟠 Quotation Accept/Decline Flow
-Clients currently receive quotations as PDFs with no way to respond online. The plan is to add Accept / Decline / Request Changes buttons to the public quotation view page, with notifications back to the user and optional auto-invoice generation on acceptance.
-
-### 🟡 E-Signature Upgrade
-The current signature system works but lacks a legal audit trail. The upgrade would add a document fingerprint, a certificate page appended to the signed PDF, and a verification URL — using the DocuSeal API.
 
 ### 🟡 Recurring Invoices
 Freelancers with retainer clients need to create the same invoice every month. A "Make Recurring" toggle with configurable frequency (weekly/monthly/quarterly) would auto-generate and optionally auto-send invoices on schedule.
@@ -93,6 +122,12 @@ Tally XML export for Indian SMBs, QuickBooks IIF, and Xero CSV. 90% of Indian bu
 
 ### 🔵 Stripe & Cashfree Payment Links
 Razorpay payment links are fully working. Stripe and Cashfree are connected for subscriptions but not yet for invoice payment links. Extending support to both gateways is the next step.
+
+### 🔵 Team Members (Agency tier)
+The Agency tier advertises 3 team members but the feature isn't built yet. Shared workspace with role-based access (owner, editor, viewer) is the next major feature for the Agency tier.
+
+### 🔵 Multi-language Documents
+Currently all documents are generated in English. Adding language selection (Hindi, German, French, Dutch, Arabic) would unlock the full potential of the 11-country support.
 
 ---
 
@@ -107,8 +142,8 @@ Razorpay payment links are fully working. Stripe and Cashfree are connected for 
 | Email sending | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Payment reminders | ✅ | ✅ | ✅ | ❌ | ✅ |
 | View tracking | ❌ | ❌ | ✅ | ✅ | ✅ |
-| E-signature | ❌ | ❌ | ✅ | ✅ | Partial |
-| Quote acceptance | ❌ | ❌ | ✅ | ✅ | ❌ |
+| E-signature (legal) | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Quote acceptance | ❌ | ❌ | ✅ | ✅ | ✅ |
 | Recurring invoices | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Price | Free/$16 | $8.40+ | $19+ | $49+ | **$9–$59** |
 
