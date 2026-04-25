@@ -7,6 +7,7 @@ import {
   FileText, Download, Eye, Calendar, Loader2, ArrowLeft, Plus,
   CheckCircle2, Clock, AlertCircle, XCircle, Link2, ExternalLink,
   RefreshCw, ChevronDown, ChevronUp, CreditCard, Send, Mail,
+  BellOff,
 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
@@ -15,6 +16,7 @@ import { cleanDataForExport } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
+import { authFetch } from "@/lib/auth-fetch"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -238,13 +240,33 @@ function PaymentPanel({ payment, currency }: { payment: PaymentRecord; currency:
 
 // ── Email History Panel ───────────────────────────────────────────────────────
 
-function EmailHistoryPanel({ stats }: { stats: EmailStats }) {
+function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId: string }) {
+  const [stopping, setStopping] = useState(false)
+  const [stopped, setStopped] = useState(false)
+
   const statusConfig = {
     sent: { label: "Sent", className: "bg-muted text-muted-foreground" },
     delivered: { label: "Delivered", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
     opened: { label: "Opened", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
     bounced: { label: "Bounced", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
     failed: { label: "Failed", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  }
+
+  const handleStopFollowUps = async () => {
+    setStopping(true)
+    try {
+      const res = await authFetch(`/api/emails/schedules?sessionId=${sessionId}`, { method: "DELETE" })
+      if (res.ok) {
+        setStopped(true)
+        toast.success("Follow-up reminders stopped")
+      } else {
+        toast.error("Failed to stop reminders")
+      }
+    } catch {
+      toast.error("Failed to stop reminders")
+    } finally {
+      setStopping(false)
+    }
   }
 
   return (
@@ -273,6 +295,25 @@ function EmailHistoryPanel({ stats }: { stats: EmailStats }) {
             <span className="font-semibold">{stats.bounced}</span> bounced
           </div>
         )}
+        {/* Stop follow-ups button — inline in the stats row */}
+        <div className="ml-auto">
+          {stopped ? (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+              <BellOff size={10} />
+              Stopped
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={handleStopFollowUps}
+              disabled={stopping}
+              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-800/50 transition-colors disabled:opacity-50"
+            >
+              {stopping ? <Loader2 size={10} className="animate-spin" /> : <BellOff size={10} />}
+              Stop Reminders
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Individual email rows */}
@@ -479,7 +520,7 @@ function DocCard({
         )}>
           <div className="min-h-0 overflow-hidden">
             <div className="px-3.5 pb-3.5">
-              <EmailHistoryPanel stats={emailStats!} />
+              <EmailHistoryPanel stats={emailStats!} sessionId={session.id} />
             </div>
           </div>
         </div>
