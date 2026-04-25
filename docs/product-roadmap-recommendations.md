@@ -29,6 +29,7 @@
 - ✅ Tier-based email limits enforced (Free: 5, Starter: 100, Pro: 250, Agency: unlimited)
 - ✅ Recurring invoices — weekly/monthly/quarterly, auto-generates linked sessions, toggle in My Documents + Send dialog
 - ✅ Auto-send invoice on contract signing — toggle in Send dialog (off for free, on for paid), signer sees notice before signing, invoice auto-sent on completion
+- ✅ Stripe & Cashfree payment links for invoices — gateway auto-selected by currency (Razorpay for INR, Stripe for global, Cashfree as INR fallback)
 - ✅ Security hardening (4 audit passes, 17 vulnerabilities fixed)
 - ✅ Consistent loading screens and back navigation fixes
 
@@ -147,7 +148,7 @@ Delivery status (sent → delivered → opened → bounced) is tracked via **Mai
 Tally XML export for Indian SMBs, QuickBooks IIF, and Xero CSV. 90% of Indian businesses use Tally — this would make Clorefy indispensable for that market.
 
 ### 🔵 Stripe & Cashfree Payment Links
-Razorpay payment links are fully working. Stripe and Cashfree are connected for subscriptions but not yet for invoice payment links. Extending support to both gateways is the next step.
+Razorpay, Stripe, and Cashfree payment links are all fully working. Gateway is auto-selected by currency — Razorpay for INR, Stripe for global currencies, Cashfree as INR fallback.
 
 ### 🔵 Team Members (Agency tier)
 The Agency tier advertises 3 team members but the feature isn't built yet. Shared workspace with role-based access (owner, editor, viewer) is the next major feature for the Agency tier.
@@ -166,7 +167,7 @@ A dedicated portal where clients can view all their documents, sign contracts, p
 |--|------|-----------|----------|-----------|-------------|
 | AI generation | ❌ | ❌ | ❌ | ❌ | ✅ |
 | 11 countries | ❌ | Partial | ❌ | ❌ | ✅ |
-| Payment links | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Payment links | ✅ | ✅ | ✅ | ❌ | ✅ (Razorpay + Stripe + Cashfree) |
 | Public pay page | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Email sending | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Payment reminders | ✅ | ✅ | ✅ | ❌ | ✅ |

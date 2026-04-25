@@ -2,11 +2,13 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
 import { createPaymentLink } from "@/lib/razorpay"
+import { createStripePaymentLink } from "@/lib/stripe-payments"
+import { createCashfreePaymentLink } from "@/lib/cashfree-payment-links"
 import { checkRateLimit } from "@/lib/rate-limiter"
 import { logAudit } from "@/lib/audit-log"
 import { createClient } from "@supabase/supabase-js"
 import { sanitizeSQLInput as sanitizeInput } from "@/lib/sanitize"
-import { getUserRazorpayCredentials } from "@/app/api/payments/settings/route"
+import { getUserRazorpayCredentials, getUserPaymentCredentials } from "@/app/api/payments/settings/route"
 
 /**
  * POST /api/payments/create-link
@@ -119,73 +121,154 @@ export async function POST(request: NextRequest) {
         })
     }
 
-    // 6. Get user's own Razorpay credentials
-    const userCreds = await getUserRazorpayCredentials(auth.user.id)
-    if (!userCreds) {
+    // 6. Get user's payment credentials — try all gateways in priority order
+    // Priority: Razorpay (India) → Stripe (global) → Cashfree (India)
+    const allCreds = await getUserPaymentCredentials(auth.user.id)
+
+    if (!allCreds) {
         return NextResponse.json(
             {
                 error: "Payment collection not set up",
                 code: "NO_PAYMENT_SETTINGS",
-                message: "Please add your Razorpay API keys in Settings → Payments to start collecting payments.",
+                message: "Please add your payment gateway API keys in Settings → Payments to start collecting payments.",
             },
             { status: 422 }
         )
     }
 
-    // 7. Create payment link via Razorpay API (using user's own keys)
-    let razorpayLink
-    try {
-        razorpayLink = await createPaymentLink({
-            amount,
-            currency: String(currency).toUpperCase(),
-            description: safeDescription,
-            referenceId: safeReferenceId,
-            customerName: safeCustomerName,
-            customerEmail: safeCustomerEmail,
-            customerPhone: safeCustomerPhone,
-            sessionId,
-            userId: auth.user.id,
-            acceptPartial: Boolean(acceptPartial),
-            dueDateIso: typeof dueDate === "string" ? dueDate : undefined,
-            userKeyId: userCreds.keyId,
-            userKeySecret: userCreds.keySecret,
-        })
-    } catch (err: unknown) {
-        console.error("Payment link creation failed:", err)
-        const msg = err instanceof Error ? err.message : "Unknown error"
-        // Handle duplicate reference_id gracefully
-        if (msg.includes("reference ID already attempted") || msg.includes("reference_id")) {
-            return NextResponse.json(
-                { error: "A payment link with this invoice number already exists. Please use a different invoice number." },
-                { status: 409 }
-            )
-        }
-        // Handle Razorpay rate limiting
-        if (msg.includes("rate limit") || msg.includes("Rate limit") || msg.includes("Too Many Requests")) {
-            return NextResponse.json(
-                { error: "Razorpay API rate limit reached. Please wait a minute and try again." },
-                { status: 429 }
-            )
-        }
-        // Handle invalid credentials
-        if (msg.includes("Invalid") || msg.includes("Authentication") || msg.includes("401") || msg.includes("Unauthorized")) {
-            return NextResponse.json(
-                { error: "Invalid Razorpay credentials. Please check your API keys in Settings → Payments.", code: "INVALID_CREDENTIALS" },
-                { status: 401 }
-            )
-        }
-        // Pass through Razorpay's actual error message (it's already user-facing)
-        return NextResponse.json({ error: msg || "Failed to create payment link" }, { status: 500 })
+    // Determine which gateway to use
+    // Prefer Razorpay for INR, Stripe for other currencies, Cashfree as fallback for INR
+    const currencyUpper = String(currency).toUpperCase()
+    let selectedGateway: "razorpay" | "stripe" | "cashfree" | null = null
+
+    if (currencyUpper === "INR") {
+        if (allCreds.razorpay) selectedGateway = "razorpay"
+        else if (allCreds.cashfree) selectedGateway = "cashfree"
+        else if (allCreds.stripe) selectedGateway = "stripe"
+    } else {
+        // Non-INR: Stripe first, then Razorpay (supports some non-INR), Cashfree doesn't support non-INR well
+        if (allCreds.stripe) selectedGateway = "stripe"
+        else if (allCreds.razorpay) selectedGateway = "razorpay"
     }
 
-    // 7. Store in DB
+    if (!selectedGateway) {
+        return NextResponse.json(
+            {
+                error: "No compatible payment gateway configured",
+                code: "NO_PAYMENT_SETTINGS",
+                message: `No payment gateway supports ${currencyUpper}. Please connect Stripe for international payments or Razorpay/Cashfree for INR.`,
+            },
+            { status: 422 }
+        )
+    }
+
+    // 7. Create payment link via selected gateway
+    let shortUrl: string
+    let gatewayLinkId: string
+    let expireByUnix: number | null = null
+
+    if (selectedGateway === "razorpay") {
+        const userCreds = allCreds.razorpay!
+        let razorpayLink
+        try {
+            razorpayLink = await createPaymentLink({
+                amount,
+                currency: currencyUpper,
+                description: safeDescription,
+                referenceId: safeReferenceId,
+                customerName: safeCustomerName,
+                customerEmail: safeCustomerEmail,
+                customerPhone: safeCustomerPhone,
+                sessionId,
+                userId: auth.user.id,
+                acceptPartial: Boolean(acceptPartial),
+                dueDateIso: typeof dueDate === "string" ? dueDate : undefined,
+                userKeyId: userCreds.keyId,
+                userKeySecret: userCreds.keySecret,
+            })
+        } catch (err: unknown) {
+            console.error("Razorpay payment link creation failed:", err)
+            const msg = err instanceof Error ? err.message : "Unknown error"
+            if (msg.includes("reference ID already attempted") || msg.includes("reference_id")) {
+                return NextResponse.json({ error: "A payment link with this invoice number already exists. Please use a different invoice number." }, { status: 409 })
+            }
+            if (msg.includes("rate limit") || msg.includes("Too Many Requests")) {
+                return NextResponse.json({ error: "Razorpay API rate limit reached. Please wait a minute and try again." }, { status: 429 })
+            }
+            if (msg.includes("Invalid") || msg.includes("Authentication") || msg.includes("401")) {
+                return NextResponse.json({ error: "Invalid Razorpay credentials. Please check your API keys in Settings → Payments.", code: "INVALID_CREDENTIALS" }, { status: 401 })
+            }
+            return NextResponse.json({ error: msg || "Failed to create payment link" }, { status: 500 })
+        }
+        shortUrl = razorpayLink.short_url
+        gatewayLinkId = razorpayLink.id
+        expireByUnix = razorpayLink.expire_by
+
+    } else if (selectedGateway === "stripe") {
+        const userCreds = allCreds.stripe!
+        let stripeLink
+        try {
+            stripeLink = await createStripePaymentLink({
+                amount,
+                currency: currencyUpper,
+                description: safeDescription,
+                referenceId: safeReferenceId,
+                customerEmail: safeCustomerEmail,
+                sessionId,
+                userId: auth.user.id,
+                userSecretKey: userCreds.secretKey,
+            })
+        } catch (err: unknown) {
+            console.error("Stripe payment link creation failed:", err)
+            const msg = err instanceof Error ? err.message : "Unknown error"
+            if (msg.includes("No such") || msg.includes("Invalid API Key")) {
+                return NextResponse.json({ error: "Invalid Stripe credentials. Please check your API keys in Settings → Payments.", code: "INVALID_CREDENTIALS" }, { status: 401 })
+            }
+            return NextResponse.json({ error: msg || "Failed to create Stripe payment link" }, { status: 500 })
+        }
+        shortUrl = stripeLink.url
+        gatewayLinkId = stripeLink.id
+
+    } else {
+        // Cashfree
+        const userCreds = allCreds.cashfree!
+        let cfLink
+        try {
+            cfLink = await createCashfreePaymentLink({
+                amount,
+                currency: currencyUpper,
+                description: safeDescription,
+                referenceId: safeReferenceId,
+                customerName: safeCustomerName,
+                customerEmail: safeCustomerEmail,
+                customerPhone: safeCustomerPhone,
+                sessionId,
+                userId: auth.user.id,
+                testMode: userCreds.testMode,
+                userClientId: userCreds.clientId,
+                userClientSecret: userCreds.clientSecret,
+                expireInDays: typeof dueDate === "string" ? 30 : 30,
+            })
+        } catch (err: unknown) {
+            console.error("Cashfree payment link creation failed:", err)
+            const msg = err instanceof Error ? err.message : "Unknown error"
+            if (msg.includes("401") || msg.includes("403") || msg.includes("authentication")) {
+                return NextResponse.json({ error: "Invalid Cashfree credentials. Please check your API keys in Settings → Payments.", code: "INVALID_CREDENTIALS" }, { status: 401 })
+            }
+            return NextResponse.json({ error: msg || "Failed to create Cashfree payment link" }, { status: 500 })
+        }
+        shortUrl = cfLink.link_url
+        gatewayLinkId = cfLink.cf_link_id
+    }
+
+    // 8. Store in DB
     const { data: savedLink, error: insertError } = await supabaseAdmin
         .from("invoice_payments")
         .insert({
             session_id: sessionId,
             user_id: auth.user.id,
-            razorpay_payment_link_id: razorpayLink.id,
-            short_url: razorpayLink.short_url,
+            razorpay_payment_link_id: gatewayLinkId,
+            short_url: shortUrl,
             amount,
             currency: String(currency).toUpperCase(),
             status: "created",
@@ -194,7 +277,8 @@ export async function POST(request: NextRequest) {
             customer_name: safeCustomerName ?? null,
             customer_email: safeCustomerEmail ?? null,
             customer_phone: safeCustomerPhone ?? null,
-            expires_at: new Date(razorpayLink.expire_by * 1000).toISOString(),
+            expires_at: expireByUnix ? new Date(expireByUnix * 1000).toISOString() : null,
+            gateway: selectedGateway,
         })
         .select("id")
         .single()
@@ -230,7 +314,8 @@ export async function POST(request: NextRequest) {
         resource_type: "invoice_payment",
         resource_id: savedLink?.id ?? undefined,
         metadata: {
-            razorpay_id: razorpayLink.id,
+            gateway: selectedGateway,
+            gateway_link_id: gatewayLinkId,
             amount,
             currency,
             session_id: sessionId,
@@ -244,10 +329,11 @@ export async function POST(request: NextRequest) {
         success: true,
         paymentLink: {
             id: savedLink?.id,
-            shortUrl: razorpayLink.short_url,
+            shortUrl,
             platformLink,
             status: "created",
-            razorpayId: razorpayLink.id,
+            razorpayId: gatewayLinkId,
+            gateway: selectedGateway,
             isExisting: false,
         },
     })

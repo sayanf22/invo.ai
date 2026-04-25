@@ -291,8 +291,8 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
             if (!res.ok) {
                 console.error("Payment link creation failed:", res.status, data)
                 if (data.code === "NO_PAYMENT_SETTINGS") {
-                    toast.error("Connect your Razorpay account first", {
-                        description: "Go to Settings → Payments to add your API keys.",
+                    toast.error("Connect a payment gateway first", {
+                        description: "Go to Settings → Payments to add Razorpay, Stripe, or Cashfree.",
                         action: { label: "Open Settings", onClick: () => window.open("/settings?tab=payments", "_blank") },
                         duration: 6000,
                     })
