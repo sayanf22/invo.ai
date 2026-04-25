@@ -8,6 +8,8 @@ import { Check, Zap, Crown, Loader2, FileText, MessageSquare, Download, Receipt,
 import { Badge } from "@/components/ui/badge"
 import { useRazorpay } from "@/hooks/use-razorpay"
 import { authFetch } from "@/lib/auth-fetch"
+import { useSafeBack } from "@/hooks/use-safe-back"
+import { PageLoader } from "@/components/ui/page-loader"
 import { toast } from "sonner"
 import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
 import { HamburgerMenu } from "@/components/hamburger-menu"
@@ -65,6 +67,7 @@ interface PaymentRecord {
 
 export default function BillingPage() {
     const router = useRouter()
+    const goBack = useSafeBack("/")
     const { user } = useAuth()
     const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly")
     const [data, setData] = useState<UsageData | null>(null)
@@ -143,7 +146,7 @@ export default function BillingPage() {
     const currentPlan = data?.plan || "free"
 
     if (loading) {
-        return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+        return <PageLoader />
     }
 
     const usage = data?.usage
@@ -158,7 +161,7 @@ export default function BillingPage() {
                 <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <button
-                            onClick={() => router.back()}
+                            onClick={() => goBack()}
                             className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-secondary/60 transition-colors shrink-0"
                             aria-label="Go back"
                         >

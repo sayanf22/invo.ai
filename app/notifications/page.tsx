@@ -6,6 +6,7 @@ import { useUser } from "@/components/auth-provider"
 import { createClient } from "@/lib/supabase"
 import { Bell, CheckCircle2, Gift, CreditCard, XCircle, RefreshCw, Info, Loader2, Check, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useSafeBack } from "@/hooks/use-safe-back"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 import { HamburgerMenu } from "@/components/hamburger-menu"
@@ -33,6 +34,7 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
 
 export default function NotificationsPage() {
   const router = useRouter()
+  const goBack = useSafeBack("/")
   const user = useUser()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
@@ -101,7 +103,7 @@ export default function NotificationsPage() {
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
+            <button onClick={() => goBack()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div className="hidden sm:flex items-center gap-2">

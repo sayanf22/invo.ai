@@ -10,6 +10,7 @@ import { PromptScreen } from "@/components/prompt-screen"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { Loader2 } from "lucide-react"
 import { authFetch } from "@/lib/auth-fetch"
+import { PageLoader } from "@/components/ui/page-loader"
 
 type View = "start" | "prompt"
 
@@ -255,14 +256,7 @@ export function AppShell() {
   }, [])
 
   if (authLoading || checkingOnboarding) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
-        <div className="relative w-12 h-12">
-          <div className="absolute inset-0 rounded-full border-[3px] border-transparent animate-spin" style={{ borderTopColor: 'hsl(33 17% 10%)', borderRightColor: 'hsl(33 17% 10% / 0.15)', animationDuration: '0.75s' }} />
-        </div>
-        <p className="text-xs font-medium text-muted-foreground tracking-wide">Clorefy</p>
-      </div>
-    )
+    return <PageLoader />
   }
 
   if (view === "prompt") {

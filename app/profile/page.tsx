@@ -6,6 +6,8 @@ import { useAuth } from "@/components/auth-provider"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { Button } from "@/components/ui/button"
+import { useSafeBack } from "@/hooks/use-safe-back"
+import { PageLoader } from "@/components/ui/page-loader"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -278,6 +280,7 @@ function SectionHeader({
 
 export default function ProfilePage() {
     const router = useRouter()
+    const goBack = useSafeBack("/")
     const { supabase, user, isLoading: authLoading } = useAuth()
     const [profile, setProfile] = useState<BusinessProfile | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -441,7 +444,7 @@ export default function ProfilePage() {
         }
     }, [user, profile, loadProfile])
 
-    if (authLoading || isLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+    if (authLoading || isLoading) return <PageLoader />
     if (!user || !profile) return null
 
     const taxIdLabel = profile.country ? getTaxIdFieldName(profile.country) : "Tax ID"
@@ -456,7 +459,7 @@ export default function ProfilePage() {
             <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 shadow-sm shrink-0">
                 <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
+                        <button onClick={() => goBack()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
                             <ArrowLeft className="w-4 h-4" />
                         </button>
                         <div className="hidden sm:flex items-center gap-2">

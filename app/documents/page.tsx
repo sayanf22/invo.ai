@@ -17,6 +17,7 @@ import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import { authFetch } from "@/lib/auth-fetch"
+import { useSafeBack } from "@/hooks/use-safe-back"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -584,6 +585,7 @@ function DocCard({
 
 export default function MyDocumentsPage() {
   const router = useRouter()
+  const goBack = useSafeBack("/")
   const supabase = useSupabase()
   const user = useUser()
   const [sessions, setSessions] = useState<DocSession[]>([])
@@ -821,7 +823,7 @@ export default function MyDocumentsPage() {
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/50">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <button
-            onClick={() => router.back()}
+            onClick={() => goBack()}
             className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-secondary/60 transition-colors shrink-0"
             aria-label="Go back"
           >

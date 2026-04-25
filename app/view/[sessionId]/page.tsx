@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { useSafeBack } from "@/hooks/use-safe-back"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import {
   ArrowLeft, Download, Share2, Loader2, FileText,
@@ -310,6 +311,7 @@ const ZOOM_LEVELS = [50, 75, 100, 125, 150]
 export default function ViewDocumentPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const router = useRouter()
+  const goBack = useSafeBack("/")
   const supabase = useSupabase()
   const user = useUser()
 
@@ -472,7 +474,7 @@ export default function ViewDocumentPage() {
         <div className="max-w-4xl mx-auto px-3 sm:px-4 h-14 flex items-center gap-2 sm:gap-3">
           {/* Back */}
           <button
-            onClick={() => router.back()}
+            onClick={() => goBack()}
             className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-secondary/60 transition-colors shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />

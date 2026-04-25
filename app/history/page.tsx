@@ -8,6 +8,7 @@ import { HamburgerMenu } from "@/components/hamburger-menu"
 import { History, FileText, Calendar, Link2, ChevronRight, ArrowRight, ScrollText, ClipboardList, Lightbulb, ChevronDown, ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
+import { useSafeBack } from "@/hooks/use-safe-back"
 import { cn } from "@/lib/utils"
 
 interface Session {
@@ -40,6 +41,7 @@ type Filter = typeof FILTERS[number]
 
 export default function HistoryPage() {
   const router = useRouter()
+  const goBack = useSafeBack("/")
   const supabase = useSupabase()
   const user = useUser()
   const [groups, setGroups] = useState<SessionGroup[]>([])
@@ -118,7 +120,7 @@ export default function HistoryPage() {
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
+            <button onClick={() => goBack()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div className="hidden sm:flex items-center gap-2">

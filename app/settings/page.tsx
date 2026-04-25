@@ -6,6 +6,7 @@ import { useSupabase, useUser } from "@/components/auth-provider"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useSafeBack } from "@/hooks/use-safe-back"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,6 +25,7 @@ const tabVariants = {
 
 export default function SettingsPage() {
   const router = useRouter()
+  const goBack = useSafeBack("/")
   const supabase = useSupabase()
   const user = useUser()
   const [loading, setLoading] = useState(false)
@@ -92,7 +94,7 @@ export default function SettingsPage() {
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
+            <button onClick={() => goBack()} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div className="hidden sm:flex items-center gap-2">
