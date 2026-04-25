@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { authenticateRequest } from "@/lib/api-auth"
+import { authenticateRequest, validateBodySize } from "@/lib/api-auth"
+import { sanitizeText } from "@/lib/sanitize"
 
 interface GenerateMessageRequest {
   documentType: string
@@ -25,7 +26,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
-    const apiKey = process.env.DEEPSEEK_API_KEY
+    // Body size limit
+    const sizeError = validateBodySize(body, 20 * 1024)
+    if (sizeError) return sizeError
+
+    // Use secure vault for API key
+    const { getSecret } = await import("@/lib/secrets")
+    const apiKey = await getSecret("DEEPSEEK_API_KEY")
     if (!apiKey) {
       return NextResponse.json({ error: "AI service not configured" }, { status: 500 })
     }
@@ -42,13 +49,22 @@ export async function POST(request: NextRequest) {
       items,
     } = body
 
-    const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
-    const refText = referenceNumber ? ` ${referenceNumber}` : ""
-    const amountText = totalAmount ? ` for ${currency || ""}${totalAmount}`.trim() : ""
-    const dueDateText = dueDate ? `, due ${dueDate}` : ""
-    const itemsSummary = items?.length
-      ? items.slice(0, 3).map(i => i.description).filter(Boolean).join(", ")
-      : ""
+    // Sanitize all user-controlled inputs before injecting into AI prompt
+    const safeDocType = sanitizeText(documentType || "invoice").slice(0, 20)
+    const safeClientName = sanitizeText(clientName || "").slice(0, 100)
+    const safeSenderName = sanitizeText(senderName || "").slice(0, 100)
+    const safeRef = sanitizeText(referenceNumber || "").slice(0, 50)
+    const safeAmount = sanitizeText(totalAmount || "").slice(0, 30)
+    const safeCurrency = sanitizeText(currency || "").slice(0, 10)
+    const safeDueDate = sanitizeText(dueDate || "").slice(0, 30)
+    const safeDescription = sanitizeText(description || "").slice(0, 200)
+    const safeItems = (items || []).slice(0, 5).map(i => sanitizeText(i.description || "").slice(0, 100))
+
+    const docLabel = safeDocType.charAt(0).toUpperCase() + safeDocType.slice(1).toLowerCase()
+    const refText = safeRef ? ` ${safeRef}` : ""
+    const amountText = safeAmount ? ` for ${safeCurrency} ${safeAmount}`.trim() : ""
+    const dueDateText = safeDueDate ? `, due ${safeDueDate}` : ""
+    const itemsSummary = safeItems.filter(Boolean).join(", ")
 
     const systemPrompt = `You are a professional business email writer. Write concise, warm, and professional email body text for sending business documents to clients. 
 
@@ -63,16 +79,16 @@ Rules:
 - If client name is unknown, use a generic greeting like "Hi there,"
 - Keep total length under 300 words`
 
-    const userPrompt = `Write a professional email body for sending a ${docLabel}${refText}${amountText}${dueDateText} to ${clientName || "the client"}.
+    const userPrompt = `Write a professional email body for sending a ${docLabel}${refText}${amountText}${dueDateText} to ${safeClientName || "the client"}.
 
 Context:
 - Document type: ${docLabel}
-- Reference: ${referenceNumber || "N/A"}
-- Amount: ${totalAmount ? `${currency || ""} ${totalAmount}`.trim() : "not specified"}
-- Due date: ${dueDate || "not specified"}
-- Services/items: ${itemsSummary || description || "as per the document"}
-- Sender name: ${senderName || "the business"}
-- Client name: ${clientName || "not specified"}
+- Reference: ${safeRef || "N/A"}
+- Amount: ${safeAmount ? `${safeCurrency} ${safeAmount}`.trim() : "not specified"}
+- Due date: ${safeDueDate || "not specified"}
+- Services/items: ${itemsSummary || safeDescription || "as per the document"}
+- Sender name: ${safeSenderName || "the business"}
+- Client name: ${safeClientName || "not specified"}
 
 Write the email body text only. Start directly with the greeting.`
 

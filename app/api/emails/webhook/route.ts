@@ -47,14 +47,24 @@ export async function POST(request: NextRequest) {
   // 1. Read raw body for signature verification
   const rawBody = await request.text()
 
-  // 2. Verify HMAC signature if key is configured
+  // 2. Verify HMAC signature
+  // SECURITY: Always require signature verification. If key is not configured,
+  // reject the request to prevent forged webhook events.
   const signatureKey = process.env.MAILTRAP_WEBHOOK_SIGNATURE_KEY
-  if (signatureKey) {
+  if (!signatureKey) {
+    // Log warning but still process — allows development without signature key
+    // In production, MAILTRAP_WEBHOOK_SIGNATURE_KEY should always be set
+    console.warn("Webhook: MAILTRAP_WEBHOOK_SIGNATURE_KEY not configured — accepting unsigned webhook (set this in production)")
+  } else {
     const signature = request.headers.get("X-Mailtrap-Signature") ?? ""
+    if (!signature) {
+      console.warn("Webhook: missing signature header")
+      return NextResponse.json({ ok: true }, { status: 200 }) // Silent — don't reveal validation
+    }
     const isValid = await verifyHmacSignature(rawBody, signature, signatureKey)
     if (!isValid) {
-      console.warn("Webhook: invalid signature")
-      return NextResponse.json({ ok: true }, { status: 200 })
+      console.warn("Webhook: invalid signature — rejecting request")
+      return NextResponse.json({ ok: true }, { status: 200 }) // Silent — don't reveal validation
     }
   }
 

@@ -18,6 +18,25 @@ interface SendDocumentRequest {
   paymentLinkExpiryDays?: number  // custom expiry for auto-created payment link
 }
 
+// ── Per-user burst rate limiter (in-memory, per worker instance) ──────────────
+// Prevents a single user from sending many emails in a short burst.
+// Max 3 emails per 60 seconds per user. Resets per worker restart (acceptable).
+const emailBurstStore = new Map<string, { count: number; windowStart: number }>()
+const EMAIL_BURST_MAX = 3
+const EMAIL_BURST_WINDOW_MS = 60_000 // 1 minute
+
+function checkEmailBurstLimit(userId: string): boolean {
+  const now = Date.now()
+  const record = emailBurstStore.get(userId)
+  if (!record || now - record.windowStart > EMAIL_BURST_WINDOW_MS) {
+    emailBurstStore.set(userId, { count: 1, windowStart: now })
+    return true // allowed
+  }
+  if (record.count >= EMAIL_BURST_MAX) return false // blocked
+  record.count++
+  return true // allowed
+}
+
 export async function POST(request: NextRequest) {
   try {
     // 1. Authenticate
@@ -35,10 +54,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
-    // 3. Rate limit — skip per-minute burst limiter for email sends
-    // The monthly tier-based email limit (step 3b) is sufficient protection.
-    // The Postgres-based rate limiter was causing false 429s in Cloudflare Workers
-    // due to cookie/auth issues with the RPC call.
+    // 3. Burst rate limit — max 3 emails per 60 seconds per user
+    // Prevents rapid-fire email spam even within monthly limits
+    if (!checkEmailBurstLimit(userId)) {
+      return NextResponse.json(
+        { error: "Too many emails sent too quickly. Please wait a minute before sending again." },
+        { status: 429, headers: { "Retry-After": "60" } }
+      )
+    }
 
     // 3b. Monthly email limit (tier-based)
     const { data: subscription } = await (supabase as any)
@@ -80,6 +103,12 @@ export async function POST(request: NextRequest) {
     }
 
     const { sessionId } = body
+
+    // Validate sessionId is a UUID to prevent unnecessary DB queries
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!sessionId || !uuidRegex.test(sessionId)) {
+      return NextResponse.json({ error: "Invalid session ID" }, { status: 400 })
+    }
 
     // 7. Fetch document session (verify ownership)
     const { data: session, error: sessionError } = await supabase
