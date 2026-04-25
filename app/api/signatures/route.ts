@@ -519,6 +519,28 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ signatures })
         }
 
+        // sessionId lookup — authenticated, for document preview toolbar
+        const sessionId = searchParams.get("sessionId")
+        if (sessionId) {
+            const auth = await authenticateRequest(request)
+            if (auth.error) return auth.error
+
+            const rateLimitError = await checkRateLimit(auth.user.id, "general")
+            if (rateLimitError) return rateLimitError
+
+            const { data: signatures, error } = await auth.supabase
+                .from("signatures")
+                .select("id, signer_name, signer_email, party, signed_at, signer_action, signer_reason, created_at")
+                .eq("session_id", sessionId)
+                .order("created_at", { ascending: false })
+
+            if (error) {
+                return NextResponse.json({ error: "Failed to fetch signatures" }, { status: 500 })
+            }
+
+            return NextResponse.json({ signatures })
+        }
+
         return NextResponse.json({ error: "Missing documentId or token parameter" }, { status: 400 })
     } catch (error) {
         console.error("Signature fetch error:", error)

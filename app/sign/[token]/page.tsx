@@ -6,6 +6,7 @@ import { SignaturePad } from "@/components/signature-pad"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { InvoLogo } from "@/components/invo-logo"
 import {
     Loader2,
@@ -15,6 +16,9 @@ import {
     Shield,
     Clock,
     ExternalLink,
+    ChevronDown,
+    AlertTriangle,
+    MessageSquare,
 } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
@@ -90,6 +94,14 @@ export default function SigningPage() {
     const [consentChecked, setConsentChecked] = useState(false)
     const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
 
+    // Decline / revision state
+    const [showDeclinePanel, setShowDeclinePanel] = useState(false)
+    const [showRevisionPanel, setShowRevisionPanel] = useState(false)
+    const [declineReason, setDeclineReason] = useState("")
+    const [revisionReason, setRevisionReason] = useState("")
+    const [isResponding, setIsResponding] = useState(false)
+    const [responseResult, setResponseResult] = useState<{ action: "declined" | "revision_requested"; message: string } | null>(null)
+
     useEffect(() => {
         async function loadSignature() {
             try {
@@ -164,6 +176,28 @@ export default function SigningPage() {
             toast.error(err instanceof Error ? err.message : "Failed to submit signature. Please try again.")
         } finally {
             setIsSubmitting(false)
+        }
+    }
+
+    const handleRespond = async (action: "declined" | "revision_requested", reason: string) => {
+        if (action === "revision_requested" && !reason.trim()) {
+            toast.error("Please describe the changes you need")
+            return
+        }
+        setIsResponding(true)
+        try {
+            const response = await fetch("/api/signatures/respond", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token, action, reason: reason.trim() || undefined }),
+            })
+            const data = await response.json()
+            if (!response.ok) throw new Error(data.error || "Failed to submit response")
+            setResponseResult({ action, message: data.message })
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Failed to submit. Please try again.")
+        } finally {
+            setIsResponding(false)
         }
     }
 
@@ -246,6 +280,35 @@ export default function SigningPage() {
                                 View verification <ExternalLink className="h-3 w-3" />
                             </a>
                         )}
+                    </div>
+                </main>
+            </div>
+        )
+    }
+
+    // Response result (declined or revision requested)
+    if (responseResult) {
+        const isDeclined = responseResult.action === "declined"
+        return (
+            <div className="min-h-screen flex flex-col bg-background">
+                <header className="border-b py-4 px-6 flex items-center justify-between">
+                    <InvoLogo />
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Shield className="h-4 w-4 text-green-500" />
+                        Secured by Invo.ai
+                    </div>
+                </header>
+                <main className="flex-1 flex items-center justify-center px-4 py-12">
+                    <div className="w-full max-w-md text-center space-y-4">
+                        {isDeclined ? (
+                            <XCircle className="h-16 w-16 text-red-500 mx-auto" />
+                        ) : (
+                            <MessageSquare className="h-16 w-16 text-amber-500 mx-auto" />
+                        )}
+                        <h1 className="text-2xl font-semibold">
+                            {isDeclined ? "Signature Declined" : "Revision Requested"}
+                        </h1>
+                        <p className="text-muted-foreground">{responseResult.message}</p>
                     </div>
                 </main>
             </div>
@@ -431,6 +494,115 @@ export default function SigningPage() {
                     <p className="text-xs text-center text-muted-foreground">
                         This signing session is encrypted and your signature will be securely stored.
                     </p>
+
+                    {/* Decline / Request Revision section */}
+                    <div className="border-t pt-6 space-y-3">
+                        <p className="text-xs text-center text-muted-foreground">
+                            Not ready to sign?
+                        </p>
+                        <div className="flex gap-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="flex-1 min-h-[44px] text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                                onClick={() => { setShowDeclinePanel(true); setShowRevisionPanel(false) }}
+                            >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Decline
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="flex-1 min-h-[44px] text-amber-600 border-amber-200 hover:bg-amber-50 hover:border-amber-300"
+                                onClick={() => { setShowRevisionPanel(true); setShowDeclinePanel(false) }}
+                            >
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                Request Changes
+                            </Button>
+                        </div>
+
+                        {/* Decline panel */}
+                        {showDeclinePanel && (
+                            <div className="rounded-lg border border-red-200 bg-red-50/50 p-4 space-y-3">
+                                <div className="flex items-start gap-2">
+                                    <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                                    <p className="text-sm text-red-700 font-medium">Decline to sign</p>
+                                </div>
+                                <p className="text-xs text-red-600">
+                                    The document owner will be notified that you declined. You can optionally provide a reason.
+                                </p>
+                                <Textarea
+                                    placeholder="Reason for declining (optional)…"
+                                    value={declineReason}
+                                    onChange={(e) => setDeclineReason(e.target.value)}
+                                    rows={3}
+                                    className="text-sm"
+                                />
+                                <div className="flex gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1"
+                                        onClick={() => setShowDeclinePanel(false)}
+                                        disabled={isResponding}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                                        onClick={() => handleRespond("declined", declineReason)}
+                                        disabled={isResponding}
+                                    >
+                                        {isResponding ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Decline"}
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Request revision panel */}
+                        {showRevisionPanel && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+                                <div className="flex items-start gap-2">
+                                    <MessageSquare className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                    <p className="text-sm text-amber-700 font-medium">Request changes</p>
+                                </div>
+                                <p className="text-xs text-amber-600">
+                                    Describe what needs to be changed. The document owner will be notified and can send you a revised version.
+                                </p>
+                                <Textarea
+                                    placeholder="Describe the changes you need…"
+                                    value={revisionReason}
+                                    onChange={(e) => setRevisionReason(e.target.value)}
+                                    rows={3}
+                                    className="text-sm"
+                                />
+                                <div className="flex gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1"
+                                        onClick={() => setShowRevisionPanel(false)}
+                                        disabled={isResponding}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                                        onClick={() => handleRespond("revision_requested", revisionReason)}
+                                        disabled={isResponding || !revisionReason.trim()}
+                                    >
+                                        {isResponding ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Request"}
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </main>
         </div>

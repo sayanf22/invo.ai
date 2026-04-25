@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/components/auth-provider"
 import { createClient } from "@/lib/supabase"
-import { Bell, CheckCircle2, Gift, CreditCard, XCircle, RefreshCw, Info, Loader2, Check, ArrowLeft, Eye, PenLine, Clock, Edit3 } from "lucide-react"
+import { Bell, CheckCircle2, Gift, CreditCard, XCircle, RefreshCw, Info, Loader2, Check, ArrowLeft, Eye, PenLine, Clock, Edit3, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { cn } from "@/lib/utils"
@@ -37,6 +37,8 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
   quotation_accepted:              { icon: Check,         color: "text-green-600",   bg: "bg-green-50 dark:bg-green-950/30" },
   quotation_declined:              { icon: XCircle,       color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/30" },
   quotation_changes_requested:     { icon: Edit3,         color: "text-orange-600",  bg: "bg-orange-50 dark:bg-orange-950/30" },
+  signature_declined:              { icon: XCircle,       color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/30" },
+  signature_revision_requested:    { icon: MessageSquare, color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-950/30" },
 }
 
 export default function NotificationsPage() {
@@ -188,6 +190,18 @@ export default function NotificationsPage() {
                     <div className="mt-2 p-2.5 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/40">
                       <p className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-0.5">Requested changes:</p>
                       <p className="text-xs text-orange-600 dark:text-orange-300 leading-relaxed">{n.metadata.reason}</p>
+                    </div>
+                  )}
+                  {n.type === "signature_revision_requested" && n.metadata?.reason && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40">
+                      <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-0.5">Revision requested:</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-300 leading-relaxed">{n.metadata.reason}</p>
+                    </div>
+                  )}
+                  {n.type === "signature_declined" && n.metadata?.reason && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40">
+                      <p className="text-xs font-medium text-red-700 dark:text-red-400 mb-0.5">Reason:</p>
+                      <p className="text-xs text-red-600 dark:text-red-300 leading-relaxed">{n.metadata.reason}</p>
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground/60 mt-1.5">

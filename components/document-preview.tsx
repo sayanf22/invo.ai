@@ -330,6 +330,8 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const supportsSignatures = SIGNATURE_DOCUMENT_TYPES.includes((data.documentType || "").toLowerCase())
   const hasPendingSignatures = signatures.length > 0 && !signatures.every(s => s.signed_at)
   const allSigned = signatures.length > 0 && signatures.every(s => s.signed_at)
+  const hasDeclined = signatures.some((s: any) => s.signer_action === "declined")
+  const hasRevisionRequested = signatures.some((s: any) => s.signer_action === "revision_requested")
 
   useEffect(() => {
     if (!sessionId || !supportsSignatures) return
@@ -478,9 +480,19 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         {/* Right: Payment Link (invoices) + Send + Share + Print + Download */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {/* Signature status badges */}
-          {supportsSignatures && sessionId && hasPendingSignatures && (
+          {supportsSignatures && sessionId && hasPendingSignatures && !hasDeclined && !hasRevisionRequested && (
             <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
               Pending Signature
+            </span>
+          )}
+          {supportsSignatures && sessionId && hasDeclined && (
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
+              Declined
+            </span>
+          )}
+          {supportsSignatures && sessionId && hasRevisionRequested && !hasDeclined && (
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+              Revision Requested
             </span>
           )}
           {supportsSignatures && sessionId && allSigned && (
