@@ -7,7 +7,7 @@ import {
   FileText, Download, Eye, Calendar, Loader2, ArrowLeft, Plus,
   CheckCircle2, Clock, AlertCircle, XCircle, Link2, ExternalLink,
   RefreshCw, ChevronDown, ChevronUp, CreditCard, Send, Mail,
-  BellOff,
+  BellOff, Repeat2,
 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
@@ -85,6 +85,18 @@ interface DocSession {
   email?: EmailRecord | null          // most recent email (for badge)
   emailStats?: EmailStats | null
   quotationResponse?: { response_type: string } | null
+  recurring?: RecurringRecord | null
+}
+
+interface RecurringRecord {
+  id: string
+  frequency: "weekly" | "monthly" | "quarterly"
+  is_active: boolean
+  auto_send: boolean
+  recipient_email: string | null
+  next_run_at: string
+  last_run_at: string | null
+  run_count: number
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -409,6 +421,131 @@ function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId:
   )
 }
 
+// ── Recurring Panel ───────────────────────────────────────────────────────────
+
+function RecurringPanel({ session, onRefresh }: { session: DocSession; onRefresh?: () => void }) {
+  const rec = session.recurring
+  const [saving, setSaving] = useState(false)
+  const [frequency, setFrequency] = useState<"weekly" | "monthly" | "quarterly">(rec?.frequency ?? "monthly")
+  const [isActive, setIsActive] = useState(rec?.is_active ?? false)
+
+  const FREQ_LABELS: Record<string, string> = {
+    weekly: "Weekly",
+    monthly: "Monthly",
+    quarterly: "Quarterly",
+  }
+
+  async function handleToggle() {
+    setSaving(true)
+    try {
+      if (isActive) {
+        // Turn off
+        const res = await authFetch(`/api/recurring?sessionId=${session.id}`, { method: "DELETE" })
+        if (res.ok) { setIsActive(false); toast.success("Recurring invoicing paused"); onRefresh?.() }
+        else toast.error("Failed to pause")
+      } else {
+        // Turn on
+        const res = await authFetch("/api/recurring", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: session.id, frequency }),
+        })
+        if (res.ok) { setIsActive(true); toast.success(`Recurring ${frequency} invoicing enabled`); onRefresh?.() }
+        else { const d = await res.json().catch(() => ({})); toast.error(d.error || "Failed to enable") }
+      }
+    } catch { toast.error("Network error") }
+    finally { setSaving(false) }
+  }
+
+  async function handleFrequencyChange(f: "weekly" | "monthly" | "quarterly") {
+    setFrequency(f)
+    if (!isActive) return
+    setSaving(true)
+    try {
+      const res = await authFetch("/api/recurring", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: session.id, frequency: f }),
+      })
+      if (res.ok) { toast.success(`Frequency updated to ${f}`); onRefresh?.() }
+      else toast.error("Failed to update frequency")
+    } catch { toast.error("Network error") }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-border/50 bg-muted/20 overflow-hidden">
+      {/* Header row with toggle */}
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <Repeat2 size={13} className={cn("shrink-0", isActive ? "text-violet-500" : "text-muted-foreground")} />
+          <span className="text-xs font-semibold text-foreground">
+            {isActive ? `Recurring · ${FREQ_LABELS[frequency]}` : "Recurring invoicing"}
+          </span>
+          {isActive && rec?.next_run_at && (
+            <span className="text-[10px] text-muted-foreground">
+              · next {format(new Date(rec.next_run_at), "MMM d")}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleToggle}
+          disabled={saving}
+          className={cn(
+            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer",
+            isActive ? "bg-violet-500" : "bg-muted",
+            saving && "opacity-50 pointer-events-none"
+          )}
+          aria-label={isActive ? "Pause recurring" : "Enable recurring"}
+        >
+          <span className={cn(
+            "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
+            isActive ? "translate-x-[18px]" : "translate-x-0.5"
+          )} />
+        </button>
+      </div>
+
+      {/* Frequency selector — shown when active or when turning on */}
+      <div className={cn(
+        "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        "grid-rows-[1fr]"
+      )}>
+        <div className="min-h-0 overflow-hidden">
+          <div className="px-3 pb-3 space-y-2">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Frequency</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(["weekly", "monthly", "quarterly"] as const).map(f => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => handleFrequencyChange(f)}
+                  disabled={saving}
+                  className={cn(
+                    "py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 capitalize",
+                    frequency === f
+                      ? "bg-violet-500 text-white shadow-sm"
+                      : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  {FREQ_LABELS[f]}
+                </button>
+              ))}
+            </div>
+            {isActive && rec && (
+              <p className="text-[10px] text-muted-foreground">
+                {rec.run_count > 0
+                  ? `${rec.run_count} invoice${rec.run_count > 1 ? "s" : ""} generated · last ${format(new Date(rec.last_run_at!), "MMM d, yyyy")}`
+                  : "First invoice will be generated on the next run date"}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Document Card ─────────────────────────────────────────────────────────────
 
 function DocCard({
@@ -424,6 +561,7 @@ function DocCard({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [emailExpanded, setEmailExpanded] = useState(false)
+  const [recurringExpanded, setRecurringExpanded] = useState(false)
   const docType = (session.document_type || "invoice").toLowerCase()
   const ctx = session.context || {}
 
@@ -441,6 +579,7 @@ function DocCard({
   const hasPayment = !!payment
   const emailStats = session.emailStats
   const hasEmails = !!emailStats && emailStats.totalSent > 0
+  const hasRecurring = docType === "invoice" // show recurring option for all invoices
 
   return (
     <div
@@ -546,6 +685,14 @@ function DocCard({
               Signed PDF
             </a>
           )}
+
+          {/* Recurring badge */}
+          {session.recurring?.is_active && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-violet-600 dark:text-violet-400 mt-1">
+              <Repeat2 size={10} />
+              Recurring · {session.recurring.frequency}
+            </span>
+          )}
         </div>
 
         {/* Actions */}
@@ -569,6 +716,24 @@ function DocCard({
             {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
           </button>
 
+          {/* Recurring toggle button — invoices only */}
+          {hasRecurring && (
+            <button
+              className={cn(
+                "flex items-center justify-center w-8 h-8 rounded-xl transition-colors",
+                recurringExpanded
+                  ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400"
+                  : "hover:bg-secondary/60 text-muted-foreground hover:text-foreground",
+                session.recurring?.is_active && !recurringExpanded && "text-violet-500"
+              )}
+              onClick={() => setRecurringExpanded(v => !v)}
+              aria-label="Recurring settings"
+              title="Recurring invoice settings"
+            >
+              <Repeat2 size={15} />
+            </button>
+          )}
+
           {/* Expand details — show if payment or emails exist */}
           {(hasPayment || hasEmails) && (
             <button
@@ -581,6 +746,20 @@ function DocCard({
           )}
         </div>
       </div>
+
+      {/* Expandable recurring panel */}
+      {hasRecurring && (
+        <div className={cn(
+          "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          recurringExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}>
+          <div className="min-h-0 overflow-hidden">
+            <div className="px-3.5 pb-3.5">
+              <RecurringPanel session={session} onRefresh={onRefresh} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expandable payment panel */}
       {hasPayment && (
@@ -733,7 +912,30 @@ export default function MyDocumentsPage() {
         quotationResponse: quotationResponseMap[s.id] ?? null,
       }))
 
-      setSessions(mergedWithQuotations)
+      // Fetch recurring schedules for invoice sessions
+      const invoiceSessionIds = withContent
+        .filter((s: any) => s.document_type === "invoice")
+        .map((s: any) => s.id)
+
+      let recurringMap: Record<string, RecurringRecord> = {}
+      if (invoiceSessionIds.length > 0) {
+        const { data: recurringRows } = await (supabase as any)
+          .from("recurring_invoices")
+          .select("source_session_id, id, frequency, is_active, auto_send, recipient_email, next_run_at, last_run_at, run_count")
+          .in("source_session_id", invoiceSessionIds)
+          .eq("user_id", user.id)
+
+        for (const r of (recurringRows ?? [])) {
+          recurringMap[r.source_session_id] = r as RecurringRecord
+        }
+      }
+
+      const mergedFinal: DocSession[] = mergedWithQuotations.map((s) => ({
+        ...s,
+        recurring: recurringMap[s.id] ?? null,
+      }))
+
+      setSessions(mergedFinal)
     } catch (error: any) {
       console.error("Error loading sessions:", error?.message || error)
       toast.error("Failed to load documents")

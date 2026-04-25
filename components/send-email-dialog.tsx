@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Mail, Loader2, X, Send, RefreshCw, AlertTriangle, Lock, CheckCircle2, XCircle, Calendar, Bell, BellOff } from "lucide-react"
+import { Mail, Loader2, X, Send, RefreshCw, AlertTriangle, Lock, CheckCircle2, XCircle, Calendar, Bell, BellOff, Repeat2 } from "lucide-react"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -15,6 +15,8 @@ interface SendEmailDialogProps {
   documentType: string
   defaultEmail?: string
   onEmailSent?: () => void
+  isRecurring?: boolean
+  onRecurringChange?: (active: boolean, frequency: string) => void
 }
 
 // Step 1: Compose (enter email + subject, no AI yet)
@@ -63,17 +65,20 @@ export function SendEmailDialog({
   documentType,
   defaultEmail,
   onEmailSent,
+  isRecurring: initialRecurring = false,
+  onRecurringChange,
 }: SendEmailDialogProps) {
   const [step, setStep] = useState<Step>("compose")
   const [email, setEmail] = useState("")
   const [subject, setSubject] = useState("")
-  // Message is only generated when user proceeds to confirm step
   const [message, setMessage] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [scheduleFollowUps, setScheduleFollowUps] = useState(true)
-  // Payment link expiry (days from now) — only relevant for invoices
   const [paymentLinkExpiryDays, setPaymentLinkExpiryDays] = useState(30)
+  // Recurring state
+  const [makeRecurring, setMakeRecurring] = useState(initialRecurring)
+  const [recurringFrequency, setRecurringFrequency] = useState<"weekly" | "monthly" | "quarterly">("monthly")
 
   // Email validation state
   const [emailValidating, setEmailValidating] = useState(false)
@@ -226,6 +231,22 @@ export function SendEmailDialog({
       })
 
       if (res.ok) {
+        // Save recurring settings if invoice
+        if (documentType.toLowerCase() === "invoice") {
+          if (makeRecurring) {
+            await authFetch("/api/recurring", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sessionId,
+                frequency: recurringFrequency,
+                autoSend: false,
+                recipientEmail: email.trim(),
+              }),
+            }).catch(() => {}) // non-fatal
+          }
+          onRecurringChange?.(makeRecurring, recurringFrequency)
+        }
         onClose()
         toast.success(`${docTypeLabel} sent to ${email.trim()}`)
         onEmailSent?.()
@@ -512,6 +533,63 @@ export function SendEmailDialog({
                         ))}
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-2 italic">Stops automatically when payment is received.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Recurring invoice toggle — invoices only */}
+              {documentType.toLowerCase() === "invoice" && (
+                <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                  <div className="px-4 py-3 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <Repeat2 className={cn("w-4 h-4 shrink-0 mt-0.5", makeRecurring ? "text-violet-500" : "text-muted-foreground")} />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Make recurring</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {makeRecurring
+                            ? `Auto-generate a new invoice every ${recurringFrequency === "quarterly" ? "quarter" : recurringFrequency.replace("ly", "")}.`
+                            : "Automatically create this invoice on a schedule."}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMakeRecurring(v => !v)}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
+                        makeRecurring ? "bg-violet-500" : "bg-muted"
+                      )}
+                    >
+                      <span className={cn(
+                        "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
+                        makeRecurring ? "translate-x-[18px]" : "translate-x-0.5"
+                      )} />
+                    </button>
+                  </div>
+                  {makeRecurring && (
+                    <div className="px-4 pb-3 border-t border-border/40">
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-2.5 mb-1.5">Frequency</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {(["weekly", "monthly", "quarterly"] as const).map(f => (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setRecurringFrequency(f)}
+                            className={cn(
+                              "py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 capitalize",
+                              recurringFrequency === f
+                                ? "bg-violet-500 text-white"
+                                : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                            )}
+                          >
+                            {f.charAt(0).toUpperCase() + f.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-2">
+                        New invoices will be linked to this one and auto-numbered.
+                      </p>
                     </div>
                   )}
                 </div>

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/components/auth-provider"
 import { createClient } from "@/lib/supabase"
-import { Bell, CheckCircle2, Gift, CreditCard, XCircle, RefreshCw, Info, Loader2, Check, ArrowLeft, Eye, PenLine, Clock, Edit3, MessageSquare } from "lucide-react"
+import { Bell, CheckCircle2, Gift, CreditCard, XCircle, RefreshCw, Info, Loader2, Check, ArrowLeft, Eye, PenLine, Clock, Edit3, MessageSquare, Repeat2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { cn } from "@/lib/utils"
@@ -39,6 +39,7 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
   quotation_changes_requested:     { icon: Edit3,         color: "text-orange-600",  bg: "bg-orange-50 dark:bg-orange-950/30" },
   signature_declined:              { icon: XCircle,       color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/30" },
   signature_revision_requested:    { icon: MessageSquare, color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-950/30" },
+  recurring_invoice_generated:     { icon: Repeat2,       color: "text-violet-600",  bg: "bg-violet-50 dark:bg-violet-950/30" },
 }
 
 export default function NotificationsPage() {
