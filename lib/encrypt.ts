@@ -17,8 +17,15 @@ const IV_LENGTH = 12 // 96 bits — recommended for GCM
 
 /** Derive a CryptoKey from the app secret */
 async function getDerivedKey(): Promise<CryptoKey> {
-    // Use dedicated ENCRYPTION_KEY if available, fall back to CSRF_SECRET
-    const secret = process.env.ENCRYPTION_KEY || process.env.CSRF_SECRET || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "fallback-key"
+    // SECURITY: Only use server-side secrets — never fall back to public keys
+    // ENCRYPTION_KEY is the preferred dedicated key
+    // CSRF_SECRET is acceptable as a fallback (server-side only)
+    // NEVER use NEXT_PUBLIC_* keys — they are exposed in the client bundle
+    const secret = process.env.ENCRYPTION_KEY || process.env.CSRF_SECRET
+    if (!secret) {
+        throw new Error("No encryption key configured. Set ENCRYPTION_KEY in environment variables.")
+    }
+
     const encoder = new TextEncoder()
 
     // Import raw key material
@@ -31,10 +38,11 @@ async function getDerivedKey(): Promise<CryptoKey> {
     )
 
     // Derive AES-256-GCM key
+    // Salt includes the app name to namespace keys across different apps using the same secret
     return crypto.subtle.deriveKey(
         {
             name: "PBKDF2",
-            salt: encoder.encode("invo-ai-payment-keys-v1"),
+            salt: encoder.encode("clorefy-payment-keys-v2"),
             iterations: 100_000,
             hash: "SHA-256",
         },

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { streamGenerateDocument, type AIGenerationRequest } from "@/lib/deepseek"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 
-import { checkCostLimit, trackUsage, checkMessageLimit, incrementDocumentCount, type UserTier } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, checkMessageLimit, incrementDocumentCount, type UserTier, parseTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText } from "@/lib/sanitize"
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
             .select("plan")
             .eq("user_id", auth.user.id)
             .single()
-        const userTier = ((sub as any)?.plan || "free") as UserTier
+        const userTier = parseTier((sub as any)?.plan)
 
         // SECURITY: Cost protection - check monthly document limit with actual tier
         const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)

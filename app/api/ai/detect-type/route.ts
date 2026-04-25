@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
 import { sanitizeText } from "@/lib/sanitize"
 import { detectDocumentType, getDetectionMessage } from "@/lib/server/document-type-detector"
-import { checkCostLimit, type UserTier } from "@/lib/cost-protection"
+import { checkCostLimit, parseTier, type UserTier } from "@/lib/cost-protection"
 
 interface DetectTypeRequest {
     prompt: string
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
             .select("plan")
             .eq("user_id", auth.user.id)
             .single()
-        const userTier = ((sub as any)?.plan || "free") as UserTier
+        const userTier = parseTier((sub as any)?.plan)
 
         const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
         if (costError) return costError

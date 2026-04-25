@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
 import { sanitizeText } from "@/lib/sanitize"
 import { incrementDocumentCount, checkDocumentLimit, checkDocumentTypeAllowed } from "@/lib/cost-protection"
-import type { UserTier } from "@/lib/cost-protection"
+import { parseTier, type UserTier } from "@/lib/cost-protection"
 
 interface CreateSessionRequest {
     documentType: "invoice" | "contract" | "quotation" | "proposal"
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
             .select("plan")
             .eq("user_id", auth.user.id)
             .single()
-        const userTier: UserTier = (subscription?.plan as UserTier) || "free"
+        const userTier = parseTier(subscription?.plan)
 
         // Check document type is allowed for this tier (fast, no DB query)
         const typeError = checkDocumentTypeAllowed(body.documentType, userTier)

@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
 import { checkCostLimit, trackUsage } from "@/lib/cost-protection"
-import type { UserTier } from "@/lib/cost-protection"
+import { parseTier, type UserTier } from "@/lib/cost-protection"
 import { sanitizeText } from "@/lib/sanitize"
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
         .select("plan")
         .eq("user_id", auth.user.id)
         .single()
-    const userTier: UserTier = (subscription?.plan as UserTier) || "free"
+    const userTier = parseTier(subscription?.plan)
 
     // Block free-tier users from AI profile editing
     if (userTier === "free") {

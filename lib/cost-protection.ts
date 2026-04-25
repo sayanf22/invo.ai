@@ -16,6 +16,20 @@ import type { Database } from "./database.types"
 
 export type UserTier = "free" | "starter" | "pro" | "agency"
 
+const VALID_TIERS: readonly UserTier[] = ["free", "starter", "pro", "agency"] as const
+
+/**
+ * Safely parse a tier value from the database.
+ * Returns "free" if the value is invalid or missing.
+ * Prevents tier bypass via malicious DB entries.
+ */
+export function parseTier(value: unknown): UserTier {
+    if (typeof value === "string" && (VALID_TIERS as readonly string[]).includes(value)) {
+        return value as UserTier
+    }
+    return "free"
+}
+
 interface TierLimits {
     documentsPerMonth: number  // 0 = unlimited
     messagesPerSession: number // 0 = unlimited

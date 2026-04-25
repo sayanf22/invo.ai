@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { getSecret } from "@/lib/secrets"
 import { sanitizeText } from "@/lib/sanitize"
-import { checkCostLimit, trackUsage, type UserTier } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, parseTier, type UserTier } from "@/lib/cost-protection"
 
 /**
  * POST /api/ai/analyze-file
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         .select("plan")
         .eq("user_id", auth.user.id)
         .single()
-    const userTier = ((sub as any)?.plan || "free") as UserTier
+    const userTier = parseTier((sub as any)?.plan)
 
     const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
     if (costError) return costError
