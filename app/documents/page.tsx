@@ -51,6 +51,7 @@ interface PaymentRecord {
   reference_id: string | null
   customer_name: string | null
   gateway: string
+  razorpay_payment_link_id: string | null
 }
 
 interface EmailRecord {
@@ -161,13 +162,44 @@ function EmailBadge({ email }: { email: EmailRecord }) {
 
 // ── Payment Detail Panel ──────────────────────────────────────────────────────
 
-function PaymentPanel({ payment, currency }: { payment: PaymentRecord; currency: string }) {
+function PaymentPanel({ payment, currency, sessionId, onCancelled }: { payment: PaymentRecord; currency: string; sessionId: string; onCancelled?: () => void }) {
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelled, setCancelled] = useState(false)
+
   const fmt = (paise: number) => {
     const amount = paise / 100
     return new Intl.NumberFormat("en-IN", { style: "currency", currency: payment.currency || currency, maximumFractionDigits: 2 }).format(amount)
   }
 
   const isOverdue = payment.status === "created" && payment.expires_at && new Date(payment.expires_at) < new Date()
+
+  const handleCancelPaymentLink = async () => {
+    if (!payment.razorpay_payment_link_id) { toast.error("No payment link ID found"); return }
+    setCancelling(true)
+    try {
+      const res = await authFetch("/api/payments/cancel-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, razorpayPaymentLinkId: payment.razorpay_payment_link_id }),
+      })
+      if (res.ok) {
+        setCancelled(true)
+        // Also stop follow-up reminders
+        await authFetch(`/api/emails/schedules?sessionId=${sessionId}`, { method: "DELETE" }).catch(() => {})
+        toast.success("Payment link cancelled and reminders stopped")
+        onCancelled?.()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error || "Failed to cancel payment link")
+      }
+    } catch {
+      toast.error("Failed to cancel payment link")
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  const isActive = (payment.status === "created" || payment.status === "partially_paid") && !cancelled
 
   return (
     <div className="mt-2 rounded-xl border border-border/50 bg-muted/20 overflow-hidden">
@@ -219,8 +251,8 @@ function PaymentPanel({ payment, currency }: { payment: PaymentRecord; currency:
         )}
 
         {/* Payment link */}
-        {payment.status !== "paid" && payment.status !== "cancelled" && (
-          <div className="flex items-center gap-2 pt-0.5">
+        {isActive && (
+          <div className="flex items-center justify-between gap-2 pt-0.5">
             <a
               href={payment.short_url}
               target="_blank"
@@ -231,6 +263,23 @@ function PaymentPanel({ payment, currency }: { payment: PaymentRecord; currency:
               Open payment link
               <ExternalLink size={10} />
             </a>
+            <button
+              type="button"
+              onClick={handleCancelPaymentLink}
+              disabled={cancelling}
+              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-800/50 transition-colors disabled:opacity-50"
+            >
+              {cancelling ? <Loader2 size={10} className="animate-spin" /> : <XCircle size={10} />}
+              Cancel Link
+            </button>
+          </div>
+        )}
+
+        {/* Cancelled state */}
+        {cancelled && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5">
+            <XCircle size={11} />
+            Payment link cancelled
           </div>
         )}
       </div>
@@ -348,10 +397,12 @@ function DocCard({
   session,
   onDownload,
   downloading,
+  onRefresh,
 }: {
   session: DocSession
   onDownload: (s: DocSession) => void
   downloading: boolean
+  onRefresh?: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [emailExpanded, setEmailExpanded] = useState(false)
@@ -506,7 +557,7 @@ function DocCard({
         )}>
           <div className="min-h-0 overflow-hidden">
             <div className="px-3.5 pb-3.5">
-              <PaymentPanel payment={payment!} currency={ctx.currency || "INR"} />
+              <PaymentPanel payment={payment!} currency={ctx.currency || "INR"} sessionId={session.id} onCancelled={onRefresh} />
             </div>
           </div>
         </div>
@@ -571,7 +622,7 @@ export default function MyDocumentsPage() {
       if (sessionIds.length > 0) {
         const { data: payments } = await (supabase as any)
           .from("invoice_payments")
-          .select("id, session_id, short_url, amount, currency, status, amount_paid, paid_at, expires_at, created_at, view_count, link_viewed_at, reference_id, customer_name, gateway")
+          .select("id, session_id, short_url, amount, currency, status, amount_paid, paid_at, expires_at, created_at, view_count, link_viewed_at, reference_id, customer_name, gateway, razorpay_payment_link_id")
           .in("session_id", sessionIds)
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
@@ -887,6 +938,7 @@ export default function MyDocumentsPage() {
                     session={s}
                     onDownload={downloadDocument}
                     downloading={downloadingId === s.id}
+                    onRefresh={() => loadSessions(true)}
                   />
                 ))}
               </div>

@@ -105,36 +105,44 @@ function CopyField({ label, value }: { label: string; value: string }) {
   )
 }
 
-function WebhookPanel({ gateway, webhookSecret }: { gateway: Gateway; webhookSecret?: string }) {
-  const [open, setOpen] = useState(false)
+function WebhookPanel({ gateway, webhookSecret, webhookRegistered }: { gateway: Gateway; webhookSecret?: string; webhookRegistered?: boolean }) {
+  const [showDetails, setShowDetails] = useState(false)
   const appUrl = typeof window !== "undefined" ? window.location.origin : ""
   const webhookUrl = appUrl + (gateway === "razorpay" ? "/api/razorpay/webhook" : "/api/cashfree/webhook")
   const gwName = gateway === "razorpay" ? "Razorpay" : "Cashfree"
-  return (
-    <div className="mx-4 mb-3 rounded-xl border border-border/50 overflow-hidden">
-      <button type="button" onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-3 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-foreground/70">Configure Webhook</span>
-          <span className="text-[10px] text-foreground/40">Required for payment status updates</span>
+  if (webhookRegistered) {
+    return (
+      <div className="mx-4 mb-3 rounded-xl border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/20 overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" />
+            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Webhook configured</span>
+          </div>
+          <button type="button" onClick={() => setShowDetails(v => !v)} className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 hover:underline">
+            {showDetails ? "Hide" : "Details"}
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          <a href={"/integrations/payments/" + gateway} target="_blank" rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline">
-            Guide <ExternalLink size={10} />
-          </a>
-          <ChevronDown size={14} className={cn("text-foreground/40 transition-transform duration-200", open && "rotate-180")} />
-        </div>
-      </button>
-      <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
-        <div className="min-h-0 overflow-hidden">
-          <div className="p-3 space-y-2.5 border-t border-border/40 bg-background/50">
-            <p className="text-xs text-foreground/55">Copy these into your {gwName} Dashboard under Settings &rarr; Webhooks</p>
+        {showDetails && (
+          <div className="px-3 pb-3 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/30 space-y-2">
             <CopyField label="Webhook URL" value={webhookUrl} />
             {webhookSecret && <CopyField label="Webhook Secret" value={webhookSecret} />}
           </div>
-        </div>
+        )}
+      </div>
+    )
+  }
+  return (
+    <div className="mx-4 mb-3 rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/20 overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-amber-200/60 dark:border-amber-800/30">
+        <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Webhook Setup Required</span>
+        <a href={"/integrations/payments/" + gateway} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:underline">
+          Guide <ExternalLink size={10} />
+        </a>
+      </div>
+      <div className="p-3 space-y-2.5">
+        <p className="text-xs text-amber-800 dark:text-amber-300">Copy these into your {gwName} Dashboard under Settings &rarr; Webhooks</p>
+            <CopyField label="Webhook URL" value={webhookUrl} />
+            {webhookSecret && <CopyField label="Webhook Secret" value={webhookSecret} />}
       </div>
     </div>
   )
@@ -351,7 +359,7 @@ export function PaymentSettings() {
                     </div>
                   </div>
                   {(gw.id === "razorpay" || gw.id === "cashfree") && (
-                    <WebhookPanel gateway={gw.id} webhookSecret={gw.id === "razorpay" ? (s as any).webhookSecret : undefined} />
+                    <WebhookPanel gateway={gw.id} webhookSecret={gw.id === "razorpay" ? (s as any).webhookSecret : undefined} webhookRegistered={(s as any).webhookRegistered} />
                   )}
                   <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", isEditing ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
                     <div className="min-h-0 overflow-hidden">
