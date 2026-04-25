@@ -31,6 +31,30 @@
 
 ---
 
+## ✅ How Payment Links Were Implemented
+
+The goal was to let users collect payments directly from their invoices without any manual steps.
+
+### What the user experiences
+
+Every invoice has a "Get Payment Link" button in the toolbar. Clicking it shows a confirmation dialog with the amount, client name, and a warning that the invoice will be locked. Once confirmed, a payment link is created and the invoice becomes read-only. The user gets Copy and WhatsApp share buttons, a refresh button to check payment status, and a cancel button (with its own confirmation modal listing the consequences).
+
+Clients receive a link to `/pay/[sessionId]` — a public page that shows the invoice, the amount due, a Pay Now button, and a QR code. No login required. When the client pays, the invoice is permanently marked as paid and all email reminders stop.
+
+### How it works under the hood
+
+Payment links are created via the **Razorpay Payment Links API** using the user's own Razorpay keys — money goes directly to their account, not through Clorefy. The platform link (`clorefy.com/pay/[sessionId]`) is what gets shared, not the raw Razorpay URL. This keeps the experience branded and allows Clorefy to control what the client sees.
+
+Payment status updates happen via **webhooks** from Razorpay, Stripe, and Cashfree. Each user gets their own webhook endpoint so events are routed correctly. When a payment comes in, the webhook updates the invoice status, sends the user a notification, and cancels any pending email reminders.
+
+Stripe and Cashfree are also supported — users connect their own keys in Settings → Payments. The webhook secrets are encrypted at rest using AES-256-GCM before being stored.
+
+### Security
+
+The payment link creation requires authentication and verifies session ownership. The public pay page only shows documents that have an active payment record — you can't enumerate unsent documents. Webhook endpoints validate UUID format and verify HMAC signatures before processing any events.
+
+---
+
 ## ✅ How Email Sending Was Implemented
 
 The goal was to close the full loop: **generate → send → track → get paid** — all without leaving Clorefy.
