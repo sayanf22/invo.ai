@@ -219,18 +219,21 @@ export function sanitizeFileName(input: string): string {
  */
 export function sanitizeSQLInput(input: string): string {
     if (!input || typeof input !== "string") return ""
-    
-    // Remove SQL keywords and dangerous patterns
+
+    // Limit input length to prevent ReDoS on large inputs
+    const bounded = input.slice(0, 10_000)
+
+    // Remove SQL keywords — use non-capturing groups to avoid ReDoS
     const dangerous = [
-        /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|DECLARE)\b)/gi,
-        /(--|;|\/\*|\*\/|xp_|sp_)/gi,
-        /('|"|`)/g,
+        /\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|DECLARE)\b/gi,
+        /--|;|\/\*|\*\/|xp_|sp_/gi,
+        /['"`]/g,
     ]
-    
-    let sanitized = input
+
+    let sanitized = bounded
     for (const pattern of dangerous) {
         sanitized = sanitized.replace(pattern, "")
     }
-    
+
     return sanitized.trim()
 }

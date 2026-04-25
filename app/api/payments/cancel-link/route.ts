@@ -64,7 +64,12 @@ export async function POST(request: NextRequest) {
         await cancelPaymentLink(razorpayPaymentLinkId)
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Unknown error"
-        return NextResponse.json({ error: msg }, { status: 500 })
+        console.error("Razorpay cancel-link error:", msg)
+        // Return a safe error message — don't expose Razorpay API internals
+        if (msg.includes("already cancelled") || msg.includes("cancelled")) {
+            return NextResponse.json({ error: "Payment link is already cancelled" }, { status: 400 })
+        }
+        return NextResponse.json({ error: "Failed to cancel payment link. Please try again." }, { status: 500 })
     }
 
     // Update DB

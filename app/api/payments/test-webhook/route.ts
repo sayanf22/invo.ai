@@ -212,9 +212,10 @@ export async function POST(request: NextRequest) {
       })
     }
   } catch (err: any) {
+    console.error("Test webhook error:", err?.message || err)
     return NextResponse.json({
       success: false,
-      error: `Failed to reach webhook endpoint: ${err.message || "Unknown error"}`,
+      error: "Failed to reach webhook endpoint. Check your configuration.",
     }, { status: 500 })
   }
 }

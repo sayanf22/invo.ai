@@ -21,7 +21,13 @@ export async function POST(
     const { userId } = await params
 
     if (!userId || typeof userId !== "string" || userId.length < 10) {
-        return NextResponse.json({ error: "Invalid user" }, { status: 400 })
+        return NextResponse.json({ received: true }) // Silent — don't reveal validation
+    }
+
+    // Validate userId is a UUID to prevent path traversal / enumeration
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(userId)) {
+        return NextResponse.json({ received: true }) // Silent — don't reveal validation
     }
 
     const body = await request.text()

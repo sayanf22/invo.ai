@@ -22,10 +22,9 @@ export async function GET(request: NextRequest) {
       .order("scheduled_for", { ascending: true })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error("Get schedules DB error:", error.message)
+      return NextResponse.json({ error: "Failed to load schedules" }, { status: 500 })
     }
-
-    return NextResponse.json({ schedules: data || [] })
   } catch (error) {
     console.error("Get schedules error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -69,10 +68,9 @@ export async function DELETE(request: NextRequest) {
       .eq("status", "pending")
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error("Cancel schedules DB error:", error.message)
+      return NextResponse.json({ error: "Failed to cancel reminders" }, { status: 500 })
     }
-
-    return NextResponse.json({ message: "Follow-up reminders cancelled" })
   } catch (error) {
     console.error("Cancel schedules error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
