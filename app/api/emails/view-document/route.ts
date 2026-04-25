@@ -29,13 +29,21 @@ export async function GET(request: NextRequest) {
     )
 
     // Fetch document session — only context and type, no user info
+    // SECURITY: Only return sessions that have been explicitly sent (sent_at is set)
+    // This prevents enumeration of unsent/draft documents
     const { data: session, error } = await supabase
       .from("document_sessions")
-      .select("context, document_type, status")
+      .select("context, document_type, status, sent_at")
       .eq("id", sessionId)
       .single()
 
     if (error || !session?.context) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 })
+    }
+
+    // Only serve documents that have been explicitly sent to a recipient
+    // This prevents unauthorized access to draft/unsent documents
+    if (!session.sent_at) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 

@@ -108,6 +108,14 @@ export async function POST(request: NextRequest) {
         }, { status: 422 })
       }
 
+      // Decrypt the webhook secret (stored encrypted)
+      let stripeWebhookSecret = settings.stripe_webhook_secret
+      try {
+        const { decrypt } = await import("@/lib/encrypt")
+        const decrypted = await decrypt(settings.stripe_webhook_secret)
+        if (decrypted) stripeWebhookSecret = decrypted
+      } catch { /* old plaintext record */ }
+
       // Build a test Stripe event
       const testEvent = {
         id: "evt_test_" + Date.now(),
@@ -129,7 +137,7 @@ export async function POST(request: NextRequest) {
       const signedPayload = `${timestamp}.${testPayload}`
       const encoder = new TextEncoder()
       const key = await crypto.subtle.importKey(
-        "raw", encoder.encode(settings.stripe_webhook_secret),
+        "raw", encoder.encode(stripeWebhookSecret),
         { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
       )
       const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(signedPayload))

@@ -230,13 +230,18 @@ async function handleStripe(auth: any, body: Record<string, unknown>, request: N
     // Register new webhook programmatically (Stripe supports this!)
     const webhookResult = await registerStripeWebhook(safeKey, auth.user.id)
 
+    // Encrypt the webhook secret before storing (it's sensitive — used to verify webhook signatures)
+    const encryptedWebhookSecret = webhookResult?.webhookSecret
+        ? await encrypt(webhookResult.webhookSecret)
+        : null
+
     await supabase.from("user_payment_settings").upsert({
         user_id: auth.user.id,
         stripe_secret_key_encrypted: encryptedSecret,
         stripe_enabled: true,
         stripe_test_mode: isTestMode,
         stripe_webhook_id: webhookResult?.webhookId ?? null,
-        stripe_webhook_secret: webhookResult?.webhookSecret ?? null,
+        stripe_webhook_secret: encryptedWebhookSecret,
         updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" })
 

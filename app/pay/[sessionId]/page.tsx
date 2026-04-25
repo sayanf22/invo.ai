@@ -34,10 +34,10 @@ export default async function PayPage({ params }: PageProps) {
 
   const supabase = createServiceClient()
 
-  // Fetch session data
+  // Fetch session data — only serve if it has been sent (has a payment link)
   const { data: session } = await supabase
     .from("document_sessions")
-    .select("context, document_type, status")
+    .select("context, document_type, status, sent_at")
     .eq("id", sessionId)
     .single()
 
@@ -54,6 +54,12 @@ export default async function PayPage({ params }: PageProps) {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  // Only show the pay page if there's an active payment link
+  // This prevents enumeration of documents without payment links
+  if (!pay) {
+    return <PayDocumentView docData={null} payment={null} />
+  }
 
   const docData = session.context as unknown as InvoiceData
   const payment: PaymentInfo | null = pay ?? null

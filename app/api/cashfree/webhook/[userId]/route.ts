@@ -13,7 +13,13 @@ export async function POST(
     { params }: { params: Promise<{ userId: string }> }
 ) {
     const { userId } = await params
-    if (!userId || userId.length < 10) return NextResponse.json({ error: "Invalid user" }, { status: 400 })
+    if (!userId || userId.length < 10) return NextResponse.json({ received: true })
+
+    // Validate userId is a UUID to prevent path traversal / enumeration
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(userId)) {
+        return NextResponse.json({ received: true })
+    }
 
     const body = await request.text()
     const signature = request.headers.get("x-webhook-signature") || ""

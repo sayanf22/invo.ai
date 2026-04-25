@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { verifyStripeWebhookSignature } from "@/lib/stripe-payments"
+import { decrypt } from "@/lib/encrypt"
 
 /**
  * POST /api/stripe/webhook/[userId]
@@ -13,6 +14,12 @@ export async function POST(
 ) {
     const { userId } = await params
     if (!userId || userId.length < 10) return NextResponse.json({ error: "Invalid user" }, { status: 400 })
+
+    // Validate userId is a UUID to prevent path traversal
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(userId)) {
+        return NextResponse.json({ received: true }) // Silent — don't reveal validation
+    }
 
     const body = await request.text()
     const signature = request.headers.get("stripe-signature") || ""
@@ -32,7 +39,17 @@ export async function POST(
         return NextResponse.json({ received: true })
     }
 
-    const isValid = await verifyStripeWebhookSignature(body, signature, settings.stripe_webhook_secret)
+    // Decrypt the webhook secret (stored encrypted since security hardening)
+    // Fall back to treating as plaintext for backwards compatibility with old records
+    let webhookSecret = settings.stripe_webhook_secret
+    try {
+        const decrypted = await decrypt(settings.stripe_webhook_secret)
+        if (decrypted) webhookSecret = decrypted
+    } catch {
+        // Old record stored as plaintext — use as-is
+    }
+
+    const isValid = await verifyStripeWebhookSignature(body, signature, webhookSecret)
     if (!isValid) {
         return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
     }
