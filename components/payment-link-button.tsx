@@ -380,6 +380,16 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                 <span className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-400">
                     Paid {paymentLink.amount > 0 ? formatAmount(paymentLink.amount / 100, paymentLink.currency) : ""}
                 </span>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 ml-1">
+                                <Lock className="w-3 h-3" />
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Document is permanently locked after payment</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             </div>
         )
     }

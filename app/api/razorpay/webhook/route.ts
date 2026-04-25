@@ -158,6 +158,7 @@ export async function POST(request: Request) {
                 // Create a notification for the user
                 const notes = paymentLink.notes ?? {}
                 const userId = notes.user_id
+                const sessionId = notes.session_id
                 if (userId) {
                     const amountDisplay = ((paymentLink.amount_paid ?? paymentLink.amount) / 100).toFixed(2)
                     const currency = paymentLink.currency ?? "INR"
@@ -176,6 +177,38 @@ export async function POST(request: Request) {
                                 reference_id: paymentLink.reference_id,
                             },
                         })
+
+                    // Lock document permanently — update session status to "paid"
+                    if (sessionId) {
+                        await supabase
+                            .from("document_sessions")
+                            .update({ status: "paid", updated_at: new Date().toISOString() } as any)
+                            .eq("id", sessionId)
+                            .eq("user_id", userId)
+                    } else {
+                        // Fallback: find session via invoice_payments
+                        const { data: invoicePayment } = await supabase
+                            .from("invoice_payments" as any)
+                            .select("session_id")
+                            .eq("razorpay_payment_link_id", paymentLink.id)
+                            .maybeSingle()
+                        if (invoicePayment?.session_id) {
+                            await supabase
+                                .from("document_sessions")
+                                .update({ status: "paid", updated_at: new Date().toISOString() } as any)
+                                .eq("id", invoicePayment.session_id)
+                                .eq("user_id", userId)
+                        }
+                    }
+
+                    // Cancel all pending email follow-ups (payment received)
+                    if (sessionId) {
+                        await (supabase as any)
+                            .from("email_schedules")
+                            .update({ status: "cancelled", cancelled_reason: "payment_received", updated_at: new Date().toISOString() })
+                            .eq("session_id", sessionId)
+                            .eq("status", "pending")
+                    }
                 }
                 break
             }
