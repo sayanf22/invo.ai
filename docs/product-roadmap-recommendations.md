@@ -8,7 +8,7 @@
 
 - ✅ AI document generation (invoice, contract, quotation, proposal) — 11 countries
 - ✅ Country-compliant tax rules (GST, VAT, USt, TVA, etc.)
-- ✅ Digital signatures — legally defensible with document fingerprinting (SHA-256), audit trail, certificate page, verification URL (`/verify/[signatureId]`)
+- ✅ Digital signatures — legally defensible with document fingerprinting (SHA-256), audit trail, certificate page, verification URL (`/verify/[signatureId]`), Decline + Request Revision via signing link
 - ✅ Quotation Accept / Decline / Request Changes flow — clients respond directly from the public view page, owner gets in-app notifications
 - ✅ Client management (CRUD, CSV import/export, AI chat)
 - ✅ Document linking (invoice → contract → quotation chain)
@@ -26,7 +26,9 @@
 - ✅ Automated payment reminders (day +3, +7, +14, +30 — stops on payment)
 - ✅ Email delivery tracking (sent → delivered → opened → bounced)
 - ✅ Email follow-up management (stop reminders, view history per document)
-- ✅ Tier-based email limits enforced (Free: 5, Starter: 100, Pro: 250, Agency: unlimited) — `emails_count` column in `user_usage`, `increment_email_count` RPC, `checkEmailLimit` reads live DB
+- ✅ Tier-based email limits enforced (Free: 5, Starter: 100, Pro: 250, Agency: unlimited)
+- ✅ Recurring invoices — weekly/monthly/quarterly, auto-generates linked sessions, toggle in My Documents + Send dialog
+- ✅ Auto-send invoice on contract signing — toggle in Send dialog (off for free, on for paid), signer sees notice before signing, invoice auto-sent on completion
 - ✅ Security hardening (4 audit passes, 17 vulnerabilities fixed)
 - ✅ Consistent loading screens and back navigation fixes
 
@@ -42,11 +44,13 @@ A "Get Signature" button appears in the document toolbar for contracts, quotatio
 
 Signers receive a branded email with a "Sign Document" button. The signing page shows the document preview, the business logo, the expiry date, and a consent checkbox with exact legal text. After signing, a confirmation screen shows the signing timestamp and a verification URL.
 
+**Decline and Request Revision**: The signing page also has "Decline" and "Request Changes" buttons. Declining sends a notification to the owner with an optional reason. Requesting changes requires a description — the owner is notified and can send a revised version.
+
 ### How it works under the hood
 
 **Document fingerprinting**: At signing request creation, a SHA-256 hash of the canonical document JSON (`document_sessions.context`, keys sorted recursively) is computed server-side and stored in `signatures.document_hash`. At submission time, the hash is recomputed and compared — a mismatch returns 409 and records a `signature.tamper_detected` audit event.
 
-**Audit trail**: Every lifecycle event (request_created, viewed, signed, completed, expired, tamper_detected, abuse_detected, r2_fallback) is written to `signature_audit_events` — an append-only table enforced by RLS (INSERT for service_role only, no UPDATE/DELETE policies).
+**Audit trail**: Every lifecycle event (request_created, viewed, signed, completed, expired, tamper_detected, abuse_detected, r2_fallback, declined, revision_requested) is written to `signature_audit_events` — an append-only table enforced by RLS (INSERT for service_role only, no UPDATE/DELETE policies).
 
 **Certificate page**: When all signers complete, a `CertificatePDF` react-pdf component generates a certificate page with signer table (name, email, party, signed_at UTC, masked IP), full SHA-256 hash, verification URL, and legal statement. It's stored in R2 at `certificates/[documentId]_certificate.pdf`.
 
@@ -58,7 +62,46 @@ Signers receive a branded email with a "Sign Document" button. The signing page 
 
 ### Quotation response flow
 
-Accept / Decline / Request Changes buttons appear on the public view page for quotation documents. Each action opens a dialog collecting client name, email, and optional/required reason. Responses are stored in `quotation_responses` (public INSERT, owner SELECT only via RLS). The owner receives in-app notifications (`quotation_accepted`, `quotation_declined`, `quotation_changes_requested`) with the full reason in metadata for changes requests.
+Accept / Decline / Request Changes buttons appear on the public view page for quotation documents. Each action opens a dialog collecting client name, email, and optional/required reason. Responses are stored in `quotation_responses` (public INSERT, owner SELECT only via RLS). The owner receives in-app notifications with the full reason in metadata.
+
+---
+
+## ✅ How Recurring Invoices Were Implemented
+
+Freelancers with retainer clients can mark any invoice as recurring directly from the My Documents page or during the Send Email flow.
+
+### What the user experiences
+
+Every invoice card in My Documents has a loop (↻) icon button. Clicking it expands a panel with an on/off toggle and a frequency selector (Weekly / Monthly / Quarterly). When active, the next run date is shown. The same toggle appears in the Send Email confirm step for invoices.
+
+### How it works under the hood
+
+A `recurring_invoices` table stores the schedule per invoice session. A daily cron job (`POST /api/recurring/process`, protected by `CRON_SECRET`) finds all active recurring invoices due today and:
+- Creates a new linked `document_sessions` with an auto-incremented invoice number (INV-001 → INV-002) and updated issue/due dates
+- Creates a `document_links` record with `relationship: 'recurring'`
+- Updates `next_run_at`, `last_run_at`, `run_count`
+- Sends the owner an in-app notification
+
+---
+
+## ✅ How Auto-Invoice on Contract Signing Was Implemented
+
+When a contract is sent, the owner can enable "Auto-send invoice on signing" in the Send Email confirm step. This is off by default for free tier and on by default for paid tiers.
+
+### What the user experiences
+
+In the Send Email dialog (confirm step), contracts show an "Auto-send invoice on signing" toggle with a green indicator when active. Free tier users see the toggle disabled with a "Paid" badge. When enabled, the signer sees a blue notice on the signing page: "By signing this contract, an invoice will be automatically generated and sent to your email address." After signing, the confirmation screen confirms the invoice was sent.
+
+### How it works under the hood
+
+The setting is stored as `auto_invoice_on_sign` and `invoice_recipient_email` on `document_sessions`. When all signers complete a contract (`POST /api/signatures/sign`), the `triggerAutoInvoice()` function:
+- Creates a linked invoice session copying client data, items, and currency from the contract
+- Sets invoice number, issue date (today), due date (Net 30)
+- Sends the invoice email via Mailtrap
+- Creates a `document_links` record with `relationship: 'auto_invoice'`
+- Notifies the owner: "Invoice INV-XXXX was automatically sent to client@email.com after contract signing"
+
+The `GET /api/signatures?token=` endpoint returns `autoInvoiceOnSign` so the signing page can show the notice before the signer commits.
 
 ---
 
@@ -74,15 +117,9 @@ Clients receive a link to `/pay/[sessionId]` — a public page that shows the in
 
 ### How it works under the hood
 
-Payment links are created via the **Razorpay Payment Links API** using the user's own Razorpay keys — money goes directly to their account, not through Clorefy. The platform link (`clorefy.com/pay/[sessionId]`) is what gets shared, not the raw Razorpay URL. This keeps the experience branded and allows Clorefy to control what the client sees.
+Payment links are created via the **Razorpay Payment Links API** using the user's own Razorpay keys — money goes directly to their account, not through Clorefy. The platform link (`clorefy.com/pay/[sessionId]`) is what gets shared, not the raw Razorpay URL.
 
 Payment status updates happen via **webhooks** from Razorpay, Stripe, and Cashfree. Each user gets their own webhook endpoint so events are routed correctly. When a payment comes in, the webhook updates the invoice status, sends the user a notification, and cancels any pending email reminders.
-
-Stripe and Cashfree are also supported — users connect their own keys in Settings → Payments. The webhook secrets are encrypted at rest using AES-256-GCM before being stored.
-
-### Security
-
-The payment link creation requires authentication and verifies session ownership. The public pay page only shows documents that have an active payment record — you can't enumerate unsent documents. Webhook endpoints validate UUID format and verify HMAC signatures before processing any events.
 
 ---
 
@@ -92,30 +129,19 @@ The goal was to close the full loop: **generate → send → track → get paid*
 
 ### What the user experiences
 
-A "Send via Email" button sits in the document toolbar and the Share dropdown. Clicking it opens a 2-step dialog: first you compose (recipient email, subject, optional personal message), then you confirm and send. The personal message can be AI-generated or typed manually. For invoices, a "Pay Now" button is automatically included in the email. If no payment link exists yet, one is auto-created at send time using the user's connected Razorpay account.
+A "Send via Email" button sits in the document toolbar and the Share dropdown. Clicking it opens a 2-step dialog: first you compose (recipient email, subject, optional personal message), then you confirm and send. The personal message can be AI-generated or typed manually. For invoices, a "Pay Now" button is automatically included in the email.
 
 ### How it works under the hood
 
 Emails are sent via the **Mailtrap REST API** using plain `fetch()` — no npm packages needed, which keeps it compatible with Cloudflare Workers. The email template is built with inline CSS and table-based layout so it renders correctly in Gmail, Outlook, and Apple Mail on both desktop and mobile.
 
-When an email is sent, the system records it in the database, locks the document as "finalized," and schedules automated follow-up reminders. The reminder schedule follows industry standard: day +3, +7, +14, and +30. These run via a **Supabase Edge Function** triggered daily by a cron job. If the invoice gets paid at any point, all pending reminders are cancelled automatically.
+When an email is sent, the system records it in the database, locks the document as "finalized," and schedules automated follow-up reminders (day +3, +7, +14, +30). If the invoice gets paid at any point, all pending reminders are cancelled automatically.
 
-Delivery status (sent → delivered → opened → bounced) is tracked via **Mailtrap webhooks**. Every incoming webhook is signature-verified before processing. The My Documents page shows email stats inline — how many were sent, how many opened — and lets users stop reminders or cancel the payment link directly from the document list.
-
-### Email limits (enforced)
-
-Monthly email limits are enforced via `checkEmailLimit()` in `lib/cost-protection.ts`, which reads `user_usage.emails_count` (added via DB migration). After each successful send, `incrementEmailCount()` calls the `increment_email_count` Supabase RPC to atomically increment the counter. Limits: Free=5, Starter=100, Pro=250, Agency=unlimited.
-
-### Security
-
-Every send is authenticated, rate-limited (burst: 3 per minute, monthly: tier-based), and the session ownership is verified before anything is sent. All user-provided inputs are sanitized before being injected into the AI prompt or email body. Webhook endpoints verify HMAC signatures. Public document view pages only serve documents that have actually been sent.
+Delivery status (sent → delivered → opened → bounced) is tracked via **Mailtrap webhooks**. Monthly email limits are enforced via `checkEmailLimit()` reading `user_usage.emails_count`.
 
 ---
 
 ## What's Next
-
-### 🟡 Recurring Invoices
-Freelancers with retainer clients need to create the same invoice every month. A "Make Recurring" toggle with configurable frequency (weekly/monthly/quarterly) would auto-generate and optionally auto-send invoices on schedule.
 
 ### 🔵 Accounting Software Export
 Tally XML export for Indian SMBs, QuickBooks IIF, and Xero CSV. 90% of Indian businesses use Tally — this would make Clorefy indispensable for that market.
@@ -128,6 +154,9 @@ The Agency tier advertises 3 team members but the feature isn't built yet. Share
 
 ### 🔵 Multi-language Documents
 Currently all documents are generated in English. Adding language selection (Hindi, German, French, Dutch, Arabic) would unlock the full potential of the 11-country support.
+
+### 🔵 Client Portal
+A dedicated portal where clients can view all their documents, sign contracts, pay invoices, and respond to quotations — all in one place without needing separate links.
 
 ---
 
@@ -144,7 +173,8 @@ Currently all documents are generated in English. Adding language selection (Hin
 | View tracking | ❌ | ❌ | ✅ | ✅ | ✅ |
 | E-signature (legal) | ❌ | ❌ | ✅ | ✅ | ✅ |
 | Quote acceptance | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Recurring invoices | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Recurring invoices | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Auto-invoice on sign | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Price | Free/$16 | $8.40+ | $19+ | $49+ | **$9–$59** |
 
 **Pitch:** Generate, send, track, and get paid — all from one AI-powered platform. For 11 countries, at half the price of PandaDoc.

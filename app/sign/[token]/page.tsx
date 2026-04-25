@@ -89,6 +89,7 @@ export default function SigningPage() {
     const [isAlreadySigned, setIsAlreadySigned] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [confirmation, setConfirmation] = useState<ConfirmationData | null>(null)
+    const [autoInvoiceOnSign, setAutoInvoiceOnSign] = useState(false)
 
     // Form state
     const [consentChecked, setConsentChecked] = useState(false)
@@ -120,6 +121,7 @@ export default function SigningPage() {
 
                 const sig: SignatureData = data.signature
                 setBusiness(data.business ?? null)
+                setAutoInvoiceOnSign(!!data.autoInvoiceOnSign)
                 setSignature(sig)
 
                 // Sub-task 13.4: already-signed state
@@ -369,6 +371,14 @@ export default function SigningPage() {
                         <p className="text-xs text-center text-muted-foreground">
                             A confirmation email will be sent to {signature?.signer_email}
                         </p>
+                        {autoInvoiceOnSign && (
+                            <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800/50 p-4">
+                                <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                                <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
+                                    An invoice has been automatically generated and sent to <strong>{signature?.signer_email}</strong>.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </main>
             </div>
@@ -476,6 +486,21 @@ export default function SigningPage() {
                             my intent to sign this document electronically.
                         </span>
                     </label>
+
+                    {/* Auto-invoice notice — shown when contract has auto_invoice_on_sign enabled */}
+                    {autoInvoiceOnSign && (
+                        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800/50 p-4">
+                            <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                                <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                                    Invoice will be sent automatically
+                                </p>
+                                <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
+                                    By signing this contract, an invoice will be automatically generated and sent to your email address.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Sub-task 13.6: Submit button with min 44×44px touch target */}
                     <Button

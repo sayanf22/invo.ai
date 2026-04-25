@@ -433,7 +433,7 @@ export async function GET(request: NextRequest) {
             if (sessionId) {
                 const { data: session } = await serviceSupabase
                     .from("document_sessions")
-                    .select("user_id, document_type, context")
+                    .select("user_id, document_type, context, auto_invoice_on_sign")
                     .eq("id", sessionId)
                     .single()
 
@@ -494,7 +494,7 @@ export async function GET(request: NextRequest) {
                 }
             }
 
-            return NextResponse.json({ signature, business })
+            return NextResponse.json({ signature, business, autoInvoiceOnSign: !!(session as any)?.auto_invoice_on_sign })
         }
 
         if (documentId) {
