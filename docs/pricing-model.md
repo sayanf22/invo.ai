@@ -32,15 +32,27 @@ Once the cap is hit, the user must start a new session (which counts as a new do
 | Yearly savings | — | ~22% | ~21% | ~20% |
 | Documents/month | 5 | 50 | 150 | Unlimited |
 | Messages/session | 10 | 30 | 50 | Unlimited |
+| **Email sends/month** | **5** | **100** | **250** | **Unlimited** |
 | Document types | Invoice + Contract | All 4 | All 4 | All 4 |
 | PDF templates | 3 (Modern, Classic, Minimal) | All 9 | All 9 | All 9 |
 | Countries | All 11 | All 11 | All 11 | All 11 |
 | Export formats | PDF only | PDF + DOCX | PDF + DOCX + Image | All formats |
-| Session history | 7 days | 30 days | 1 year | Forever |
+| Session history | 30 days | 30 days | 1 year | Forever |
 | Digital signatures | — | — | ✓ | ✓ |
-| Custom logo/branding | — | — | ✓ | ✓ |
+| Custom logo/branding | ✓ | ✓ | ✓ | ✓ |
 | Team members | 1 | 1 | 1 | 3 |
 | Priority support | — | — | — | ✓ |
+
+### Email Send Limits (enforced)
+
+Email limits are enforced via `checkEmailLimit()` in `lib/cost-protection.ts`, reading `user_usage.emails_count`:
+
+- **Free**: 5 emails/month — matches the document limit (1 send per doc)
+- **Starter**: 100 emails/month — allows resends + follow-ups across all 50 docs
+- **Pro**: 250 emails/month — comfortable for follow-ups across all 150 docs
+- **Agency**: Unlimited
+
+After each successful send, `incrementEmailCount()` atomically increments the counter via the `increment_email_count` Supabase RPC.
 
 ## Cost Analysis
 

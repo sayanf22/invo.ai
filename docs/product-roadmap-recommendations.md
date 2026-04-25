@@ -26,8 +26,9 @@
 - ✅ Automated payment reminders (day +3, +7, +14, +30 — stops on payment)
 - ✅ Email delivery tracking (sent → delivered → opened → bounced)
 - ✅ Email follow-up management (stop reminders, view history per document)
-- ✅ Tier-based email limits enforced (Free: 5, Starter: 100, Pro: 250, Agency: unlimited)
-- ✅ Recurring invoices — weekly/monthly/quarterly, auto-generates linked sessions, toggle in My Documents + Send dialog
+- ✅ Tier-based email limits enforced (Free: 5/mo, Starter: 100/mo, Pro: 250/mo, Agency: unlimited)
+- ✅ Custom logo & branding available on all tiers (Free, Starter, Pro, Agency)
+- ✅ Session history: 30 days on Free & Starter, 1 year on Pro, Forever on Agency
 - ✅ Auto-send invoice on contract signing — toggle in Send dialog (off for free, on for paid), signer sees notice before signing, invoice auto-sent on completion
 - ✅ Stripe & Cashfree payment links for invoices — gateway auto-selected by currency (Razorpay for INR, Stripe for global, Cashfree as INR fallback)
 - ✅ Security hardening (4 audit passes, 17 vulnerabilities fixed)

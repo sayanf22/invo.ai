@@ -22,19 +22,19 @@ import { cn } from "@/lib/utils"
 const plans = [
     {
         id: "free", name: "Free",
-        features: ["5 documents/month", "Invoice + Contract only", "3 PDF templates", "3 countries (IN, US, UK)", "PDF export only", "7-day session history"],
+        features: ["5 documents/month", "Invoice + Contract only", "3 PDF templates", "All 11 countries", "PDF export only", "5 email sends/month", "Custom logo & branding", "30-day session history"],
     },
     {
         id: "starter", name: "Starter", popular: true,
-        features: ["50 documents/month", "All 4 document types", "All 9 PDF templates", "All 11 countries", "PDF + DOCX export", "30-day session history"],
+        features: ["50 documents/month", "All 4 document types", "All 9 PDF templates", "All 11 countries", "PDF + DOCX export", "100 email sends/month", "Custom logo & branding", "30-day session history"],
     },
     {
         id: "pro", name: "Pro",
-        features: ["150 documents/month", "All 4 document types", "All 9 PDF templates", "All 11 countries", "PDF + DOCX + Image export", "1-year session history", "E-signatures", "Custom logo & branding"],
+        features: ["150 documents/month", "All 4 document types", "All 9 PDF templates", "All 11 countries", "PDF + DOCX + Image export", "250 email sends/month", "E-signatures", "Custom logo & branding", "1-year session history"],
     },
     {
         id: "agency", name: "Agency", comingSoon: true,
-        features: ["Unlimited documents", "Everything in Pro", "3 team members", "Priority support", "Forever session history"],
+        features: ["Unlimited documents", "Everything in Pro", "Unlimited email sends", "3 team members", "Priority support", "Forever session history"],
     },
 ]
 
