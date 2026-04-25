@@ -39,6 +39,193 @@ function getServiceRoleClient() {
   return createClient(url, key)
 }
 
+// ── Auto-invoice trigger ──────────────────────────────────────────────────────
+// Called when a contract is fully signed and auto_invoice_on_sign = true.
+// Creates a linked invoice session and sends it to the client.
+
+async function triggerAutoInvoice({
+  supabase,
+  contractSession,
+  contractSessionId,
+  signerEmail,
+  signerName,
+  businessName,
+}: {
+  supabase: ReturnType<typeof createClient>
+  contractSession: Record<string, any>
+  contractSessionId: string
+  signerEmail: string
+  signerName: string
+  businessName: string
+}) {
+  const recipientEmail = contractSession.invoice_recipient_email || signerEmail
+  if (!recipientEmail) {
+    console.warn("[auto-invoice] No recipient email — skipping")
+    return
+  }
+
+  const parentContext = (contractSession.context ?? {}) as Record<string, any>
+
+  // Build invoice context from contract context
+  const now = new Date()
+  const dueDate = new Date(now)
+  dueDate.setDate(dueDate.getDate() + 30) // Net 30 default
+
+  const invoiceContext: Record<string, any> = {
+    documentType: "Invoice",
+    fromName: parentContext.fromName,
+    fromEmail: parentContext.fromEmail,
+    fromAddress: parentContext.fromAddress,
+    toName: parentContext.toName || signerName,
+    toEmail: recipientEmail,
+    toAddress: parentContext.toAddress,
+    currency: parentContext.currency || "USD",
+    issueDate: now.toISOString().slice(0, 10),
+    dueDate: dueDate.toISOString().slice(0, 10),
+    paymentTerms: parentContext.paymentTerms || "Net 30",
+    // Copy items/services from contract if present
+    items: Array.isArray(parentContext.items) ? parentContext.items.map((item: any, i: number) => ({
+      id: `auto-inv-${Date.now()}-${i}`,
+      description: item.description || "",
+      quantity: Number(item.quantity) || 1,
+      rate: Number(item.rate) || 0,
+    })) : [],
+    // Auto-generate invoice number
+    invoiceNumber: `INV-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-AUTO`,
+    design: parentContext.design,
+    notes: `Auto-generated from signed contract. ${parentContext.referenceNumber ? `Contract ref: ${parentContext.referenceNumber}` : ""}`.trim(),
+  }
+
+  // Determine chain_id
+  const chainId = contractSession.chain_id || contractSessionId
+
+  // Ensure contract session has chain_id
+  if (!contractSession.chain_id) {
+    await supabase
+      .from("document_sessions")
+      .update({ chain_id: chainId })
+      .eq("id", contractSessionId)
+  }
+
+  // Create linked invoice session
+  const { data: invoiceSession, error: createError } = await supabase
+    .from("document_sessions")
+    .insert({
+      user_id: contractSession.user_id,
+      document_type: "invoice",
+      status: "active",
+      context: invoiceContext,
+      chain_id: chainId,
+      client_name: contractSession.client_name || signerName,
+    })
+    .select("id")
+    .single()
+
+  if (createError || !invoiceSession) {
+    throw new Error(`Failed to create auto-invoice session: ${createError?.message}`)
+  }
+
+  // Create document link
+  await supabase
+    .from("document_links")
+    .insert({
+      parent_session_id: contractSessionId,
+      child_session_id: invoiceSession.id,
+      relationship: "auto_invoice",
+    })
+
+  // Increment document count
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  await (supabase as any).rpc("increment_document_count", {
+    p_user_id: contractSession.user_id,
+    p_month: monthKey,
+  }).catch(() => {})
+
+  // Send the invoice email via the send-document endpoint (internal call)
+  // We call the Mailtrap API directly to avoid auth complexity in server-to-server
+  const { renderEmailTemplate } = await import("@/lib/email-template")
+  const { sendEmail } = await import("@/lib/mailtrap")
+
+  // Fetch business logo
+  const { data: business } = await supabase
+    .from("businesses")
+    .select("name, logo_url")
+    .eq("user_id", contractSession.user_id)
+    .single()
+
+  const bName = business?.name || businessName
+  const bLogo = business?.logo_url || null
+
+  const html = renderEmailTemplate({
+    businessName: bName,
+    businessLogoUrl: bLogo,
+    documentType: "invoice",
+    referenceNumber: invoiceContext.invoiceNumber,
+    recipientName: invoiceContext.toName || signerName,
+    totalAmount: null,
+    currency: invoiceContext.currency,
+    dueDate: invoiceContext.dueDate,
+    description: invoiceContext.notes,
+    personalMessage: `Your contract has been signed. Please find your invoice attached.`,
+    viewDocumentUrl: `https://clorefy.com/view/${invoiceSession.id}`,
+    payNowUrl: null,
+  })
+
+  const emailResult = await sendEmail({
+    to: recipientEmail,
+    subject: `Invoice ${invoiceContext.invoiceNumber} from ${bName}`,
+    html,
+    senderName: bName,
+    category: "invoice",
+  })
+
+  if (!emailResult.success) {
+    console.error("[auto-invoice] Email send failed:", emailResult)
+    // Non-fatal — invoice session was created, email failed
+  } else {
+    // Record the email send
+    await (supabase as any)
+      .from("document_emails")
+      .insert({
+        user_id: contractSession.user_id,
+        session_id: invoiceSession.id,
+        recipient_email: recipientEmail,
+        document_type: "invoice",
+        status: "sent",
+        subject: `Invoice ${invoiceContext.invoiceNumber} from ${bName}`,
+      })
+      .catch(() => {})
+
+    // Finalize the invoice session
+    await supabase
+      .from("document_sessions")
+      .update({
+        status: "finalized",
+        sent_at: now.toISOString(),
+        client_name: invoiceContext.toName || signerName,
+      } as any)
+      .eq("id", invoiceSession.id)
+  }
+
+  // Notify the owner
+  await (supabase as any)
+    .from("notifications")
+    .insert({
+      user_id: contractSession.user_id,
+      type: "auto_invoice_sent",
+      title: "Invoice Auto-Sent",
+      message: `Invoice ${invoiceContext.invoiceNumber} was automatically sent to ${recipientEmail} after contract signing.`,
+      read: false,
+      metadata: {
+        contract_session_id: contractSessionId,
+        invoice_session_id: invoiceSession.id,
+        invoice_number: invoiceContext.invoiceNumber,
+        recipient_email: recipientEmail,
+      },
+    })
+    .catch(() => {})
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Parse body
@@ -402,6 +589,32 @@ export async function POST(request: NextRequest) {
             .from("documents")
             .update({ status: "signed" })
             .eq("id", signature.document_id)
+        }
+
+        // ── Auto-invoice on sign ──────────────────────────────────────────────
+        // If the contract has auto_invoice_on_sign = true, create a linked invoice
+        // and send it to the signer (or the configured recipient email).
+        if (session && documentType === "contract") {
+          const { data: fullSession } = await supabase
+            .from("document_sessions")
+            .select("auto_invoice_on_sign, invoice_recipient_email, context, user_id, chain_id, client_name")
+            .eq("id", signature.session_id)
+            .single()
+
+          if (fullSession?.auto_invoice_on_sign) {
+            try {
+              await triggerAutoInvoice({
+                supabase,
+                contractSession: fullSession,
+                contractSessionId: signature.session_id,
+                signerEmail: signerEmail ?? "",
+                signerName,
+                businessName,
+              })
+            } catch (autoInvErr) {
+              console.error("[sign] auto-invoice error (non-fatal):", autoInvErr)
+            }
+          }
         }
       }
     }

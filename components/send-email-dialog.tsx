@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Mail, Loader2, X, Send, RefreshCw, AlertTriangle, Lock, CheckCircle2, XCircle, Calendar, Bell, BellOff, Repeat2 } from "lucide-react"
+import { Mail, Loader2, X, Send, RefreshCw, AlertTriangle, Lock, CheckCircle2, XCircle, Calendar, Bell, BellOff, Repeat2, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -17,6 +17,7 @@ interface SendEmailDialogProps {
   onEmailSent?: () => void
   isRecurring?: boolean
   onRecurringChange?: (active: boolean, frequency: string) => void
+  userTier?: "free" | "starter" | "pro" | "agency"
 }
 
 // Step 1: Compose (enter email + subject, no AI yet)
@@ -67,7 +68,12 @@ export function SendEmailDialog({
   onEmailSent,
   isRecurring: initialRecurring = false,
   onRecurringChange,
+  userTier = "free",
 }: SendEmailDialogProps) {
+  const isContract = documentType.toLowerCase() === "contract"
+  const isInvoice = documentType.toLowerCase() === "invoice"
+  const isPaidTier = userTier !== "free"
+
   const [step, setStep] = useState<Step>("compose")
   const [email, setEmail] = useState("")
   const [subject, setSubject] = useState("")
@@ -76,9 +82,11 @@ export function SendEmailDialog({
   const [isSending, setIsSending] = useState(false)
   const [scheduleFollowUps, setScheduleFollowUps] = useState(true)
   const [paymentLinkExpiryDays, setPaymentLinkExpiryDays] = useState(30)
-  // Recurring state
+  // Recurring state (invoices only)
   const [makeRecurring, setMakeRecurring] = useState(initialRecurring)
   const [recurringFrequency, setRecurringFrequency] = useState<"weekly" | "monthly" | "quarterly">("monthly")
+  // Auto-invoice on sign (contracts only) — on by default for paid tiers
+  const [autoInvoiceOnSign, setAutoInvoiceOnSign] = useState(isContract && isPaidTier)
 
   // Email validation state
   const [emailValidating, setEmailValidating] = useState(false)
@@ -177,6 +185,8 @@ export function SendEmailDialog({
       setEmailValid(null)
       setEmailError(null)
       setMessage("") // clear previous message
+      // Reset auto-invoice to tier default when dialog opens
+      setAutoInvoiceOnSign(isContract && isPaidTier)
     }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -225,8 +235,8 @@ export function SendEmailDialog({
           recipientEmail: email.trim(),
           subject: subject.trim() || undefined,
           personalMessage: message.trim() || undefined,
-          scheduleFollowUps: scheduleFollowUps && documentType.toLowerCase() === "invoice",
-          paymentLinkExpiryDays: documentType.toLowerCase() === "invoice" ? paymentLinkExpiryDays : undefined,
+          scheduleFollowUps: scheduleFollowUps && isInvoice,
+          paymentLinkExpiryDays: isInvoice ? paymentLinkExpiryDays : undefined,
         }),
       })
 
@@ -246,6 +256,18 @@ export function SendEmailDialog({
             }).catch(() => {}) // non-fatal
           }
           onRecurringChange?.(makeRecurring, recurringFrequency)
+        }
+        // Save auto-invoice setting for contracts
+        if (documentType.toLowerCase() === "contract") {
+          await authFetch("/api/sessions/auto-invoice", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId,
+              autoInvoiceOnSign,
+              invoiceRecipientEmail: email.trim(),
+            }),
+          }).catch(() => {}) // non-fatal
         }
         onClose()
         toast.success(`${docTypeLabel} sent to ${email.trim()}`)
@@ -484,7 +506,7 @@ export function SendEmailDialog({
               </div>
 
               {/* Auto follow-up toggle — invoices only */}
-              {documentType.toLowerCase() === "invoice" && (
+              {isInvoice && (
                 <div className="rounded-2xl border border-border bg-card overflow-hidden">
                   <div className="px-4 py-3 flex items-start justify-between gap-3">
                     <div className="flex items-start gap-2.5">
@@ -538,8 +560,62 @@ export function SendEmailDialog({
                 </div>
               )}
 
+              {/* Auto-invoice on sign — contracts only */}
+              {isContract && (
+                <div className={cn(
+                  "rounded-2xl border bg-card overflow-hidden",
+                  autoInvoiceOnSign ? "border-emerald-200 dark:border-emerald-800/50" : "border-border"
+                )}>
+                  <div className="px-4 py-3 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <FileText className={cn("w-4 h-4 shrink-0 mt-0.5", autoInvoiceOnSign ? "text-emerald-600" : "text-muted-foreground")} />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-foreground">Auto-send invoice on signing</p>
+                          {!isPaidTier && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                              Paid
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {autoInvoiceOnSign
+                            ? "An invoice will be automatically created and sent when the contract is signed."
+                            : isPaidTier
+                            ? "Enable to auto-send an invoice when the client signs."
+                            : "Upgrade to automatically send invoices after contract signing."}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => isPaidTier && setAutoInvoiceOnSign(v => !v)}
+                      disabled={!isPaidTier}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
+                        autoInvoiceOnSign ? "bg-emerald-500" : "bg-muted",
+                        !isPaidTier && "opacity-40 cursor-not-allowed"
+                      )}
+                      title={!isPaidTier ? "Upgrade to enable auto-invoice" : undefined}
+                    >
+                      <span className={cn(
+                        "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
+                        autoInvoiceOnSign ? "translate-x-[18px]" : "translate-x-0.5"
+                      )} />
+                    </button>
+                  </div>
+                  {autoInvoiceOnSign && (
+                    <div className="px-4 pb-3 border-t border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-950/10">
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-2.5 leading-relaxed">
+                        Invoice will be sent to <strong>{email.trim() || "the signer"}</strong> automatically after all parties sign. The invoice will be linked to this contract.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Recurring invoice toggle — invoices only */}
-              {documentType.toLowerCase() === "invoice" && (
+              {isInvoice && (
                 <div className="rounded-2xl border border-border bg-card overflow-hidden">
                   <div className="px-4 py-3 flex items-start justify-between gap-3">
                     <div className="flex items-start gap-2.5">
@@ -596,7 +672,7 @@ export function SendEmailDialog({
               )}
 
               {/* Payment link expiry — invoices only */}
-              {documentType.toLowerCase() === "invoice" && (
+              {isInvoice && (
                 <div className="rounded-2xl border border-border bg-card overflow-hidden">
                   <div className="px-4 py-3">
                     <div className="flex items-center gap-2 mb-2">
