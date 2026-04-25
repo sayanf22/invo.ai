@@ -442,7 +442,7 @@ export default function ProfilePage() {
     }, [user, profile, loadProfile])
 
     if (authLoading || isLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-    if (!profile) return null
+    if (!user || !profile) return null
 
     const taxIdLabel = profile.country ? getTaxIdFieldName(profile.country) : "Tax ID"
     const taxIdValue = profile.tax_ids?.[taxIdLabel] || "Not provided"
