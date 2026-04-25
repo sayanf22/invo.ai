@@ -27,6 +27,14 @@
 - ✅ **Payment status badges** on documents list — IMPLEMENTED April 2026
 - ✅ **Editor changes auto-save to DB** — IMPLEMENTED April 2026
 - ✅ **Paid document lock** (read-only when paid) — IMPLEMENTED April 2026
+- ✅ **Send Invoice/Document via Email** (all 4 doc types, Mailtrap) — IMPLEMENTED April 2026
+- ✅ **Automated payment reminders** (day +3/+7/+14/+30, stops on payment) — IMPLEMENTED April 2026
+- ✅ **Email delivery tracking** (sent/delivered/opened/bounced via webhooks) — IMPLEMENTED April 2026
+- ✅ **Email follow-up management** (stop reminders, view history per document) — IMPLEMENTED April 2026
+- ✅ **Tier-based email limits** (Free: 5, Starter: 100, Pro: 250, Agency: unlimited) — IMPLEMENTED April 2026
+- ✅ **Security hardening** (4 audit passes, 17 vulnerabilities fixed) — IMPLEMENTED April 2026
+- ✅ **Back navigation fix** (useSafeBack hook, no more 404 on back button) — IMPLEMENTED April 2026
+- ✅ **Consistent loading screens** (PageLoader component, brand color #FBF7F0) — IMPLEMENTED April 2026
 
 ---
 
@@ -43,26 +51,30 @@ Full payment link flow redesign covering Razorpay, Stripe, and Cashfree gateways
 - Platform link (`clorefy.com/pay/[sessionId]`) replaces raw gateway URLs for sharing
 - Copy and WhatsApp share buttons use the platform link
 - QR code auto-generated for the gateway URL
+- Cancel payment link with confirmation modal (lists 4 consequences, shows amount)
+- Payment link expiry customization (7/14/30/60 days, default 30 — Net 30 standard)
 
 **Public payment page (`/pay/[sessionId]`):**
 - Server-rendered page (no auth required) showing invoice preview, amount, and Pay Now button
 - Status-based rendering: Pending (with QR + Pay Now), Paid (green badge), Expired/Cancelled (message)
 - Responsive mobile layout with proper viewport handling
 - Pay Now button redirects to the gateway checkout URL
+- Only serves documents with active/paid payment records (prevents enumeration)
 
 **Payment lifecycle:**
 - Invoice locked after payment link creation (all editor fields disabled)
-- Read-only banner shown on locked invoices
-- Cancel button with confirmation dialog (unlocks invoice)
+- Paid invoices permanently locked — cannot be edited, cancelled, or re-linked
+- Cancel button with confirmation dialog (unlocks invoice, stops follow-up emails)
 - Refresh button to check latest payment status from gateway
-- Error toasts on cancel/refresh failures
 - Lock indicator with tooltip explaining why editing is disabled
 
 **Webhook integration:**
 - Razorpay, Stripe, and Cashfree webhooks all update `invoice_payments.status`
 - Webhooks also update `document_sessions.status` to "paid" for permanent lock
+- Webhook cancels all pending email follow-up schedules on payment received
 - Notification sent to user on payment received
 - Idempotent handling (duplicate webhooks ignored)
+- UUID validation on all per-user webhook endpoints
 
 **Data integrity:**
 - Editor changes auto-saved to DB via debounced `updateSessionContext`
@@ -70,72 +82,182 @@ Full payment link flow redesign covering Razorpay, Stripe, and Cashfree gateways
 - PDF shows "PAID" badge when payment confirmed (not "DRAFT")
 
 **Security:**
-- Public payment status API with IP-based rate limiting (30 req/min)
+- Public payment status API with IP-based rate limiting
 - UUID validation on all public endpoints
 - Only public-safe fields returned (no gateway URLs, user data, or API keys)
 - RLS policies fixed (removed overly permissive UPDATE policy)
-- Function search_path hardened against injection
+- Stripe webhook secret now encrypted at rest (AES-256-GCM)
 
 ### Process Followed
 
-1. **Spec-driven development** — Full requirements, design, and tasks documents created in `.kiro/specs/payment-link-flow-redesign/`
-2. **Requirements first** — 8 user stories with acceptance criteria covering toggle fix, platform links, public page, cancel/refresh, lock, paid status, payment methods
-3. **Design document** — Architecture diagram, component interfaces, data models, correctness properties, error handling, testing strategy
-4. **11 implementation tasks** with sub-tasks — executed sequentially with property-based tests
-5. **5 correctness properties** validated with `fast-check` (100 iterations each):
-   - Platform link derivation from sessionId
-   - Pay Now href matches gateway URL
-   - Public page renders required document fields
-   - Paid documents are read-only
-   - Payment method dropdown filtering by connected gateways
-6. **Security audit** — Supabase advisors checked, RLS policies fixed, CSP updated
-7. **Mobile audit** — Viewport meta tag added, PDF overflow fixed, Pay Now button mobile-compatible
+1. **Spec-driven development** — Full requirements, design, and tasks documents in `.kiro/specs/payment-link-flow-redesign/`
+2. **Requirements first** — 8 user stories with acceptance criteria
+3. **Design document** — Architecture diagram, component interfaces, data models, correctness properties
+4. **11 implementation tasks** with sub-tasks — executed sequentially
+5. **Security audit** — Supabase advisors checked, RLS policies fixed, CSP updated
+6. **Mobile audit** — Viewport meta tag added, PDF overflow fixed, Pay Now button mobile-compatible
 
 ---
 
-## Critical Gaps (Build These Next)
+## ✅ IMPLEMENTED: Send Invoice/Document via Email (April 2026)
 
-### 1. 🔴 Send Invoice/Document via Email — HIGHEST PRIORITY NOW
+### What Was Built
 
-**Why this is #1:** Users still have to download the PDF and email it manually. The payment link flow is complete, but there's no way to deliver the invoice to the client directly from Clorefy. This is the single biggest friction point remaining.
+Full email sending system enabling users to deliver any document directly to clients from within Clorefy. Closes the "generate → send → get paid" loop.
 
-**What to build:**
-- "Send" button on every document (invoice, quotation, contract, proposal)
-- Email contains: branded template, document summary, PDF attachment, and payment link (if exists)
-- For invoices with payment links: email includes "Pay Now" button linking to `/pay/[sessionId]`
-- Email delivery tracking (sent, delivered, bounced, opened)
-- "Resend" option for failed deliveries
-- Email history per document
+**Core email sending:**
+- "Send via Email" button in the document preview toolbar
+- "Send via Clorefy Email" option in the Share dropdown
+- 2-step send dialog: Compose (email, subject, personal message, follow-up toggle, expiry) → Confirm & Send
+- AI-generated personal message (optional, editable before sending)
+- Branded HTML email template — mobile-responsive, Gmail/Outlook/Apple Mail compatible
+- "Pay Now" button in email for invoices with active payment links
+- Auto-creates Razorpay payment link if none exists when sending an invoice
+- Sender shown as `{BusinessName} via Clorefy <no-reply@clorefy.com>`
 
-**Recommended provider:** [Resend](https://resend.com) — 3,000 emails/month free, React Email templates, webhook for delivery events.
+**Email delivery tracking:**
+- Mailtrap REST API for delivery (plain `fetch()`, Cloudflare Workers compatible)
+- Webhook handler at `/api/emails/webhook` updates status: sent → delivered → opened → bounced
+- HMAC signature verification on all incoming webhooks
+- Email history per document (expandable in My Documents page)
+- Email stats: total sent, opened, delivered, bounced counts
 
-**Estimated effort:** 2-3 days. This completes the "generate → send → get paid" loop.
+**Automated follow-up reminders:**
+- Supabase Edge Function `process-email-schedules` runs daily at 8AM UTC via pg_cron
+- Schedule: day +3 (polite), +7 (follow-up), +14 (urgent), +30 (final notice)
+- Stops automatically when `invoice_payments.status = "paid"`
+- Tier limits: Free = 0 follow-ups, Starter = 2, Pro/Agency = 4
+- "Stop Reminders" button in My Documents email history panel
+- "Manage Reminders" in Share dropdown shows pending schedule with cancel-all
+
+**Tier-based email limits:**
+- Free: 5 emails/month
+- Starter: 100 emails/month
+- Pro: 250 emails/month
+- Agency: unlimited
+- Burst rate limit: max 3 emails per 60 seconds per user (in-memory)
+
+**My Documents integration:**
+- Email badge (Sent/Delivered/Opened/Bounced) on each document card
+- "N sent · N opened" clickable summary inline
+- Expandable email history with individual send records and timestamps
+- "Stop Reminders" button in expanded panel
+- "Cancel Payment Link" button in expanded payment panel (also stops reminders)
+- View count tracking: increments when client opens `/view/` or `/pay/` page
+
+### Architecture
+
+```
+User clicks "Send via Email"
+        ↓
+SendEmailDialog (2-step: Compose → Confirm)
+        ↓
+POST /api/emails/send-document
+  1. authenticateRequest() — JWT validation
+  2. Burst rate limit (3/60s in-memory)
+  3. Monthly tier limit (checkEmailLimit)
+  4. UUID validation on sessionId
+  5. Fetch document_sessions (verify ownership)
+  6. Fetch businesses (sender name + logo)
+  7. Auto-create Razorpay payment link if invoice + no active link
+  8. Render HTML email (lib/email-template.ts)
+  9. Send via Mailtrap REST API (lib/mailtrap.ts)
+  10. Insert into document_emails (status: "sent")
+  11. Lock document session (status: "finalized", sent_at)
+  12. Schedule follow-up reminders (email_schedules table)
+  13. logAudit("email.send")
+        ↓
+Mailtrap delivers email to client
+        ↓
+POST /api/emails/webhook (Mailtrap delivery callbacks)
+  - Verifies HMAC signature
+  - Updates document_emails status (delivered/opened/bounced)
+        ↓
+Supabase Edge Function: process-email-schedules
+  - Runs daily at 8AM UTC via pg_cron
+  - Sends follow-up reminders at day +3, +7, +14, +30
+  - Stops automatically when invoice_payments.status = "paid"
+```
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `lib/mailtrap.ts` | Email sending via Mailtrap REST API (plain `fetch()`) |
+| `lib/email-template.ts` | Branded HTML email renderer (inline CSS, table layout, mobile-responsive) |
+| `app/api/emails/send-document/route.ts` | Main send endpoint (auth, validation, send, record, schedule) |
+| `app/api/emails/webhook/route.ts` | Mailtrap delivery webhook handler (HMAC verified) |
+| `app/api/emails/validate-email/route.ts` | DNS MX record validation |
+| `app/api/emails/generate-message/route.ts` | AI-generated personal message (sanitized inputs) |
+| `app/api/emails/schedules/route.ts` | GET/DELETE follow-up schedule management |
+| `app/api/emails/track-view/route.ts` | Document view tracking (public, 60s throttle) |
+| `app/api/emails/view-document/route.ts` | Public document view for email recipients |
+| `components/send-email-dialog.tsx` | 2-step send dialog component |
+| `supabase/migrations/document_emails.sql` | `document_emails` table with RLS |
+| `supabase/migrations/email_schedules.sql` | `email_schedules` table for follow-ups |
+
+### Database Schema
+
+```sql
+-- document_emails: tracks every email sent
+CREATE TABLE document_emails (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  session_id UUID NOT NULL REFERENCES document_sessions(id) ON DELETE CASCADE,
+  recipient_email TEXT NOT NULL,
+  document_type TEXT NOT NULL CHECK (document_type IN ('invoice','contract','quotation','proposal')),
+  personal_message TEXT,
+  mailtrap_message_id TEXT,
+  status TEXT NOT NULL DEFAULT 'sent'
+    CHECK (status IN ('sent','delivered','opened','bounced','failed')),
+  subject TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  delivered_at TIMESTAMPTZ,
+  opened_at TIMESTAMPTZ,
+  bounced_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+-- RLS: users SELECT/INSERT own records; webhook uses service role for UPDATE
+
+-- email_schedules: automated follow-up reminders
+CREATE TABLE email_schedules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  session_id UUID NOT NULL REFERENCES document_sessions(id) ON DELETE CASCADE,
+  recipient_email TEXT NOT NULL,
+  document_type TEXT NOT NULL,
+  scheduled_for TIMESTAMPTZ NOT NULL,
+  sequence_step INTEGER NOT NULL DEFAULT 1,
+  sequence_type TEXT NOT NULL DEFAULT 'followup'
+    CHECK (sequence_type IN ('pre_due','due_today','followup','final')),
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending','sent','cancelled','failed')),
+  sent_at TIMESTAMPTZ,
+  cancelled_reason TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+### Environment Variables Required
+
+```bash
+MAILTRAP_API_KEY=your_mailtrap_api_key
+MAILTRAP_WEBHOOK_SIGNATURE_KEY=your_webhook_secret  # recommended
+```
+
+### Process Followed
+
+1. **Spec-driven development** — Full requirements (11 requirements, 50+ acceptance criteria), design (10 correctness properties, architecture diagram, data models), and tasks documents in `.kiro/specs/email-sending/`
+2. **Mailtrap chosen over Resend** — Plain `fetch()` required for Cloudflare Workers; Mailtrap REST API works without any npm packages
+3. **Mobile-first email template** — Reduced outer padding, system font stack, buttons stack vertically on mobile, tested in Gmail/Outlook/Apple Mail
+4. **Security-first** — Burst rate limiting, UUID validation, HMAC webhook verification, prompt injection prevention on AI message generation
+5. **4 security audit passes** — 17 vulnerabilities found and fixed across the codebase during implementation
 
 ---
 
-### 2. 🔴 Invoice Payment Reminders (Automated)
+## Remaining Gaps (Build These Next)
 
-**The problem:** 60% of late payments are simply forgotten. Users have no way to send reminders from Clorefy.
-
-**What to build:**
-- Automated reminder schedule (configurable):
-  - 3 days before due: "Friendly reminder"
-  - On due date: "Payment due today"
-  - 3 days after: "Overdue notice"
-  - 7 days after: "Second notice"
-  - 14 days after: "Final notice"
-- Send via email (Resend integration from #1)
-- One-click "Pay Now" in reminder email (links to `/pay/[sessionId]`)
-- Reminder history log per invoice
-- User can pause/cancel reminders
-
-**Tech:** Supabase Edge Functions + cron job (pg_cron) to check due dates daily.
-
-**Estimated effort:** 3-4 days (depends on email integration being done first).
-
----
-
-### 3. � Quotation Accept/Decline Flow
+### 3. 🟠 Quotation Accept/Decline Flow
 
 **The problem:** Quotations are sent as PDFs. Clients have no way to accept or decline online.
 
@@ -184,24 +306,9 @@ Full payment link flow redesign covering Razorpay, Stripe, and Cashfree gateways
 
 ---
 
-
 ## Important Integrations
 
-### 6. 📧 Email Integration (Resend) — Prerequisite for #1 and #2
-
-**What to build:**
-- "Send Invoice" button → sends PDF directly to client email
-- "Send Quotation" button → sends quotation with Accept/Decline link
-- "Send Contract for Signing" button → sends signing link
-- "Send Proposal" button → sends proposal with view tracking
-- Email templates: branded, professional, with Clorefy footer
-- Email delivery tracking (sent, delivered, bounced)
-
-**Recommended provider:** [Resend](https://resend.com) — 3,000 emails/month free, React Email templates.
-
----
-
-### 7. 🔗 Accounting Software Integration
+### 6. 🔗 Accounting Software Integration
 
 **Phase 1 — Export only:**
 - Export invoices in Tally-compatible format (XML) — huge for India
@@ -216,7 +323,7 @@ Full payment link flow redesign covering Razorpay, Stripe, and Cashfree gateways
 
 ---
 
-### 8. 🔗 Stripe & Cashfree Payment Links
+### 7. 🔗 Stripe & Cashfree Payment Links
 
 **Current state:** Razorpay payment links are fully implemented. Stripe and Cashfree gateway settings exist in the UI, but payment link creation only works with Razorpay.
 
@@ -224,7 +331,6 @@ Full payment link flow redesign covering Razorpay, Stripe, and Cashfree gateways
 - Stripe Checkout Session creation for payment links
 - Cashfree Payment Links API integration
 - Gateway auto-selection based on user's connected gateway
-- Multi-gateway support (user can have Razorpay + Stripe connected)
 
 **Estimated effort:** 2-3 days per gateway.
 
@@ -234,37 +340,31 @@ Full payment link flow redesign covering Razorpay, Stripe, and Cashfree gateways
 
 ### ✅ DONE: WhatsApp Share Button
 - `wa.me` deep link with pre-filled message including platform link
-- Works on mobile and desktop
 
 ### ✅ DONE: Copy Payment Link Button
-- One-click copy of the platform link (`clorefy.com/pay/[sessionId]`)
-- Shows "Copied!" toast
+- One-click copy of the platform link, shows "Copied!" toast
 
 ### ✅ DONE: Invoice Status Tracking
-- Status badges: Draft → Sent → Paid → Overdue
+- Status badges: Draft → Sent → Paid
 - Filter documents by status on documents page
-- Paid badge on documents list
 
-### 9. Duplicate Document
-- "Duplicate" button on any document
-- Creates a new session with the same data pre-filled
-- Saves time for repeat invoices to the same client
-- **Estimated effort:** 4-6 hours
+### ✅ DONE: Duplicate Document (via linked sessions)
+- Document linking creates new sessions with seed data pre-filled
 
-### 10. Bulk PDF Download
+### 8. Bulk PDF Download
 - Select multiple documents → "Download All as ZIP"
 - Useful for accountants at month-end
 - **Estimated effort:** 4-6 hours
 
 ---
 
-## Updated Priority Order (What to Build When)
+## Updated Priority Order
 
-### Month 1 — Complete the Revenue Loop (NOW)
-1. **Email integration (Resend)** — send invoices/documents directly from Clorefy
-2. **Send invoice via email** — "Send" button with branded template + payment link
-3. **Invoice payment reminders** — automated follow-up sequence
-4. **Duplicate document** — quick win for repeat work
+### ✅ Month 1 — Complete the Revenue Loop (DONE)
+1. ✅ Email integration (Mailtrap) — send invoices/documents directly from Clorefy
+2. ✅ Send invoice via email — "Send" button with branded template + payment link
+3. ✅ Invoice payment reminders — automated follow-up sequence
+4. ✅ Security hardening — 4 audit passes, 17 vulnerabilities fixed
 
 ### Month 2 — Close Deals Faster
 5. **Quotation accept/decline flow** — online acceptance with notifications
@@ -298,25 +398,21 @@ Full payment link flow redesign covering Razorpay, Stripe, and Cashfree gateways
 | Proposal tracking | ❌ | ❌ | ✅ | ✅ | ❌ |
 | Quote acceptance | ❌ | ❌ | ✅ | ✅ | ❌ |
 | Recurring invoices | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Email sending | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Email sending | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Payment reminders | ✅ | ✅ | ✅ | ❌ | ✅ |
 | Price | Free/$16 | $8.40+ | $19+ | $49+ | **$9-$59** |
 
-**Current pitch:** "The only AI tool that generates invoices, embeds payment links, and lets clients pay from a branded page — for 11 countries, at half the price of PandaDoc."
-
-**After email integration:** "Generate, send, track, and get paid — all from one AI-powered platform."
+**Current pitch:** "Generate, send, track, and get paid — all from one AI-powered platform. For 11 countries, at half the price of PandaDoc." ✅ **ACHIEVED**
 
 ---
 
 ## Technical Notes
 
-### Email: Resend (Next to implement)
-```
-npm install resend
-```
-- React Email templates for branded invoice/quotation emails
+### Email: Mailtrap (IMPLEMENTED)
+- Plain `fetch()` — no npm packages, Cloudflare Workers compatible
 - Webhook for delivery events (sent, delivered, bounced, opened)
-- Free: 3,000 emails/month
-- [resend.com](https://resend.com)
+- Free: 1,000 emails/month; paid plans from $15/mo
+- [mailtrap.io](https://mailtrap.io)
 
 ### E-Sign: DocuSeal (Month 3)
 ```
