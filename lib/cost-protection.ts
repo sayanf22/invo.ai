@@ -240,8 +240,8 @@ export async function checkMessageLimit(
  *
  * Limits by tier:
  *   free    →   5 emails/month  (matches doc limit — 1 send per doc)
- *   starter →  75 emails/month  (1.5× doc limit — allows resends)
- *   pro     → 300 emails/month  (2× doc limit — comfortable for follow-ups)
+ *   starter → 100 emails/month  (2× doc limit — allows resends + follow-ups)
+ *   pro     → 250 emails/month  (comfortable for follow-ups across all docs)
  *   agency  → unlimited
  */
 export async function checkEmailLimit(
@@ -255,8 +255,20 @@ export async function checkEmailLimit(
         // Unlimited tier
         if (limits.emailsPerMonth === 0) return null
 
-        const usage = await getUserUsage(supabase, userId)
-        const currentEmails = (usage as any)?.emails_count || 0
+        const month = getCurrentMonth()
+        const { data: usage, error } = await supabase
+            .from("user_usage")
+            .select("emails_count")
+            .eq("user_id", userId)
+            .eq("month", month)
+            .maybeSingle()
+
+        if (error) {
+            console.error("Email limit check DB error:", error)
+            return null // fail open
+        }
+
+        const currentEmails = (usage as any)?.emails_count ?? 0
 
         if (currentEmails >= limits.emailsPerMonth) {
             return NextResponse.json(
@@ -266,10 +278,10 @@ export async function checkEmailLimit(
                     limit: limits.emailsPerMonth,
                     tier: userTier,
                     message: userTier === "free"
-                        ? "Upgrade to Starter for 100 emails/month"
+                        ? `You've used all ${limits.emailsPerMonth} emails this month. Upgrade to Starter for 100 emails/month.`
                         : userTier === "starter"
-                        ? "Upgrade to Pro for 250 emails/month"
-                        : "Upgrade to Agency for unlimited emails",
+                        ? `You've used all ${limits.emailsPerMonth} emails this month. Upgrade to Pro for 250 emails/month.`
+                        : `You've used all ${limits.emailsPerMonth} emails this month. Upgrade to Agency for unlimited emails.`,
                 },
                 { status: 429 }
             )
@@ -301,24 +313,13 @@ export async function incrementEmailCount(
 
         if (error) {
             console.error("RPC increment_email_count failed, using upsert fallback:", error)
-            const { data: existing } = await supabase
+            // Upsert fallback — handles both insert and update atomically
+            await (supabase as any)
                 .from("user_usage")
-                .select("*")
-                .eq("user_id", userId)
-                .eq("month", month)
-                .single()
-
-            if (existing) {
-                await (supabase as any)
-                    .from("user_usage")
-                    .update({ emails_count: ((existing as any).emails_count || 0) + 1 })
-                    .eq("user_id", userId)
-                    .eq("month", month)
-            } else {
-                await (supabase as any)
-                    .from("user_usage")
-                    .insert({ user_id: userId, month, emails_count: 1 })
-            }
+                .upsert(
+                    { user_id: userId, month, emails_count: 1 },
+                    { onConflict: "user_id,month", ignoreDuplicates: false }
+                )
         }
     } catch (error) {
         console.error("Email count increment failed:", error)

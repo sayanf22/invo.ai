@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, Mail } from "lucide-react"
+import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, Mail, PenLine, Download } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
@@ -11,7 +11,10 @@ import { TemplatePicker } from "@/components/template-picker"
 import { ShareButton } from "@/components/share-button"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { PaymentLinkButton } from "@/components/payment-link-button"
+import { GetSignatureModal } from "@/components/get-signature-modal"
 import { cn } from "@/lib/utils"
+
+const SIGNATURE_DOCUMENT_TYPES = ["contract", "quotation", "proposal"]
 
 interface DocumentPreviewProps {
   data: InvoiceData
@@ -319,7 +322,26 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [pageCount, setPageCount] = useState(0)
   const [sendEmailDialogOpen, setSendEmailDialogOpen] = useState(false)
+  const [getSignatureModalOpen, setGetSignatureModalOpen] = useState(false)
+  const [signatures, setSignatures] = useState<Array<{ id: string; signed_at: string | null }>>([])
+  const [signaturesLoading, setSignaturesLoading] = useState(false)
   const hasContent = data.documentType || data.fromName || data.toName || data.description
+
+  const supportsSignatures = SIGNATURE_DOCUMENT_TYPES.includes((data.documentType || "").toLowerCase())
+  const hasPendingSignatures = signatures.length > 0 && !signatures.every(s => s.signed_at)
+  const allSigned = signatures.length > 0 && signatures.every(s => s.signed_at)
+
+  useEffect(() => {
+    if (!sessionId || !supportsSignatures) return
+    setSignaturesLoading(true)
+    fetch(`/api/signatures?sessionId=${sessionId}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        if (json?.signatures) setSignatures(json.signatures)
+      })
+      .catch(() => {})
+      .finally(() => setSignaturesLoading(false))
+  }, [sessionId, supportsSignatures])
 
   const handleZoomIn = useCallback(() => {
     setZoom(prev => {
@@ -455,6 +477,41 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
 
         {/* Right: Payment Link (invoices) + Send + Share + Print + Download */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Signature status badges */}
+          {supportsSignatures && sessionId && hasPendingSignatures && (
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+              Pending Signature
+            </span>
+          )}
+          {supportsSignatures && sessionId && allSigned && (
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800">
+              Signed
+            </span>
+          )}
+          {/* Get Signature button */}
+          {supportsSignatures && sessionId && (
+            <button
+              type="button"
+              onClick={() => setGetSignatureModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-95"
+              title="Get signature"
+            >
+              <PenLine className="w-4 h-4" />
+              <span className="hidden sm:inline">Sign</span>
+            </button>
+          )}
+          {/* Download Signed PDF button */}
+          {supportsSignatures && sessionId && allSigned && (
+            <a
+              href={`/api/signatures/download/${sessionId}`}
+              download
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-95"
+              title="Download signed PDF"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Signed PDF</span>
+            </a>
+          )}
           {sessionId && (
             <PaymentLinkButton
               sessionId={sessionId}
@@ -503,6 +560,14 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           sessionId={sessionId}
           invoiceData={data}
           documentType={data.documentType || "invoice"}
+        />
+      )}
+      {supportsSignatures && sessionId && (
+        <GetSignatureModal
+          sessionId={sessionId}
+          documentType={data.documentType || ""}
+          open={getSignatureModalOpen}
+          onOpenChange={setGetSignatureModalOpen}
         />
       )}
     </div>

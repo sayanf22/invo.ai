@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/components/auth-provider"
 import { createClient } from "@/lib/supabase"
-import { Bell, CheckCircle2, Gift, CreditCard, XCircle, RefreshCw, Info, Loader2, Check, ArrowLeft } from "lucide-react"
+import { Bell, CheckCircle2, Gift, CreditCard, XCircle, RefreshCw, Info, Loader2, Check, ArrowLeft, Eye, PenLine, Clock, Edit3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { cn } from "@/lib/utils"
@@ -28,8 +28,15 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
   subscription_free_grant:{ icon: Gift,          color: "text-purple-600",  bg: "bg-purple-50 dark:bg-purple-950/30" },
   subscription_cancelled: { icon: XCircle,       color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/30" },
   subscription_renewed:   { icon: RefreshCw,     color: "text-blue-600",    bg: "bg-blue-50 dark:bg-blue-950/30" },
-  document_limit_warning: { icon: Info,          color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-950/30" },
-  general:                { icon: Bell,          color: "text-muted-foreground", bg: "bg-muted" },
+  document_limit_warning:          { icon: Info,          color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-950/30" },
+  general:                         { icon: Bell,          color: "text-muted-foreground", bg: "bg-muted" },
+  signature_viewed:                { icon: Eye,           color: "text-blue-600",    bg: "bg-blue-50 dark:bg-blue-950/30" },
+  signature_signed:                { icon: PenLine,       color: "text-green-600",   bg: "bg-green-50 dark:bg-green-950/30" },
+  signature_completed:             { icon: CheckCircle2,  color: "text-green-700",   bg: "bg-green-100 dark:bg-green-950/40" },
+  signature_expired:               { icon: Clock,         color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-950/30" },
+  quotation_accepted:              { icon: Check,         color: "text-green-600",   bg: "bg-green-50 dark:bg-green-950/30" },
+  quotation_declined:              { icon: XCircle,       color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/30" },
+  quotation_changes_requested:     { icon: Edit3,         color: "text-orange-600",  bg: "bg-orange-50 dark:bg-orange-950/30" },
 }
 
 export default function NotificationsPage() {
@@ -153,7 +160,10 @@ export default function NotificationsPage() {
             return (
               <div
                 key={n.id}
-                onClick={() => !n.read && markAsRead(n.id)}
+                onClick={() => {
+                  if (!n.read) markAsRead(n.id)
+                  if (n.metadata?.session_id) router.push(`/view/${n.metadata.session_id}`)
+                }}
                 className={cn(
                   "flex items-start gap-4 p-4 rounded-2xl border transition-all cursor-pointer",
                   n.read
@@ -174,6 +184,12 @@ export default function NotificationsPage() {
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{n.message}</p>
+                  {n.type === "quotation_changes_requested" && n.metadata?.reason && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/40">
+                      <p className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-0.5">Requested changes:</p>
+                      <p className="text-xs text-orange-600 dark:text-orange-300 leading-relaxed">{n.metadata.reason}</p>
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground/60 mt-1.5">
                     {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
                   </p>

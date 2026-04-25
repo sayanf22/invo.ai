@@ -7,7 +7,7 @@ import { useSupabase, useUser } from "@/components/auth-provider"
 import {
   ArrowLeft, Download, Share2, Loader2, FileText,
   Copy, Check, MessageCircle, Mail, Link2, QrCode,
-  ZoomIn, ZoomOut, Maximize2,
+  ZoomIn, ZoomOut, Maximize2, CheckCircle2, XCircle, Edit3,
 } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import { toast } from "sonner"
@@ -15,6 +15,11 @@ import { cn } from "@/lib/utils"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,6 +29,11 @@ interface PaymentInfo {
   amount: number
   currency: string
   amount_paid: number | null
+}
+
+interface QuotationResponse {
+  response_type: string
+  responded_at: string
 }
 
 // ── QR Code (inline, no external service) ────────────────────────────────────
@@ -324,6 +334,14 @@ export default function ViewDocumentPage() {
   const [showShare, setShowShare] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
+  // Quotation response state
+  const [quotationResponse, setQuotationResponse] = useState<QuotationResponse | null>(null)
+  const [quotationDialogOpen, setQuotationDialogOpen] = useState<'accept' | 'decline' | 'changes' | null>(null)
+  const [quotationLoading, setQuotationLoading] = useState(false)
+  const [quotationClientName, setQuotationClientName] = useState('')
+  const [quotationClientEmail, setQuotationClientEmail] = useState('')
+  const [quotationReason, setQuotationReason] = useState('')
+
   // Track document view (fire-and-forget)
   useEffect(() => {
     if (!sessionId) return
@@ -364,6 +382,17 @@ export default function ViewDocumentPage() {
               .maybeSingle()
 
             if (pay) setPayment(pay as PaymentInfo)
+
+            // Check for existing quotation response (authenticated user)
+            if (session.document_type === 'quotation') {
+              const { data: existingResponse } = await (supabase as any)
+                .from('quotation_responses')
+                .select('response_type, responded_at')
+                .eq('session_id', sessionId)
+                .maybeSingle()
+              if (existingResponse) setQuotationResponse(existingResponse)
+            }
+
             setLoading(false)
             return
           }
@@ -421,6 +450,32 @@ export default function ViewDocumentPage() {
     render()
     return () => { cancelled = true }
   }, [docData, payment])
+
+  async function submitQuotationResponse(responseType: string, reason?: string) {
+    setQuotationLoading(true)
+    try {
+      const res = await fetch('/api/quotations/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          responseType,
+          clientName: quotationClientName,
+          clientEmail: quotationClientEmail,
+          reason,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to submit response')
+      setQuotationResponse({ response_type: responseType, responded_at: new Date().toISOString() })
+      setQuotationDialogOpen(null)
+      toast.success('Response submitted successfully')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to submit response')
+    } finally {
+      setQuotationLoading(false)
+    }
+  }
 
   const handleDownload = async () => {
     if (!docData) return
@@ -570,10 +625,214 @@ export default function ViewDocumentPage() {
         </div>
       </div>
 
+      {/* Quotation response buttons — shown below PDF viewer for quotation documents */}
+      {docData?.documentType === 'quotation' && (
+        <div className="max-w-4xl mx-auto px-2 sm:px-4 py-4">
+          {quotationResponse ? (
+            <div className={cn(
+              "flex items-center gap-3 rounded-2xl border px-5 py-4",
+              quotationResponse.response_type === 'accepted'
+                ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400"
+                : quotationResponse.response_type === 'declined'
+                ? "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-400"
+                : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-400"
+            )}>
+              {quotationResponse.response_type === 'accepted' && <CheckCircle2 className="w-5 h-5 shrink-0" />}
+              {quotationResponse.response_type === 'declined' && <XCircle className="w-5 h-5 shrink-0" />}
+              {quotationResponse.response_type === 'changes_requested' && <Edit3 className="w-5 h-5 shrink-0" />}
+              <p className="text-sm font-medium">
+                {quotationResponse.response_type === 'accepted' && `You accepted this quotation on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
+                {quotationResponse.response_type === 'declined' && `You declined this quotation on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
+                {quotationResponse.response_type === 'changes_requested' && `You requested changes on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+              <p className="text-sm font-semibold text-foreground">Respond to this Quotation</p>
+              <p className="text-xs text-muted-foreground">Let the sender know your decision on this quotation.</p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]"
+                  onClick={() => { setQuotationReason(''); setQuotationDialogOpen('accept') }}
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Accept Quotation
+                </Button>
+                <Button
+                  variant="outline"
+                  className="min-h-[44px]"
+                  onClick={() => { setQuotationReason(''); setQuotationDialogOpen('decline') }}
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Decline
+                </Button>
+                <Button
+                  variant="outline"
+                  className="min-h-[44px]"
+                  onClick={() => { setQuotationReason(''); setQuotationDialogOpen('changes') }}
+                >
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Request Changes
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Share sheet */}
       {showShare && (
         <ShareSheet data={docData} payment={payment} sessionId={sessionId} onClose={() => setShowShare(false)} />
       )}
+
+      {/* Quotation response dialogs */}
+      {/* Accept dialog */}
+      <Dialog open={quotationDialogOpen === 'accept'} onOpenChange={open => !open && setQuotationDialogOpen(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Accept Quotation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="qr-client-name">Your Name</Label>
+              <Input
+                id="qr-client-name"
+                placeholder="Full name"
+                value={quotationClientName}
+                onChange={e => setQuotationClientName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="qr-client-email">Your Email</Label>
+              <Input
+                id="qr-client-email"
+                type="email"
+                placeholder="email@example.com"
+                value={quotationClientEmail}
+                onChange={e => setQuotationClientEmail(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuotationDialogOpen(null)} disabled={quotationLoading}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              disabled={quotationLoading || !quotationClientName.trim() || !quotationClientEmail.trim()}
+              onClick={() => submitQuotationResponse('accepted')}
+            >
+              {quotationLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Confirm Acceptance
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Decline dialog */}
+      <Dialog open={quotationDialogOpen === 'decline'} onOpenChange={open => !open && setQuotationDialogOpen(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline Quotation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="qr-decline-name">Your Name</Label>
+              <Input
+                id="qr-decline-name"
+                placeholder="Full name"
+                value={quotationClientName}
+                onChange={e => setQuotationClientName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="qr-decline-email">Your Email</Label>
+              <Input
+                id="qr-decline-email"
+                type="email"
+                placeholder="email@example.com"
+                value={quotationClientEmail}
+                onChange={e => setQuotationClientEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="qr-decline-reason">Reason (optional)</Label>
+              <Textarea
+                id="qr-decline-reason"
+                placeholder="Let us know why you're declining..."
+                value={quotationReason}
+                onChange={e => setQuotationReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuotationDialogOpen(null)} disabled={quotationLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={quotationLoading || !quotationClientName.trim() || !quotationClientEmail.trim()}
+              onClick={() => submitQuotationResponse('declined', quotationReason || undefined)}
+            >
+              {quotationLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Confirm Decline
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Request Changes dialog */}
+      <Dialog open={quotationDialogOpen === 'changes'} onOpenChange={open => !open && setQuotationDialogOpen(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Changes</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="qr-changes-name">Your Name</Label>
+              <Input
+                id="qr-changes-name"
+                placeholder="Full name"
+                value={quotationClientName}
+                onChange={e => setQuotationClientName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="qr-changes-email">Your Email</Label>
+              <Input
+                id="qr-changes-email"
+                type="email"
+                placeholder="email@example.com"
+                value={quotationClientEmail}
+                onChange={e => setQuotationClientEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="qr-changes-reason">Describe the changes needed <span className="text-destructive">*</span></Label>
+              <Textarea
+                id="qr-changes-reason"
+                placeholder="Please describe what changes you'd like..."
+                value={quotationReason}
+                onChange={e => setQuotationReason(e.target.value)}
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuotationDialogOpen(null)} disabled={quotationLoading}>
+              Cancel
+            </Button>
+            <Button
+              disabled={quotationLoading || !quotationClientName.trim() || !quotationClientEmail.trim() || !quotationReason.trim()}
+              onClick={() => submitQuotationResponse('changes_requested', quotationReason)}
+            >
+              {quotationLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Submit Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

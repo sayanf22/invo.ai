@@ -57,6 +57,7 @@ const PUBLIC_PATHS = [
   "/sign",
   "/pay", // public payment pages — /pay/[sessionId] accessible without auth
   "/view", // public document view — /view/[sessionId] accessible without auth (for email recipients)
+  "/verify", // public document verification — /verify/[token] accessible without auth
   "/api",
   "/about",
   "/contact",

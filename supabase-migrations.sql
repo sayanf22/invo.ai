@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS user_usage (
     ai_requests_count INT NOT NULL DEFAULT 0,
     ai_tokens_used BIGINT NOT NULL DEFAULT 0,
     estimated_cost_usd DECIMAL(10,4) NOT NULL DEFAULT 0,
+    documents_count INT NOT NULL DEFAULT 0,
+    emails_count INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (user_id, month)

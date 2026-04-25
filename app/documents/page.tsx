@@ -84,6 +84,7 @@ interface DocSession {
   payment?: PaymentRecord | null
   email?: EmailRecord | null          // most recent email (for badge)
   emailStats?: EmailStats | null
+  quotationResponse?: { response_type: string } | null
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -156,6 +157,22 @@ function EmailBadge({ email }: { email: EmailRecord }) {
     <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", className)}
       title={email.recipient_email ? `Sent to ${email.recipient_email}` : undefined}>
       <Mail size={10} />
+      {label}
+    </span>
+  )
+}
+
+// ── Quotation Response Badge ──────────────────────────────────────────────────
+
+function QuotationResponseBadge({ responseType }: { responseType: string }) {
+  const config: Record<string, { label: string; className: string }> = {
+    accepted: { label: "Accepted", className: "bg-emerald-100 text-emerald-700" },
+    declined: { label: "Declined", className: "bg-red-100 text-red-700" },
+    changes_requested: { label: "Changes Requested", className: "bg-orange-100 text-orange-700" },
+  }
+  const { label, className } = config[responseType] ?? config.accepted
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", className)}>
       {label}
     </span>
   )
@@ -473,6 +490,10 @@ function DocCard({
                 Paid
               </span>
             )}
+            {/* Quotation response badge */}
+            {docType === "quotation" && session.quotationResponse && (
+              <QuotationResponseBadge responseType={session.quotationResponse.response_type} />
+            )}
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
@@ -513,6 +534,17 @@ function DocCard({
               Viewed {payment.view_count}×
               {payment.link_viewed_at && ` · ${formatDistanceToNow(new Date(payment.link_viewed_at), { addSuffix: true })}`}
             </p>
+          )}
+
+          {/* Download Signed PDF link */}
+          {session.status === "signed" && (
+            <a
+              href={`/api/signatures/download/${session.id}`}
+              className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline mt-1 font-medium"
+            >
+              <Download size={10} />
+              Signed PDF
+            </a>
           )}
         </div>
 
@@ -676,7 +708,32 @@ export default function MyDocumentsPage() {
         emailStats: emailStatsMap[s.id] ?? null,
       }))
 
-      setSessions(merged)
+      // Fetch quotation responses for quotation sessions
+      const quotationSessionIds = withContent
+        .filter((s: any) => s.document_type === "quotation")
+        .map((s: any) => s.id)
+
+      let quotationResponseMap: Record<string, { response_type: string }> = {}
+      if (quotationSessionIds.length > 0) {
+        const { data: qResponses } = await (supabase as any)
+          .from("quotation_responses")
+          .select("session_id, response_type")
+          .in("session_id", quotationSessionIds)
+          .order("created_at", { ascending: false })
+
+        for (const r of (qResponses || [])) {
+          if (!quotationResponseMap[r.session_id]) {
+            quotationResponseMap[r.session_id] = { response_type: r.response_type }
+          }
+        }
+      }
+
+      const mergedWithQuotations: DocSession[] = merged.map((s) => ({
+        ...s,
+        quotationResponse: quotationResponseMap[s.id] ?? null,
+      }))
+
+      setSessions(mergedWithQuotations)
     } catch (error: any) {
       console.error("Error loading sessions:", error?.message || error)
       toast.error("Failed to load documents")
