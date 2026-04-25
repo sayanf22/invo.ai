@@ -59,6 +59,15 @@ interface EmailRecord {
   created_at: string
 }
 
+interface EmailStats {
+  totalSent: number
+  opened: number
+  delivered: number
+  bounced: number
+  lastSentAt: string | null
+  emails: EmailRecord[]
+}
+
 interface DocSession {
   id: string
   document_type: string
@@ -69,7 +78,8 @@ interface DocSession {
   sent_at: string | null
   context: any
   payment?: PaymentRecord | null
-  email?: EmailRecord | null
+  email?: EmailRecord | null          // most recent email (for badge)
+  emailStats?: EmailStats | null
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -226,6 +236,71 @@ function PaymentPanel({ payment, currency }: { payment: PaymentRecord; currency:
   )
 }
 
+// ── Email History Panel ───────────────────────────────────────────────────────
+
+function EmailHistoryPanel({ stats }: { stats: EmailStats }) {
+  const statusConfig = {
+    sent: { label: "Sent", className: "bg-muted text-muted-foreground" },
+    delivered: { label: "Delivered", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+    opened: { label: "Opened", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+    bounced: { label: "Bounced", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+    failed: { label: "Failed", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-border/50 bg-muted/20 overflow-hidden">
+      {/* Stats summary row */}
+      <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border/40 flex-wrap">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Mail size={11} />
+          <span className="font-semibold text-foreground">{stats.totalSent}</span> sent
+        </div>
+        {stats.opened > 0 && (
+          <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+            <Eye size={11} />
+            <span className="font-semibold">{stats.opened}</span> opened
+          </div>
+        )}
+        {stats.delivered > 0 && (
+          <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 size={11} />
+            <span className="font-semibold">{stats.delivered}</span> delivered
+          </div>
+        )}
+        {stats.bounced > 0 && (
+          <div className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+            <AlertCircle size={11} />
+            <span className="font-semibold">{stats.bounced}</span> bounced
+          </div>
+        )}
+      </div>
+
+      {/* Individual email rows */}
+      <div className="divide-y divide-border/30">
+        {stats.emails.map((e, i) => {
+          const cfg = statusConfig[e.status] || statusConfig.sent
+          return (
+            <div key={e.id} className="flex items-center justify-between px-3 py-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[11px] text-muted-foreground shrink-0">#{i + 1}</span>
+                <span className="text-xs text-foreground/80 truncate max-w-[160px]">{e.recipient_email}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-full", cfg.className)}>
+                  {cfg.label}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {format(new Date(e.created_at), "MMM d")}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── Document Card ─────────────────────────────────────────────────────────────
 
 function DocCard({
@@ -238,6 +313,7 @@ function DocCard({
   downloading: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [emailExpanded, setEmailExpanded] = useState(false)
   const docType = (session.document_type || "invoice").toLowerCase()
   const ctx = session.context || {}
 
@@ -253,6 +329,8 @@ function DocCard({
 
   const payment = session.payment
   const hasPayment = !!payment
+  const emailStats = session.emailStats
+  const hasEmails = !!emailStats && emailStats.totalSent > 0
 
   return (
     <div
@@ -322,10 +400,21 @@ function DocCard({
             {session.email && (
               <EmailBadge email={session.email} />
             )}
+            {hasEmails && (
+              <button
+                onClick={() => setEmailExpanded(v => !v)}
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                <Mail size={10} />
+                {emailStats!.totalSent} sent
+                {emailStats!.opened > 0 && ` · ${emailStats!.opened} opened`}
+                {emailExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              </button>
+            )}
           </div>
 
           {/* View tracking summary (compact) */}
-          {payment && payment.view_count > 0 && payment.status !== "paid" && (
+          {payment && payment.view_count > 0 && (
             <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
               <Eye size={10} />
               Viewed {payment.view_count}×
@@ -355,12 +444,12 @@ function DocCard({
             {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
           </button>
 
-          {/* Expand payment details — only if payment exists */}
-          {hasPayment && (
+          {/* Expand details — show if payment or emails exist */}
+          {(hasPayment || hasEmails) && (
             <button
               className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground"
-              onClick={() => setExpanded(v => !v)}
-              aria-label="Toggle payment details"
+              onClick={() => { setExpanded(v => !v); if (!expanded && hasEmails) setEmailExpanded(true) }}
+              aria-label="Toggle details"
             >
               {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
             </button>
@@ -377,6 +466,20 @@ function DocCard({
           <div className="min-h-0 overflow-hidden">
             <div className="px-3.5 pb-3.5">
               <PaymentPanel payment={payment!} currency={ctx.currency || "INR"} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expandable email history panel */}
+      {hasEmails && (
+        <div className={cn(
+          "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          emailExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}>
+          <div className="min-h-0 overflow-hidden">
+            <div className="px-3.5 pb-3.5">
+              <EmailHistoryPanel stats={emailStats!} />
             </div>
           </div>
         </div>
@@ -440,8 +543,9 @@ export default function MyDocumentsPage() {
         }
       }
 
-      // Load most recent email per session
+      // Load all emails per session for stats
       let emailMap: Record<string, EmailRecord> = {}
+      let emailStatsMap: Record<string, EmailStats> = {}
       if (sessionIds.length > 0) {
         const { data: emails } = await (supabase as any)
           .from("document_emails")
@@ -450,10 +554,23 @@ export default function MyDocumentsPage() {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
 
-        // Keep only the most recent email per session
+        // Group all emails by session
+        const emailsBySession: Record<string, EmailRecord[]> = {}
         for (const e of (emails || [])) {
-          if (!emailMap[e.session_id]) {
-            emailMap[e.session_id] = e as EmailRecord
+          if (!emailsBySession[e.session_id]) emailsBySession[e.session_id] = []
+          emailsBySession[e.session_id].push(e as EmailRecord)
+        }
+
+        // Build stats and most-recent map
+        for (const [sid, list] of Object.entries(emailsBySession)) {
+          emailMap[sid] = list[0] // most recent (already sorted desc)
+          emailStatsMap[sid] = {
+            totalSent: list.length,
+            opened: list.filter(e => e.status === "opened").length,
+            delivered: list.filter(e => e.status === "delivered").length,
+            bounced: list.filter(e => e.status === "bounced").length,
+            lastSentAt: list[0]?.created_at ?? null,
+            emails: list,
           }
         }
       }
@@ -462,6 +579,7 @@ export default function MyDocumentsPage() {
         ...s,
         payment: paymentMap[s.id] ?? null,
         email: emailMap[s.id] ?? null,
+        emailStats: emailStatsMap[s.id] ?? null,
       }))
 
       setSessions(merged)

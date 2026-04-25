@@ -6,6 +6,7 @@ import { generateEmailSubject, renderEmailTemplate } from "@/lib/email-template"
 import { logAudit } from "@/lib/audit-log"
 import { checkEmailLimit, incrementEmailCount, getFollowUpSchedule } from "@/lib/cost-protection"
 import type { UserTier } from "@/lib/cost-protection"
+import { createClient } from "@supabase/supabase-js"
 
 interface SendDocumentRequest {
   sessionId: string
@@ -14,6 +15,7 @@ interface SendDocumentRequest {
   subject?: string        // user-editable subject line
   resend?: boolean
   scheduleFollowUps?: boolean  // whether to schedule auto follow-ups (invoices only)
+  paymentLinkExpiryDays?: number  // custom expiry for auto-created payment link
 }
 
 export async function POST(request: NextRequest) {
@@ -118,18 +120,102 @@ export async function POST(request: NextRequest) {
     const businessName = business?.name || "Your Business"
     const businessLogoUrl = business?.logo_url || null
 
-    // 9. For invoices: fetch active payment link
+    // 9. For invoices: fetch active payment link — auto-create if none exists
     let payNowUrl: string | null = null
     if (documentType === "invoice") {
-      const { data: payment } = await (supabase as any)
+      // Use service role client for invoice_payments (may not be in RLS scope)
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+
+      const { data: payment } = await (supabaseAdmin as any)
         .from("invoice_payments")
-        .select("id")
+        .select("id, status")
         .eq("session_id", sessionId)
         .in("status", ["created", "partially_paid"])
         .maybeSingle()
 
       if (payment) {
+        // Active payment link exists
         payNowUrl = `https://clorefy.com/pay/${sessionId}`
+      } else {
+        // No active payment link — try to auto-create one if user has Razorpay configured
+        try {
+          const { getUserRazorpayCredentials } = await import("@/app/api/payments/settings/route")
+          const userCreds = await getUserRazorpayCredentials(userId)
+
+          if (userCreds) {
+            // Calculate invoice total from context
+            const items = (context.items as any[]) || []
+            const subtotal = items.reduce((sum: number, item: any) => {
+              const qty = Number(item.quantity) || 0
+              const rate = Number(item.rate) || 0
+              const disc = Number(item.discount) || 0
+              return sum + (qty * rate * (1 - disc / 100))
+            }, 0)
+            const taxRate = Number(context.taxRate) || 0
+            const discountValue = Number(context.discountValue) || 0
+            const shippingFee = Number(context.shippingFee) || 0
+            const discountAmount = (context.discountType as string) === "percent"
+              ? subtotal * (discountValue / 100)
+              : discountValue
+            const taxAmount = (subtotal - discountAmount) * (taxRate / 100)
+            const total = subtotal - discountAmount + taxAmount + shippingFee
+
+            const invoiceCurrency = (context.currency as string) || "INR"
+            const CURRENCY_MULTIPLIERS: Record<string, number> = {
+              INR: 100, USD: 100, EUR: 100, GBP: 100, SGD: 100,
+              AED: 100, CAD: 100, AUD: 100, PHP: 100, MYR: 100, JPY: 1,
+            }
+            const amountInSmallestUnit = Math.round(total * (CURRENCY_MULTIPLIERS[invoiceCurrency.toUpperCase()] ?? 100))
+
+            if (amountInSmallestUnit > 0) {
+              const { createPaymentLink } = await import("@/lib/razorpay")
+              const invoiceRef = referenceNumber || `INV-${sessionId.slice(0, 8).toUpperCase()}`
+              const description = `Invoice ${invoiceRef}${recipientName !== "Valued Client" ? ` for ${recipientName}` : ""}`
+              const expiryDays = body.paymentLinkExpiryDays || undefined
+
+              const razorpayLink = await createPaymentLink({
+                amount: amountInSmallestUnit,
+                currency: invoiceCurrency.toUpperCase(),
+                description,
+                referenceId: invoiceRef,
+                customerName: recipientName !== "Valued Client" ? recipientName : undefined,
+                customerEmail: recipientEmail,
+                sessionId,
+                userId,
+                expireInDays: expiryDays,
+                dueDateIso: (context.dueDate as string) || undefined,
+                userKeyId: userCreds.keyId,
+                userKeySecret: userCreds.keySecret,
+              })
+
+              // Save to DB
+              await supabaseAdmin
+                .from("invoice_payments")
+                .insert({
+                  session_id: sessionId,
+                  user_id: userId,
+                  razorpay_payment_link_id: razorpayLink.id,
+                  short_url: razorpayLink.short_url,
+                  amount: amountInSmallestUnit,
+                  currency: invoiceCurrency.toUpperCase(),
+                  status: "created",
+                  reference_id: invoiceRef,
+                  description,
+                  customer_name: recipientName !== "Valued Client" ? recipientName : null,
+                  customer_email: recipientEmail,
+                  expires_at: new Date(razorpayLink.expire_by * 1000).toISOString(),
+                })
+
+              payNowUrl = `https://clorefy.com/pay/${sessionId}`
+            }
+          }
+        } catch (err) {
+          // Non-fatal — email will still be sent without Pay Now button
+          console.error("Auto-create payment link failed (non-fatal):", err)
+        }
       }
     }
 
@@ -233,7 +319,7 @@ export async function POST(request: NextRequest) {
         sent_at: new Date().toISOString(),
         client_name: clientName || undefined,
         updated_at: new Date().toISOString(),
-      })
+      } as any)
       .eq("id", sessionId)
       .eq("user_id", userId)
 

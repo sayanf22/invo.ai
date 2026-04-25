@@ -45,11 +45,12 @@ export default async function PayPage({ params }: PageProps) {
     return <PayDocumentView docData={null} payment={null} />
   }
 
-  // Fetch payment info
+  // Fetch payment info — only active/paid (not cancelled/expired)
   const { data: pay } = await (supabase as any)
     .from("invoice_payments")
     .select("short_url, status, amount, currency, amount_paid")
     .eq("session_id", sessionId)
+    .in("status", ["created", "partially_paid", "paid"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()

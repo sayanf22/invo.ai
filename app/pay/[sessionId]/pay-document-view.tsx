@@ -186,6 +186,20 @@ export function PayDocumentView({ docData, payment }: Props) {
   const [rendering, setRendering] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
+  // Track document view (fire-and-forget)
+  useEffect(() => {
+    // Extract sessionId from URL
+    const path = window.location.pathname
+    const match = path.match(/\/pay\/([0-9a-f-]+)/i)
+    if (match?.[1]) {
+      fetch("/api/emails/track-view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: match[1] }),
+      }).catch(() => {})
+    }
+  }, [])
+
   // Render PDF
   useEffect(() => {
     if (!docData) return

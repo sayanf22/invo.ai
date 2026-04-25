@@ -220,8 +220,8 @@ function ShareSheet({
             </button>
           </div>
 
-          {/* Payment link section */}
-          {shareLink && payment?.status !== "paid" && (
+          {/* Payment link section — only show for active/pending payments */}
+          {shareLink && payment?.status !== "paid" && payment?.status !== "cancelled" && payment?.status !== "expired" && (
             <div className="rounded-2xl border border-border bg-muted/30 p-3 space-y-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Payment Link</p>
 
@@ -322,6 +322,16 @@ export default function ViewDocumentPage() {
   const [showShare, setShowShare] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
+  // Track document view (fire-and-forget)
+  useEffect(() => {
+    if (!sessionId) return
+    fetch("/api/emails/track-view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    }).catch(() => {}) // non-critical
+  }, [sessionId])
+
   // Load session data — works for both logged-in users and public email recipients
   useEffect(() => {
     if (!sessionId) return
@@ -340,12 +350,13 @@ export default function ViewDocumentPage() {
           if (session?.context) {
             setDocData(session.context as unknown as InvoiceData)
 
-            // Load payment info
+            // Load payment info — only active/paid (not cancelled/expired)
             const { data: pay } = await (supabase as any)
               .from("invoice_payments")
               .select("short_url, status, amount, currency, amount_paid")
               .eq("session_id", sessionId)
               .eq("user_id", user.id)
+              .in("status", ["created", "partially_paid", "paid"])
               .order("created_at", { ascending: false })
               .limit(1)
               .maybeSingle()
@@ -524,20 +535,17 @@ export default function ViewDocumentPage() {
         </div>
       </div>
 
-      {/* Payment status banner — only show for active/paid states, not cancelled */}
-      {payment && payment.status !== "cancelled" && (
+      {/* Payment status banner — only show for active/paid states, not cancelled/expired */}
+      {payment && payment.status !== "cancelled" && payment.status !== "expired" && (
         <div className={cn(
           "border-b px-4 py-2 text-center text-xs font-medium",
           payment.status === "paid"
             ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400"
-            : payment.status === "created" || payment.status === "partially_paid"
-            ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-400"
-            : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-400"
+            : "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-400"
         )}>
           {payment.status === "paid" && `✓ Paid — ${payment.currency} ${((payment.amount_paid ?? payment.amount) / 100).toFixed(2)}`}
           {payment.status === "created" && `Payment pending — ${payment.currency} ${(payment.amount / 100).toFixed(2)}`}
           {payment.status === "partially_paid" && `Partially paid — ${payment.currency} ${((payment.amount_paid ?? 0) / 100).toFixed(2)} of ${(payment.amount / 100).toFixed(2)}`}
-          {payment.status === "expired" && "Payment link has expired"}
         </div>
       )}
 

@@ -363,5 +363,6 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog }: Sh
         </div>
       </div>
     )}
+    </>
   )
 }

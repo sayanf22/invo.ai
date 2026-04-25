@@ -39,13 +39,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    // Fetch payment info if it's an invoice
+    // Fetch payment info if it's an invoice — only active/paid payments
     let payment = null
     if (session.document_type === "invoice") {
       const { data: pay } = await supabase
         .from("invoice_payments")
         .select("short_url, status, amount, currency, amount_paid")
         .eq("session_id", sessionId)
+        .in("status", ["created", "partially_paid", "paid"]) // exclude cancelled/expired
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle()
