@@ -560,24 +560,24 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none scrollbar-none"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {/* Signature status badges */}
+          {/* Signature status badges — visible on all screen sizes */}
           {supportsSignatures && sessionId && hasPendingSignatures && !hasDeclined && !hasRevisionRequested && (
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
               Pending Signature
             </span>
           )}
           {supportsSignatures && sessionId && hasDeclined && (
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
               Declined
             </span>
           )}
           {supportsSignatures && sessionId && hasRevisionRequested && !hasDeclined && (
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
               Revision Requested
             </span>
           )}
           {supportsSignatures && sessionId && allSigned && (
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800">
               Signed
             </span>
           )}
@@ -739,6 +739,8 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         <GetSignatureModal
           sessionId={sessionId}
           documentType={data.documentType || ""}
+          defaultEmail={data.toEmail || ""}
+          defaultName={data.toName || ""}
           open={getSignatureModalOpen}
           onOpenChange={setGetSignatureModalOpen}
         />

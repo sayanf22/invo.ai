@@ -255,42 +255,8 @@ export async function POST(request: NextRequest) {
         // Build signing URL
         const signingUrl = `https://clorefy.com/sign/${signingToken}`
 
-        // Sub-task 5.4: Send signing invitation email BEFORE persisting the record (atomic)
-        const emailSubject = `${businessName} requests your signature on ${docTypeLabel} ${referenceNumber}`.trim()
-        const emailHtml = buildSigningInvitationEmail({
-            businessName,
-            businessLogoUrl,
-            documentType: docTypeLabel,
-            referenceNumber,
-            signerName,
-            signingUrl,
-            expiresAt: expiresAt.toISOString(),
-            personalMessage,
-        })
-
-        const emailResult = await sendEmail({
-            to: signerEmail,
-            subject: emailSubject,
-            html: emailHtml,
-            senderName: businessName,
-            category: "signature_invitation",
-        })
-
-        // ATOMIC: If email fails, do NOT persist the signature record
-        if (!emailResult.success) {
-            console.error("[signatures] Email send failed:", emailResult)
-            // Provide a user-friendly error message
-            const isRateLimit = emailResult.statusCode === 429
-            const userMessage = isRateLimit
-                ? "Email sending limit reached. Please wait a moment and try again."
-                : "Failed to send signing invitation email. Please check the email address and try again."
-            return NextResponse.json(
-                { error: userMessage },
-                { status: isRateLimit ? 429 : 500 }
-            )
-        }
-
-        // Insert signature record (after email succeeds)
+        // Insert signature record FIRST — then send email (non-blocking)
+        // This way the signing link is always created even if email has issues
         const { data: signature, error: sigError } = await supabase
             .from("signatures")
             .insert({
@@ -319,6 +285,41 @@ export async function POST(request: NextRequest) {
             .update({ verification_url: verificationUrl } as any)
             .eq("id", signature.id)
 
+        // Send signing invitation email (non-blocking — signing link already created)
+        const emailSubject = `${businessName} requests your signature on ${docTypeLabel} ${referenceNumber}`.trim()
+        const emailHtml = buildSigningInvitationEmail({
+            businessName,
+            businessLogoUrl,
+            documentType: docTypeLabel,
+            referenceNumber,
+            signerName,
+            signingUrl,
+            expiresAt: expiresAt.toISOString(),
+            personalMessage,
+        })
+
+        let emailSent = false
+        let emailError: string | null = null
+        try {
+            const emailResult = await sendEmail({
+                to: signerEmail,
+                subject: emailSubject,
+                html: emailHtml,
+                senderName: businessName,
+                category: "signature_invitation",
+            })
+            emailSent = emailResult.success
+            if (!emailResult.success) {
+                console.error("[signatures] Email send failed:", emailResult)
+                emailError = emailResult.statusCode === 429
+                    ? "Daily email limit reached — signing link created but email not sent. Share the link manually."
+                    : "Email delivery failed — signing link created. Share the link manually."
+            }
+        } catch (emailErr) {
+            console.error("[signatures] Email exception:", emailErr)
+            emailError = "Email delivery failed — signing link created. Share the link manually."
+        }
+
         // Sub-task 5.3: Record audit event using service-role client
         const serviceSupabase = createClient<Database>(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -345,6 +346,8 @@ export async function POST(request: NextRequest) {
             signature: { ...signature, verification_url: verificationUrl },
             signingUrl,
             expiresAt: expiresAt.toISOString(),
+            emailSent,
+            emailWarning: emailError ?? undefined,
         })
     } catch (error) {
         console.error("Signature request error:", error)
