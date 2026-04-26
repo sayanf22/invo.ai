@@ -41,7 +41,8 @@ export async function generateDocumentImage(
   }
 
   // Use React.createElement instead of JSX so this file doesn't need .tsx extension
-  const element = React.createElement(PdfComponent, { data: cleanedData, logoUrl })
+  // Cast to any to satisfy @react-pdf/renderer's DocumentProps type constraint
+  const element = React.createElement(PdfComponent, { data: cleanedData, logoUrl }) as any
   const pdfBlob = await pdf(element).toBlob()
   const pdfArrayBuffer = await pdfBlob.arrayBuffer()
 
