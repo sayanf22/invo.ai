@@ -28,6 +28,22 @@ const nextConfig = {
     "react-pdf",
   ],
 
+  // ── Brand name redirects (helps Google associate brand with domain) ──
+  async redirects() {
+    return [
+      // Misspelling redirects — /clorify → /
+      { source: "/clorify", destination: "/", permanent: true },
+      { source: "/clorify/:path*", destination: "/:path*", permanent: true },
+      // www → non-www canonical
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.clorefy.com" }],
+        destination: "https://clorefy.com/:path*",
+        permanent: true,
+      },
+    ]
+  },
+
   // ── Security Headers ────────────────────────────────────────────────
   async headers() {
     return [

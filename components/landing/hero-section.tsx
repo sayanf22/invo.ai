@@ -22,9 +22,10 @@ export function HeroSection() {
 
                 <div className="relative z-10 max-w-6xl mx-auto text-center pt-24 sm:pt-20 pb-20 sm:pb-32 px-5 sm:px-6">
 
-                    {/* Main heading */}
+                    {/* Main heading — brand name in H1 for SEO, visual copy for humans */}
                     <h1 className="animate-fade-in-up font-display text-[2.75rem] sm:text-7xl md:text-8xl lg:text-9xl font-semibold tracking-tighter leading-[0.92] text-[var(--landing-text-dark)] mb-6 sm:mb-10" style={{ animationDelay: "0.15s" }}>
-                        <span className="sr-only">Clorefy — AI that remembers your business. Invoices, contracts, proposals — auto-filled, compliant, instant.</span>
+                        {/* Hidden brand + description for crawlers — visible copy below */}
+                        <span className="sr-only">Clorefy — AI Invoice, Contract &amp; Proposal Generator. </span>
                         It remembers,
                         <br />
                         so you <span className="italic gradient-text sm:pr-4">don&apos;t</span>

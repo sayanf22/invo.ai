@@ -60,10 +60,14 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
-  // Add your Google Search Console verification code here after setup
-  verification: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
-    ? { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }
-    : undefined,
+  verification: {
+    ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+      ? { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }
+      : {}),
+    ...(process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION
+      ? { other: { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION } }
+      : {}),
+  },
   manifest: "/manifest.json",
   openGraph: {
     title: "Clorefy — Free AI Invoice & Contract Generator",
@@ -127,80 +131,130 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "WebSite",
               "name": "Clorefy",
+              "alternateName": ["Clorefy AI", "Clorify", "Clorefy.com"],
               "url": "https://clorefy.com",
+              "description": "AI-powered document generation platform for invoices, contracts, quotations, and proposals. Compliant across 11 countries.",
               "potentialAction": {
                 "@type": "SearchAction",
-                "target": "https://clorefy.com/blog?q={search_term_string}",
+                "target": {
+                  "@type": "EntryPoint",
+                  "urlTemplate": "https://clorefy.com/blog?q={search_term_string}",
+                },
                 "query-input": "required name=search_term_string",
               },
             }),
           }}
         />
-        {/* JSON-LD — Organization schema */}
+        {/* JSON-LD — Organization schema (powers Google Knowledge Panel) */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "Organization",
+              "@id": "https://clorefy.com/#organization",
               "name": "Clorefy",
+              "alternateName": ["Clorefy AI", "Clorify"],
               "url": "https://clorefy.com",
-              "logo": "https://clorefy.com/favicon.png",
-              "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals using artificial intelligence. Compliant across 11 countries.",
+              "logo": {
+                "@type": "ImageObject",
+                "url": "https://clorefy.com/favicon.png",
+                "width": 512,
+                "height": 512,
+              },
+              "image": "https://clorefy.com/favicon.png",
+              "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals. Compliant across 11 countries including India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, and Netherlands.",
               "foundingDate": "2025",
+              "numberOfEmployees": { "@type": "QuantitativeValue", "value": 1 },
               "sameAs": [
                 "https://twitter.com/clorefy",
                 "https://linkedin.com/company/clorefy",
                 "https://github.com/clorefy",
+                "https://www.youtube.com/@Clorefy",
               ],
-              "contactPoint": {
-                "@type": "ContactPoint",
-                "contactType": "customer support",
-                "url": "https://clorefy.com/contact",
+              "contactPoint": [
+                {
+                  "@type": "ContactPoint",
+                  "contactType": "customer support",
+                  "email": "support@clorefy.com",
+                  "url": "https://clorefy.com/contact",
+                  "availableLanguage": "English",
+                },
+              ],
+              "address": {
+                "@type": "PostalAddress",
+                "addressCountry": "IN",
               },
             }),
           }}
         />
-        {/* JSON-LD — SoftwareApplication schema (for rich results) */}
+        {/* JSON-LD — SoftwareApplication schema (for rich results in Google) */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "SoftwareApplication",
+              "@id": "https://clorefy.com/#software",
               "name": "Clorefy",
+              "alternateName": ["Clorefy AI", "Clorify"],
               "url": "https://clorefy.com",
               "applicationCategory": "BusinessApplication",
-              "operatingSystem": "Web",
+              "applicationSubCategory": "InvoicingApplication",
+              "operatingSystem": "Web, iOS, Android",
               "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals using artificial intelligence. Compliant across 11 countries.",
-              "offers": {
-                "@type": "AggregateOffer",
-                "lowPrice": "0",
-                "highPrice": "59.99",
-                "priceCurrency": "USD",
-                "offerCount": "4",
-              },
-              "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "4.8",
-                "ratingCount": "150",
-                "bestRating": "5",
-              },
+              "featureList": [
+                "AI invoice generation",
+                "AI contract generation",
+                "AI quotation generation",
+                "AI proposal generation",
+                "GST compliance for India",
+                "VAT compliance for UK and EU",
+                "Sales tax compliance for USA",
+                "PDF export",
+                "DOCX export",
+                "Digital e-signatures",
+                "Multi-currency support",
+                "11 country support",
+              ],
+              "screenshot": "https://clorefy.com/og-image.png",
+              "offers": [
+                {
+                  "@type": "Offer",
+                  "name": "Free Plan",
+                  "price": "0",
+                  "priceCurrency": "USD",
+                  "description": "5 documents per month, all features included",
+                },
+                {
+                  "@type": "Offer",
+                  "name": "Starter Plan",
+                  "price": "9.99",
+                  "priceCurrency": "USD",
+                  "description": "50 documents per month",
+                },
+                {
+                  "@type": "Offer",
+                  "name": "Pro Plan",
+                  "price": "24.99",
+                  "priceCurrency": "USD",
+                  "description": "150 documents per month",
+                },
+                {
+                  "@type": "Offer",
+                  "name": "Agency Plan",
+                  "price": "59.99",
+                  "priceCurrency": "USD",
+                  "description": "Unlimited documents",
+                },
+              ],
               "creator": {
-                "@type": "Organization",
-                "name": "Clorefy",
-                "url": "https://clorefy.com",
-                "logo": "https://clorefy.com/favicon.png",
-                "sameAs": [
-                  "https://twitter.com/clorefy",
-                  "https://linkedin.com/company/clorefy",
-                  "https://github.com/clorefy",
-                ],
+                "@id": "https://clorefy.com/#organization",
               },
             }),
           }}
         />
-        {/* JSON-LD — FAQ for rich snippets */}
+        {/* JSON-LD — FAQ for rich snippets (boosts brand SERP real estate) */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -213,15 +267,15 @@ export default function RootLayout({
                   "name": "What is Clorefy?",
                   "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Clorefy is an AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals from natural language descriptions. It supports 11 countries with automatic tax compliance.",
+                    "text": "Clorefy is an AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals from natural language descriptions. It supports 11 countries with automatic tax compliance including GST for India, VAT for UK/EU, and sales tax for the USA.",
                   },
                 },
                 {
                   "@type": "Question",
-                  "name": "How does AI document generation work?",
+                  "name": "How does Clorefy work?",
                   "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Simply describe what you need in plain language. Clorefy's AI generates a complete, professionally formatted document with correct tax calculations, legal terms, and your business branding in seconds.",
+                    "text": "Simply describe what you need in plain language. Clorefy's AI generates a complete, professionally formatted document with correct tax calculations, legal terms, and your business branding in seconds. No templates, no manual form filling.",
                   },
                 },
                 {
@@ -237,15 +291,7 @@ export default function RootLayout({
                   "name": "Is Clorefy free to use?",
                   "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Yes, Clorefy offers a free plan with 5 documents per month. Paid plans start at $9.99/month for 50 documents with all features.",
-                  },
-                },
-                {
-                  "@type": "Question",
-                  "name": "What document types can Clorefy generate?",
-                  "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": "Clorefy generates invoices, contracts, quotations, and proposals. Each document type supports country-specific compliance, custom branding, and export to PDF, DOCX, or image formats.",
+                    "text": "Yes, Clorefy offers a free plan with 5 documents per month. Paid plans start at $9.99/month for 50 documents with all features including e-signatures, recurring invoices, and payment links.",
                   },
                 },
                 {
@@ -269,7 +315,15 @@ export default function RootLayout({
                   "name": "How is Clorefy different from FreshBooks or QuickBooks?",
                   "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Clorefy uses AI to generate documents from natural language descriptions — you describe what you need and get a complete document in seconds. Traditional tools like FreshBooks and QuickBooks require manual form filling. Clorefy is faster for document creation but focused on generation, not full accounting.",
+                    "text": "Clorefy uses AI to generate documents from natural language — you describe what you need and get a complete document in seconds. Traditional tools like FreshBooks and QuickBooks require manual form filling. Clorefy is faster for document creation and supports 11 countries out of the box.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "What is the correct spelling of Clorefy?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "The correct spelling is Clorefy (C-L-O-R-E-F-Y). Common misspellings include Clorify, Clorefi, Clorfy, Glorify, and Clorefy.com. The website is at https://clorefy.com.",
                   },
                 },
               ],

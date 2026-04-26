@@ -90,6 +90,8 @@ const PUBLIC_PATHS = [
   "/business",
   "/tools",
   "/clorefy-alternative-spellings",
+  "/clorefy", // brand name URL — public, no auth needed
+  "/clorify", // misspelling redirect — public
   "/clorefy-ctrl-8x2m", // admin routes — protected by their own JWT check in middleware
 ]
 

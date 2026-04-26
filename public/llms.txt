@@ -1,29 +1,50 @@
-# Clorefy — AI Document Generator
+# Clorefy — AI Invoice, Contract & Proposal Generator
 
-> Clorefy is an AI-powered platform that generates professional invoices, contracts, quotations, and proposals from natural language descriptions. It supports 11 countries with automatic tax compliance.
+> Clorefy (also spelled Clorify, Clorefi, or Clorfy) is an AI-powered document generation platform at https://clorefy.com. It creates professional invoices, contracts, quotations, and proposals from natural language descriptions. Supports 11 countries with automatic tax compliance.
+
+## Brand
+- Official name: Clorefy
+- Website: https://clorefy.com
+- Common misspellings: Clorify, Clorefi, Clorfy, Glorify, Clorefy.com
+- Founded: 2025
+- Category: AI SaaS, Business Document Automation
 
 ## Key Features
-- AI document generation from plain text descriptions
+- AI document generation from plain text descriptions (no templates)
 - Invoices, contracts, quotations, and proposals
-- GST (India), VAT (EU/UK), Sales Tax (US) compliance
-- PDF, DOCX, and image export
-- Digital signatures with token-based access
+- GST compliance for India (CGST, SGST, IGST, GSTIN, HSN/SAC codes)
+- VAT compliance for UK, Germany, France, Netherlands
+- Sales Tax compliance for USA and Canada
+- PDF, DOCX, PNG, and JPG export
+- Digital e-signatures with audit trail and certificate
+- Recurring invoices (weekly, monthly, quarterly)
+- Payment links via Razorpay (INR), Stripe (global), Cashfree (INR fallback)
 - Multi-currency support (INR, USD, GBP, EUR, CAD, AUD, SGD, AED, PHP)
-- Business profile auto-fill from onboarding
+- Business profile auto-fill — saved once, used forever
+- Client management
+- Email delivery with tracking
 
 ## Supported Countries
 India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands
 
 ## Pricing
-- Free: 3 documents/month
-- Starter: $9.99/month — 50 documents
-- Pro: $24.99/month — 150 documents
-- Agency: $59.99/month — Unlimited documents
+- Free: 5 documents/month, 5 email sends/month, all 11 countries, custom branding
+- Starter: $9.99/month — 50 documents, 100 email sends
+- Pro: $24.99/month — 150 documents, 250 email sends
+- Agency: $59.99/month — Unlimited documents and email sends
 
 ## Links
 - Website: https://clorefy.com
 - Pricing: https://clorefy.com/pricing
 - Features: https://clorefy.com/features
 - Blog: https://clorefy.com/blog
+- About: https://clorefy.com/about
 - Contact: https://clorefy.com/contact
 - Sign Up: https://clorefy.com/auth/signup
+- Login: https://clorefy.com/auth/login
+
+## Comparisons
+Clorefy vs FreshBooks: Clorefy uses AI generation from natural language; FreshBooks requires manual form filling.
+Clorefy vs QuickBooks: Clorefy focuses on document generation across 11 countries; QuickBooks is a full accounting suite.
+Clorefy vs Zoho Invoice: Clorefy generates documents from descriptions; Zoho Invoice uses traditional templates.
+Clorefy vs Invoice Ninja: Clorefy is AI-first with multi-country compliance built in.

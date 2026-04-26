@@ -25,7 +25,24 @@ export default function robots(): MetadataRoute.Robots {
           "/sign/",
         ],
       },
+      // Allow AI crawlers to read llms.txt for AI search visibility
+      {
+        userAgent: "GPTBot",
+        allow: ["/", "/llms.txt", "/blog/", "/features", "/pricing", "/about"],
+        disallow: ["/api/", "/auth/", "/onboarding", "/documents", "/history"],
+      },
+      {
+        userAgent: "ClaudeBot",
+        allow: ["/", "/llms.txt", "/blog/", "/features", "/pricing", "/about"],
+        disallow: ["/api/", "/auth/", "/onboarding", "/documents", "/history"],
+      },
+      {
+        userAgent: "PerplexityBot",
+        allow: ["/", "/llms.txt", "/blog/", "/features", "/pricing", "/about"],
+        disallow: ["/api/", "/auth/", "/onboarding", "/documents", "/history"],
+      },
     ],
     sitemap: "https://clorefy.com/sitemap.xml",
+    host: "https://clorefy.com",
   }
 }
