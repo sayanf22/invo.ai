@@ -54,7 +54,7 @@ interface Row {
   clorefy: Val
   freshbooks: Val
   quickbooks: Val
-  zoho: Val
+  bonsai: Val
   note?: string
 }
 
@@ -69,52 +69,52 @@ const SECTIONS: Section[] = [
     title: "Document Generation",
     icon: "📄",
     rows: [
-      { label: "Invoices", clorefy: true, freshbooks: true, quickbooks: true, zoho: true },
-      { label: "Contracts", clorefy: true, freshbooks: false, quickbooks: false, zoho: false, note: "Clorefy exclusive" },
-      { label: "Quotations / Estimates", clorefy: true, freshbooks: true, quickbooks: true, zoho: true },
-      { label: "Business Proposals", clorefy: true, freshbooks: false, quickbooks: false, zoho: false, note: "Clorefy exclusive" },
-      { label: "AI generation from plain text", clorefy: true, freshbooks: false, quickbooks: false, zoho: false, note: "Clorefy exclusive" },
-      { label: "Conversational editing", clorefy: true, freshbooks: false, quickbooks: false, zoho: false, note: "Clorefy exclusive" },
+      { label: "Invoices", clorefy: true, freshbooks: true, quickbooks: true, bonsai: true },
+      { label: "Contracts", clorefy: true, freshbooks: false, quickbooks: false, bonsai: true, note: "Clorefy: AI-generated" },
+      { label: "Quotations / Estimates", clorefy: true, freshbooks: true, quickbooks: true, bonsai: true },
+      { label: "Business Proposals", clorefy: true, freshbooks: false, quickbooks: false, bonsai: true, note: "Clorefy: AI-generated" },
+      { label: "AI generation from plain text", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false, note: "Clorefy exclusive" },
+      { label: "Conversational editing", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false, note: "Clorefy exclusive" },
+      { label: "No manual form filling", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false, note: "Clorefy exclusive" },
     ],
   },
   {
     title: "Tax & Compliance",
     icon: "🌍",
     rows: [
-      { label: "India GST (CGST / SGST / IGST)", clorefy: true, freshbooks: false, quickbooks: "partial", zoho: true, note: "QB India is separate" },
-      { label: "US Sales Tax (all 50 states)", clorefy: true, freshbooks: true, quickbooks: true, zoho: true },
-      { label: "UK VAT", clorefy: true, freshbooks: true, quickbooks: true, zoho: true },
-      { label: "EU VAT (DE, FR, NL)", clorefy: true, freshbooks: false, quickbooks: false, zoho: "partial" },
-      { label: "Canada GST / HST / QST", clorefy: true, freshbooks: true, quickbooks: true, zoho: "partial" },
-      { label: "Australia GST (ABN)", clorefy: true, freshbooks: false, quickbooks: false, zoho: "partial" },
-      { label: "Singapore GST", clorefy: true, freshbooks: false, quickbooks: false, zoho: false },
-      { label: "UAE VAT (TRN)", clorefy: true, freshbooks: false, quickbooks: false, zoho: false },
-      { label: "Philippines VAT (BIR)", clorefy: true, freshbooks: false, quickbooks: false, zoho: false },
-      { label: "Auto tax rate detection", clorefy: true, freshbooks: false, quickbooks: false, zoho: false, note: "Clorefy exclusive" },
+      { label: "India GST (CGST / SGST / IGST)", clorefy: true, freshbooks: false, quickbooks: "partial", bonsai: false, note: "QB India is separate" },
+      { label: "US Sales Tax (all 50 states)", clorefy: true, freshbooks: true, quickbooks: true, bonsai: false },
+      { label: "UK VAT", clorefy: true, freshbooks: true, quickbooks: true, bonsai: false },
+      { label: "EU VAT (DE, FR, NL)", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false },
+      { label: "Canada GST / HST / QST", clorefy: true, freshbooks: true, quickbooks: true, bonsai: false },
+      { label: "Australia GST (ABN)", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false },
+      { label: "Singapore GST", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false },
+      { label: "UAE VAT (TRN)", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false },
+      { label: "Auto tax rate detection", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false, note: "Clorefy exclusive" },
     ],
   },
   {
     title: "Export & Design",
     icon: "🎨",
     rows: [
-      { label: "PDF export", clorefy: true, freshbooks: true, quickbooks: true, zoho: true },
-      { label: "DOCX (Word) export", clorefy: true, freshbooks: false, quickbooks: false, zoho: false },
-      { label: "Image export (PNG / JPG)", clorefy: true, freshbooks: false, quickbooks: false, zoho: false },
-      { label: "Professional templates", clorefy: "9 templates", freshbooks: "Limited", quickbooks: "Limited", zoho: "Limited" },
-      { label: "Custom logo & branding", clorefy: true, freshbooks: true, quickbooks: true, zoho: true },
-      { label: "Digital e-signatures", clorefy: true, freshbooks: "partial", quickbooks: false, zoho: false, note: "FreshBooks add-on" },
+      { label: "PDF export", clorefy: true, freshbooks: true, quickbooks: true, bonsai: true },
+      { label: "DOCX (Word) export", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false },
+      { label: "Image export (PNG / JPG)", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false },
+      { label: "Professional templates", clorefy: "9 templates", freshbooks: "Limited", quickbooks: "Limited", bonsai: "Limited" },
+      { label: "Custom logo & branding", clorefy: true, freshbooks: true, quickbooks: true, bonsai: true },
+      { label: "Digital e-signatures", clorefy: true, freshbooks: "partial", quickbooks: false, bonsai: true, note: "FreshBooks add-on" },
     ],
   },
   {
     title: "Pricing & Value",
     icon: "💰",
     rows: [
-      { label: "Free plan", clorefy: true, freshbooks: false, quickbooks: false, zoho: true, note: "Zoho: invoices only" },
-      { label: "Starting price / month", clorefy: "$9", freshbooks: "$21", quickbooks: "$38", zoho: "Free*" },
-      { label: "No per-client limits", clorefy: true, freshbooks: false, quickbooks: true, zoho: true, note: "FreshBooks Lite: 5 clients" },
-      { label: "No accounting complexity", clorefy: true, freshbooks: false, quickbooks: false, zoho: false },
-      { label: "Payment reminders", clorefy: true, freshbooks: true, quickbooks: true, zoho: true },
-      { label: "Online payment links", clorefy: true, freshbooks: true, quickbooks: true, zoho: true },
+      { label: "Free plan", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false },
+      { label: "Starting price / month", clorefy: "$9", freshbooks: "$21", quickbooks: "$38", bonsai: "$15" },
+      { label: "No per-client limits", clorefy: true, freshbooks: false, quickbooks: true, bonsai: true, note: "FreshBooks Lite: 5 clients" },
+      { label: "No accounting complexity", clorefy: true, freshbooks: false, quickbooks: false, bonsai: true },
+      { label: "Payment reminders", clorefy: true, freshbooks: true, quickbooks: true, bonsai: true },
+      { label: "Online payment links", clorefy: true, freshbooks: true, quickbooks: true, bonsai: true },
     ],
   },
 ]
@@ -212,7 +212,7 @@ function SectionBlock({ section, index }: { section: Section; index: number }) {
           </div>
 
           {/* Competitors */}
-          {(["freshbooks", "quickbooks", "zoho"] as const).map(key => (
+          {(["freshbooks", "quickbooks", "bonsai"] as const).map(key => (
             <div key={key} className="px-3 py-3 border-l" style={{ borderColor: BORDER }}>
               <Cell val={row[key]} />
             </div>
@@ -232,7 +232,7 @@ export function ComparisonTable() {
   const competitors = [
     { name: "FreshBooks", price: "from $21/mo", color: "#0075DD" },
     { name: "QuickBooks", price: "from $38/mo", color: "#2CA01C" },
-    { name: "Zoho Invoice", price: "Free*", color: "#E42527" },
+    { name: "Bonsai", price: "from $15/mo", color: "#7C3AED" },
   ]
 
   return (
@@ -267,8 +267,8 @@ export function ComparisonTable() {
           </h2>
 
           <p className="text-base leading-relaxed max-w-lg mx-auto" style={{ color: MUTED }}>
-            FreshBooks starts at <strong style={{ color: DARK }}>$21/mo</strong> and QuickBooks at <strong style={{ color: DARK }}>$38/mo</strong> — both are accounting tools that happen to have invoicing.
-            Clorefy is purpose-built for document generation, starting at <strong style={{ color: AMBER }}>$9/mo</strong>.
+            FreshBooks starts at <strong style={{ color: DARK }}>$21/mo</strong>, QuickBooks at <strong style={{ color: DARK }}>$38/mo</strong>, and Bonsai at <strong style={{ color: DARK }}>$15/mo</strong> — none have AI generation or multi-country tax compliance.
+            Clorefy starts at <strong style={{ color: AMBER }}>$9/mo</strong> with a free plan.
           </p>
         </motion.div>
 
@@ -349,8 +349,7 @@ export function ComparisonTable() {
           className="text-center text-xs mt-6"
           style={{ color: MUTED }}
         >
-          * Zoho Invoice is free for invoicing only — no contracts, proposals, AI generation, or multi-country compliance.
-          FreshBooks pricing from $21/mo (Lite). QuickBooks from $38/mo (Simple Start). Prices verified April 2026.
+          FreshBooks from $21/mo (Lite, 5 clients). QuickBooks from $38/mo (Simple Start). Bonsai from $15/mo. Prices verified April 2026.
         </motion.p>
 
         {/* ── CTA ── */}

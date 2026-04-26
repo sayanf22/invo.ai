@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, Mail, PenLine, Download } from "lucide-react"
+import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, Mail, PenLine, Download, FileDown, ChevronDown, Image as ImageIcon } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
@@ -15,6 +15,15 @@ import { GetSignatureModal } from "@/components/get-signature-modal"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import { parseTier } from "@/lib/cost-protection"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 const SIGNATURE_DOCUMENT_TYPES = ["contract", "quotation", "proposal"]
 
@@ -330,6 +339,8 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [signatures, setSignatures] = useState<Array<{ id: string; signed_at: string | null }>>([])
   const [signaturesLoading, setSignaturesLoading] = useState(false)
   const [userTier, setUserTier] = useState<"free" | "starter" | "pro" | "agency">("free")
+  const [exportingDocx, setExportingDocx] = useState(false)
+  const [exportingImage, setExportingImage] = useState(false)
   const hasContent = data.documentType || data.fromName || data.toName || data.description
 
   const supportsSignatures = SIGNATURE_DOCUMENT_TYPES.includes((data.documentType || "").toLowerCase())
@@ -382,6 +393,54 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const handleFitWidth = useCallback(() => {
     setZoom(DEFAULT_ZOOM)
   }, [])
+
+  // DOCX export
+  const handleExportDocx = useCallback(async () => {
+    if (exportingDocx) return
+    setExportingDocx(true)
+    try {
+      const { generateDocx } = await import("@/lib/docx-export")
+      const blob = await generateDocx(data)
+      const docType = (data.documentType || "document").toLowerCase()
+      const ref = data.invoiceNumber || data.referenceNumber || docType
+      const filename = `${ref}_${new Date().toISOString().slice(0, 10)}.docx`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url; a.download = filename
+      document.body.appendChild(a); a.click()
+      document.body.removeChild(a); URL.revokeObjectURL(url)
+      toast.success("Word document downloaded!")
+    } catch (err) {
+      console.error("DOCX export error:", err)
+      toast.error("Failed to generate Word document")
+    } finally {
+      setExportingDocx(false)
+    }
+  }, [data, exportingDocx])
+
+  // Image export (PNG)
+  const handleExportImage = useCallback(async (format: "png" | "jpg" = "png") => {
+    if (exportingImage) return
+    setExportingImage(true)
+    try {
+      const { generateDocumentImage } = await import("@/lib/image-export")
+      const blob = await generateDocumentImage(data, format)
+      const docType = (data.documentType || "document").toLowerCase()
+      const ref = data.invoiceNumber || data.referenceNumber || docType
+      const filename = `${ref}_${new Date().toISOString().slice(0, 10)}.${format}`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url; a.download = filename
+      document.body.appendChild(a); a.click()
+      document.body.removeChild(a); URL.revokeObjectURL(url)
+      toast.success(`${format.toUpperCase()} image downloaded!`)
+    } catch (err) {
+      console.error("Image export error:", err)
+      toast.error("Failed to generate image")
+    } finally {
+      setExportingImage(false)
+    }
+  }, [data, exportingImage])
 
   const handlePrint = useCallback(async () => {
     try {
@@ -578,7 +637,86 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
             <Printer className="w-4 h-4" />
             <span className="hidden lg:inline">Print</span>
           </button>
-          <PDFDownloadButton data={data} size="sm" variant="outline" />
+
+          {/* Export dropdown — PDF, DOCX, PNG, JPG */}
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-md shadow-sm transition-all duration-200 active:scale-95"
+                title="Export document"
+              >
+                {(exportingDocx || exportingImage) ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">Export</span>
+                <ChevronDown className="w-3 h-3 opacity-50" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" sideOffset={8} className="w-44 rounded-2xl p-1.5 shadow-xl border border-border/60">
+              <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-3 py-1">
+                Export As
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={async () => {
+                  try {
+                    const { cleanDataForExport } = await import("@/lib/invoice-types")
+                    const { resolveLogoUrl } = await import("@/lib/resolve-logo-url")
+                    const { pdf } = await import("@react-pdf/renderer")
+                    const templates = await import("@/lib/pdf-templates")
+                    const cleanedData = cleanDataForExport(data)
+                    const logoUrl = await resolveLogoUrl(cleanedData.fromLogo)
+                    const docType = (cleanedData.documentType || "").toLowerCase()
+                    let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
+                    switch (docType) {
+                      case "contract": PdfComponent = templates.ContractPDF; break
+                      case "quotation": PdfComponent = templates.QuotationPDF; break
+                      case "proposal": PdfComponent = templates.ProposalPDF; break
+                      default: PdfComponent = templates.InvoicePDF; break
+                    }
+                    const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
+                    const ref = cleanedData.invoiceNumber || cleanedData.referenceNumber || docType
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a"); a.href = url
+                    a.download = `${ref}_${new Date().toISOString().slice(0, 10)}.pdf`
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
+                    toast.success("PDF downloaded!")
+                  } catch { toast.error("Failed to generate PDF") }
+                }}
+                className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium"
+              >
+                <FileText className="w-4 h-4 text-red-500" />
+                <span>PDF</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleExportDocx}
+                disabled={exportingDocx}
+                className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium"
+              >
+                {exportingDocx ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4 text-blue-500" />}
+                <span>Word (.docx)</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="my-1 bg-border/50" />
+              <DropdownMenuItem
+                onClick={() => handleExportImage("png")}
+                disabled={exportingImage}
+                className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium"
+              >
+                {exportingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4 text-emerald-500" />}
+                <span>PNG Image</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleExportImage("jpg")}
+                disabled={exportingImage}
+                className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium"
+              >
+                {exportingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4 text-amber-500" />}
+                <span>JPG Image</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
