@@ -11,54 +11,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getClientIP } from "@/lib/api-auth"
 import type { Database } from "@/lib/database.types"
+import {
+  VALID_RESPONSE_TYPES,
+  buildQuotationResponseRow,
+} from "@/lib/quotation-response-builder"
+import type { ResponseType, QuotationResponseInput } from "@/lib/quotation-response-builder"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type ResponseType = "accepted" | "declined" | "changes_requested"
-
-const VALID_RESPONSE_TYPES: ResponseType[] = ["accepted", "declined", "changes_requested"]
-
-export interface QuotationResponseInput {
-  sessionId: string
-  responseType: ResponseType
-  clientName: string
-  clientEmail: string
-  reason?: string
-}
-
-export interface QuotationResponseRow {
-  session_id: string
-  response_type: ResponseType
-  client_name: string
-  client_email: string
-  reason: string | null
-  ip_address: string
-  user_agent: string | null
-  responded_at: string
-}
-
-// ── Helper: build the DB row ──────────────────────────────────────────────────
-
-/**
- * Build the quotation_responses insert row from validated input.
- * Exported for property-based testing (Property 11).
- */
-export function buildQuotationResponseRow(
-  input: QuotationResponseInput,
-  ipAddress: string,
-  userAgent: string | null
-): QuotationResponseRow {
-  return {
-    session_id: input.sessionId,
-    response_type: input.responseType,
-    client_name: input.clientName,
-    client_email: input.clientEmail,
-    reason: input.reason ?? null,
-    ip_address: ipAddress,
-    user_agent: userAgent,
-    responded_at: new Date().toISOString(),
-  }
-}
+// Re-export types for consumers (these are type-only, not route exports)
+export type { ResponseType, QuotationResponseInput } from "@/lib/quotation-response-builder"
 
 // ── Helper: build notification for owner ─────────────────────────────────────
 
