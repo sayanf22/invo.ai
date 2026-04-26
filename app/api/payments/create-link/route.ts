@@ -239,15 +239,15 @@ export async function POST(request: NextRequest) {
                 currency: currencyUpper,
                 description: safeDescription,
                 referenceId: safeReferenceId,
+                sessionId,                    // used as unique link_id base
                 customerName: safeCustomerName,
                 customerEmail: safeCustomerEmail,
                 customerPhone: safeCustomerPhone,
-                sessionId,
                 userId: auth.user.id,
                 testMode: userCreds.testMode,
                 userClientId: userCreds.clientId,
                 userClientSecret: userCreds.clientSecret,
-                expireInDays: typeof dueDate === "string" ? 30 : 30,
+                expireInDays: 30,
             })
         } catch (err: unknown) {
             console.error("Cashfree payment link creation failed:", err)
@@ -258,7 +258,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: msg || "Failed to create Cashfree payment link" }, { status: 500 })
         }
         shortUrl = cfLink.link_url
-        gatewayLinkId = cfLink.cf_link_id
+        // Store cf_link_id (Cashfree's internal ID) — this is what the webhook sends
+        gatewayLinkId = String(cfLink.cf_link_id)
     }
 
     // 8. Store in DB

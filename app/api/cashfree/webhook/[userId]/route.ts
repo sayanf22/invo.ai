@@ -52,52 +52,69 @@ export async function POST(
     const data = event.data || {}
 
     if (eventType === "PAYMENT_LINK_EVENT" || eventType.includes("PAYMENT")) {
-        const linkId = data.link?.link_id || data.link_id || ""
-        const status = data.link?.link_status || data.payment?.payment_status || ""
-        const amount = data.link?.link_amount_paid || data.payment?.payment_amount || 0
-        const currency = data.link?.link_currency || "INR"
+        // Cashfree webhook payload for payment links:
+        // data.cf_link_id = Cashfree's internal ID (what we store in razorpay_payment_link_id)
+        // data.link_id = our link_id (cf_{sessionId})
+        // data.link_status = PAID | PARTIALLY_PAID | EXPIRED | CANCELLED
+        const cfLinkId = String(data.cf_link_id || "")
+        const linkStatus = data.link_status || ""
+        const amountPaid = parseFloat(data.link_amount_paid || "0")
+        const currency = data.link_currency || "INR"
+        const sessionId = data.link_notes?.session_id || ""
 
-        if (status === "PAID" || status === "SUCCESS") {
-            await supabaseAdmin.from("invoice_payments").update({
+        if (linkStatus === "PAID") {
+            // Look up by cf_link_id stored in razorpay_payment_link_id column
+            const updateQuery = supabaseAdmin.from("invoice_payments").update({
                 status: "paid",
-                amount_paid: Math.round(amount * 100),
+                amount_paid: Math.round(amountPaid * 100), // convert rupees back to paise
                 paid_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
-            }).eq("reference_id", linkId).eq("user_id", userId)
+            })
+
+            if (cfLinkId) {
+                await updateQuery.eq("razorpay_payment_link_id", cfLinkId).eq("user_id", userId)
+            } else if (sessionId) {
+                await updateQuery.eq("session_id", sessionId).eq("user_id", userId)
+            }
+
+            // Update document session status
+            const targetSessionId = sessionId || (await (async () => {
+                if (!cfLinkId) return null
+                const { data: inv } = await supabaseAdmin
+                    .from("invoice_payments")
+                    .select("session_id")
+                    .eq("razorpay_payment_link_id", cfLinkId)
+                    .eq("user_id", userId)
+                    .maybeSingle()
+                return inv?.session_id ?? null
+            })())
+
+            if (targetSessionId) {
+                await supabaseAdmin
+                    .from("document_sessions")
+                    .update({ status: "paid" })
+                    .eq("id", targetSessionId)
+                    .eq("user_id", userId)
+            }
 
             await supabaseAdmin.from("notifications").insert({
                 user_id: userId,
                 type: "general",
                 title: "Invoice Paid! 🎉",
-                message: `Payment of ${currency} ${amount} received for ${linkId || "your invoice"}.`,
-                metadata: { cashfree_link_id: linkId, amount, currency },
+                message: `Payment of ${currency} ${amountPaid.toFixed(2)} received.`,
+                metadata: { cf_link_id: cfLinkId, amount: amountPaid, currency, session_id: sessionId },
             })
-
-            // Also update document_sessions.status to "paid"
-            try {
-                const { data: invoicePayment } = await supabaseAdmin
-                    .from("invoice_payments")
-                    .select("session_id")
-                    .eq("reference_id", linkId)
-                    .eq("user_id", userId)
-                    .maybeSingle()
-
-                if (invoicePayment?.session_id) {
-                    await supabaseAdmin
-                        .from("document_sessions")
-                        .update({ status: "paid" })
-                        .eq("id", invoicePayment.session_id)
-                        .eq("user_id", userId)
-                }
-            } catch (err) {
-                console.error(`[cashfree-webhook/${userId}] Failed to update document_sessions:`, err)
-            }
-        } else if (status === "PARTIALLY_PAID") {
-            await supabaseAdmin.from("invoice_payments").update({
+        } else if (linkStatus === "PARTIALLY_PAID") {
+            const updateQuery = supabaseAdmin.from("invoice_payments").update({
                 status: "partially_paid",
-                amount_paid: Math.round(amount * 100),
+                amount_paid: Math.round(amountPaid * 100),
                 updated_at: new Date().toISOString(),
-            }).eq("reference_id", linkId).eq("user_id", userId)
+            })
+            if (cfLinkId) {
+                await updateQuery.eq("razorpay_payment_link_id", cfLinkId).eq("user_id", userId)
+            } else if (sessionId) {
+                await updateQuery.eq("session_id", sessionId).eq("user_id", userId)
+            }
         }
     }
 

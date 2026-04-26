@@ -1,9 +1,12 @@
 /**
- * Stripe Payment Links — Server-side integration
+ * Stripe Checkout Session — Server-side integration for invoice payments
  * Uses user's own Stripe Secret Key (money goes to their account)
  *
- * Stripe has a proper webhook API — we CAN register webhooks programmatically
- * using the user's secret key. This is better than Razorpay.
+ * We use Checkout Sessions (NOT Payment Links) because:
+ * - Checkout Sessions are single-use — one session per invoice, cannot be reused
+ * - Payment Links are permanent/reusable — wrong for invoices
+ * - Stripe's own docs say: "Use invoices to collect one-time payments from a specific customer"
+ * - Checkout Sessions expire (default 24h), matching invoice payment expectations
  *
  * Countries: USA, UK, Germany, Canada, Australia, Singapore, UAE, France, Netherlands
  * (NOT India — Stripe is invite-only in India since May 2024)
@@ -21,68 +24,61 @@ export interface StripePaymentLinkParams {
 }
 
 export interface StripePaymentLink {
-    id: string               // plink_xxx
-    url: string              // https://buy.stripe.com/xxx
+    id: string               // cs_xxx (Checkout Session ID)
+    url: string              // https://checkout.stripe.com/pay/cs_xxx
     active: boolean
 }
 
 /**
- * Create a Stripe Payment Link using the user's own secret key.
- * Money goes directly to their Stripe account.
+ * Create a Stripe Checkout Session for a one-time invoice payment.
+ * Uses Checkout Sessions (not Payment Links) — single-use, expires after 24h.
+ * Money goes directly to the user's Stripe account.
  */
 export async function createStripePaymentLink(params: StripePaymentLinkParams): Promise<StripePaymentLink> {
     if (!params.userSecretKey) throw new Error("Stripe secret key not configured")
 
-    // Step 1: Create a Price (Stripe requires a Price object for Payment Links)
-    const priceRes = await fetch("https://api.stripe.com/v1/prices", {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"
+
+    // Build form-encoded body for Stripe API
+    const formData = new URLSearchParams()
+    formData.append("mode", "payment")
+    formData.append("line_items[0][price_data][currency]", params.currency.toLowerCase())
+    formData.append("line_items[0][price_data][unit_amount]", String(params.amount))
+    formData.append("line_items[0][price_data][product_data][name]", params.description.slice(0, 250))
+    formData.append("line_items[0][quantity]", "1")
+    formData.append("metadata[reference_id]", params.referenceId.slice(0, 40))
+    formData.append("metadata[session_id]", params.sessionId || "")
+    formData.append("metadata[user_id]", params.userId || "")
+    formData.append("metadata[platform]", "invo-ai")
+    formData.append("success_url", `${appUrl}/?payment=success&ref=${encodeURIComponent(params.referenceId)}`)
+    formData.append("cancel_url", `${appUrl}/view/${params.sessionId || ""}`)
+    // Expire after 24 hours (Stripe max is 24h for Checkout Sessions)
+    formData.append("expires_at", String(Math.floor(Date.now() / 1000) + 86400))
+
+    if (params.customerEmail) {
+        formData.append("customer_email", params.customerEmail)
+    }
+
+    const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
         method: "POST",
         headers: {
             Authorization: `Bearer ${params.userSecretKey}`,
             "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({
-            "unit_amount": String(params.amount),
-            "currency": params.currency.toLowerCase(),
-            "product_data[name]": params.description.slice(0, 250),
-            "product_data[metadata][reference_id]": params.referenceId.slice(0, 40),
-            "product_data[metadata][session_id]": params.sessionId || "",
-            "product_data[metadata][user_id]": params.userId || "",
-        }),
+        body: formData,
     })
 
-    if (!priceRes.ok) {
-        const err = await priceRes.json()
-        throw new Error(err.error?.message || "Failed to create Stripe price")
+    if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error?.message || "Failed to create Stripe Checkout Session")
     }
 
-    const price = await priceRes.json()
-
-    // Step 2: Create the Payment Link
-    const linkRes = await fetch("https://api.stripe.com/v1/payment_links", {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${params.userSecretKey}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-            "line_items[0][price]": price.id,
-            "line_items[0][quantity]": "1",
-            "metadata[reference_id]": params.referenceId.slice(0, 40),
-            "metadata[session_id]": params.sessionId || "",
-            "metadata[user_id]": params.userId || "",
-            "metadata[platform]": "invo-ai",
-            ...(params.customerEmail ? { "customer_creation": "always" } : {}),
-            "after_completion[type]": "redirect",
-            "after_completion[redirect][url]": `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/?payment=success&ref=${encodeURIComponent(params.referenceId)}`,
-        }),
-    })
-
-    if (!linkRes.ok) {
-        const err = await linkRes.json()
-        throw new Error(err.error?.message || "Failed to create Stripe payment link")
+    const session = await res.json()
+    return {
+        id: session.id,
+        url: session.url,
+        active: session.status === "open",
     }
-
-    return linkRes.json()
 }
 
 /**
@@ -100,7 +96,7 @@ export async function registerStripeWebhook(
         const params = new URLSearchParams()
         params.append("url", webhookUrl)
         params.append("enabled_events[]", "checkout.session.completed")
-        params.append("enabled_events[]", "payment_link.completed")
+        params.append("enabled_events[]", "checkout.session.expired")
         params.append("description", "Invo.ai payment notifications")
 
         const res = await fetch("https://api.stripe.com/v1/webhook_endpoints", {
