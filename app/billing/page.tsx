@@ -34,7 +34,7 @@ const plans = [
     },
     {
         id: "agency", name: "Agency", comingSoon: true,
-        features: ["Unlimited documents", "Everything in Pro", "Unlimited email sends", "3 team members", "Priority support", "Forever session history"],
+        features: ["Unlimited documents", "Everything in Pro", "Unlimited email sends", "Custom logo & branding", "3 team members", "Priority support", "Forever session history"],
     },
 ]
 
