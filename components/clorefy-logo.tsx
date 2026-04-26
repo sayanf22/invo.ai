@@ -2,7 +2,7 @@ import Image from "next/image"
 
 export function ClorefyLogo({ size = 72, className = "", showBeta = false }: { size?: number; className?: string; showBeta?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1">
       <Image
         src="/favicon.png"
         alt="Clorefy"
@@ -12,8 +12,8 @@ export function ClorefyLogo({ size = 72, className = "", showBeta = false }: { s
         priority
       />
       {showBeta && (
-        <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 leading-none select-none">
-          Beta
+        <span className="text-[8px] font-semibold uppercase tracking-wider px-1.5 py-[2px] rounded-full bg-foreground/[0.06] text-muted-foreground/70 border border-border/50 leading-none select-none">
+          beta
         </span>
       )}
     </span>

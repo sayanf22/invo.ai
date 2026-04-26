@@ -226,7 +226,7 @@ export function GetSignatureModal({
                     onChange={e => setSignerName(e.target.value)}
                     required
                     disabled={loading}
-                    className="w-full h-11 px-3.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-colors disabled:opacity-50"
+                    className="w-full h-12 px-4 rounded-xl border border-border/80 bg-white dark:bg-card text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-colors disabled:opacity-50 shadow-sm"
                   />
                 </div>
 
@@ -242,7 +242,7 @@ export function GetSignatureModal({
                     onChange={e => setSignerEmail(e.target.value)}
                     required
                     disabled={loading}
-                    className="w-full h-11 px-3.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-colors disabled:opacity-50"
+                    className="w-full h-12 px-4 rounded-xl border border-border/80 bg-white dark:bg-card text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-colors disabled:opacity-50 shadow-sm"
                   />
                 </div>
 
