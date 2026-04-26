@@ -488,6 +488,27 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         delete (docData as any).grandTotal
                     }
 
+                    // ── Document type isolation guard ──────────────────────────────────
+                    // If the AI generated a different document type than the current session,
+                    // block the update and guide the user to start a new session.
+                    // This prevents e.g. asking for a "contract" in an invoice session from
+                    // silently overwriting the invoice with contract data.
+                    const currentSessionType = docType.toLowerCase()
+                    const generatedType = (docData.documentType || "").toLowerCase()
+                    const typeChanged = generatedType && generatedType !== currentSessionType
+
+                    if (typeChanged) {
+                        const generatedLabel = docData.documentType || generatedType
+                        const currentLabel = currentSessionType.charAt(0).toUpperCase() + currentSessionType.slice(1)
+                        const guidanceMsg = `I generated a **${generatedLabel}** for you, but this is a **${currentLabel}** session — I can't apply it here because it would overwrite your ${currentLabel}.\n\n**To create a ${generatedLabel}:**\n1. Click the **+** button (New Document) in the top bar\n2. Select **${generatedLabel}** as the document type\n3. Come back and ask me the same thing\n\nYour ${currentLabel} is safe and unchanged. 👍`
+                        setMessages(prev => [...prev, { role: "assistant", content: guidanceMsg }])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", guidanceMsg)
+                        setIsLoading(false)
+                        return
+                    }
+                    // ── End isolation guard ────────────────────────────────────────────
+
                     onChange(docData)
                     await updateSessionContext(docData)
                     await saveGeneration(userMessage, docData, null, true)

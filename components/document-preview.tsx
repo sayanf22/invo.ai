@@ -417,8 +417,8 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   return (
     <div className="flex flex-col h-full w-full">
       {/* Toolbar */}
-      <div className="relative z-10 flex items-center justify-between px-2 sm:px-4 py-2.5 border-b border-border bg-card shrink-0 gap-1.5 sm:gap-2 h-[48px]"
-        style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.06), 0 4px 12px -2px rgba(0,0,0,0.08)" }}
+      <div className="relative z-10 flex items-center justify-between px-2 sm:px-4 py-2.5 border-b border-border bg-card shrink-0 gap-1.5 sm:gap-2 min-h-[48px] overflow-x-auto scrollbar-none"
+        style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.06), 0 4px 12px -2px rgba(0,0,0,0.08)", scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {/* Left: Design + Editor toggle */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -478,7 +478,9 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         )}
 
         {/* Right: Payment Link (invoices) + Send + Share + Print + Download */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none scrollbar-none"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
           {/* Signature status badges */}
           {supportsSignatures && sessionId && hasPendingSignatures && !hasDeclined && !hasRevisionRequested && (
             <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
