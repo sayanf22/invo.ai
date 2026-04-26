@@ -79,9 +79,9 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
+        url: "/favicon.png",
+        width: 512,
+        height: 512,
         alt: "Clorefy — AI Document Generator for Invoices, Contracts, and Proposals",
       },
     ],
@@ -91,7 +91,7 @@ export const metadata: Metadata = {
     title: "Clorefy — Free AI Invoice & Contract Generator",
     description:
       "Create invoices, contracts & proposals with AI in 60 seconds. GST, VAT compliant for 11 countries. Free plan available.",
-    images: ["/og-image.png"],
+    images: ["/favicon.png"],
   },
   robots: {
     index: true,
@@ -217,7 +217,7 @@ export default function RootLayout({
                 "Multi-currency support",
                 "11 country support",
               ],
-              "screenshot": "https://clorefy.com/og-image.png",
+              "screenshot": "https://clorefy.com/favicon.png",
               "offers": [
                 {
                   "@type": "Offer",
