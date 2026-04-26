@@ -1,12 +1,13 @@
 /**
  * Image Export Utility
  * Renders the document PDF to a PNG/JPG image using pdfjs-dist (already bundled via react-pdf).
- * Works entirely client-side.
+ * Works entirely client-side. Uses React.createElement instead of JSX so this file can be .ts.
  */
 
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
+import React from "react"
 
 /**
  * Generate a PNG image of the first page of the document.
@@ -39,7 +40,9 @@ export async function generateDocumentImage(
       break
   }
 
-  const pdfBlob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
+  // Use React.createElement instead of JSX so this file doesn't need .tsx extension
+  const element = React.createElement(PdfComponent, { data: cleanedData, logoUrl })
+  const pdfBlob = await pdf(element).toBlob()
   const pdfArrayBuffer = await pdfBlob.arrayBuffer()
 
   // Step 2: Load PDF with pdfjs-dist and render first page to canvas
