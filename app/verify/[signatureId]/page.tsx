@@ -58,7 +58,7 @@ export default async function VerificationPage({
 
   // Build safe public data (or show not-verified state)
   const verificationData: PublicVerificationData | null = signature
-    ? buildPublicVerificationData(signature as SignatureRow)
+    ? buildPublicVerificationData(signature as unknown as SignatureRow)
     : null
 
   const isVerified = verificationData?.verified === true
