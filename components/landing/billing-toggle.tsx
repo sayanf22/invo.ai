@@ -33,6 +33,7 @@ export interface PlanData {
 
 export interface BillingToggleProps {
   plans: PlanData[]
+  children?: React.ReactNode
 }
 
 // ─── Animations ───────────────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ function MissingRow({ text, featured }: { text: string; featured: boolean }) {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export function BillingToggle({ plans }: BillingToggleProps) {
+export function BillingToggle({ plans, children }: BillingToggleProps) {
   const [billing, setBilling] = useState<"monthly" | "yearly">("yearly")
   const [cp, setCp] = useState<CountryPricing>(COUNTRY_PRICING[DEFAULT_COUNTRY])
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -457,6 +458,9 @@ export function BillingToggle({ plans }: BillingToggleProps) {
           </motion.div>
         </div>
       </section>
+
+      {/* ── Injected content (e.g. ComparisonTable) ── */}
+      {children}
 
       {/* ── CTA ── */}
       <section className="py-24 sm:py-32 px-6 bg-white dark:bg-[#121212]">

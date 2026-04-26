@@ -228,12 +228,11 @@ export default function PricingPage() {
             </div>
 
             {/* BillingToggle handles: toggle, cards, trust strip, comparison, and bottom CTA */}
-            <BillingToggle plans={plans} />
+            <BillingToggle plans={plans}>
+              <ComparisonTable />
+            </BillingToggle>
           </AnimatedHero>
         </section>
-
-        {/* ── Competitor Comparison Table ── */}
-        <ComparisonTable />
 
         {/* ── FAQ ── */}
         <section className="py-24 px-6" style={{ backgroundColor: "#faf8f5" }}>
