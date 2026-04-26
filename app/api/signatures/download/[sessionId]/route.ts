@@ -142,7 +142,7 @@ export async function GET(
       )
     }
 
-    const allSigned = signatures.every((s) => s.signed_at !== null)
+    const allSigned = signatures.every((s: { signed_at: string | null }) => s.signed_at !== null)
     if (!allSigned) {
       return NextResponse.json(
         { error: "Not all signatures are complete. All parties must sign before downloading." },
