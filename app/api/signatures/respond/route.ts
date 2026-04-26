@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get("user-agent") || "unknown"
 
     // Look up the signature by token
-    const { data: signature, error: lookupError } = await supabase
+    const { data: signature, error: lookupError } = await (supabase as any)
       .from("signatures")
       .select("id, signed_at, expires_at, signer_action, signer_name, signer_email, session_id, document_id")
       .eq("token", token)

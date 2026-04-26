@@ -291,7 +291,7 @@ export async function POST(request: NextRequest) {
     // Sub-task 7.2: Increment attempt_count on every call
     // Supabase JS client doesn't support `col = col + 1` directly.
     // We use a two-step approach: fetch then update with incremented value.
-    const { data: signatureRow, error: fetchError } = await supabase
+    const { data: signatureRow, error: fetchError } = await (supabase as any)
       .from("signatures")
       .select(
         "id, attempt_count, signed_at, expires_at, document_hash, session_id, verification_url, document_id"
