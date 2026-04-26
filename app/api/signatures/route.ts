@@ -528,7 +528,7 @@ export async function GET(request: NextRequest) {
             const rateLimitError = await checkRateLimit(auth.user.id, "general")
             if (rateLimitError) return rateLimitError
 
-            const { data: signatures, error } = await auth.supabase
+            const { data: signatures, error } = await (auth.supabase as any)
                 .from("signatures")
                 .select("id, signer_name, signer_email, party, signed_at, signer_action, signer_reason, created_at")
                 .eq("session_id", sessionId)

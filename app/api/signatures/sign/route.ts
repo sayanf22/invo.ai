@@ -450,7 +450,7 @@ export async function POST(request: NextRequest) {
 
     // Sub-task 7.5: Check if all signers have signed
     if (signature.session_id) {
-      const { data: allSignatures } = await supabase
+      const { data: allSignatures } = await (supabase as any)
         .from("signatures")
         .select("id, signed_at, signer_name, signer_email")
         .eq("session_id", signature.session_id)

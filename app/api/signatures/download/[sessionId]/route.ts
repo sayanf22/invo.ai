@@ -126,7 +126,7 @@ export async function GET(
     }
 
     // Verify all signatures for this session are complete (all have signed_at)
-    const { data: signatures, error: sigError } = await supabase
+    const { data: signatures, error: sigError } = await (supabase as any)
       .from("signatures")
       .select("id, signed_at")
       .eq("session_id", sessionId)
