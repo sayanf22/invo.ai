@@ -44,7 +44,7 @@ function getServiceRoleClient() {
 // Creates a linked invoice session and sends it to the client.
 
 async function triggerAutoInvoice({
-  supabase,
+  supabase: supabaseParam,
   contractSession,
   contractSessionId,
   signerEmail,
@@ -58,6 +58,9 @@ async function triggerAutoInvoice({
   signerName: string
   businessName: string
 }) {
+  // Cast to any — this function uses an untyped supabase client (no Database generic)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = supabaseParam as any
   const recipientEmail = contractSession.invoice_recipient_email || signerEmail
   if (!recipientEmail) {
     console.warn("[auto-invoice] No recipient email — skipping")
@@ -101,14 +104,14 @@ async function triggerAutoInvoice({
 
   // Ensure contract session has chain_id
   if (!contractSession.chain_id) {
-    await (supabase as any)
+    await supabase
       .from("document_sessions")
       .update({ chain_id: chainId })
       .eq("id", contractSessionId)
   }
 
   // Create linked invoice session
-  const { data: invoiceSession, error: createError } = await (supabase as any)
+  const { data: invoiceSession, error: createError } = await supabase
     .from("document_sessions")
     .insert({
       user_id: contractSession.user_id,
