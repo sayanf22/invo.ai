@@ -431,7 +431,7 @@ export async function GET(request: NextRequest) {
             let business: { name: string; logo_url: string | null } | null = null
 
             if (sessionId) {
-                const { data: session } = await (serviceSupabase as any)
+                const { data: session } = await serviceSupabase
                     .from("document_sessions")
                     .select("user_id, document_type, context, auto_invoice_on_sign")
                     .eq("id", sessionId)
@@ -528,7 +528,7 @@ export async function GET(request: NextRequest) {
             const rateLimitError = await checkRateLimit(auth.user.id, "general")
             if (rateLimitError) return rateLimitError
 
-            const { data: signatures, error } = await (auth.supabase as any)
+            const { data: signatures, error } = await auth.supabase
                 .from("signatures")
                 .select("id, signer_name, signer_email, party, signed_at, signer_action, signer_reason, created_at")
                 .eq("session_id", sessionId)

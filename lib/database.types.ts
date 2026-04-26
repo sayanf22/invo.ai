@@ -233,6 +233,7 @@ export type Database = {
       }
       document_sessions: {
         Row: {
+          auto_invoice_on_sign: boolean | null
           business_context: Json | null
           chain_id: string | null
           client_name: string | null
@@ -243,13 +244,16 @@ export type Database = {
           document_type: string
           finalized_at: string | null
           id: string
+          invoice_recipient_email: string | null
           last_message_at: string | null
+          sent_at: string | null
           status: string
           title: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          auto_invoice_on_sign?: boolean | null
           business_context?: Json | null
           chain_id?: string | null
           client_name?: string | null
@@ -260,13 +264,16 @@ export type Database = {
           document_type?: string
           finalized_at?: string | null
           id?: string
+          invoice_recipient_email?: string | null
           last_message_at?: string | null
+          sent_at?: string | null
           status?: string
           title?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          auto_invoice_on_sign?: boolean | null
           business_context?: Json | null
           chain_id?: string | null
           client_name?: string | null
@@ -277,7 +284,9 @@ export type Database = {
           document_type?: string
           finalized_at?: string | null
           id?: string
+          invoice_recipient_email?: string | null
           last_message_at?: string | null
+          sent_at?: string | null
           status?: string
           title?: string | null
           updated_at?: string | null
@@ -521,6 +530,7 @@ export type Database = {
       }
       signatures: {
         Row: {
+          attempt_count: number | null
           created_at: string | null
           document_hash: string | null
           document_id: string | null
@@ -528,14 +538,19 @@ export type Database = {
           id: string
           ip_address: string | null
           party: string
+          session_id: string | null
           signature_image_url: string | null
           signed_at: string | null
+          signer_action: string | null
           signer_email: string
           signer_name: string | null
+          signer_reason: string | null
           token: string | null
           user_agent: string | null
+          verification_url: string | null
         }
         Insert: {
+          attempt_count?: number | null
           created_at?: string | null
           document_hash?: string | null
           document_id?: string | null
@@ -543,14 +558,19 @@ export type Database = {
           id?: string
           ip_address?: string | null
           party: string
+          session_id?: string | null
           signature_image_url?: string | null
           signed_at?: string | null
+          signer_action?: string | null
           signer_email: string
           signer_name?: string | null
+          signer_reason?: string | null
           token?: string | null
           user_agent?: string | null
+          verification_url?: string | null
         }
         Update: {
+          attempt_count?: number | null
           created_at?: string | null
           document_hash?: string | null
           document_id?: string | null
@@ -558,12 +578,16 @@ export type Database = {
           id?: string
           ip_address?: string | null
           party?: string
+          session_id?: string | null
           signature_image_url?: string | null
           signed_at?: string | null
+          signer_action?: string | null
           signer_email?: string
           signer_name?: string | null
+          signer_reason?: string | null
           token?: string | null
           user_agent?: string | null
+          verification_url?: string | null
         }
         Relationships: [
           {

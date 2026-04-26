@@ -126,7 +126,7 @@ export async function GET(
     }
 
     // Verify all signatures for this session are complete (all have signed_at)
-    const { data: signatures, error: sigError } = await (supabase as any)
+    const { data: signatures, error: sigError } = await supabase
       .from("signatures")
       .select("id, signed_at")
       .eq("session_id", sessionId)
@@ -142,7 +142,7 @@ export async function GET(
       )
     }
 
-    const allSigned = signatures.every((s: { signed_at: string | null }) => s.signed_at !== null)
+    const allSigned = signatures.every((s) => s.signed_at !== null)
     if (!allSigned) {
       return NextResponse.json(
         { error: "Not all signatures are complete. All parties must sign before downloading." },

@@ -291,7 +291,7 @@ export async function POST(request: NextRequest) {
     // Sub-task 7.2: Increment attempt_count on every call
     // Supabase JS client doesn't support `col = col + 1` directly.
     // We use a two-step approach: fetch then update with incremented value.
-    const { data: signatureRow, error: fetchError } = await (supabase as any)
+    const { data: signatureRow, error: fetchError } = await supabase
       .from("signatures")
       .select(
         "id, attempt_count, signed_at, expires_at, document_hash, session_id, verification_url, document_id"
@@ -450,7 +450,7 @@ export async function POST(request: NextRequest) {
 
     // Sub-task 7.5: Check if all signers have signed
     if (signature.session_id) {
-      const { data: allSignatures } = await (supabase as any)
+      const { data: allSignatures } = await supabase
         .from("signatures")
         .select("id, signed_at, signer_name, signer_email")
         .eq("session_id", signature.session_id)
@@ -595,7 +595,7 @@ export async function POST(request: NextRequest) {
         // If the contract has auto_invoice_on_sign = true, create a linked invoice
         // and send it to the signer (or the configured recipient email).
         if (session && documentType === "contract") {
-          const { data: fullSession } = await (supabase as any)
+          const { data: fullSession } = await supabase
             .from("document_sessions")
             .select("auto_invoice_on_sign, invoice_recipient_email, context, user_id, chain_id, client_name")
             .eq("id", signature.session_id)
