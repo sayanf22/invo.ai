@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useParams } from "next/navigation"
 import { SignaturePad } from "@/components/signature-pad"
 import { Button } from "@/components/ui/button"
@@ -77,6 +77,155 @@ function getDocumentType(signature: SignatureData): string {
     return type.charAt(0).toUpperCase() + type.slice(1)
 }
 
+function DocumentContentPreview({ context, documentType }: { context: any; documentType: string | null }) {
+    const detailsRef = useRef<HTMLDetailsElement>(null)
+
+    useEffect(() => {
+        if (detailsRef.current) {
+            const isDesktop = window.innerWidth >= 640
+            detailsRef.current.open = isDesktop
+        }
+    }, [])
+
+    if (!context || (typeof context === "object" && Object.keys(context).length === 0)) {
+        return (
+            <div className="rounded-lg border bg-muted/30 p-5">
+                <p className="text-sm text-muted-foreground">
+                    Document details are not available for preview. Please contact the sender if you need more information.
+                </p>
+            </div>
+        )
+    }
+
+    const fromName = context.fromName || context.businessName || context.senderName || ""
+    const toName = context.toName || context.clientName || context.recipientName || ""
+    const fromEmail = context.fromEmail || context.businessEmail || ""
+    const toEmail = context.toEmail || context.clientEmail || ""
+    const fromAddress = context.fromAddress || context.businessAddress || ""
+    const toAddress = context.toAddress || context.clientAddress || ""
+    const description = context.description || context.scope || context.projectDescription || ""
+    const items = context.items || context.lineItems || []
+    const total = context.total || context.totalAmount || context.grandTotal || null
+    const currency = context.currency || "USD"
+    const terms = context.terms || context.paymentTerms || ""
+    const notes = context.notes || ""
+    const issueDate = context.issueDate || context.invoiceDate || context.date || ""
+    const dueDate = context.dueDate || ""
+
+    return (
+        <details ref={detailsRef} className="rounded-lg border bg-muted/30 group">
+            <summary className="flex items-center justify-between cursor-pointer p-5 text-sm font-medium select-none list-none">
+                <span>View Document Details</span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="px-5 pb-5 space-y-4 text-sm">
+                {/* Parties */}
+                {(fromName || toName) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {fromName && (
+                            <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">From</p>
+                                <p className="font-medium">{fromName}</p>
+                                {fromEmail && <p className="text-muted-foreground text-xs">{fromEmail}</p>}
+                                {fromAddress && <p className="text-muted-foreground text-xs">{fromAddress}</p>}
+                            </div>
+                        )}
+                        {toName && (
+                            <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">To</p>
+                                <p className="font-medium">{toName}</p>
+                                {toEmail && <p className="text-muted-foreground text-xs">{toEmail}</p>}
+                                {toAddress && <p className="text-muted-foreground text-xs">{toAddress}</p>}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Dates */}
+                {(issueDate || dueDate) && (
+                    <div className="flex flex-wrap gap-4">
+                        {issueDate && (
+                            <div>
+                                <span className="text-xs text-muted-foreground">Issue Date: </span>
+                                <span className="text-xs font-medium">{issueDate}</span>
+                            </div>
+                        )}
+                        {dueDate && (
+                            <div>
+                                <span className="text-xs text-muted-foreground">Due Date: </span>
+                                <span className="text-xs font-medium">{dueDate}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Description */}
+                {description && (
+                    <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Description</p>
+                        <p className="text-muted-foreground">{description}</p>
+                    </div>
+                )}
+
+                {/* Line Items */}
+                {Array.isArray(items) && items.length > 0 && (
+                    <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Items</p>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className="border-b">
+                                        <th className="text-left py-1.5 pr-2 font-medium text-muted-foreground">Description</th>
+                                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Qty</th>
+                                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Rate</th>
+                                        <th className="text-right py-1.5 pl-2 font-medium text-muted-foreground">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {items.map((item: any, i: number) => (
+                                        <tr key={i} className="border-b border-dashed last:border-0">
+                                            <td className="py-1.5 pr-2">{item.description || item.name || ""}</td>
+                                            <td className="text-right py-1.5 px-2">{item.quantity ?? ""}</td>
+                                            <td className="text-right py-1.5 px-2">{item.rate ?? item.unitPrice ?? ""}</td>
+                                            <td className="text-right py-1.5 pl-2 font-medium">{item.amount ?? item.total ?? ""}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {/* Total */}
+                {total && (
+                    <div className="flex justify-end pt-1">
+                        <div className="text-right">
+                            <span className="text-xs text-muted-foreground">Total: </span>
+                            <span className="font-semibold">{currency} {total}</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Terms */}
+                {terms && (
+                    <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Terms</p>
+                        <p className="text-muted-foreground">{terms}</p>
+                    </div>
+                )}
+
+                {/* Notes */}
+                {notes && (
+                    <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Notes</p>
+                        <p className="text-muted-foreground">{notes}</p>
+                    </div>
+                )}
+            </div>
+        </details>
+    )
+}
+
 export default function SigningPage() {
     const params = useParams()
     const token = params.token as string
@@ -90,6 +239,8 @@ export default function SigningPage() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [confirmation, setConfirmation] = useState<ConfirmationData | null>(null)
     const [autoInvoiceOnSign, setAutoInvoiceOnSign] = useState(false)
+    const [sessionContext, setSessionContext] = useState<any>(null)
+    const [documentType, setDocumentType] = useState<string | null>(null)
 
     // Form state
     const [consentChecked, setConsentChecked] = useState(false)
@@ -122,6 +273,8 @@ export default function SigningPage() {
                 const sig: SignatureData = data.signature
                 setBusiness(data.business ?? null)
                 setAutoInvoiceOnSign(!!data.autoInvoiceOnSign)
+                setSessionContext(data.sessionContext ?? null)
+                setDocumentType(data.documentType ?? null)
                 setSignature(sig)
 
                 // Sub-task 13.4: already-signed state
@@ -448,6 +601,9 @@ export default function SigningPage() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Document Content Preview */}
+                    <DocumentContentPreview context={sessionContext} documentType={documentType} />
 
                     {/* Signer info (readonly) */}
                     <div className="grid gap-4">

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, Mail, PenLine, Download, FileDown, ChevronDown, Image as ImageIcon } from "lucide-react"
+import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, Mail, PenLine, Download, FileDown, ChevronDown, Image as ImageIcon, X } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
@@ -12,6 +12,7 @@ import { ShareButton } from "@/components/share-button"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { PaymentLinkButton } from "@/components/payment-link-button"
 import { GetSignatureModal } from "@/components/get-signature-modal"
+import { SignatureCancelDialog } from "@/components/signature-cancel-dialog"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import { parseTier } from "@/lib/cost-protection"
 import { cn } from "@/lib/utils"
@@ -336,18 +337,32 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [pageCount, setPageCount] = useState(0)
   const [sendEmailDialogOpen, setSendEmailDialogOpen] = useState(false)
   const [getSignatureModalOpen, setGetSignatureModalOpen] = useState(false)
-  const [signatures, setSignatures] = useState<Array<{ id: string; signed_at: string | null }>>([])
+  const [signatures, setSignatures] = useState<Array<{ id: string; signed_at: string | null; signer_action: string | null; signer_name?: string }>>([])
   const [signaturesLoading, setSignaturesLoading] = useState(false)
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [cancelLoading, setCancelLoading] = useState(false)
   const [userTier, setUserTier] = useState<"free" | "starter" | "pro" | "agency">("free")
   const [exportingDocx, setExportingDocx] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
   const hasContent = data.documentType || data.fromName || data.toName || data.description
 
   const supportsSignatures = SIGNATURE_DOCUMENT_TYPES.includes((data.documentType || "").toLowerCase())
-  const hasPendingSignatures = signatures.length > 0 && !signatures.every(s => s.signed_at)
-  const allSigned = signatures.length > 0 && signatures.every(s => s.signed_at)
+  const hasPendingSignatures = signatures.some(s => s.signed_at === null && (s.signer_action === null || s.signer_action === undefined))
+  const allSigned = signatures.length > 0 && signatures.every(s => s.signed_at !== null)
   const hasDeclined = signatures.some((s: any) => s.signer_action === "declined")
   const hasRevisionRequested = signatures.some((s: any) => s.signer_action === "revision_requested")
+
+  // Toolbar state machine: idle | pending | signed | actionable
+  const toolbarState: "idle" | "pending" | "signed" | "actionable" = (() => {
+    if (signatures.length === 0) return "idle"
+    if (hasPendingSignatures) return "pending"
+    if (allSigned) return "signed"
+    if (hasDeclined || hasRevisionRequested) return "actionable"
+    return "idle"
+  })()
+
+  // Find the first pending signature for cancel flow
+  const pendingSignature = signatures.find(s => s.signed_at === null && (s.signer_action === null || s.signer_action === undefined))
 
   // Fetch user tier once on mount
   useEffect(() => {
@@ -581,8 +596,19 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               Signed
             </span>
           )}
-          {/* For contracts/proposals: single "Send & Sign" button that opens signature modal */}
-          {supportsSignatures && sessionId && (
+          {/* For contracts/proposals: toolbar state machine for signature actions */}
+          {supportsSignatures && sessionId && toolbarState === "pending" && (
+            <button
+              type="button"
+              onClick={() => setCancelDialogOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-400 shadow-sm transition-all duration-200 active:scale-95 dark:border-red-700 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-900/40"
+              title="Cancel the pending signature request"
+            >
+              <X className="w-4 h-4" />
+              <span className="hidden sm:inline">Cancel Request</span>
+            </button>
+          )}
+          {supportsSignatures && sessionId && (toolbarState === "idle" || toolbarState === "actionable") && (
             <button
               type="button"
               onClick={() => setGetSignatureModalOpen(true)}
@@ -742,7 +768,45 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           defaultEmail={data.toEmail || ""}
           defaultName={data.toName || ""}
           open={getSignatureModalOpen}
-          onOpenChange={setGetSignatureModalOpen}
+          onOpenChange={(open) => {
+            // Guard: prevent opening when a pending signature exists
+            if (open && toolbarState === "pending") return
+            setGetSignatureModalOpen(open)
+          }}
+        />
+      )}
+      {supportsSignatures && sessionId && pendingSignature && (
+        <SignatureCancelDialog
+          open={cancelDialogOpen}
+          onOpenChange={setCancelDialogOpen}
+          signerName={pendingSignature.signer_name || "the signer"}
+          onConfirm={async () => {
+            setCancelLoading(true)
+            try {
+              const res = await fetch("/api/signatures/cancel", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ signatureId: pendingSignature.id }),
+              })
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                throw new Error(err.error || "Failed to cancel signature request")
+              }
+              toast.success("Signature request cancelled")
+              setCancelDialogOpen(false)
+              // Refetch signatures
+              const refetchRes = await fetch(`/api/signatures?sessionId=${sessionId}`)
+              if (refetchRes.ok) {
+                const json = await refetchRes.json()
+                if (json?.signatures) setSignatures(json.signatures)
+              }
+            } catch (err: any) {
+              toast.error(err.message || "Failed to cancel signature request")
+            } finally {
+              setCancelLoading(false)
+            }
+          }}
+          loading={cancelLoading}
         />
       )}
     </div>

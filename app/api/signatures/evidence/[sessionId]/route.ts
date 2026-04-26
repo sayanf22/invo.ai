@@ -1,0 +1,365 @@
+/**
+ * GET /api/signatures/evidence/[sessionId]
+ *
+ * Authenticated endpoint that generates a legal evidence package PDF:
+ *   - Cover page (document reference, signers, fingerprint)
+ *   - Original document PDF
+ *   - Certificate PDF (from R2)
+ *   - Audit trail PDF (all signature events)
+ *
+ * Merged using pdf-lib into a single downloadable PDF.
+ */
+
+import { NextRequest, NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
+import { PDFDocument } from "pdf-lib"
+import { renderToBuffer } from "@react-pdf/renderer"
+import { createElement } from "react"
+import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
+import { authenticateRequest } from "@/lib/api-auth"
+import { getObject } from "@/lib/r2"
+import { buildCertificateKey, generateAndStoreCertificate } from "@/lib/certificate-generator"
+import type { Database } from "@/lib/database.types"
+
+// ── Action label mapping ────────────────────────────────────────────────
+
+const ACTION_LABELS: Record<string, string> = {
+  "signature.request_created": "Signing Request Created",
+  "signature.viewed": "Document Viewed by Signer",
+  "signature.signed": "Document Signed",
+  "signature.completed": "All Signatures Complete",
+  "signature.expired": "Signing Link Expired",
+  "signature.tamper_detected": "Tamper Attempt Detected",
+  "signature.abuse_detected": "Abuse Detected",
+  "signature.cancelled": "Signing Request Cancelled",
+}
+
+// ── PDF Styles ──────────────────────────────────────────────────────────
+
+const coverStyles = StyleSheet.create({
+  page: { padding: 48, fontFamily: "Helvetica", fontSize: 11, color: "#18181b" },
+  title: { fontSize: 22, fontWeight: "bold", marginBottom: 24 },
+  subtitle: { fontSize: 14, fontWeight: "bold", marginBottom: 12, color: "#3730a3" },
+  label: { fontSize: 9, color: "#71717a", marginBottom: 3, textTransform: "uppercase" },
+  value: { fontSize: 12, marginBottom: 14 },
+  signerRow: { marginBottom: 8, paddingLeft: 8 },
+  signerName: { fontSize: 11, fontWeight: "bold" },
+  signerStatus: { fontSize: 10, color: "#16a34a" },
+  divider: { borderBottomWidth: 1, borderBottomColor: "#e4e4e7", marginVertical: 16 },
+  statement: { fontSize: 10, color: "#52525b", marginTop: 24, lineHeight: 1.5 },
+  timestamp: { fontSize: 9, color: "#a1a1aa", marginTop: 12 },
+})
+
+const auditStyles = StyleSheet.create({
+  page: { padding: 48, fontFamily: "Helvetica", fontSize: 10, color: "#18181b" },
+  title: { fontSize: 18, fontWeight: "bold", marginBottom: 20 },
+  eventRow: { marginBottom: 12, paddingBottom: 8, borderBottomWidth: 0.5, borderBottomColor: "#e4e4e7" },
+  eventTime: { fontSize: 9, color: "#71717a", marginBottom: 2 },
+  eventAction: { fontSize: 11, fontWeight: "bold", marginBottom: 2 },
+  eventDetail: { fontSize: 9, color: "#52525b" },
+})
+
+const docStyles = StyleSheet.create({
+  page: { padding: 48, fontFamily: "Helvetica", fontSize: 12, color: "#18181b" },
+  title: { fontSize: 20, fontWeight: "bold", marginBottom: 16 },
+  label: { fontSize: 10, color: "#71717a", marginBottom: 4, textTransform: "uppercase" },
+  value: { fontSize: 13, marginBottom: 16 },
+})
+
+
+// ── Cover Page PDF Generator ────────────────────────────────────────────
+
+async function generateCoverPagePdf(opts: {
+  referenceNumber: string
+  documentType: string
+  signers: Array<{ name: string; email: string; signedAt: string | null }>
+  documentHash: string
+  generatedAt: string
+}): Promise<Uint8Array> {
+  const element = createElement(
+    Document,
+    null,
+    createElement(
+      Page,
+      { size: "A4", style: coverStyles.page },
+      createElement(View, null,
+        createElement(Text, { style: coverStyles.title }, "Evidence Package"),
+        createElement(View, { style: coverStyles.divider }),
+        createElement(Text, { style: coverStyles.label }, "Document Reference"),
+        createElement(Text, { style: coverStyles.value }, opts.referenceNumber || "N/A"),
+        createElement(Text, { style: coverStyles.label }, "Document Type"),
+        createElement(Text, { style: coverStyles.value }, opts.documentType.charAt(0).toUpperCase() + opts.documentType.slice(1)),
+        createElement(Text, { style: coverStyles.subtitle }, "Signers"),
+        ...opts.signers.map((s, i) =>
+          createElement(View, { key: String(i), style: coverStyles.signerRow },
+            createElement(Text, { style: coverStyles.signerName }, `${s.name} (${s.email})`),
+            createElement(Text, { style: coverStyles.signerStatus },
+              s.signedAt ? `Signed — ${new Date(s.signedAt).toUTCString()}` : "Pending"
+            )
+          )
+        ),
+        createElement(View, { style: coverStyles.divider }),
+        createElement(Text, { style: coverStyles.label }, "Document Fingerprint (SHA-256)"),
+        createElement(Text, { style: coverStyles.value }, opts.documentHash || "N/A"),
+        createElement(Text, { style: coverStyles.statement },
+          "This evidence package was generated by Clorefy and contains the complete signing record for legal reference."
+        ),
+        createElement(Text, { style: coverStyles.timestamp }, `Generated: ${opts.generatedAt}`)
+      )
+    )
+  )
+
+  const buffer = await renderToBuffer(element)
+  return new Uint8Array(buffer)
+}
+
+// ── Audit Trail PDF Generator ───────────────────────────────────────────
+
+async function generateAuditTrailPdf(
+  events: Array<{
+    created_at: string
+    action: string
+    actor_email: string | null
+    ip_address: string | null
+    metadata: Record<string, unknown> | null
+  }>
+): Promise<Uint8Array> {
+  const eventElements = events.map((evt, i) => {
+    const label = ACTION_LABELS[evt.action] || evt.action
+    const time = new Date(evt.created_at).toUTCString()
+    const details = [
+      evt.actor_email ? `Actor: ${evt.actor_email}` : null,
+      evt.ip_address ? `IP: ${evt.ip_address}` : null,
+      evt.metadata ? `Details: ${JSON.stringify(evt.metadata)}` : null,
+    ].filter(Boolean).join(" · ")
+
+    return createElement(View, { key: String(i), style: auditStyles.eventRow },
+      createElement(Text, { style: auditStyles.eventTime }, time),
+      createElement(Text, { style: auditStyles.eventAction }, label),
+      details ? createElement(Text, { style: auditStyles.eventDetail }, details) : null
+    )
+  })
+
+  const element = createElement(
+    Document,
+    null,
+    createElement(
+      Page,
+      { size: "A4", style: auditStyles.page },
+      createElement(View, null,
+        createElement(Text, { style: auditStyles.title }, "Audit Trail"),
+        ...eventElements
+      )
+    )
+  )
+
+  const buffer = await renderToBuffer(element)
+  return new Uint8Array(buffer)
+}
+
+// ── Original Document PDF Generator ─────────────────────────────────────
+
+async function generateOriginalDocumentPdf(
+  documentType: string,
+  referenceNumber: string,
+  context: Record<string, unknown>
+): Promise<Uint8Array> {
+  const fields = Object.entries(context)
+    .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
+    .slice(0, 30)
+
+  const docElement = createElement(
+    Document,
+    null,
+    createElement(
+      Page,
+      { size: "A4", style: docStyles.page },
+      createElement(View, null,
+        createElement(Text, { style: docStyles.title },
+          `${documentType.charAt(0).toUpperCase()}${documentType.slice(1)} — ${referenceNumber}`
+        ),
+        ...fields.map(([key, value]) =>
+          createElement(View, { key },
+            createElement(Text, { style: docStyles.label }, key),
+            createElement(Text, { style: docStyles.value }, String(value))
+          )
+        )
+      )
+    )
+  )
+
+  const buffer = await renderToBuffer(docElement)
+  return new Uint8Array(buffer)
+}
+
+
+// ── Route Handler ───────────────────────────────────────────────────────
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ sessionId: string }> }
+) {
+  try {
+    // SECURITY: Authenticate user
+    const auth = await authenticateRequest(request)
+    if (auth.error) return auth.error
+
+    const { sessionId } = await params
+
+    if (!sessionId) {
+      return NextResponse.json({ error: "Missing sessionId" }, { status: 400 })
+    }
+
+    // Use service-role client for DB operations
+    const supabase = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    // Fetch session and verify ownership
+    const { data: session, error: sessionError } = await supabase
+      .from("document_sessions")
+      .select("id, user_id, document_id, document_type, context")
+      .eq("id", sessionId)
+      .single()
+
+    if (sessionError || !session) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 })
+    }
+
+    // SECURITY: Verify ownership
+    if (session.user_id !== auth.user.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+    }
+
+    const documentId = session.document_id
+    if (!documentId) {
+      return NextResponse.json({ error: "Session has no associated document" }, { status: 400 })
+    }
+
+    // Fetch all signatures with full details
+    const { data: signatures, error: sigError } = await supabase
+      .from("signatures")
+      .select("id, signer_name, signer_email, party, signed_at, ip_address, verification_url, signer_action, document_hash")
+      .eq("session_id", sessionId)
+
+    if (sigError) {
+      return NextResponse.json({ error: "Failed to fetch signatures" }, { status: 500 })
+    }
+
+    if (!signatures || signatures.length === 0) {
+      return NextResponse.json({ error: "No signatures found for this session" }, { status: 400 })
+    }
+
+    // Verify all signatures are complete
+    const allSigned = signatures.every((s) => s.signed_at !== null)
+    if (!allSigned) {
+      return NextResponse.json(
+        { error: "Not all signatures are complete. All parties must sign before downloading." },
+        { status: 400 }
+      )
+    }
+
+    // Fetch all audit events
+    const { data: auditEvents } = await supabase
+      .from("signature_audit_events")
+      .select("*")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true })
+
+    // Extract context and reference number
+    const ctx = (session.context ?? {}) as Record<string, unknown>
+    const referenceNumber =
+      (ctx.reference_number as string) ||
+      (ctx.referenceNumber as string) ||
+      (ctx.invoiceNumber as string) ||
+      "document"
+    const documentType = session.document_type ?? "document"
+    const documentHash = (signatures[0] as any).document_hash ?? ""
+
+    // ── Generate Cover Page PDF ─────────────────────────────────────────
+    const coverPdfBytes = await generateCoverPagePdf({
+      referenceNumber,
+      documentType,
+      signers: signatures.map((s) => ({
+        name: s.signer_name ?? "",
+        email: s.signer_email ?? "",
+        signedAt: s.signed_at,
+      })),
+      documentHash,
+      generatedAt: new Date().toUTCString(),
+    })
+
+    // ── Generate Original Document PDF ──────────────────────────────────
+    const originalPdfBytes = await generateOriginalDocumentPdf(documentType, referenceNumber, ctx)
+
+    // ── Fetch Certificate PDF from R2 ───────────────────────────────────
+    const certKey = buildCertificateKey(documentId)
+    let certResult = await getObject(certKey)
+
+    if (!certResult) {
+      await generateAndStoreCertificate(sessionId, documentId, supabase)
+      certResult = await getObject(certKey)
+    }
+
+    if (!certResult) {
+      return NextResponse.json(
+        { error: "Certificate PDF could not be generated or retrieved" },
+        { status: 500 }
+      )
+    }
+
+    // ── Generate Audit Trail PDF ────────────────────────────────────────
+    const auditTrailPdfBytes = await generateAuditTrailPdf(
+      (auditEvents ?? []).map((evt: any) => ({
+        created_at: evt.created_at,
+        action: evt.action,
+        actor_email: evt.actor_email,
+        ip_address: evt.ip_address,
+        metadata: evt.metadata,
+      }))
+    )
+
+    // ── Merge all PDFs using pdf-lib ────────────────────────────────────
+    const mergedDoc = await PDFDocument.create()
+
+    // Copy cover page
+    const coverDoc = await PDFDocument.load(coverPdfBytes)
+    const coverPages = await mergedDoc.copyPages(coverDoc, coverDoc.getPageIndices())
+    for (const page of coverPages) mergedDoc.addPage(page)
+
+    // Copy original document
+    const originalDoc = await PDFDocument.load(originalPdfBytes)
+    const originalPages = await mergedDoc.copyPages(originalDoc, originalDoc.getPageIndices())
+    for (const page of originalPages) mergedDoc.addPage(page)
+
+    // Copy certificate
+    const certDoc = await PDFDocument.load(certResult.body)
+    const certPages = await mergedDoc.copyPages(certDoc, certDoc.getPageIndices())
+    for (const page of certPages) mergedDoc.addPage(page)
+
+    // Copy audit trail
+    const auditDoc = await PDFDocument.load(auditTrailPdfBytes)
+    const auditPages = await mergedDoc.copyPages(auditDoc, auditDoc.getPageIndices())
+    for (const page of auditPages) mergedDoc.addPage(page)
+
+    const mergedBytes = await mergedDoc.save()
+
+    // Build filename: [referenceNumber]_evidence_[YYYY-MM-DD].pdf
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const safeRef = referenceNumber.replace(/[^a-zA-Z0-9_-]/g, "_")
+    const filename = `${safeRef}_evidence_${dateStr}.pdf`
+
+    return new Response(mergedBytes, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Length": String(mergedBytes.byteLength),
+      },
+    })
+  } catch (error) {
+    console.error("[signatures/evidence] Error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}

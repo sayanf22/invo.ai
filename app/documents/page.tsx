@@ -7,7 +7,7 @@ import {
   FileText, Download, Eye, Calendar, Loader2, ArrowLeft, Plus,
   CheckCircle2, Clock, AlertCircle, XCircle, Link2, ExternalLink,
   RefreshCw, ChevronDown, ChevronUp, CreditCard, Send, Mail,
-  BellOff, Repeat2, Bell,
+  BellOff, Repeat2, Bell, MessageSquare, PenLine,
 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
@@ -84,6 +84,15 @@ interface EmailSchedule {
   cancelled_reason: string | null
 }
 
+interface SignatureRecord {
+  id: string
+  signer_name: string
+  signer_email: string
+  signed_at: string | null
+  signer_action: string | null
+  created_at: string
+}
+
 interface DocSession {
   id: string
   document_type: string
@@ -99,6 +108,7 @@ interface DocSession {
   schedules?: EmailSchedule[]         // upcoming reminder schedule
   quotationResponse?: { response_type: string } | null
   recurring?: RecurringRecord | null
+  signatures?: SignatureRecord[]
 }
 
 interface RecurringRecord {
@@ -199,6 +209,45 @@ function QuotationResponseBadge({ responseType }: { responseType: string }) {
   return (
     <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", className)}>
       {label}
+    </span>
+  )
+}
+
+// ── Signature Status Badge ─────────────────────────────────────────────────────
+
+function SignatureBadge({ signature }: { signature: SignatureRecord }) {
+  // Declined takes priority
+  if (signature.signer_action === "declined") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 shrink-0">
+        <XCircle size={10} />
+        {signature.signer_name}
+      </span>
+    )
+  }
+  // Revision requested
+  if (signature.signer_action === "revision_requested") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
+        <MessageSquare size={10} />
+        {signature.signer_name}
+      </span>
+    )
+  }
+  // Signed
+  if (signature.signed_at) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">
+        <CheckCircle2 size={10} />
+        {signature.signer_name}
+      </span>
+    )
+  }
+  // Pending (signed_at null, signer_action null)
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
+      <Clock size={10} />
+      {signature.signer_name}
     </span>
   )
 }
@@ -598,6 +647,102 @@ function RecurringPanel({ session, onRefresh }: { session: DocSession; onRefresh
   )
 }
 
+// ── Signature Details Panel ────────────────────────────────────────────────────
+
+interface SignatureDetailRecord extends SignatureRecord {
+  party?: string
+  ip_address?: string | null
+  verification_url?: string | null
+  signer_reason?: string | null
+}
+
+function SignatureDetailsPanel({ sessionId }: { sessionId: string }) {
+  const [signatures, setSignatures] = useState<SignatureDetailRecord[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchDetails() {
+      setLoading(true)
+      try {
+        const res = await authFetch(`/api/signatures?sessionId=${sessionId}`)
+        if (!res.ok) throw new Error("Failed to fetch")
+        const data = await res.json()
+        if (!cancelled) setSignatures(data.signatures ?? [])
+      } catch {
+        if (!cancelled) setSignatures([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchDetails()
+    return () => { cancelled = true }
+  }, [sessionId])
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-border/50 bg-muted/30 p-4 flex items-center justify-center">
+        <Loader2 size={16} className="animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (signatures.length === 0) return null
+
+  const getStatusBadge = (sig: SignatureDetailRecord) => {
+    if (sig.signer_action === "declined") return { icon: "❌", label: "Declined" }
+    if (sig.signer_action === "revision_requested") return { icon: "📝", label: "Revision Requested" }
+    if (sig.signed_at) return { icon: "✅", label: "Signed" }
+    return { icon: "⏳", label: "Pending" }
+  }
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-3">
+      {signatures.filter(sig => sig.signer_action !== "cancelled").map(sig => {
+        const status = getStatusBadge(sig)
+        return (
+          <div key={sig.id} className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-foreground">
+                {sig.signer_name}
+                {sig.party && <span className="text-muted-foreground font-normal"> ({sig.party})</span>}
+              </span>
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                {status.icon} {status.label}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">{sig.signer_email}</p>
+            {sig.signed_at && (
+              <p className="text-xs text-muted-foreground">
+                Signed: {format(new Date(sig.signed_at), "MMM d, yyyy h:mm a")} UTC
+              </p>
+            )}
+            {sig.ip_address && (
+              <p className="text-xs text-muted-foreground">IP: {sig.ip_address}</p>
+            )}
+            {sig.verification_url && (
+              <a
+                href={sig.verification_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+              >
+                <ExternalLink size={10} />
+                Verify signature
+              </a>
+            )}
+            {(sig.signer_action === "declined" || sig.signer_action === "revision_requested") && sig.signer_reason && (
+              <p className="text-xs text-red-600 dark:text-red-400 italic">
+                Reason: &ldquo;{sig.signer_reason}&rdquo;
+              </p>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Document Card ─────────────────────────────────────────────────────────────
 
 function DocCard({
@@ -614,6 +759,7 @@ function DocCard({
   const [expanded, setExpanded] = useState(false)
   const [emailExpanded, setEmailExpanded] = useState(false)
   const [recurringExpanded, setRecurringExpanded] = useState(false)
+  const [signatureExpanded, setSignatureExpanded] = useState(false)
   const docType = (session.document_type || "invoice").toLowerCase()
   const ctx = session.context || {}
 
@@ -632,6 +778,7 @@ function DocCard({
   const emailStats = session.emailStats
   const hasEmails = !!emailStats && (emailStats.totalSent > 0 || emailStats.pendingCount > 0)
   const hasRecurring = docType === "invoice" // show recurring option for all invoices
+  const hasSignatures = !!(session.signatures && session.signatures.length > 0)
 
   return (
     <div
@@ -685,6 +832,14 @@ function DocCard({
             {docType === "quotation" && session.quotationResponse && (
               <QuotationResponseBadge responseType={session.quotationResponse.response_type} />
             )}
+            {/* Signature badges */}
+            {session.signatures && session.signatures.length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                {session.signatures.filter(sig => sig.signer_action !== "cancelled").map(sig => (
+                  <SignatureBadge key={sig.id} signature={sig} />
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
@@ -734,15 +889,22 @@ function DocCard({
             </p>
           )}
 
-          {/* Download Signed PDF link */}
+          {/* Download Signed PDF + Evidence Package links */}
           {session.status === "signed" && (
-            <a
-              href={`/api/signatures/download/${session.id}`}
-              className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline mt-1 font-medium"
-            >
-              <Download size={10} />
-              Signed PDF
-            </a>
+            <div className="flex items-center gap-2 mt-1">
+              <a
+                href={`/api/signatures/download/${session.id}`}
+                className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium"
+              >
+                <Download size={10} /> Signed PDF
+              </a>
+              <a
+                href={`/api/signatures/evidence/${session.id}`}
+                className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-700 hover:underline font-medium"
+              >
+                <FileText size={10} /> Evidence Package
+              </a>
+            </div>
           )}
 
           {/* Recurring badge */}
@@ -774,6 +936,23 @@ function DocCard({
           >
             {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
           </button>
+
+          {/* Signature details toggle — visible when session has signatures */}
+          {hasSignatures && (
+            <button
+              className={cn(
+                "flex items-center justify-center w-8 h-8 rounded-xl transition-colors",
+                signatureExpanded
+                  ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400"
+                  : "hover:bg-secondary/60 text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setSignatureExpanded(v => !v)}
+              aria-label="Signature details"
+              title="Signature details"
+            >
+              <PenLine size={15} />
+            </button>
+          )}
 
           {/* Recurring toggle button — invoices only */}
           {hasRecurring && (
@@ -815,6 +994,20 @@ function DocCard({
           <div className="min-h-0 overflow-hidden">
             <div className="px-3.5 pb-3.5">
               <RecurringPanel session={session} onRefresh={onRefresh} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expandable signature details panel */}
+      {hasSignatures && (
+        <div className={cn(
+          "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          signatureExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}>
+          <div className="min-h-0 overflow-hidden">
+            <div className="px-3.5 pb-3.5">
+              <SignatureDetailsPanel sessionId={session.id} />
             </div>
           </div>
         </div>
@@ -1032,9 +1225,29 @@ export default function MyDocumentsPage() {
         }
       }
 
+      // Fetch signatures for signature-supporting document types
+      const signatureSessionIds = withContent
+        .filter((s: any) => ["contract", "quotation", "proposal"].includes(s.document_type))
+        .map((s: any) => s.id)
+
+      let signatureMap: Record<string, SignatureRecord[]> = {}
+      if (signatureSessionIds.length > 0) {
+        const { data: signatureRows } = await (supabase as any)
+          .from("signatures")
+          .select("id, session_id, signer_name, signer_email, signed_at, signer_action, created_at")
+          .in("session_id", signatureSessionIds)
+          .order("created_at", { ascending: false })
+
+        for (const sig of (signatureRows ?? [])) {
+          if (!signatureMap[sig.session_id]) signatureMap[sig.session_id] = []
+          signatureMap[sig.session_id].push(sig as SignatureRecord)
+        }
+      }
+
       const mergedFinal: DocSession[] = mergedWithQuotations.map((s) => ({
         ...s,
         recurring: recurringMap[s.id] ?? null,
+        signatures: signatureMap[s.id] ?? [],
       }))
 
       setSessions(mergedFinal)

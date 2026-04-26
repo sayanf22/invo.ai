@@ -29,6 +29,8 @@ export function GetSignatureModal({
 }: GetSignatureModalProps) {
   const [signerName, setSignerName] = useState(defaultName)
   const [signerEmail, setSignerEmail] = useState(defaultEmail)
+  const [personalMessage, setPersonalMessage] = useState("")
+  const [messageEdited, setMessageEdited] = useState(false)
   const [loading, setLoading] = useState(false)
   const [signingUrl, setSigningUrl] = useState<string | null>(null)
   const [emailWarning, setEmailWarning] = useState<string | null>(null)
@@ -40,6 +42,15 @@ export function GetSignatureModal({
     if (defaultEmail && !signerEmail) setSignerEmail(defaultEmail)
     if (defaultName && !signerName) setSignerName(defaultName)
   }, [defaultEmail, defaultName])
+
+  // Auto-generate email message when signerName changes (unless user manually edited)
+  useEffect(() => {
+    if (!messageEdited) {
+      const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1)
+      const name = signerName.trim() || "there"
+      setPersonalMessage(`Hi ${name},\n\n${docLabel} is ready for your electronic signature. Please review and sign using the secure link below.`)
+    }
+  }, [signerName, documentType, messageEdited])
 
   const canSubmit = signerName.trim().length > 0 && isValidEmail(signerEmail) && !loading
 
@@ -57,6 +68,7 @@ export function GetSignatureModal({
           signerEmail: signerEmail.trim(),
           signerName: signerName.trim(),
           party: "Client",
+          personalMessage: personalMessage.trim() || undefined,
         }),
       })
       const data = await res.json()
@@ -102,6 +114,8 @@ export function GetSignatureModal({
     if (!open) return
     setSignerName(defaultName)
     setSignerEmail(defaultEmail)
+    setPersonalMessage("")
+    setMessageEdited(false)
     setSigningUrl(null)
     setEmailWarning(null)
     setError(null)
@@ -235,6 +249,23 @@ export function GetSignatureModal({
                     required
                     disabled={loading}
                     className="w-full h-12 px-4 rounded-xl border border-border/80 bg-white dark:bg-card text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-colors disabled:opacity-50 shadow-sm"
+                  />
+                </div>
+
+                {/* Email Message */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground">
+                    Email Message
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={personalMessage}
+                    onChange={e => {
+                      setPersonalMessage(e.target.value)
+                      setMessageEdited(true)
+                    }}
+                    disabled={loading}
+                    className="w-full px-4 py-3 rounded-xl border border-border/80 bg-white dark:bg-card text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-colors disabled:opacity-50 shadow-sm resize-none"
                   />
                 </div>
 

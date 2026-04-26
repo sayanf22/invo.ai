@@ -9,6 +9,7 @@ export type AuditAction =
   | "signature.tamper_detected"
   | "signature.abuse_detected"
   | "signature.r2_fallback"
+  | "signature.cancelled"
 
 export function buildAuditEventRow(event: {
   action: AuditAction

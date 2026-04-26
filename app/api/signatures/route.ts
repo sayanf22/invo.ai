@@ -136,7 +136,7 @@ function buildSigningInvitationEmail(opts: {
       <tr><td style="padding:0 28px 24px 28px;">
         <p style="margin:0;font-size:12px;color:#a1a1aa;">
           If the button above doesn't work, copy and paste this URL into your browser:<br/>
-          <a href="${esc(signingUrl)}" style="color:#6366f1;word-break:break-all;">${h(signingUrl)}</a>
+          <a href="${esc(signingUrl)}" style="color:#6366f1;word-break:break-all;">Sign at clorefy.com</a>
         </p>
       </td></tr>
 
@@ -507,7 +507,10 @@ export async function GET(request: NextRequest) {
                 }
             }
 
-            return NextResponse.json({ signature, business, autoInvoiceOnSign: !!sessionData?.auto_invoice_on_sign })
+            const sessionContext = sessionData?.context ?? null
+            const documentType = sessionData?.document_type ?? null
+
+            return NextResponse.json({ signature, business, autoInvoiceOnSign: !!sessionData?.auto_invoice_on_sign, sessionContext, documentType })
         }
 
         if (documentId) {
@@ -543,7 +546,7 @@ export async function GET(request: NextRequest) {
 
             const { data: signatures, error } = await auth.supabase
                 .from("signatures")
-                .select("id, signer_name, signer_email, party, signed_at, signer_action, signer_reason, created_at")
+                .select("id, signer_name, signer_email, party, signed_at, signer_action, signer_reason, created_at, ip_address, verification_url")
                 .eq("session_id", sessionId)
                 .order("created_at", { ascending: false })
 
