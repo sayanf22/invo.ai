@@ -385,6 +385,7 @@ export async function createPaymentLink(params: CreatePaymentLinkParams): Promis
             Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}`,
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000), // 15s timeout
     })
 
     if (!response.ok) {

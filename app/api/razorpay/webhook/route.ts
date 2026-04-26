@@ -36,24 +36,22 @@ export async function POST(request: Request) {
         )
 
         // REPLAY PROTECTION: Check if we've already processed this event
-        // Razorpay sends x-razorpay-event-id which is unique per event
         if (eventId) {
             const { data: existing } = await supabase
                 .from("webhook_events" as any)
                 .select("id")
                 .eq("event_id", eventId)
+                .eq("gateway", "razorpay")
                 .maybeSingle()
 
             if (existing) {
-                // Already processed — return 200 to prevent Razorpay from retrying
-                console.log("Duplicate webhook event, skipping:", eventId)
                 return NextResponse.json({ received: true, duplicate: true })
             }
 
-            // Record this event to prevent future replays
             await supabase.from("webhook_events" as any).insert({
                 event_id: eventId,
                 event_type: eventType,
+                gateway: "razorpay",
             })
         }
 

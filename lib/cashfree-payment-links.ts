@@ -101,7 +101,7 @@ export async function createCashfreePaymentLink(params: CashfreePaymentLinkParam
   // If no customer data at all, omit customer_details entirely
   // Cashfree v2025-01-01 does not require customer_details for payment links
 
-  const res = await fetch(`${baseUrl}/pg/links`, {
+    const res = await fetch(`${baseUrl}/pg/links`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -110,6 +110,7 @@ export async function createCashfreePaymentLink(params: CashfreePaymentLinkParam
       "x-client-secret": params.userClientSecret,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000), // 15s timeout
   })
 
   if (!res.ok) {
@@ -142,7 +143,7 @@ export async function cancelCashfreePaymentLink(
 }
 
 /**
- * Verify Cashfree webhook signature.
+ * Verify Cashfree webhook signature using constant-time comparison.
  * Cashfree uses HMAC-SHA256 of the raw body with the client secret.
  * The signature is base64-encoded.
  */
@@ -159,6 +160,13 @@ export async function verifyCashfreeWebhookSignature(
     )
     const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody))
     const computed = btoa(String.fromCharCode(...new Uint8Array(sigBuffer)))
-    return computed === signature
+
+    // Constant-time comparison to prevent timing attacks
+    if (computed.length !== signature.length) return false
+    let diff = 0
+    for (let i = 0; i < computed.length; i++) {
+      diff |= computed.charCodeAt(i) ^ signature.charCodeAt(i)
+    }
+    return diff === 0
   } catch { return false }
 }

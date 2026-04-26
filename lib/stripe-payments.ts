@@ -66,6 +66,7 @@ export async function createStripePaymentLink(params: StripePaymentLinkParams): 
             "Content-Type": "application/x-www-form-urlencoded",
         },
         body: formData,
+        signal: AbortSignal.timeout(15000), // 15s timeout
     })
 
     if (!res.ok) {
@@ -138,7 +139,8 @@ export async function deleteStripeWebhook(userSecretKey: string, webhookId: stri
 }
 
 /**
- * Verify Stripe webhook signature.
+ * Verify Stripe webhook signature using constant-time comparison.
+ * Stripe format: "t=timestamp,v1=signature"
  */
 export async function verifyStripeWebhookSignature(
     body: string,
@@ -146,7 +148,6 @@ export async function verifyStripeWebhookSignature(
     webhookSecret: string
 ): Promise<boolean> {
     try {
-        // Stripe uses: t=timestamp,v1=signature format
         const parts = signature.split(",")
         const tPart = parts.find(p => p.startsWith("t="))
         const v1Part = parts.find(p => p.startsWith("v1="))
@@ -165,6 +166,12 @@ export async function verifyStripeWebhookSignature(
         const computed = Array.from(new Uint8Array(sigBuffer))
             .map(b => b.toString(16).padStart(2, "0")).join("")
 
-        return computed === expectedSig
+        // Constant-time comparison to prevent timing attacks
+        if (computed.length !== expectedSig.length) return false
+        let diff = 0
+        for (let i = 0; i < computed.length; i++) {
+            diff |= computed.charCodeAt(i) ^ expectedSig.charCodeAt(i)
+        }
+        return diff === 0
     } catch { return false }
 }
