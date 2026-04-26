@@ -254,8 +254,13 @@ export async function POST(request: NextRequest) {
         const signingUrl = `https://clorefy.com/sign/${signingToken}`
 
         // Insert signature record FIRST — then send email (non-blocking)
-        // This way the signing link is always created even if email has issues
-        const { data: signature, error: sigError } = await supabase
+        // Use service-role client to bypass RLS (auth already verified above)
+        const serviceSupabase = createClient<Database>(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+
+        const { data: signature, error: sigError } = await serviceSupabase
             .from("signatures")
             .insert({
                 document_id: documentId,
@@ -272,13 +277,13 @@ export async function POST(request: NextRequest) {
             .single()
 
         if (sigError || !signature) {
-            console.error("[signatures] Signature creation error:", sigError)
-            return NextResponse.json({ error: "Failed to create signature request" }, { status: 500 })
+            console.error("[signatures] Signature creation error:", sigError?.message, sigError?.code, sigError?.details, sigError?.hint)
+            return NextResponse.json({ error: `Failed to create signature request: ${sigError?.message || "unknown error"}` }, { status: 500 })
         }
 
         // Set verification_url now that we have the signature id
         const verificationUrl = `https://clorefy.com/verify/${signature.id}`
-        await supabase
+        await serviceSupabase
             .from("signatures")
             .update({ verification_url: verificationUrl } as any)
             .eq("id", signature.id)
@@ -319,11 +324,6 @@ export async function POST(request: NextRequest) {
         }
 
         // Sub-task 5.3: Record audit event using service-role client
-        const serviceSupabase = createClient<Database>(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        )
-
         const ipAddress = getClientIP(request)
         await recordAuditEvent(serviceSupabase, {
             action: "signature.request_created",
