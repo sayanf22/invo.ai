@@ -47,7 +47,25 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
     : "Proposal"
 
   const showAmount = (documentType === "invoice" || documentType === "quotation") && totalAmount != null && totalAmount !== ""
-  const showDescription = (documentType === "contract" || documentType === "proposal") && description != null && description !== ""
+  // For contracts: never show the full description (it's the entire contract body — too long)
+  // For proposals: show a truncated excerpt (max 200 chars)
+  const rawDescription = (documentType === "contract" || documentType === "proposal") && description != null && description !== ""
+    ? description
+    : null
+  const showDescription = rawDescription !== null && documentType === "proposal"
+  const truncatedDescription = rawDescription
+    ? rawDescription.length > 200 ? rawDescription.slice(0, 197) + "…" : rawDescription
+    : null
+
+  // Contract-specific body copy — short and professional
+  const bodyText = documentType === "contract"
+    ? `Please review the contract and sign when ready.`
+    : documentType === "proposal"
+    ? `Please review the proposal at your convenience.`
+    : documentType === "quotation"
+    ? `Please review the quotation. Let us know if you have any questions.`
+    : `Please find your invoice attached.`
+
   const showPersonalMessage = personalMessage != null && personalMessage !== ""
   const showPayNow = payNowUrl != null && payNowUrl !== ""
 
@@ -118,7 +136,7 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
             <!-- Greeting -->
             <p style="margin:0 0 6px 0;font-size:16px;font-weight:600;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Hi ${h(recipientName)},</p>
             <p style="margin:0 0 24px 0;font-size:15px;color:#52525b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;">
-              ${h(businessName)} has sent you a ${h(docLabel.toLowerCase())}.
+              ${h(businessName)} has sent you a ${h(docLabel.toLowerCase())}. ${h(bodyText)}
             </p>
 
             <!-- Document summary card -->
@@ -138,7 +156,7 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
                       ${dueDate ? `<td align="right" style="font-size:15px;font-weight:600;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${h(dueDate)}</td>` : ""}
                     </tr>
                   </table>` : ""}
-                  ${showDescription ? `<p style="margin:12px 0 0 0;font-size:14px;color:#52525b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;">${h(description ?? "")}</p>` : ""}
+                  ${showDescription ? `<p style="margin:12px 0 0 0;font-size:14px;color:#52525b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;">${h(truncatedDescription ?? "")}</p>` : ""}
                 </td>
               </tr>
             </table>
