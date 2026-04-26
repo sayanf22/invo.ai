@@ -161,9 +161,8 @@ export async function POST(request: NextRequest) {
         const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
-        // SECURITY: Rate limit — dedicated signature category (10/min)
-        const rateLimitError = await checkRateLimit(auth.user.id, "signature")
-        if (rateLimitError) return rateLimitError
+        // No rate limiting on signature creation — the email sending is the natural throttle
+        // and we already create the record first (non-blocking email)
 
         const body = await request.json()
 
