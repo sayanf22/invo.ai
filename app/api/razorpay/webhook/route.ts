@@ -140,8 +140,8 @@ export async function POST(request: Request) {
             case "payment_link.paid": {
                 const paymentLink = event.payload.payment_link.entity
                 const payment = event.payload.payment?.entity
-                console.log("Payment link paid:", paymentLink.id, paymentLink.amount)
 
+                // Race condition guard: only update if not already paid
                 await supabase
                     .from("invoice_payments" as any)
                     .update({
@@ -152,6 +152,7 @@ export async function POST(request: Request) {
                         updated_at: new Date().toISOString(),
                     })
                     .eq("razorpay_payment_link_id", paymentLink.id)
+                    .neq("status", "paid") // Prevent double-update
 
                 // Create a notification for the user
                 const notes = paymentLink.notes ?? {}
@@ -183,6 +184,7 @@ export async function POST(request: Request) {
                             .update({ status: "paid", updated_at: new Date().toISOString() } as any)
                             .eq("id", sessionId)
                             .eq("user_id", userId)
+                            .neq("status", "paid")
                     } else {
                         // Fallback: find session via invoice_payments
                         const { data: invoicePayment } = await supabase
@@ -196,6 +198,7 @@ export async function POST(request: Request) {
                                 .update({ status: "paid", updated_at: new Date().toISOString() } as any)
                                 .eq("id", invoicePayment.session_id)
                                 .eq("user_id", userId)
+                                .neq("status", "paid")
                         }
                     }
 

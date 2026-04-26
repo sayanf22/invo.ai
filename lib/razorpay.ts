@@ -214,8 +214,8 @@ export async function verifyPaymentSignature(
 }
 
 /**
- * Verify Razorpay webhook signature.
- * CRITICAL: This prevents fake webhook calls.
+ * Verify Razorpay webhook signature using constant-time comparison.
+ * CRITICAL: This prevents payment spoofing and timing attacks.
  */
 export async function verifyWebhookSignature(
     body: string,
@@ -240,7 +240,13 @@ export async function verifyWebhookSignature(
         .map(b => b.toString(16).padStart(2, "0"))
         .join("")
 
-    return expectedSignature === signature
+    // Constant-time comparison to prevent timing attacks
+    if (expectedSignature.length !== signature.length) return false
+    let diff = 0
+    for (let i = 0; i < expectedSignature.length; i++) {
+        diff |= expectedSignature.charCodeAt(i) ^ signature.charCodeAt(i)
+    }
+    return diff === 0
 }
 
 // ── Payment Links ──────────────────────────────────────────────────────
