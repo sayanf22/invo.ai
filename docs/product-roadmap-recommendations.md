@@ -148,9 +148,6 @@ Delivery status (sent → delivered → opened → bounced) is tracked via **Mai
 ### 🔵 Accounting Software Export
 Tally XML export for Indian SMBs, QuickBooks IIF, and Xero CSV. 90% of Indian businesses use Tally — this would make Clorefy indispensable for that market.
 
-### 🔵 Stripe & Cashfree Payment Links
-Razorpay, Stripe, and Cashfree payment links are all fully working. Gateway is auto-selected by currency — Razorpay for INR, Stripe for global currencies, Cashfree as INR fallback.
-
 ### 🔵 Team Members (Agency tier)
 The Agency tier advertises 3 team members but the feature isn't built yet. Shared workspace with role-based access (owner, editor, viewer) is the next major feature for the Agency tier.
 
