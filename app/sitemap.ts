@@ -63,14 +63,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const misspellingPage: MetadataRoute.Sitemap = [
     {
       url: `${BASE_URL}/clorefy-alternative-spellings`,
-      lastModified: new Date("2025-01-01"),
+      lastModified: new Date("2026-04-26"),
       changeFrequency: "monthly" as const,
-      priority: 0.5,
+      priority: 0.7, // bumped — this page directly targets branded misspelling searches
     },
     // Brand name URL — helps Google associate "clorefy" with this domain
     {
       url: `${BASE_URL}/clorefy`,
-      lastModified: new Date("2026-04-01"),
+      lastModified: new Date("2026-04-26"),
       changeFrequency: "monthly" as const,
       priority: 0.6,
     },

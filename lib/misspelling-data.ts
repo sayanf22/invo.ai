@@ -8,6 +8,7 @@
  * These are checked against URL path segments to detect and redirect misspelled URLs.
  */
 export const MISSPELLING_VARIANTS: string[] = [
+  // Most common
   "clorify",
   "cloriphy",
   "clorephy",
@@ -15,6 +16,20 @@ export const MISSPELLING_VARIANTS: string[] = [
   "clorefi",
   "clorfy",
   "clorifly",
+  // Additional variants people type
+  "cloerfy",
+  "clorefe",
+  "cloerify",
+  "cloarfy",
+  "cloreffy",
+  "clorify",
+  "glorify",   // phonetic confusion
+  "cloreify",
+  "cloerfi",
+  "clorfi",
+  "clorfiy",
+  "cloerify",
+  "clorefy",   // correct — kept for completeness in the variants list display
 ]
 
 /**
@@ -28,12 +43,35 @@ export const MISSPELLING_VARIANTS: string[] = [
  * isMisspellingPath("/clorify-invoice-generator") // => "/clorefy-invoice-generator"
  * isMisspellingPath("/tools/invoice-generator")   // => null
  */
+/**
+ * Misspellings that should trigger URL redirects.
+ * Subset of MISSPELLING_VARIANTS — excludes "clorefy" (correct) and
+ * "glorify" (too broad, would match unrelated words).
+ */
+const REDIRECT_VARIANTS: string[] = [
+  "clorify",
+  "cloriphy",
+  "clorephy",
+  "clorafy",
+  "clorefi",
+  "clorfy",
+  "clorifly",
+  "cloerfy",
+  "clorefe",
+  "cloerify",
+  "cloarfy",
+  "cloreffy",
+  "cloreify",
+  "cloerfi",
+  "clorfi",
+  "clorfiy",
+]
+
 export function isMisspellingPath(pathname: string): string | null {
   const lower = pathname.toLowerCase()
 
-  for (const variant of MISSPELLING_VARIANTS) {
+  for (const variant of REDIRECT_VARIANTS) {
     if (lower.includes(variant)) {
-      // Replace all occurrences of the misspelling with "clorefy" (case-insensitive)
       const corrected = lower.replace(new RegExp(variant, "gi"), "clorefy")
       return corrected
     }
