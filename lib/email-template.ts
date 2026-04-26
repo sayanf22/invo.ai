@@ -11,6 +11,7 @@ export interface EmailTemplateData {
   personalMessage?: string | null
   viewDocumentUrl: string
   payNowUrl?: string | null
+  signingUrl?: string | null
 }
 
 export function generateEmailSubject(
@@ -36,7 +37,7 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
   const {
     businessName, businessLogoUrl, documentType, referenceNumber,
     recipientName, totalAmount, currency, dueDate, description,
-    personalMessage, viewDocumentUrl, payNowUrl,
+    personalMessage, viewDocumentUrl, payNowUrl, signingUrl,
   } = data
 
   const docLabel =
@@ -166,6 +167,13 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
                     View ${h(docLabel)}
                   </a>
                 </td>
+                ${signingUrl ? `
+                <td class="mobile-btn-wrap" style="padding-left:10px;vertical-align:top;">
+                  <a href="${esc(signingUrl)}" target="_blank" class="mobile-btn"
+                    style="display:inline-block;padding:13px 28px;background-color:#7c3aed;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;text-align:center;min-width:140px;">
+                    ✍ Sign Document
+                  </a>
+                </td>` : ""}
                 ${showPayNow ? `
                 <td class="mobile-btn-wrap" style="padding-left:10px;vertical-align:top;">
                   <a href="${esc(payNowUrl ?? "")}" target="_blank" class="mobile-btn"

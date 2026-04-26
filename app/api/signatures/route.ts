@@ -245,7 +245,11 @@ export async function POST(request: NextRequest) {
             ? session.document_type.charAt(0).toUpperCase() + session.document_type.slice(1)
             : "Document"
         const ctx = context as Record<string, unknown>
-        const referenceNumber = (ctx.invoiceNumber as string) || (ctx.referenceNumber as string) || ""
+        // For non-invoice documents, prefer referenceNumber over invoiceNumber
+        // to avoid showing INV- prefix on contracts/quotations/proposals
+        const referenceNumber = session.document_type === "invoice"
+            ? ((ctx.invoiceNumber as string) || (ctx.referenceNumber as string) || "")
+            : ((ctx.referenceNumber as string) || (ctx.invoiceNumber as string) || "")
 
         // Build signing URL
         const signingUrl = `https://clorefy.com/sign/${signingToken}`

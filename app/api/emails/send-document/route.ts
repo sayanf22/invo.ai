@@ -126,10 +126,10 @@ export async function POST(request: NextRequest) {
     const context = (session.context ?? {}) as Record<string, unknown>
 
     // Extract fields from context
-    const referenceNumber =
-      (context.invoiceNumber as string) ||
-      (context.referenceNumber as string) ||
-      "N/A"
+    // For non-invoice documents, prefer referenceNumber over invoiceNumber
+    const referenceNumber = documentType === "invoice"
+      ? ((context.invoiceNumber as string) || (context.referenceNumber as string) || "N/A")
+      : ((context.referenceNumber as string) || (context.invoiceNumber as string) || "N/A")
     const totalAmount =
       (context.total as string) ||
       (context.totalAmount as string) ||
@@ -253,6 +253,23 @@ export async function POST(request: NextRequest) {
       ? sanitizeText(body.subject).slice(0, 200)
       : generateEmailSubject(documentType, referenceNumber, businessName)
 
+    // 10b. For contracts/quotations/proposals, look up signing token to include Sign button
+    let signingUrl: string | null = null
+    if (documentType === "contract" || documentType === "quotation" || documentType === "proposal") {
+      const { data: sigRow } = await supabase
+        .from("signatures")
+        .select("token")
+        .eq("session_id" as any, sessionId)
+        .eq("signer_email", recipientEmail)
+        .is("signed_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (sigRow?.token) {
+        signingUrl = `https://clorefy.com/sign/${sigRow.token}`
+      }
+    }
+
     // 11. Render HTML
     const html = renderEmailTemplate({
       businessName,
@@ -267,6 +284,7 @@ export async function POST(request: NextRequest) {
       personalMessage: personalMessage || null,
       viewDocumentUrl: `https://clorefy.com/view/${sessionId}`,
       payNowUrl,
+      signingUrl,
     })
 
     // 12. Send email
