@@ -9,15 +9,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // ── Public marketing pages (indexed, high priority) ──────────────────
   // Use hardcoded content timestamps instead of current date for static pages
   const marketingPages: MetadataRoute.Sitemap = [
-    { url: BASE_URL, lastModified: new Date("2025-06-01"), changeFrequency: "daily", priority: 1.0 },
-    { url: `${BASE_URL}/pricing`, lastModified: new Date("2025-05-01"), changeFrequency: "weekly", priority: 0.9 },
-    { url: `${BASE_URL}/features`, lastModified: new Date("2025-05-01"), changeFrequency: "weekly", priority: 0.9 },
-    { url: `${BASE_URL}/blog`, lastModified: new Date("2025-06-01"), changeFrequency: "daily", priority: 0.9 },
-    { url: `${BASE_URL}/business`, lastModified: new Date("2025-04-01"), changeFrequency: "monthly", priority: 0.8 },
-    { url: `${BASE_URL}/resources`, lastModified: new Date("2025-04-01"), changeFrequency: "monthly", priority: 0.8 },
-    { url: `${BASE_URL}/developers`, lastModified: new Date("2025-03-01"), changeFrequency: "monthly", priority: 0.7 },
-    { url: `${BASE_URL}/contact`, lastModified: new Date("2025-01-01"), changeFrequency: "monthly", priority: 0.7 },
-    { url: `${BASE_URL}/about`, lastModified: new Date("2025-01-01"), changeFrequency: "monthly", priority: 0.7 },
+    { url: BASE_URL, lastModified: new Date("2026-04-01"), changeFrequency: "daily", priority: 1.0 },
+    { url: `${BASE_URL}/pricing`, lastModified: new Date("2026-04-01"), changeFrequency: "weekly", priority: 0.9 },
+    { url: `${BASE_URL}/features`, lastModified: new Date("2026-04-01"), changeFrequency: "weekly", priority: 0.9 },
+    { url: `${BASE_URL}/blog`, lastModified: new Date("2026-04-01"), changeFrequency: "daily", priority: 0.9 },
+    { url: `${BASE_URL}/business`, lastModified: new Date("2026-01-01"), changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/resources`, lastModified: new Date("2026-01-01"), changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/integrations`, lastModified: new Date("2026-01-01"), changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/developers`, lastModified: new Date("2026-01-01"), changeFrequency: "monthly", priority: 0.7 },
+    { url: `${BASE_URL}/contact`, lastModified: new Date("2026-01-01"), changeFrequency: "monthly", priority: 0.7 },
+    { url: `${BASE_URL}/about`, lastModified: new Date("2026-01-01"), changeFrequency: "monthly", priority: 0.7 },
   ]
 
   // ── Use cases (long-tail SEO — each targets a specific audience) ─────

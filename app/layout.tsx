@@ -61,9 +61,9 @@ export const metadata: Metadata = {
     canonical: "/",
   },
   // Add your Google Search Console verification code here after setup
-  // verification: {
-  //   google: "YOUR_GOOGLE_VERIFICATION_CODE",
-  // },
+  verification: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }
+    : undefined,
   manifest: "/manifest.json",
   openGraph: {
     title: "Clorefy — Free AI Invoice & Contract Generator",
