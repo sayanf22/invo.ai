@@ -6,6 +6,7 @@ import { AnimatedHero } from "@/components/landing/animated-hero"
 import { AnimatedCard } from "@/components/landing/animated-card"
 import { Breadcrumbs } from "@/components/seo/breadcrumbs"
 import { generateProductSchema, type PricingPlan } from "@/lib/structured-data"
+import { ComparisonTable } from "@/components/landing/comparison-table"
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
 
@@ -232,6 +233,8 @@ export default function PricingPage() {
         </section>
 
         {/* ── FAQ ── */}
+        <ComparisonTable />
+
         <section className="py-24 px-6" style={{ backgroundColor: "#faf8f5" }}>
           <div className="max-w-2xl mx-auto">
             <AnimatedCard y={20}>
