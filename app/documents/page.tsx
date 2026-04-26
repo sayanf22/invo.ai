@@ -656,11 +656,13 @@ interface SignatureDetailRecord extends SignatureRecord {
   signer_reason?: string | null
 }
 
-function SignatureDetailsPanel({ sessionId }: { sessionId: string }) {
+function SignatureDetailsPanel({ sessionId, expanded }: { sessionId: string; expanded: boolean }) {
   const [signatures, setSignatures] = useState<SignatureDetailRecord[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [fetched, setFetched] = useState(false)
 
   useEffect(() => {
+    if (!expanded || fetched) return
     let cancelled = false
     async function fetchDetails() {
       setLoading(true)
@@ -668,16 +670,19 @@ function SignatureDetailsPanel({ sessionId }: { sessionId: string }) {
         const res = await authFetch(`/api/signatures?sessionId=${sessionId}`)
         if (!res.ok) throw new Error("Failed to fetch")
         const data = await res.json()
-        if (!cancelled) setSignatures(data.signatures ?? [])
+        if (!cancelled) {
+          setSignatures(data.signatures ?? [])
+          setFetched(true)
+        }
       } catch {
-        if (!cancelled) setSignatures([])
+        if (!cancelled) setFetched(true)
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
     fetchDetails()
     return () => { cancelled = true }
-  }, [sessionId])
+  }, [expanded, sessionId, fetched])
 
   if (loading) {
     return (
@@ -687,7 +692,13 @@ function SignatureDetailsPanel({ sessionId }: { sessionId: string }) {
     )
   }
 
-  if (signatures.length === 0) return null
+  if (signatures.length === 0) {
+    return (
+      <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+        <p className="text-xs text-muted-foreground">No signature details available.</p>
+      </div>
+    )
+  }
 
   const getStatusBadge = (sig: SignatureDetailRecord) => {
     if (sig.signer_action === "declined") return { icon: "❌", label: "Declined" }
@@ -832,14 +843,6 @@ function DocCard({
             {docType === "quotation" && session.quotationResponse && (
               <QuotationResponseBadge responseType={session.quotationResponse.response_type} />
             )}
-            {/* Signature badges */}
-            {session.signatures && session.signatures.length > 0 && (
-              <div className="flex items-center gap-1 flex-wrap">
-                {session.signatures.filter(sig => sig.signer_action !== "cancelled").map(sig => (
-                  <SignatureBadge key={sig.id} signature={sig} />
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
@@ -878,6 +881,10 @@ function DocCard({
                 Reminder {formatDistanceToNow(new Date(emailStats.nextReminderAt), { addSuffix: true })}
               </span>
             )}
+            {/* Signature badges */}
+            {session.signatures && session.signatures.filter(s => s.signer_action !== "cancelled").map(sig => (
+              <SignatureBadge key={sig.id} signature={sig} />
+            ))}
           </div>
 
           {/* View tracking summary (compact) */}
@@ -1007,7 +1014,7 @@ function DocCard({
         )}>
           <div className="min-h-0 overflow-hidden">
             <div className="px-3.5 pb-3.5">
-              <SignatureDetailsPanel sessionId={session.id} />
+              <SignatureDetailsPanel sessionId={session.id} expanded={signatureExpanded} />
             </div>
           </div>
         </div>
