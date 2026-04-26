@@ -429,6 +429,7 @@ export async function GET(request: NextRequest) {
             // Sub-task 6.1 + 6.2: Fetch session once for audit event, notification, and business info
             const sessionId = (signature as any).session_id
             let business: { name: string; logo_url: string | null } | null = null
+            let sessionData: { auto_invoice_on_sign: boolean | null } | null = null
 
             if (sessionId) {
                 const { data: session } = await serviceSupabase
@@ -438,6 +439,7 @@ export async function GET(request: NextRequest) {
                     .single()
 
                 if (session) {
+                    sessionData = session
                     // Sub-task 6.2: Fetch business info for the signing page
                     const { data: biz } = await serviceSupabase
                         .from("businesses")
@@ -494,7 +496,7 @@ export async function GET(request: NextRequest) {
                 }
             }
 
-            return NextResponse.json({ signature, business, autoInvoiceOnSign: !!(session as any)?.auto_invoice_on_sign })
+            return NextResponse.json({ signature, business, autoInvoiceOnSign: !!sessionData?.auto_invoice_on_sign })
         }
 
         if (documentId) {
