@@ -161,9 +161,8 @@ export async function POST(request: NextRequest) {
         const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
-        // SECURITY: Rate limit — signatures are intentional actions, use general (60/min)
-        // The email sending itself acts as a natural throttle
-        const rateLimitError = await checkRateLimit(auth.user.id, "general")
+        // SECURITY: Rate limit — dedicated signature category (10/min)
+        const rateLimitError = await checkRateLimit(auth.user.id, "signature")
         if (rateLimitError) return rateLimitError
 
         const body = await request.json()

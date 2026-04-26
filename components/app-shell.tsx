@@ -267,7 +267,7 @@ export function AppShell() {
   return (
     <div className="animate-in fade-in duration-300 min-h-screen flex flex-col bg-background">
       <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
-        <InvoLogo size={36} />
+        <InvoLogo size={36} showBeta />
         <HamburgerMenu />
       </header>
 

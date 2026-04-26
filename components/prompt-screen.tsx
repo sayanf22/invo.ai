@@ -106,7 +106,7 @@ export function PromptScreen({
 
         {/* Center logo — flex-1 so it truly centers */}
         <div className="flex-1 flex justify-center">
-          <InvoLogo size={40} />
+          <InvoLogo size={40} showBeta />
         </div>
 
         {/* Mobile tab switcher */}
