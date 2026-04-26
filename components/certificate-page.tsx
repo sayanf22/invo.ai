@@ -112,7 +112,7 @@ export interface CertificatePDFProps {
 // ── Legal Statement ───────────────────────────────────────────────────────────
 
 export const LEGAL_STATEMENT =
-  "This document was electronically signed via Invo.ai. The signatures and audit trail are legally binding under applicable electronic signature laws."
+  "This document was electronically signed via Clorefy. The signatures and audit trail are legally binding under applicable electronic signature laws."
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 

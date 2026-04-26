@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 
 export const metadata: Metadata = {
-  title: "Payment Gateway Integration — Clorefy / Invo.ai",
+  title: "Payment Gateway Integration — Clorefy / Clorefy",
   description:
     "Connect Razorpay, Stripe, or Cashfree to Clorefy and collect payments directly from your invoices. Step-by-step setup guide, webhook configuration, and FAQ.",
   keywords: [
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "Cashfree invoice",
     "collect payments invoices",
     "Clorefy payments",
-    "Invo.ai payment setup",
+    "Clorefy payment setup",
     "invoice payment link",
     "webhook payment status",
   ],

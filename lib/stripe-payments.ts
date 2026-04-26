@@ -98,7 +98,7 @@ export async function registerStripeWebhook(
         params.append("url", webhookUrl)
         params.append("enabled_events[]", "checkout.session.completed")
         params.append("enabled_events[]", "checkout.session.expired")
-        params.append("description", "Invo.ai payment notifications")
+        params.append("description", "Clorefy payment notifications")
 
         const res = await fetch("https://api.stripe.com/v1/webhook_endpoints", {
             method: "POST",
