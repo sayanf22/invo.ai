@@ -32,40 +32,10 @@ export function AppShell() {
       setSelectedSessionId(sessionId)
       setView("prompt")
       loadSessionType(sessionId)
-    } else {
-      // Check localStorage for last active session — but only restore if valid AND belongs to current user
-      const lastSession = localStorage.getItem("clorefy_active_session")
-      if (lastSession && user) {
-        try {
-          const { sessionId: savedId, category, userId: savedUserId } = JSON.parse(lastSession)
-          // Only restore if the session belongs to the currently logged-in user
-          if (savedId && savedUserId === user.id) {
-            // Validate the session still exists before restoring
-            supabase
-              .from("document_sessions")
-              .select("id")
-              .eq("id", savedId)
-              .eq("user_id", user.id)
-              .single()
-              .then(({ data }) => {
-                if (data) {
-                  setSelectedSessionId(savedId)
-                  setSelectedCategory(category || "Invoice")
-                  setView("prompt")
-                } else {
-                  localStorage.removeItem("clorefy_active_session")
-                }
-              })
-          } else {
-            // Session belongs to a different user or has no userId — clear it
-            localStorage.removeItem("clorefy_active_session")
-          }
-        } catch {
-          localStorage.removeItem("clorefy_active_session")
-        }
-      }
     }
-  }, [searchParams, user])
+    // NOTE: localStorage session restore is handled AFTER onboarding check completes
+    // to prevent racing with the onboarding redirect. See the checkingOnboarding effect.
+  }, [searchParams])
 
   const loadSessionType = async (sessionId: string) => {
     try {
@@ -105,6 +75,17 @@ export function AppShell() {
         } else {
           // Business is complete, clear any skip flags
           localStorage.removeItem("clorefy_onboarding_skipped")
+        }
+
+        // Only NOW (after onboarding check passes) attempt to restore a mid-session
+        // This prevents the session restore from racing with the onboarding redirect
+        // We only restore if there's a URL sessionId param — localStorage restore is intentionally
+        // removed to prevent auto-jumping into the prompt screen on every login.
+        // Users should always land on the start screen and choose what to do.
+        const urlSessionId = new URLSearchParams(window.location.search).get("sessionId")
+        if (!urlSessionId) {
+          // Always clear stale localStorage session on fresh login — user should start fresh
+          localStorage.removeItem("clorefy_active_session")
         }
       } catch (error) {
         console.error("Error checking onboarding:", error)
