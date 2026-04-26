@@ -12,6 +12,8 @@ import { ShareButton } from "@/components/share-button"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { PaymentLinkButton } from "@/components/payment-link-button"
 import { GetSignatureModal } from "@/components/get-signature-modal"
+import { useSupabase, useUser } from "@/components/auth-provider"
+import { parseTier } from "@/lib/cost-protection"
 import { cn } from "@/lib/utils"
 
 const SIGNATURE_DOCUMENT_TYPES = ["contract", "quotation", "proposal"]
@@ -319,12 +321,15 @@ function ToolbarSep() {
 
 /* ─── Main DocumentPreview ─── */
 export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onLockChange }: DocumentPreviewProps) {
+  const supabase = useSupabase()
+  const user = useUser()
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [pageCount, setPageCount] = useState(0)
   const [sendEmailDialogOpen, setSendEmailDialogOpen] = useState(false)
   const [getSignatureModalOpen, setGetSignatureModalOpen] = useState(false)
   const [signatures, setSignatures] = useState<Array<{ id: string; signed_at: string | null }>>([])
   const [signaturesLoading, setSignaturesLoading] = useState(false)
+  const [userTier, setUserTier] = useState<"free" | "starter" | "pro" | "agency">("free")
   const hasContent = data.documentType || data.fromName || data.toName || data.description
 
   const supportsSignatures = SIGNATURE_DOCUMENT_TYPES.includes((data.documentType || "").toLowerCase())
@@ -332,6 +337,21 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const allSigned = signatures.length > 0 && signatures.every(s => s.signed_at)
   const hasDeclined = signatures.some((s: any) => s.signer_action === "declined")
   const hasRevisionRequested = signatures.some((s: any) => s.signer_action === "revision_requested")
+
+  // Fetch user tier once on mount
+  useEffect(() => {
+    if (!user) return
+    ;(supabase as any)
+      .from("subscriptions")
+      .select("plan")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data: sub }: { data: { plan?: string } | null }) => {
+        if (sub?.plan) {
+          setUserTier(parseTier(sub.plan))
+        }
+      })
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!sessionId || !supportsSignatures) return
@@ -547,18 +567,6 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               onLockChange={onLockChange}
             />
           )}
-          {/* Primary Send button — only for invoices/quotations (contracts use Request Signature above) */}
-          {sessionId && !supportsSignatures && (
-            <button
-              type="button"
-              onClick={() => setSendEmailDialogOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-95"
-              title="Send document via email"
-            >
-              <Mail className="w-4 h-4" />
-              <span className="hidden sm:inline">Send</span>
-            </button>
-          )}
           <ShareButton data={data} sessionId={sessionId ?? null} onOpenSendDialog={() => setSendEmailDialogOpen(true)} />
           <button
             type="button"
@@ -586,6 +594,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           sessionId={sessionId}
           invoiceData={data}
           documentType={data.documentType || "invoice"}
+          userTier={userTier}
         />
       )}
       {supportsSignatures && sessionId && (

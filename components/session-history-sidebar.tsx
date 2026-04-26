@@ -65,9 +65,9 @@ export function SessionHistorySidebar({ currentSessionId, onSessionSelect, docum
         if (!user) return
         setIsLoading(true)
         try {
-            let query = supabase
+            const query = supabase
                 .from("document_sessions")
-                .select("id, document_type, title, status, created_at, updated_at, last_message_at")
+                .select("id, document_type, title, status, created_at, updated_at, last_message_at, chain_id, client_name")
                 .eq("user_id", user.id)
                 .order("last_message_at", { ascending: false })
                 .limit(50)

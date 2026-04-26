@@ -22,6 +22,7 @@ interface ShareButtonProps {
   className?: string
   sessionId?: string | null
   onOpenSendDialog?: () => void
+  signingUrl?: string | null
 }
 
 async function generateQRDataUrl(url: string): Promise<string | null> {
@@ -61,7 +62,7 @@ function getFileName(data: InvoiceData): string {
   return `${type}-${safe}.pdf`
 }
 
-export function ShareButton({ data, className, sessionId, onOpenSendDialog }: ShareButtonProps) {
+export function ShareButton({ data, className, sessionId, onOpenSendDialog, signingUrl }: ShareButtonProps) {
   const [isSharing, setIsSharing] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [canNativeShare, setCanNativeShare] = useState(false)
@@ -122,18 +123,45 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog }: Sh
 
   // Build the WhatsApp / share message
   const buildMessage = useCallback(() => {
-    const type = (data.documentType || "Invoice").charAt(0).toUpperCase() + (data.documentType || "invoice").slice(1)
-    const ref = data.invoiceNumber || data.referenceNumber || type
-    const total = data.items?.reduce((s, i) => s + i.quantity * i.rate, 0) ?? 0
-    const currency = data.currency || "INR"
+    const docType = (data.documentType || "Invoice")
+    const type = docType.charAt(0).toUpperCase() + docType.slice(1)
+    const isContract = docType.toLowerCase() === "contract"
+    const isProposal = docType.toLowerCase() === "proposal"
+    const isQuotation = docType.toLowerCase() === "quotation"
+
+    // Use correct reference number — contracts/proposals use referenceNumber, not invoiceNumber
+    const ref = (isContract || isProposal || isQuotation)
+      ? (data.referenceNumber || data.invoiceNumber || type)
+      : (data.invoiceNumber || data.referenceNumber || type)
+
     const lines = [
       `Hi ${data.toName || ""},`,
       ``,
-      `Please find your ${type} ${ref} for ${currency} ${total.toFixed(2)}.`,
+      `${data.fromName || "We"} ${isContract ? "has sent you a contract for review and signature" : isProposal ? "has sent you a proposal" : isQuotation ? "has sent you a quotation" : "has sent you an invoice"}.`,
     ]
+
+    if (ref) {
+      lines.push(`Reference: ${ref}`)
+    }
+
+    // For invoices/quotations with amount, show it
+    if (!isContract && !isProposal) {
+      const total = data.items?.reduce((s, i) => s + i.quantity * i.rate, 0) ?? 0
+      if (total > 0) {
+        const currency = data.currency || "INR"
+        lines.push(`Amount: ${currency} ${total.toFixed(2)}`)
+      }
+    }
+
     if (hasPaymentLink && data.paymentLink) {
       lines.push(``, `Pay here: ${data.paymentLink}`)
     }
+
+    // Include signing link if available (for contracts/proposals/quotations)
+    if (signingUrl) {
+      lines.push(``, `Sign here: ${signingUrl}`)
+    }
+
     lines.push(``, `Thank you,`, data.fromName || "")
     return lines.join("\n")
   }, [data, hasPaymentLink])

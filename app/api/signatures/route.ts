@@ -161,7 +161,8 @@ export async function POST(request: NextRequest) {
         const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
-        // SECURITY: Rate limit (general: 30 req/min)
+        // SECURITY: Rate limit — signatures are intentional actions, use general (60/min)
+        // The email sending itself acts as a natural throttle
         const rateLimitError = await checkRateLimit(auth.user.id, "general")
         if (rateLimitError) return rateLimitError
 
@@ -278,9 +279,14 @@ export async function POST(request: NextRequest) {
         // ATOMIC: If email fails, do NOT persist the signature record
         if (!emailResult.success) {
             console.error("[signatures] Email send failed:", emailResult)
+            // Provide a user-friendly error message
+            const isRateLimit = emailResult.statusCode === 429
+            const userMessage = isRateLimit
+                ? "Email sending limit reached. Please wait a moment and try again."
+                : "Failed to send signing invitation email. Please check the email address and try again."
             return NextResponse.json(
-                { error: "Failed to send signing invitation email. Signature request was not created." },
-                { status: 500 }
+                { error: userMessage },
+                { status: isRateLimit ? 429 : 500 }
             )
         }
 
