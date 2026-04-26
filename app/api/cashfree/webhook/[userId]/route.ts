@@ -142,13 +142,13 @@ export async function POST(
             }
 
             // Notification (fire-and-forget)
-            supabaseAdmin.from("notifications").insert({
+            void supabaseAdmin.from("notifications").insert({
                 user_id: userId,
                 type: "general",
                 title: "Invoice Paid! 🎉",
                 message: `Payment of ${currency} ${amountPaid.toFixed(2)} received.`,
                 metadata: { cf_link_id: cfLinkId, amount: amountPaid, currency, session_id: sessionId },
-            }).catch(() => {})
+            }).then(() => {}).catch(() => {})
 
         } else if (linkStatus === "PARTIALLY_PAID") {
             if (cfLinkId) {
