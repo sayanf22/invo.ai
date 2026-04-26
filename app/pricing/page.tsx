@@ -232,9 +232,10 @@ export default function PricingPage() {
           </AnimatedHero>
         </section>
 
-        {/* ── FAQ ── */}
+        {/* ── Competitor Comparison Table ── */}
         <ComparisonTable />
 
+        {/* ── FAQ ── */}
         <section className="py-24 px-6" style={{ backgroundColor: "#faf8f5" }}>
           <div className="max-w-2xl mx-auto">
             <AnimatedCard y={20}>

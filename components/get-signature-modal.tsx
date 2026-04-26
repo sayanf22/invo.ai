@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { authFetch } from "@/lib/auth-fetch"
 
 interface GetSignatureModalProps {
   sessionId: string
@@ -43,7 +44,7 @@ export function GetSignatureModal({ sessionId, documentType, open, onOpenChange 
 
     setLoading(true)
     try {
-      const res = await fetch("/api/signatures", {
+      const res = await authFetch("/api/signatures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

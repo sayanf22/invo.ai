@@ -215,10 +215,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
         }
 
-        const documentId = session.document_id
-        if (!documentId) {
-            return NextResponse.json({ error: "Session has no associated document" }, { status: 400 })
-        }
+        const documentId = session.document_id ?? null
+        // document_id is optional — sessions may not have one if the document
+        // was never explicitly saved to the documents table. We allow signing
+        // without a document_id and use session_id as the primary reference.
 
         // Sub-task 5.2: Compute document fingerprint
         const context = (session.context ?? {}) as Record<string, unknown>
