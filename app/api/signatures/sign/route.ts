@@ -101,14 +101,14 @@ async function triggerAutoInvoice({
 
   // Ensure contract session has chain_id
   if (!contractSession.chain_id) {
-    await supabase
+    await (supabase as any)
       .from("document_sessions")
-      .update({ chain_id: chainId } as any)
+      .update({ chain_id: chainId })
       .eq("id", contractSessionId)
   }
 
   // Create linked invoice session
-  const { data: invoiceSession, error: createError } = await supabase
+  const { data: invoiceSession, error: createError } = await (supabase as any)
     .from("document_sessions")
     .insert({
       user_id: contractSession.user_id,
