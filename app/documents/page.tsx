@@ -7,7 +7,7 @@ import {
   FileText, Download, Eye, Calendar, Loader2, ArrowLeft, Plus,
   CheckCircle2, Clock, AlertCircle, XCircle, Link2, ExternalLink,
   RefreshCw, ChevronDown, ChevronUp, CreditCard, Send, Mail,
-  BellOff, Repeat2,
+  BellOff, Repeat2, Bell,
 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
@@ -70,6 +70,18 @@ interface EmailStats {
   bounced: number
   lastSentAt: string | null
   emails: EmailRecord[]
+  nextReminderAt: string | null       // next pending schedule
+  pendingCount: number                // how many reminders still queued
+}
+
+interface EmailSchedule {
+  id: string
+  sequence_step: number
+  sequence_type: string
+  scheduled_for: string
+  status: "pending" | "sent" | "cancelled" | "failed" | "skipped"
+  sent_at: string | null
+  cancelled_reason: string | null
 }
 
 interface DocSession {
@@ -84,6 +96,7 @@ interface DocSession {
   payment?: PaymentRecord | null
   email?: EmailRecord | null          // most recent email (for badge)
   emailStats?: EmailStats | null
+  schedules?: EmailSchedule[]         // upcoming reminder schedule
   quotationResponse?: { response_type: string } | null
   recurring?: RecurringRecord | null
 }
@@ -348,8 +361,43 @@ function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId:
     }
   }
 
+  const nextReminder = !stopped && stats.nextReminderAt ? new Date(stats.nextReminderAt) : null
+  const isNextSoon = nextReminder && (nextReminder.getTime() - Date.now()) < 48 * 60 * 60 * 1000 // within 48h
+
   return (
     <div className="mt-2 rounded-xl border border-border/50 bg-muted/20 overflow-hidden">
+      {/* Next reminder banner — shown when there are pending reminders */}
+      {nextReminder && !stopped && (
+        <div className={cn(
+          "flex items-center justify-between px-3 py-2 border-b",
+          isNextSoon
+            ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50"
+            : "bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-800/50"
+        )}>
+          <div className="flex items-center gap-2">
+            <Bell size={12} className={isNextSoon ? "text-amber-600 dark:text-amber-400" : "text-violet-600 dark:text-violet-400"} />
+            <div>
+              <p className={cn("text-[11px] font-semibold", isNextSoon ? "text-amber-800 dark:text-amber-200" : "text-violet-800 dark:text-violet-200")}>
+                Next reminder: {format(nextReminder, "MMM d, yyyy 'at' h:mm a")}
+              </p>
+              <p className={cn("text-[10px]", isNextSoon ? "text-amber-600 dark:text-amber-400" : "text-violet-600 dark:text-violet-400")}>
+                {formatDistanceToNow(nextReminder, { addSuffix: true })}
+                {stats.pendingCount > 1 && ` · ${stats.pendingCount} reminders queued`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleStopFollowUps}
+            disabled={stopping}
+            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-800/50 transition-colors disabled:opacity-50 shrink-0"
+          >
+            {stopping ? <Loader2 size={10} className="animate-spin" /> : <BellOff size={10} />}
+            Stop
+          </button>
+        </div>
+      )}
+
       {/* Stats summary row */}
       <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border/40 flex-wrap">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -374,49 +422,53 @@ function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId:
             <span className="font-semibold">{stats.bounced}</span> bounced
           </div>
         )}
-        {/* Stop follow-ups button — inline in the stats row */}
-        <div className="ml-auto">
-          {stopped ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
-              <BellOff size={10} />
-              Stopped
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={handleStopFollowUps}
-              disabled={stopping}
-              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-800/50 transition-colors disabled:opacity-50"
-            >
-              {stopping ? <Loader2 size={10} className="animate-spin" /> : <BellOff size={10} />}
-              Stop Reminders
-            </button>
-          )}
-        </div>
+        {/* Stop follow-ups button — only shown when no pending reminders banner above */}
+        {(!nextReminder || stopped) && (
+          <div className="ml-auto">
+            {stopped ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                <BellOff size={10} />
+                Stopped
+              </span>
+            ) : stats.pendingCount > 0 ? (
+              <button
+                type="button"
+                onClick={handleStopFollowUps}
+                disabled={stopping}
+                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-800/50 transition-colors disabled:opacity-50"
+              >
+                {stopping ? <Loader2 size={10} className="animate-spin" /> : <BellOff size={10} />}
+                Stop Reminders
+              </button>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {/* Individual email rows */}
-      <div className="divide-y divide-border/30">
-        {stats.emails.map((e, i) => {
-          const cfg = statusConfig[e.status] || statusConfig.sent
-          return (
-            <div key={e.id} className="flex items-center justify-between px-3 py-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-[11px] text-muted-foreground shrink-0">#{i + 1}</span>
-                <span className="text-xs text-foreground/80 truncate max-w-[160px]">{e.recipient_email}</span>
+      {stats.emails.length > 0 && (
+        <div className="divide-y divide-border/30">
+          {stats.emails.map((e, i) => {
+            const cfg = statusConfig[e.status] || statusConfig.sent
+            return (
+              <div key={e.id} className="flex items-center justify-between px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[11px] text-muted-foreground shrink-0">#{i + 1}</span>
+                  <span className="text-xs text-foreground/80 truncate max-w-[160px]">{e.recipient_email}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-full", cfg.className)}>
+                    {cfg.label}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {format(new Date(e.created_at), "MMM d")}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-full", cfg.className)}>
-                  {cfg.label}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {format(new Date(e.created_at), "MMM d")}
-                </span>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -578,7 +630,7 @@ function DocCard({
   const payment = session.payment
   const hasPayment = !!payment
   const emailStats = session.emailStats
-  const hasEmails = !!emailStats && emailStats.totalSent > 0
+  const hasEmails = !!emailStats && (emailStats.totalSent > 0 || emailStats.pendingCount > 0)
   const hasRecurring = docType === "invoice" // show recurring option for all invoices
 
   return (
@@ -663,6 +715,13 @@ function DocCard({
                 {emailStats!.opened > 0 && ` · ${emailStats!.opened} opened`}
                 {emailExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
               </button>
+            )}
+            {/* Next reminder badge — shown inline even when email panel is collapsed */}
+            {emailStats?.nextReminderAt && !emailExpanded && (
+              <span className="flex items-center gap-1 text-[11px] font-semibold text-violet-600 dark:text-violet-400 shrink-0">
+                <Bell size={10} />
+                Reminder {formatDistanceToNow(new Date(emailStats.nextReminderAt), { addSuffix: true })}
+              </span>
             )}
           </div>
 
@@ -859,6 +918,21 @@ export default function MyDocumentsPage() {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
 
+        // Load pending email schedules for all sessions
+        const { data: scheduleRows } = await (supabase as any)
+          .from("email_schedules")
+          .select("id, session_id, sequence_step, sequence_type, scheduled_for, status, sent_at, cancelled_reason")
+          .in("session_id", sessionIds)
+          .eq("user_id", user.id)
+          .order("scheduled_for", { ascending: true })
+
+        // Group schedules by session
+        const schedulesBySession: Record<string, EmailSchedule[]> = {}
+        for (const s of (scheduleRows || [])) {
+          if (!schedulesBySession[s.session_id]) schedulesBySession[s.session_id] = []
+          schedulesBySession[s.session_id].push(s as EmailSchedule)
+        }
+
         // Group all emails by session
         const emailsBySession: Record<string, EmailRecord[]> = {}
         for (const e of (emails || [])) {
@@ -869,6 +943,7 @@ export default function MyDocumentsPage() {
         // Build stats and most-recent map
         for (const [sid, list] of Object.entries(emailsBySession)) {
           emailMap[sid] = list[0] // most recent (already sorted desc)
+          const pending = (schedulesBySession[sid] || []).filter(s => s.status === "pending")
           emailStatsMap[sid] = {
             totalSent: list.length,
             opened: list.filter(e => e.status === "opened").length,
@@ -876,7 +951,33 @@ export default function MyDocumentsPage() {
             bounced: list.filter(e => e.status === "bounced").length,
             lastSentAt: list[0]?.created_at ?? null,
             emails: list,
+            nextReminderAt: pending[0]?.scheduled_for ?? null,
+            pendingCount: pending.length,
           }
+        }
+
+        // Also attach schedules to sessions that have schedules but no sent emails yet
+        for (const [sid, scheds] of Object.entries(schedulesBySession)) {
+          if (!emailStatsMap[sid]) {
+            const pending = scheds.filter(s => s.status === "pending")
+            if (pending.length > 0) {
+              emailStatsMap[sid] = {
+                totalSent: 0,
+                opened: 0,
+                delivered: 0,
+                bounced: 0,
+                lastSentAt: null,
+                emails: [],
+                nextReminderAt: pending[0].scheduled_for,
+                pendingCount: pending.length,
+              }
+            }
+          }
+        }
+
+        // Attach schedules map for use in DocCard
+        for (const s of withContent as any[]) {
+          s._schedules = schedulesBySession[s.id] ?? []
         }
       }
 
@@ -885,6 +986,7 @@ export default function MyDocumentsPage() {
         payment: paymentMap[s.id] ?? null,
         email: emailMap[s.id] ?? null,
         emailStats: emailStatsMap[s.id] ?? null,
+        schedules: s._schedules ?? [],
       }))
 
       // Fetch quotation responses for quotation sessions

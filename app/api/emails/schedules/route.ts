@@ -25,6 +25,8 @@ export async function GET(request: NextRequest) {
       console.error("Get schedules DB error:", error.message)
       return NextResponse.json({ error: "Failed to load schedules" }, { status: 500 })
     }
+
+    return NextResponse.json({ schedules: data ?? [] })
   } catch (error) {
     console.error("Get schedules error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -71,6 +73,8 @@ export async function DELETE(request: NextRequest) {
       console.error("Cancel schedules DB error:", error.message)
       return NextResponse.json({ error: "Failed to cancel reminders" }, { status: 500 })
     }
+
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Cancel schedules error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
