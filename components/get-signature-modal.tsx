@@ -180,7 +180,7 @@ export function GetSignatureModal({
                 </div>
 
                 {/* Share options */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={handleCopy}
@@ -196,14 +196,6 @@ export function GetSignatureModal({
                   >
                     <MessageCircle className="w-5 h-5" />
                     <span>WhatsApp</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleEmailShare}
-                    className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border bg-background hover:bg-secondary/50 transition-colors text-xs font-medium min-h-[64px]"
-                  >
-                    <Mail className="w-5 h-5 text-muted-foreground" />
-                    <span>Email App</span>
                   </button>
                 </div>
 
