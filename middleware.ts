@@ -30,6 +30,29 @@ import { verifyAdminSession } from "@/lib/admin-auth"
 const lastActiveCache = new Map<string, number>()
 const LAST_ACTIVE_THROTTLE = 5 * 60 * 1000 // 5 minutes
 
+// ── IP Blocklist cache (avoids a DB round-trip on every request) ────────
+// Blocked IPs are cached for 5 minutes. Allowed IPs are cached for 2 minutes.
+// This means a newly blocked IP can still access the site for up to 5 minutes,
+// which is an acceptable trade-off for eliminating per-request DB calls.
+const IP_BLOCK_CACHE_TTL = 5 * 60 * 1000 // 5 min for blocked IPs
+const IP_ALLOW_CACHE_TTL = 2 * 60 * 1000 // 2 min for allowed IPs
+const ipBlocklistCache = new Map<string, { blocked: boolean; expiresAt: number }>()
+
+function isIPBlocked(ip: string): boolean | null {
+  const entry = ipBlocklistCache.get(ip)
+  if (!entry) return null // cache miss
+  if (Date.now() > entry.expiresAt) {
+    ipBlocklistCache.delete(ip)
+    return null // expired
+  }
+  return entry.blocked
+}
+
+function cacheIPResult(ip: string, blocked: boolean): void {
+  const ttl = blocked ? IP_BLOCK_CACHE_TTL : IP_ALLOW_CACHE_TTL
+  ipBlocklistCache.set(ip, { blocked, expiresAt: Date.now() + ttl })
+}
+
 function getClientIP(request: NextRequest): string {
   // Cloudflare provides the real IP
   const cfIP = request.headers.get("cf-connecting-ip")
@@ -133,41 +156,57 @@ export async function middleware(request: NextRequest) {
   const category = getRouteCategory(pathname)
 
   // ── IP Blocklist Check (admin-blocked IPs) ───────────────────────────
-  // Check the ip_blocklist table for this IP. Uses a lightweight REST call.
-  // Only check for non-static, non-admin paths to avoid overhead.
+  // Uses an in-memory cache (5-min TTL for blocked, 2-min for allowed) to avoid
+  // a DB round-trip on every single request. Cache miss triggers one fetch.
   if (clientIP !== "unknown" && !pathname.startsWith("/clorefy-ctrl-8x2m")) {
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      if (supabaseUrl && supabaseKey) {
-        const now = new Date().toISOString()
-        const blocklistRes = await fetch(
-          `${supabaseUrl}/rest/v1/ip_blocklist?ip_address=eq.${encodeURIComponent(clientIP)}&select=ip_address,expires_at&limit=1`,
-          {
-            headers: {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-            },
-          }
-        )
-        if (blocklistRes.ok) {
-          const blocked = await blocklistRes.json()
-          if (Array.isArray(blocked) && blocked.length > 0) {
-            const entry = blocked[0]
-            // Check if block is still active (no expiry = permanent)
-            const isActive = !entry.expires_at || entry.expires_at > now
-            if (isActive) {
-              return new NextResponse(
-                JSON.stringify({ error: "Access denied." }),
-                { status: 403, headers: { "Content-Type": "application/json" } }
-              )
+    const cachedResult = isIPBlocked(clientIP)
+    if (cachedResult === true) {
+      // Cached as blocked — deny immediately, no network call
+      return new NextResponse(
+        JSON.stringify({ error: "Access denied." }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      )
+    } else if (cachedResult === null) {
+      // Cache miss — fetch from DB once, then cache the result
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        if (supabaseUrl && supabaseKey) {
+          const now = new Date().toISOString()
+          const blocklistRes = await fetch(
+            `${supabaseUrl}/rest/v1/ip_blocklist?ip_address=eq.${encodeURIComponent(clientIP)}&select=ip_address,expires_at&limit=1`,
+            {
+              headers: {
+                apikey: supabaseKey,
+                Authorization: `Bearer ${supabaseKey}`,
+              },
+              signal: AbortSignal.timeout(2000), // 2s max — don't block the request
+            }
+          )
+          if (blocklistRes.ok) {
+            const blocked = await blocklistRes.json()
+            if (Array.isArray(blocked) && blocked.length > 0) {
+              const entry = blocked[0]
+              const isActive = !entry.expires_at || entry.expires_at > now
+              cacheIPResult(clientIP, isActive)
+              if (isActive) {
+                return new NextResponse(
+                  JSON.stringify({ error: "Access denied." }),
+                  { status: 403, headers: { "Content-Type": "application/json" } }
+                )
+              }
+            } else {
+              // Not in blocklist — cache as allowed
+              cacheIPResult(clientIP, false)
             }
           }
         }
+      } catch {
+        // Non-blocking — if blocklist check fails, allow the request
+        // Don't cache on error so next request retries
       }
-    } catch {
-      // Non-blocking — if blocklist check fails, allow the request
     }
+    // cachedResult === false → cached as allowed, skip the fetch entirely
   }
 
   // Skip rate limiting for all auth routes — OAuth flows make multiple
