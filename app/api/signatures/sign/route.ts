@@ -103,7 +103,7 @@ async function triggerAutoInvoice({
   if (!contractSession.chain_id) {
     await supabase
       .from("document_sessions")
-      .update({ chain_id: chainId })
+      .update({ chain_id: chainId } as any)
       .eq("id", contractSessionId)
   }
 
