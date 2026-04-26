@@ -440,7 +440,7 @@ export async function GET(request: NextRequest) {
             // Sub-task 6.1 + 6.2: Fetch session once for audit event, notification, and business info
             const sessionId = (signature as any).session_id
             let business: { name: string; logo_url: string | null } | null = null
-            let sessionData: { auto_invoice_on_sign: boolean | null } | null = null
+            let sessionData: { auto_invoice_on_sign: boolean | null; context?: unknown; document_type?: string | null } | null = null
 
             if (sessionId) {
                 const { data: session } = await serviceSupabase
