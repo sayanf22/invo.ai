@@ -73,7 +73,7 @@ export async function generateDocumentImage(
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
 
-  await page.render({ canvasContext: ctx, viewport }).promise
+  await page.render({ canvasContext: ctx, viewport } as any).promise
 
   // Step 3: Export canvas to blob
   return new Promise((resolve, reject) => {
