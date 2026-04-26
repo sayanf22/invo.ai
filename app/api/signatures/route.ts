@@ -431,7 +431,7 @@ export async function GET(request: NextRequest) {
             let business: { name: string; logo_url: string | null } | null = null
 
             if (sessionId) {
-                const { data: session } = await serviceSupabase
+                const { data: session } = await (serviceSupabase as any)
                     .from("document_sessions")
                     .select("user_id, document_type, context, auto_invoice_on_sign")
                     .eq("id", sessionId)

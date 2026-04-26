@@ -595,7 +595,7 @@ export async function POST(request: NextRequest) {
         // If the contract has auto_invoice_on_sign = true, create a linked invoice
         // and send it to the signer (or the configured recipient email).
         if (session && documentType === "contract") {
-          const { data: fullSession } = await supabase
+          const { data: fullSession } = await (supabase as any)
             .from("document_sessions")
             .select("auto_invoice_on_sign, invoice_recipient_email, context, user_id, chain_id, client_name")
             .eq("id", signature.session_id)
