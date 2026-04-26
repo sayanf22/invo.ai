@@ -607,7 +607,7 @@ export async function POST(request: NextRequest) {
           if (fullSession?.auto_invoice_on_sign) {
             try {
               await triggerAutoInvoice({
-                supabase,
+                supabase: supabase as any,
                 contractSession: fullSession,
                 contractSessionId: signature.session_id,
                 signerEmail: signerEmail ?? "",
