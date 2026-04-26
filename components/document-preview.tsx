@@ -500,16 +500,28 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               Signed
             </span>
           )}
-          {/* Get Signature button */}
+          {/* For contracts/proposals: single "Send & Sign" button that opens signature modal */}
           {supportsSignatures && sessionId && (
             <button
               type="button"
               onClick={() => setGetSignatureModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-95"
-              title="Get signature"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:border-violet-400 shadow-sm transition-all duration-200 active:scale-95 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-900/40"
+              title="Request signature — sends signing link via email or WhatsApp"
             >
               <PenLine className="w-4 h-4" />
-              <span className="hidden sm:inline">Sign</span>
+              <span className="hidden sm:inline">Request Signature</span>
+            </button>
+          )}
+          {/* For non-signature docs (invoices): show Send button separately */}
+          {!supportsSignatures && sessionId && (
+            <button
+              type="button"
+              onClick={() => setSendEmailDialogOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-95"
+              title="Send document via email"
+            >
+              <Mail className="w-4 h-4" />
+              <span className="hidden sm:inline">Send</span>
             </button>
           )}
           {/* Download Signed PDF button */}
@@ -533,8 +545,8 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               onLockChange={onLockChange}
             />
           )}
-          {/* Primary Send button — opens the email compose dialog */}
-          {sessionId && (
+          {/* Primary Send button — only for invoices/quotations (contracts use Request Signature above) */}
+          {sessionId && !supportsSignatures && (
             <button
               type="button"
               onClick={() => setSendEmailDialogOpen(true)}
