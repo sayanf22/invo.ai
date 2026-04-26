@@ -329,7 +329,7 @@ export async function POST(request: NextRequest) {
         await recordAuditEvent(serviceSupabase, {
             action: "signature.request_created",
             signature_id: signature.id,
-            document_id: documentId,
+            document_id: documentId ?? undefined,
             session_id: sessionId,
             actor_email: signerEmail,
             ip_address: ipAddress,
