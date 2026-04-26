@@ -12,6 +12,7 @@ import { authenticateRequest, validateBodySize, getClientIP } from "@/lib/api-au
 import { checkRateLimit } from "@/lib/rate-limiter"
 import { computeDocumentFingerprint } from "@/lib/document-fingerprint"
 import { recordAuditEvent } from "@/lib/signature-audit"
+import { getObject } from "@/lib/r2"
 import { sendEmail } from "@/lib/mailtrap"
 import { randomUUID } from "crypto"
 import type { Database } from "@/lib/database.types"
@@ -510,7 +511,20 @@ export async function GET(request: NextRequest) {
             const sessionContext = sessionData?.context ?? null
             const documentType = sessionData?.document_type ?? null
 
-            return NextResponse.json({ signature, business, autoInvoiceOnSign: !!sessionData?.auto_invoice_on_sign, sessionContext, documentType })
+            // Load signature image for already-signed signatures (so signer can see their signature)
+            let signatureImageDataUrl: string | null = null
+            if (signature.signed_at && (signature as any).signature_image_url && (signature as any).signature_image_url !== "data_url_fallback") {
+                try {
+                    const imgResult = await getObject((signature as any).signature_image_url)
+                    if (imgResult) {
+                        const base64 = Buffer.from(imgResult.body).toString("base64")
+                        const mime = imgResult.contentType !== "application/octet-stream" ? imgResult.contentType : "image/png"
+                        signatureImageDataUrl = `data:${mime};base64,${base64}`
+                    }
+                } catch { /* ignore image load failures */ }
+            }
+
+            return NextResponse.json({ signature, business, autoInvoiceOnSign: !!sessionData?.auto_invoice_on_sign, sessionContext, documentType, signatureImageDataUrl })
         }
 
         if (documentId) {

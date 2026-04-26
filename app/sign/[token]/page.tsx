@@ -242,6 +242,9 @@ export default function SigningPage() {
     const [sessionContext, setSessionContext] = useState<any>(null)
     const [documentType, setDocumentType] = useState<string | null>(null)
 
+    // Signature image for already-signed screen (loaded from R2 via API)
+    const [signedImageUrl, setSignedImageUrl] = useState<string | null>(null)
+
     // Form state
     const [consentChecked, setConsentChecked] = useState(false)
     const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
@@ -280,6 +283,9 @@ export default function SigningPage() {
                 // Sub-task 13.4: already-signed state
                 if (sig.signed_at) {
                     setIsAlreadySigned(true)
+                    if (data.signatureImageDataUrl) {
+                        setSignedImageUrl(data.signatureImageDataUrl)
+                    }
                 }
             } catch (err) {
                 setError("Failed to load signing request")
@@ -435,6 +441,16 @@ export default function SigningPage() {
                                 View verification <ExternalLink className="h-3 w-3" />
                             </a>
                         )}
+                        {signedImageUrl && (
+                            <div className="flex flex-col items-center pt-2">
+                                <p className="text-sm text-muted-foreground mb-2">Your Signature</p>
+                                <img
+                                    src={signedImageUrl}
+                                    alt="Your signature"
+                                    className="max-w-[200px] h-auto border border-border rounded-lg p-2 bg-white"
+                                />
+                            </div>
+                        )}
                     </div>
                 </main>
             </div>
@@ -506,6 +522,16 @@ export default function SigningPage() {
                                 <span className="text-muted-foreground">Signed at</span>
                                 <span className="font-medium">{formatUTC(confirmation.signedAt)}</span>
                             </div>
+                            {signatureDataUrl && (
+                                <div className="flex flex-col items-center pt-3 border-t border-border">
+                                    <span className="text-muted-foreground text-xs mb-2">Your Signature</span>
+                                    <img
+                                        src={signatureDataUrl}
+                                        alt="Your signature"
+                                        className="max-w-[200px] h-auto border border-border rounded-lg p-2 bg-white"
+                                    />
+                                </div>
+                            )}
                             {confirmation.verificationUrl && (
                                 <div className="flex justify-between items-center">
                                     <span className="text-muted-foreground">Verification</span>
