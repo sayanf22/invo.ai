@@ -121,7 +121,7 @@ export async function generateDocx(data: InvoiceData): Promise<Blob> {
 
   // Dates row
   const dateParagraphs: Paragraph[] = []
-  if (data.issueDate) dateParagraphs.push(labelValue("Issue Date", data.issueDate))
+  if ((data as any).invoiceDate) dateParagraphs.push(labelValue("Date", (data as any).invoiceDate))
   if (data.dueDate) dateParagraphs.push(labelValue("Due Date", data.dueDate))
   if (data.paymentTerms) dateParagraphs.push(labelValue("Payment Terms", data.paymentTerms))
 
