@@ -51,16 +51,16 @@ async function triggerAutoInvoice({
   signerName,
   businessName,
 }: {
-  supabase: ReturnType<typeof createClient>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any
   contractSession: Record<string, any>
   contractSessionId: string
   signerEmail: string
   signerName: string
   businessName: string
 }) {
-  // Cast to any — this function uses an untyped supabase client (no Database generic)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = supabaseParam as any
+  // supabase is typed as any to avoid schema mismatch issues with untyped tables
+  const supabase = supabaseParam
   const recipientEmail = contractSession.invoice_recipient_email || signerEmail
   if (!recipientEmail) {
     console.warn("[auto-invoice] No recipient email — skipping")
