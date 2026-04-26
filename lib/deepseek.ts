@@ -733,6 +733,10 @@ export function buildPrompt(request: AIGenerationRequest): string {
 
     let prompt = `CURRENT DATE: ${dateStr} (${isoStr})\nDOCUMENT TYPE: ${request.documentType}\n`
 
+    // CRITICAL: Lock the document type — the AI must NEVER generate a different type
+    // even if the user asks for one. The session is locked to this document type.
+    prompt += `\nSESSION LOCK: This session is locked to document type "${request.documentType}". You MUST ONLY generate a "${request.documentType}". If the user asks for a different document type (e.g., they ask for an "invoice" but this session is "contract"), do NOT generate that document. Instead, respond in CONVERSATION mode (plain text) explaining that this session is for "${request.documentType}" only and they should start a new session for the other document type.\n`
+
     // Business profile context
     if (request.businessContext) {
         const addressStr = typeof request.businessContext.address === 'string'
