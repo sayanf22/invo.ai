@@ -99,6 +99,7 @@ export interface InvoiceData {
   // Signature
   signatureName: string
   signatureTitle: string
+  signatureImages?: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }>
 
   // Design & Branding
   design?: {

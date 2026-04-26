@@ -623,13 +623,25 @@ export function ContractPDF({ data, logoUrl }: Props) {
                 <View style={s.sigRow} wrap={false}>
                     <View style={s.sigBlk}>
                         <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
-                        <View style={s.sigLine} />
+                        {(() => {
+                            const providerSig = data.signatureImages?.find(s => s.party === "Provider")
+                            if (providerSig?.imageDataUrl) {
+                                return <Image src={providerSig.imageDataUrl} style={{ width: 140, height: 50, objectFit: "contain", marginBottom: 4 }} />
+                            }
+                            return <View style={s.sigLine} />
+                        })()}
                         <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
                         {data.signatureTitle ? <Text style={{ fontSize: 9, color: c.mut }}>{data.signatureTitle}</Text> : null}
                     </View>
                     <View style={{ ...s.sigBlk, marginRight: 0 }}>
                         <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
-                        <View style={s.sigLine} />
+                        {(() => {
+                            const clientSig = data.signatureImages?.find(s => s.party === "Client")
+                            if (clientSig?.imageDataUrl) {
+                                return <Image src={clientSig.imageDataUrl} style={{ width: 140, height: 50, objectFit: "contain", marginBottom: 4 }} />
+                            }
+                            return <View style={s.sigLine} />
+                        })()}
                         <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>
                     </View>
                 </View>

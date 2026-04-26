@@ -393,6 +393,38 @@ export default function ViewDocumentPage() {
               if (existingResponse) setQuotationResponse(existingResponse)
             }
 
+            // Fetch signatures for this session and load drawn images
+            const { data: sigs } = await (supabase as any)
+              .from("signatures")
+              .select("signer_name, party, signed_at, signature_image_url, signer_action")
+              .eq("session_id", sessionId)
+              .not("signed_at", "is", null)
+
+            if (sigs && sigs.length > 0) {
+              const sigImages: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }> = []
+              for (const sig of sigs) {
+                if (sig.signature_image_url && sig.signature_image_url !== "data_url_fallback") {
+                  try {
+                    const imgRes = await fetch(`/api/storage/image?key=${encodeURIComponent(sig.signature_image_url)}`)
+                    if (imgRes.ok) {
+                      const imgData = await imgRes.json()
+                      if (imgData.dataUrl) {
+                        sigImages.push({
+                          signerName: sig.signer_name || "Signer",
+                          party: sig.party || "Client",
+                          imageDataUrl: imgData.dataUrl,
+                          signedAt: sig.signed_at,
+                        })
+                      }
+                    }
+                  } catch { /* ignore image load failures */ }
+                }
+              }
+              if (sigImages.length > 0) {
+                setDocData(prev => prev ? { ...prev, signatureImages: sigImages } : prev)
+              }
+            }
+
             setLoading(false)
             return
           }
