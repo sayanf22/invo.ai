@@ -261,7 +261,7 @@ export async function GET(
     }
 
     // Fetch all audit events
-    const { data: auditEvents } = await supabase
+    const { data: auditEvents } = await (supabase as any)
       .from("signature_audit_events")
       .select("*")
       .eq("session_id", sessionId)
