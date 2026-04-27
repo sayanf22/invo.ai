@@ -21,7 +21,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getClientIP, sanitizeError } from "@/lib/api-auth"
-import { generatePresignedPutUrl } from "@/lib/r2"
 import { recordAuditEvent } from "@/lib/signature-audit"
 import { computeDocumentFingerprint } from "@/lib/document-fingerprint"
 import { generateAndStoreCertificate } from "@/lib/certificate-generator"
@@ -389,25 +388,10 @@ export async function POST(request: NextRequest) {
         bytes[i] = binaryStr.charCodeAt(i)
       }
       const objectKey = `signatures/${signature.id}_${Date.now()}.png`
-      const presignedUrl = await generatePresignedPutUrl(objectKey, "image/png")
-      const uploadResponse = await fetch(presignedUrl, {
-        method: "PUT",
-        body: bytes,
-        headers: { "Content-Type": "image/png" },
-      })
-      if (uploadResponse.ok) {
-        signatureImageKey = objectKey
-      } else {
-        console.error("[sign] R2 upload failed:", uploadResponse.status)
-        await recordAuditEvent(supabase, {
-          action: "signature.r2_fallback",
-          signature_id: signature.id,
-          document_id: signature.document_id ?? undefined,
-          session_id: signature.session_id ?? undefined,
-          ip_address: clientIP,
-          user_agent: userAgent,
-        })
-      }
+      // Use direct R2 upload (native binding on Workers, S3 SDK locally)
+      const { uploadToR2 } = await import("@/lib/r2")
+      await uploadToR2(objectKey, bytes, "image/png")
+      signatureImageKey = objectKey
     } catch (uploadErr) {
       console.error("[sign] R2 upload error:", uploadErr)
       await recordAuditEvent(supabase, {
