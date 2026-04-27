@@ -118,7 +118,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             // Restore document preview from session context
             const ctx = session.context
             if (ctx && typeof ctx === "object" && !Array.isArray(ctx) && Object.keys(ctx).length > 0) {
-                onChange(ctx as Partial<InvoiceData>)
+                // Strip payment link fields — PaymentLinkButton fetches authoritative state from invoice_payments table
+                const { paymentLink: _pl, paymentLinkStatus: _pls, showPaymentLinkInPdf: _spdf, ...cleanCtx } = ctx as any
+                onChange(cleanCtx as Partial<InvoiceData>)
                 setDocumentGenerated(true)
             }
         } else {
@@ -128,7 +130,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
             if (hasSeedData && session.chain_id) {
                 // Linked session — show seed data in preview and auto-generate
-                onChange(ctx as Partial<InvoiceData>)
+                // Strip payment link fields — each session has its own payment link
+                const { paymentLink: _pl, paymentLinkStatus: _pls, showPaymentLinkInPdf: _spdf, ...cleanCtx } = ctx as any
+                onChange(cleanCtx as Partial<InvoiceData>)
                 const clientName = (ctx as any).toName || "the client"
                 const welcomeMsg = `I've loaded the details from your previous document for ${clientName}. Generating your ${docType} now...`
                 setMessages([{ role: "assistant", content: welcomeMsg }])

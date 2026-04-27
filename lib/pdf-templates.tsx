@@ -140,22 +140,22 @@ function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn,
 
     return (
         <View style={{
-            marginBottom: 16,
-            padding: 14,
+            marginBottom: 12,
+            padding: 10,
             backgroundColor: c.acc,
             borderTopLeftRadius: 8, borderTopRightRadius: 8,
             borderBottomLeftRadius: 8, borderBottomRightRadius: 8,
             ...bAllFn(1, c.bdr),
             flexDirection: "row",
             alignItems: "flex-start",
-            gap: 14,
+            gap: 10,
         }} wrap={false}>
             {/* Left: text + button */}
             <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>
+                <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontWeight: 700 }}>
                     Pay Online
                 </Text>
-                <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.5, marginBottom: 8 }}>
+                <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.4, marginBottom: 6 }}>
                     Click the link below or scan the QR code to pay securely online.
                 </Text>
                 {/* Clickable "Pay Now" button */}
@@ -192,14 +192,14 @@ function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn,
                     <Image
                         src={paymentQrCode}
                         style={{
-                            width: 72,
-                            height: 72,
+                            width: 56,
+                            height: 56,
                             borderTopLeftRadius: 4, borderTopRightRadius: 4,
                             borderBottomLeftRadius: 4, borderBottomRightRadius: 4,
                             ...bNoneFn(),
                         }}
                     />
-                    <Text style={{ fontSize: 7, color: c.mut, marginTop: 3, textAlign: "center" }}>
+                    <Text style={{ fontSize: 7, color: c.mut, marginTop: 2, textAlign: "center" }}>
                         Scan to pay
                     </Text>
                 </View>
@@ -467,17 +467,15 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                 {data.terms ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Terms & Conditions</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text></View> : null}
 
                 {/* Payment Link Section — only for invoices with an active payment link */}
-                <View style={s.nWrap}>
-                    <PaymentSection
-                        data={data}
-                        paymentQrCode={paymentQrCode}
-                        c={c}
-                        bold={bold}
-                        bNoneFn={bNone}
-                        bAllFn={bAll}
-                        bTopFn={bTop}
-                    />
-                </View>
+                <PaymentSection
+                    data={data}
+                    paymentQrCode={paymentQrCode}
+                    c={c}
+                    bold={bold}
+                    bNoneFn={bNone}
+                    bAllFn={bAll}
+                    bTopFn={bTop}
+                />
 
                 {tpl === "modern" && <View style={s.bBar} fixed />}
                 <View style={s.footer} fixed>
