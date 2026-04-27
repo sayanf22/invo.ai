@@ -52,6 +52,23 @@ function mapParentContext(parentContext: Record<string, any>, targetType: string
     // Carry over design if present
     if (parentContext.design) mapped.design = parentContext.design
 
+    // Set today's date for the new document
+    const today = new Date().toISOString().slice(0, 10)
+    mapped.invoiceDate = today
+    mapped.issueDate = today
+
+    // Calculate due date from payment terms
+    const dueDate = new Date()
+    const terms = parentContext.paymentTerms || "Net 30"
+    const daysMatch = terms.match(/(\d+)/)
+    const days = daysMatch ? parseInt(daysMatch[1], 10) : 30
+    if (terms.toLowerCase().includes("receipt")) {
+        // Due on receipt = same day
+    } else {
+        dueDate.setDate(dueDate.getDate() + days)
+    }
+    mapped.dueDate = dueDate.toISOString().slice(0, 10)
+
     return mapped
 }
 

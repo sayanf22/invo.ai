@@ -86,12 +86,16 @@ export async function POST(request: NextRequest) {
       // Build new context: copy everything, increment invoice number, update dates
       const newContext: Record<string, any> = { ...parentContext }
       newContext.invoiceNumber = incrementInvoiceNumber(parentContext.invoiceNumber)
+      newContext.invoiceDate = now.toISOString().slice(0, 10)
       newContext.issueDate = now.toISOString().slice(0, 10)
       newContext.dueDate = computeNextDueDate(rec.frequency)
       // Clear payment status fields
       delete newContext.status
       delete newContext.paidAt
       delete newContext.paymentLink
+      delete newContext.paymentLinkStatus
+      delete newContext.showPaymentLinkInPdf
+      delete newContext.signatureImages
 
       // Determine chain_id
       const chainId = sourceSession.chain_id || sourceSession.id

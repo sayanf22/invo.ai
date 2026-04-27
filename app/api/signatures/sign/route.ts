@@ -83,6 +83,7 @@ async function triggerAutoInvoice({
     toEmail: recipientEmail,
     toAddress: parentContext.toAddress,
     currency: parentContext.currency || "USD",
+    invoiceDate: now.toISOString().slice(0, 10),
     issueDate: now.toISOString().slice(0, 10),
     dueDate: dueDate.toISOString().slice(0, 10),
     paymentTerms: parentContext.paymentTerms || "Net 30",
