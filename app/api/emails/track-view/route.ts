@@ -75,39 +75,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true }) // Always return 200 — tracking is non-critical
   }
 }
-
-    const now = new Date()
-    const nowIso = now.toISOString()
-
-    // Rate-limit: only increment if last view was > 60 seconds ago
-    const { data: payment } = await supabase
-      .from("invoice_payments")
-      .select("id, view_count, link_viewed_at")
-      .eq("session_id", sessionId)
-      .in("status", ["created", "partially_paid"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (payment) {
-      // Throttle: skip if last view was within 60 seconds (prevents spam inflation)
-      const lastViewed = payment.link_viewed_at ? new Date(payment.link_viewed_at) : null
-      const secondsSinceLastView = lastViewed ? (now.getTime() - lastViewed.getTime()) / 1000 : Infinity
-
-      if (secondsSinceLastView > 60) {
-        await supabase
-          .from("invoice_payments")
-          .update({
-            view_count: (payment.view_count || 0) + 1,
-            link_viewed_at: nowIso,
-            updated_at: nowIso,
-          })
-          .eq("id", payment.id)
-      }
-    }
-
-    return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ ok: true }) // Always return 200 — tracking is non-critical
-  }
-}
