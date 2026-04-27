@@ -16,6 +16,7 @@ interface SendDocumentRequest {
   resend?: boolean
   scheduleFollowUps?: boolean  // whether to schedule auto follow-ups (invoices only)
   paymentLinkExpiryDays?: number  // custom expiry for auto-created payment link
+  skipPaymentLink?: boolean  // if true, don't include or create payment link in email
 }
 
 // ── Per-user burst rate limiter (in-memory, per worker instance) ──────────────
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
 
     // 9. For invoices: fetch active payment link — auto-create if none exists
     let payNowUrl: string | null = null
-    if (documentType === "invoice") {
+    if (documentType === "invoice" && !body.skipPaymentLink) {
       // Use service role client for invoice_payments (may not be in RLS scope)
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
