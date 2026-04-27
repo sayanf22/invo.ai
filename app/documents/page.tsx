@@ -102,6 +102,7 @@ interface DocSession {
   updated_at: string | null
   sent_at: string | null
   context: any
+  chain_id?: string | null
   payment?: PaymentRecord | null
   email?: EmailRecord | null          // most recent email (for badge)
   emailStats?: EmailStats | null
@@ -109,6 +110,7 @@ interface DocSession {
   quotationResponse?: { response_type: string } | null
   recurring?: RecurringRecord | null
   signatures?: SignatureRecord[]
+  chainCount?: number                 // number of linked documents in the chain
 }
 
 interface RecurringRecord {
@@ -858,6 +860,15 @@ function DocCard({
 
         {/* Status pills */}
         <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+          {/* Chain indicator — shows when document is part of a linked chain */}
+          {session.chain_id && session.chainCount && session.chainCount > 1 && (
+            <a href={`/?sessionId=${session.id}`}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground transition-all duration-200">
+              <Link2 size={11} />
+              {session.chainCount} linked
+            </a>
+          )}
+
           {/* Email pill */}
           {(hasEmails || session.sent_at) && (
             <button onClick={() => setEmailExpanded(v => !v)}
@@ -1023,7 +1034,7 @@ export default function MyDocumentsPage() {
       // Load sessions
       const { data: rawSessions, error } = await supabase
         .from("document_sessions")
-        .select("id, document_type, status, client_name, created_at, updated_at, sent_at, context")
+        .select("id, document_type, status, client_name, created_at, updated_at, sent_at, context, chain_id")
         .eq("user_id", user.id)
         .not("context", "eq", "{}")
         .order("created_at", { ascending: false })
@@ -1201,10 +1212,19 @@ export default function MyDocumentsPage() {
         }
       }
 
+      // Compute chain counts — how many documents share the same chain_id
+      const chainCountMap: Record<string, number> = {}
+      for (const s of withContent as any[]) {
+        if (s.chain_id) {
+          chainCountMap[s.chain_id] = (chainCountMap[s.chain_id] || 0) + 1
+        }
+      }
+
       const mergedFinal: DocSession[] = mergedWithQuotations.map((s) => ({
         ...s,
         recurring: recurringMap[s.id] ?? null,
         signatures: signatureMap[s.id] ?? [],
+        chainCount: s.chain_id ? (chainCountMap[s.chain_id] || 1) : undefined,
       }))
 
       setSessions(mergedFinal)

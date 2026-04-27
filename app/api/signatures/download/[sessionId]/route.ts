@@ -120,10 +120,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    const documentId = session.document_id
-    if (!documentId) {
-      return NextResponse.json({ error: "Session has no associated document" }, { status: 400 })
-    }
+    const documentId = session.document_id || sessionId
 
     // Verify all signatures for this session are complete (all have signed_at)
     const { data: signatures, error: sigError } = await supabase
