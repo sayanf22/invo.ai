@@ -69,7 +69,9 @@ export function ChatSendCard({
   const emailRef = useRef<HTMLInputElement>(null)
 
   const isInvoice = documentType.toLowerCase() === "invoice"
+  const isSignable = ["contract", "quotation", "proposal"].includes(documentType.toLowerCase())
   const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
+  const actionLabel = isSignable ? `Send & Sign ${docLabel}` : `Send ${docLabel}`
   const ref = invoiceData.invoiceNumber || invoiceData.referenceNumber || ""
   const total = calcTotal(invoiceData)
 
@@ -127,6 +129,32 @@ export function ChatSendCard({
     setIsSending(true)
     setError(null)
     try {
+      const supportsSignatures = ["contract", "quotation", "proposal"].includes(documentType.toLowerCase())
+
+      // For signature-supporting documents, create a signature request first
+      if (supportsSignatures) {
+        try {
+          await authFetch("/api/signatures", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId,
+              signerEmail: email.trim(),
+              signerName: invoiceData.toName || email.trim().split("@")[0],
+              party: "Client",
+              personalMessage: message.trim() || undefined,
+            }),
+          })
+          // Signature request created — email with signing link is sent by the signatures API
+          setSlideDir("right")
+          setStep("sent")
+          onSent()
+          return
+        } catch {
+          // Fall through to regular email send if signature creation fails
+        }
+      }
+
       const res = await authFetch("/api/emails/send-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -135,7 +163,6 @@ export function ChatSendCard({
           recipientEmail: email.trim(),
           personalMessage: message.trim() || undefined,
           scheduleFollowUps: isInvoice,
-          // If payment is disabled, pass a flag to skip payment link creation
           ...(isInvoice && !includePayment ? { skipPaymentLink: true } : {}),
         }),
       })
@@ -188,7 +215,7 @@ export function ChatSendCard({
             </div>
             <div>
               <p className="text-sm font-semibold text-foreground leading-tight">
-                {step === "sent" ? `${docLabel} sent` : `Send ${docLabel}`}
+                {step === "sent" ? `${docLabel} sent` : isSignable ? `Send & Sign` : `Send ${docLabel}`}
               </p>
               {ref && <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{ref}</p>}
             </div>
@@ -319,7 +346,7 @@ export function ChatSendCard({
               className="w-full h-11 rounded-2xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20">
               {isSending
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
-                : <><Send className="w-4 h-4" /> Send {docLabel}</>
+                : <><Send className="w-4 h-4" /> {actionLabel}</>
               }
             </button>
           </div>
@@ -333,12 +360,17 @@ export function ChatSendCard({
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Delivered successfully</p>
+                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                  {isSignable ? "Signing request sent" : "Delivered successfully"}
+                </p>
                 <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">{email.trim()}</p>
               </div>
             </div>
             {isInvoice && includePayment && (
               <p className="text-xs text-muted-foreground px-1">Payment link included in the email.</p>
+            )}
+            {isSignable && (
+              <p className="text-xs text-muted-foreground px-1">Signing link sent. You'll be notified when they sign.</p>
             )}
             <button onClick={onDismiss}
               className="w-full h-9 rounded-xl border border-border/60 bg-background text-sm font-medium text-foreground hover:bg-muted/40 transition-colors">
