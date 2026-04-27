@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
     Loader2, ArrowLeft, Building2, Mail, Phone, MapPin,
-    CreditCard, FileText, CheckCircle2, Pencil, Save, X, Landmark, Send
+    CreditCard, FileText, CheckCircle2, Pencil, Save, X, Landmark, Send, PenLine
 } from "lucide-react"
 import { toast } from "sonner"
 import { getTaxIdFieldName } from "@/lib/countries"
@@ -24,6 +24,7 @@ import { ProfileUpdateChat } from "@/components/profile-update-chat"
 import { LogoUploader } from "@/components/logo-uploader"
 import { authFetch } from "@/lib/auth-fetch"
 import { PaymentSettings } from "@/components/payment-settings"
+import { SignaturePad } from "@/components/signature-pad"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -273,6 +274,115 @@ function SectionHeader({
                 </Button>
             )}
         </div>
+    )
+}
+
+// ── Saved Signature Section ────────────────────────────────────────────
+
+function SavedSignatureSection({ userId }: { userId: string }) {
+    const [savedSig, setSavedSig] = useState<string | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+    const [showPad, setShowPad] = useState(false)
+
+    useEffect(() => {
+        authFetch("/api/profile/signature")
+            .then(r => r.json())
+            .then(d => { if (d.signatureDataUrl) setSavedSig(d.signatureDataUrl) })
+            .catch(() => {})
+            .finally(() => setLoading(false))
+    }, [userId])
+
+    const handleSave = async (dataUrl: string) => {
+        setSaving(true)
+        try {
+            const res = await authFetch("/api/profile/signature", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ signatureDataUrl: dataUrl }),
+            })
+            if (res.ok) {
+                setSavedSig(dataUrl)
+                setShowPad(false)
+                toast.success("Signature saved!")
+            } else {
+                toast.error("Failed to save signature")
+            }
+        } catch {
+            toast.error("Failed to save signature")
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleDelete = async () => {
+        setSaving(true)
+        try {
+            await authFetch("/api/profile/signature", { method: "DELETE" })
+            setSavedSig(null)
+            setShowPad(false)
+            toast.success("Signature removed")
+        } catch {
+            toast.error("Failed to remove signature")
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    return (
+        <Card className="p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+                <div className="p-2.5 bg-primary/10 rounded-xl">
+                    <PenLine className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                    <h2 className="text-[18px] font-semibold">My Signature</h2>
+                    <p className="text-[13px] text-muted-foreground">Saved signature used when you sign documents as Party A</p>
+                </div>
+            </div>
+            {loading ? (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+                </div>
+            ) : (
+                <div className="space-y-4 mt-2">
+                    {savedSig && !showPad && (
+                        <div className="space-y-3">
+                            <div className="inline-block border border-border rounded-xl p-3 bg-white">
+                                <img src={savedSig} alt="Your saved signature" className="max-w-[220px] max-h-[80px] object-contain" />
+                            </div>
+                            <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setShowPad(true)} disabled={saving}>
+                                    <Pencil className="h-3.5 w-3.5 mr-1.5" /> Update
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={handleDelete} disabled={saving}
+                                    className="text-red-600 border-red-200 hover:bg-red-50">
+                                    {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5 mr-1.5" />} Remove
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                    {(!savedSig || showPad) && (
+                        <div className="space-y-3">
+                            {!savedSig && (
+                                <p className="text-sm text-muted-foreground">
+                                    Draw your signature once and it will be auto-used whenever you sign documents as the sender.
+                                </p>
+                            )}
+                            <SignaturePad
+                                onSignature={handleSave}
+                                className="max-w-md"
+                            />
+                            {showPad && (
+                                <Button variant="ghost" size="sm" onClick={() => setShowPad(false)}>
+                                    Cancel
+                                </Button>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+        </Card>
     )
 }
 
@@ -649,6 +759,9 @@ export default function ProfilePage() {
                         ) : <p className="text-[16px] whitespace-pre-wrap">{profile.additional_notes || "No additional notes. Click Edit to add."}</p>}
                         {isEditing("notes") && userTier !== "free" && <SectionChatBar section="notes" sectionTitle="notes" currentProfile={profile} userId={user!.id} onUpdated={() => loadProfile()} onFieldsChanged={handleAiFieldsChanged} editData={editData} />}
                     </Card>
+
+                    {/* ── My Signature ── */}
+                    <SavedSignatureSection userId={user!.id} />
 
                     <Card className="p-5 bg-primary/5 border-primary/20 shadow-sm">
                         <div className="flex items-center gap-3">

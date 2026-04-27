@@ -13,6 +13,7 @@ import { SendEmailDialog } from "@/components/send-email-dialog"
 import { PaymentLinkButton } from "@/components/payment-link-button"
 import { GetSignatureModal } from "@/components/get-signature-modal"
 import { SignatureCancelDialog } from "@/components/signature-cancel-dialog"
+import { SignaturePad } from "@/components/signature-pad"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import { parseTier } from "@/lib/cost-protection"
 import { cn } from "@/lib/utils"
@@ -345,6 +346,9 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [exportingDocx, setExportingDocx] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
   const [sentAt, setSentAt] = useState<string | null>(null)
+  const [selfSignOpen, setSelfSignOpen] = useState(false)
+  const [selfSignLoading, setSelfSignLoading] = useState(false)
+  const [savedSignatureUrl, setSavedSignatureUrl] = useState<string | null | undefined>(undefined) // undefined = not loaded yet
   const hasContent = data.documentType || data.fromName || data.toName || data.description
 
   const supportsSignatures = SIGNATURE_DOCUMENT_TYPES.includes((data.documentType || "").toLowerCase())
@@ -407,6 +411,65 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       })
       .catch(() => {})
   }, [sessionId, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Check if sender has already self-signed this session
+  const [senderSigned, setSenderSigned] = useState(false)
+  useEffect(() => {
+    setSenderSigned(false)
+    if (!sessionId || !supportsSignatures) return
+    ;(supabase as any)
+      .from("signatures")
+      .select("id, signed_at")
+      .eq("session_id", sessionId)
+      .eq("party", "Sender")
+      .maybeSingle()
+      .then(({ data: s }: { data: { signed_at?: string | null } | null }) => {
+        if (s?.signed_at) setSenderSigned(true)
+      })
+      .catch(() => {})
+  }, [sessionId, supportsSignatures]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load saved signature when self-sign panel opens
+  useEffect(() => {
+    if (!selfSignOpen || savedSignatureUrl !== undefined) return
+    import("@/lib/auth-fetch").then(({ authFetch }) => {
+      authFetch("/api/profile/signature")
+        .then(r => r.json())
+        .then(d => setSavedSignatureUrl(d.signatureDataUrl || null))
+        .catch(() => setSavedSignatureUrl(null))
+    })
+  }, [selfSignOpen, savedSignatureUrl])
+
+  const handleSelfSign = useCallback(async (signatureDataUrl: string) => {
+    if (!sessionId || selfSignLoading) return
+    setSelfSignLoading(true)
+    try {
+      const { authFetch } = await import("@/lib/auth-fetch")
+      const res = await authFetch("/api/signatures/self-sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, signatureDataUrl }),
+      })
+      const result = await res.json()
+      if (res.ok) {
+        setSenderSigned(true)
+        setSelfSignOpen(false)
+        toast.success("Your signature has been applied!")
+        // Refresh signatures list
+        const sigRes = await fetch(`/api/signatures?sessionId=${sessionId}`)
+        if (sigRes.ok) {
+          const sigData = await sigRes.json()
+          if (sigData?.signatures) setSignatures(sigData.signatures)
+        }
+      } else {
+        toast.error(result.error || "Failed to apply signature")
+      }
+    } catch {
+      toast.error("Failed to apply signature")
+    } finally {
+      setSelfSignLoading(false)
+    }
+  }, [sessionId, selfSignLoading])
 
   const handleZoomIn = useCallback(() => {
     setZoom(prev => {
@@ -626,15 +689,39 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
             </button>
           )}
           {supportsSignatures && sessionId && (toolbarState === "idle" || toolbarState === "actionable") && (
-            <button
-              type="button"
-              onClick={() => setGetSignatureModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:border-violet-400 shadow-sm transition-all duration-200 active:scale-95 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-900/40"
-              title="Request signature — sends signing link via email or WhatsApp"
-            >
-              <PenLine className="w-4 h-4" />
-              <span className="hidden sm:inline">Request Signature</span>
-            </button>
+            <>
+              {/* Sign as Sender (Party A) — only if not yet self-signed */}
+              {!senderSigned && (
+                <button
+                  type="button"
+                  onClick={() => setSelfSignOpen(v => !v)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border shadow-sm transition-all duration-200 active:scale-95",
+                    selfSignOpen
+                      ? "border-emerald-400 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 dark:border-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400"
+                  )}
+                  title="Sign this document as the sender (Party A)"
+                >
+                  <PenLine className="w-4 h-4" />
+                  <span className="hidden sm:inline">Sign as Sender</span>
+                </button>
+              )}
+              {senderSigned && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                  ✓ You signed
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setGetSignatureModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:border-violet-400 shadow-sm transition-all duration-200 active:scale-95 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-900/40"
+                title="Request signature — sends signing link via email or WhatsApp"
+              >
+                <PenLine className="w-4 h-4" />
+                <span className="hidden sm:inline">Request Signature</span>
+              </button>
+            </>
           )}
           {/* For non-signature docs (invoices): show Sent badge + Send button */}
           {!supportsSignatures && sessionId && sentAt && (
@@ -788,6 +875,56 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Self-sign panel — slides in below toolbar */}
+      {selfSignOpen && supportsSignatures && sessionId && !senderSigned && (
+        <div className="border-b border-border bg-card px-4 py-4 animate-in slide-in-from-top-2 duration-200">
+          <div className="max-w-md">
+            <p className="text-sm font-semibold text-foreground mb-1">Sign as Sender (Party A)</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              {savedSignatureUrl === undefined
+                ? "Loading your saved signature..."
+                : savedSignatureUrl
+                ? "Your saved signature is shown below. Click Confirm to apply it, or draw a new one."
+                : "Draw your signature below. Save it to your profile to reuse it next time."}
+            </p>
+            {savedSignatureUrl === undefined ? (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+              </div>
+            ) : savedSignatureUrl ? (
+              <div className="space-y-3">
+                <div className="inline-block border border-border rounded-xl p-3 bg-white">
+                  <img src={savedSignatureUrl} alt="Your signature" className="max-w-[200px] max-h-[70px] object-contain" />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelfSign(savedSignatureUrl)}
+                    disabled={selfSignLoading}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                  >
+                    {selfSignLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PenLine className="w-4 h-4" />}
+                    Apply My Signature
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSavedSignatureUrl(null)}
+                    className="px-3 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Draw New
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <SignaturePad
+                onSignature={handleSelfSign}
+                className="max-w-md"
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Live PDF Preview */}
       <div className="flex-1 overflow-hidden bg-neutral-100 dark:bg-neutral-900">
