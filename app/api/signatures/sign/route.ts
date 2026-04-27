@@ -261,7 +261,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token format" }, { status: 400 })
     }
 
-    // Validate signature image format
+    // Validate signature image format — accept PNG and JPEG
     if (
       !signatureDataUrl.startsWith("data:image/png") &&
       !signatureDataUrl.startsWith("data:image/jpeg")
@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate decoded image size
+    // Validate decoded image size — max 100KB (compact JPEG signatures are 3–15KB)
     const commaIndex = signatureDataUrl.indexOf(",")
     if (commaIndex === -1) {
       return NextResponse.json({ error: "Invalid signature data URL format" }, { status: 400 })
@@ -280,12 +280,17 @@ export async function POST(request: NextRequest) {
     const base64Part = signatureDataUrl.substring(commaIndex + 1)
     const padding = (base64Part.match(/=+$/) || [""])[0].length
     const decodedSize = Math.floor((base64Part.length * 3) / 4) - padding
-    if (decodedSize > MAX_BODY_SIZE) {
+    const MAX_SIG_SIZE = 100 * 1024 // 100KB — generous limit for compact JPEG
+    if (decodedSize > MAX_SIG_SIZE) {
       return NextResponse.json(
-        { error: "Signature image too large. Maximum 500KB allowed." },
+        { error: "Signature image too large. Please clear and redraw your signature." },
         { status: 413 }
       )
     }
+
+    // Detect content type from data URL prefix
+    const contentType = signatureDataUrl.startsWith("data:image/jpeg") ? "image/jpeg" : "image/png"
+    const fileExt = contentType === "image/jpeg" ? "jpg" : "png"
 
     const supabase = getServiceRoleClient()
     const clientIP = getClientIP(request)
@@ -388,7 +393,7 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < binaryStr.length; i++) {
         bytes[i] = binaryStr.charCodeAt(i)
       }
-      const objectKey = `signatures/${signature.id}_${Date.now()}.png`
+      const objectKey = `signatures/${signature.id}_${Date.now()}.${fileExt}`
 
       // Primary: Supabase Storage (service role — works on all runtimes, no native binding needed)
       let uploadedToSupabase = false
@@ -396,7 +401,7 @@ export async function POST(request: NextRequest) {
         const { error: storageError } = await supabase.storage
           .from("signatures")
           .upload(objectKey, bytes, {
-            contentType: "image/png",
+            contentType,
             upsert: false,
           })
         if (!storageError) {
@@ -413,7 +418,7 @@ export async function POST(request: NextRequest) {
       // Fallback: R2 native binding
       if (!uploadedToSupabase) {
         const { uploadToR2 } = await import("@/lib/r2")
-        await uploadToR2(objectKey, bytes, "image/png")
+        await uploadToR2(objectKey, bytes, contentType)
         signatureImageKey = objectKey
       }
     } catch (uploadErr) {
