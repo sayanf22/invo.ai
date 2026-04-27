@@ -216,8 +216,7 @@ export function AppShell() {
     setSelectedCategory(category)
   }, [])
 
-  // Persist active session to localStorage so it survives page refresh
-  // Always include userId so we can validate ownership on restore
+  // Persist active session to localStorage AND update URL so refresh restores the correct session
   useEffect(() => {
     if (view === "prompt" && selectedSessionId && user) {
       localStorage.setItem("clorefy_active_session", JSON.stringify({
@@ -225,8 +224,19 @@ export function AppShell() {
         category: selectedCategory,
         userId: user.id,
       }))
+      // Keep URL in sync — replace so we don't pollute browser history
+      const url = new URL(window.location.href)
+      if (url.searchParams.get("sessionId") !== selectedSessionId) {
+        url.searchParams.set("sessionId", selectedSessionId)
+        router.replace(url.pathname + url.search)
+      }
     }
-  }, [view, selectedSessionId, selectedCategory, user])
+  }, [view, selectedSessionId, selectedCategory, user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Called by PromptScreen when the user navigates to a different session (history / chain)
+  const handleSessionChange = useCallback((sessionId: string) => {
+    setSelectedSessionId(sessionId)
+  }, [])
 
   const handleBack = useCallback(() => {
     setView("start")
@@ -234,7 +244,11 @@ export function AppShell() {
     setInitialPrompt(undefined)
     setPromptKey(0)
     localStorage.removeItem("clorefy_active_session")
-  }, [])
+    // Clear sessionId from URL
+    const url = new URL(window.location.href)
+    url.searchParams.delete("sessionId")
+    router.replace(url.pathname + (url.search || ""))
+  }, [router])
 
   if (authLoading || checkingOnboarding) {
     return <PageLoader />
@@ -256,6 +270,7 @@ export function AppShell() {
         )}
         <PromptScreen
           onBack={handleBack}
+          onSessionChange={handleSessionChange}
           initialCategory={selectedCategory}
           initialPrompt={initialPrompt}
           selectedSessionId={selectedSessionId}

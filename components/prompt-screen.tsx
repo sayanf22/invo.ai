@@ -19,6 +19,7 @@ const TAB_INDEX: Record<MobileTab, number> = { chat: 0, edit: 1, preview: 2 }
 
 interface PromptScreenProps {
   onBack: () => void
+  onSessionChange?: (sessionId: string) => void
   initialCategory?: string
   initialPrompt?: string
   selectedSessionId?: string
@@ -26,6 +27,7 @@ interface PromptScreenProps {
 
 export function PromptScreen({
   onBack,
+  onSessionChange,
   initialCategory,
   initialPrompt,
   selectedSessionId: initialSessionId,
@@ -43,7 +45,11 @@ export function PromptScreen({
   // Lock invoice editing after payment link is created (anti-fraud)
   const [invoiceLocked, setInvoiceLocked] = useState(false)
 
-  // Ref to the DB save function exposed by InvoiceChat once session is ready
+  // Called when InvoiceChat starts a new session (new conversation button)
+  const handleChatSessionChange = useCallback((sessionId: string) => {
+    setSelectedSessionId(sessionId)
+    onSessionChange?.(sessionId)
+  }, [onSessionChange])
   const saveContextRef = useRef<((data: InvoiceData) => Promise<void>) | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -70,7 +76,9 @@ export function PromptScreen({
     setData(prev => ({ ...getInitialInvoiceData(), design: prev.design }))
     setInvoiceLocked(false)
     setSelectedSessionId(sessionId)
-  }, [])
+    // Bubble up so AppShell can update the URL
+    onSessionChange?.(sessionId)
+  }, [onSessionChange])
 
   const handlePaymentLinkChange = useCallback((url: string, status: string) => {
     handleChange({ paymentLink: url, paymentLinkStatus: status as any, showPaymentLinkInPdf: true })
@@ -88,7 +96,9 @@ export function PromptScreen({
     setSelectedSessionId(sessionId)
     // Reset lock — new document has no payment link
     setInvoiceLocked(false)
-  }, [data.design])
+    // Bubble up so AppShell can update the URL
+    onSessionChange?.(sessionId)
+  }, [data.design, onSessionChange])
 
   // Translate offset: 0% = chat, -100% = edit, -200% = preview
   const slideOffset = TAB_INDEX[mobileTab] * -100
@@ -200,7 +210,7 @@ export function PromptScreen({
                 data={data}
                 onChange={handleChange}
                 selectedSessionId={selectedSessionId}
-                onSessionChange={setSelectedSessionId}
+                onSessionChange={handleChatSessionChange}
                 onLinkedSessionCreate={handleLinkedSessionCreate}
                 onChainSessionSelect={handleSessionSelect}
                 onMessageCountChange={setMessageCount}
@@ -244,7 +254,7 @@ export function PromptScreen({
                 data={data}
                 onChange={handleChange}
                 selectedSessionId={selectedSessionId}
-                onSessionChange={setSelectedSessionId}
+                onSessionChange={handleChatSessionChange}
                 onLinkedSessionCreate={handleLinkedSessionCreate}
                 onChainSessionSelect={handleSessionSelect}
                 onMessageCountChange={setMessageCount}
