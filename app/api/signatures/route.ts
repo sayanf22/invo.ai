@@ -365,6 +365,12 @@ export async function GET(request: NextRequest) {
         const token = searchParams.get("token")
 
         if (token) {
+            // Validate token format before any DB lookup
+            const TOKEN_REGEX = /^sign_[0-9a-f]{32}$|^self_[0-9a-f]{32}$/
+            if (!TOKEN_REGEX.test(token)) {
+                return NextResponse.json({ error: "Invalid or expired signing link" }, { status: 404 })
+            }
+
             // Public lookup by token — no auth required (signing flow)
             // SECURITY: Use service-role client for public token lookups
             const serviceSupabase = createClient<Database>(
@@ -523,11 +529,26 @@ export async function GET(request: NextRequest) {
             let signatureImageDataUrl: string | null = null
             if (signature.signed_at && (signature as any).signature_image_url && (signature as any).signature_image_url !== "data_url_fallback") {
                 try {
-                    const imgResult = await getObject((signature as any).signature_image_url)
-                    if (imgResult) {
-                        const base64 = Buffer.from(imgResult.body).toString("base64")
-                        const mime = imgResult.contentType !== "application/octet-stream" ? imgResult.contentType : "image/png"
-                        signatureImageDataUrl = `data:${mime};base64,${base64}`
+                    const imgKey = (signature as any).signature_image_url as string
+                    if (imgKey.startsWith("sb:")) {
+                        // Supabase Storage
+                        const storagePath = imgKey.slice(3)
+                        const bucket = storagePath.startsWith("signatures/") ? "signatures" : "business-assets"
+                        const { data: blob } = await serviceSupabase.storage.from(bucket).download(storagePath)
+                        if (blob) {
+                            const buf = await blob.arrayBuffer()
+                            const base64 = Buffer.from(buf).toString("base64")
+                            const mime = blob.type || "image/jpeg"
+                            signatureImageDataUrl = `data:${mime};base64,${base64}`
+                        }
+                    } else {
+                        // R2
+                        const imgResult = await getObject(imgKey)
+                        if (imgResult) {
+                            const base64 = Buffer.from(imgResult.body).toString("base64")
+                            const mime = imgResult.contentType !== "application/octet-stream" ? imgResult.contentType : "image/png"
+                            signatureImageDataUrl = `data:${mime};base64,${base64}`
+                        }
                     }
                 } catch { /* ignore image load failures */ }
             }
