@@ -295,15 +295,12 @@ export async function GET(
     let certResult = await getObject(certKey)
 
     if (!certResult) {
-      await generateAndStoreCertificate(sessionId, documentId, supabase)
-      certResult = await getObject(certKey)
-    }
-
-    if (!certResult) {
-      return NextResponse.json(
-        { error: "Certificate PDF could not be generated or retrieved" },
-        { status: 500 }
-      )
+      try {
+        await generateAndStoreCertificate(sessionId, documentId, supabase)
+        certResult = await getObject(certKey)
+      } catch (certErr) {
+        console.warn("[signatures/evidence] Certificate generation failed (non-fatal):", certErr instanceof Error ? certErr.message : certErr)
+      }
     }
 
     // ── Generate Audit Trail PDF ────────────────────────────────────────
@@ -330,10 +327,12 @@ export async function GET(
     const originalPages = await mergedDoc.copyPages(originalDoc, originalDoc.getPageIndices())
     for (const page of originalPages) mergedDoc.addPage(page)
 
-    // Copy certificate
-    const certDoc = await PDFDocument.load(certResult.body)
-    const certPages = await mergedDoc.copyPages(certDoc, certDoc.getPageIndices())
-    for (const page of certPages) mergedDoc.addPage(page)
+    // Copy certificate (if available)
+    if (certResult) {
+      const certDoc = await PDFDocument.load(certResult.body)
+      const certPages = await mergedDoc.copyPages(certDoc, certDoc.getPageIndices())
+      for (const page of certPages) mergedDoc.addPage(page)
+    }
 
     // Copy audit trail
     const auditDoc = await PDFDocument.load(auditTrailPdfBytes)

@@ -166,29 +166,32 @@ export async function GET(
     const certKey = buildCertificateKey(documentId)
     let certResult = await getObject(certKey)
 
-    // If not found, regenerate and re-fetch
+    // If not found, try to regenerate (may fail in Workers environment)
     if (!certResult) {
-      await generateAndStoreCertificate(sessionId, documentId, supabase)
-      certResult = await getObject(certKey)
+      try {
+        await generateAndStoreCertificate(sessionId, documentId, supabase)
+        certResult = await getObject(certKey)
+      } catch (certErr) {
+        console.warn("[signatures/download] Certificate generation failed (non-fatal):", certErr instanceof Error ? certErr.message : certErr)
+        // Continue without certificate — return just the original document
+      }
     }
 
-    if (!certResult) {
-      return NextResponse.json(
-        { error: "Certificate PDF could not be generated or retrieved" },
-        { status: 500 }
-      )
+    let mergedBytes: Uint8Array
+
+    if (certResult) {
+      // Merge original document + certificate
+      const originalDoc = await PDFDocument.load(originalPdfBytes)
+      const certDoc = await PDFDocument.load(certResult.body)
+      const certPages = await originalDoc.copyPages(certDoc, certDoc.getPageIndices())
+      for (const page of certPages) {
+        originalDoc.addPage(page)
+      }
+      mergedBytes = await originalDoc.save()
+    } else {
+      // No certificate available — return just the original document
+      mergedBytes = originalPdfBytes
     }
-
-    // Merge PDFs using pdf-lib
-    const originalDoc = await PDFDocument.load(originalPdfBytes)
-    const certDoc = await PDFDocument.load(certResult.body)
-
-    const certPages = await originalDoc.copyPages(certDoc, certDoc.getPageIndices())
-    for (const page of certPages) {
-      originalDoc.addPage(page)
-    }
-
-    const mergedBytes = await originalDoc.save()
 
     // Build filename: [referenceNumber]_signed_[YYYY-MM-DD].pdf
     const dateStr = new Date().toISOString().slice(0, 10)
@@ -204,7 +207,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error("[signatures/download] Error:", error)
+    console.error("[signatures/download] Error:", error instanceof Error ? `${error.name}: ${error.message}\n${error.stack}` : error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
