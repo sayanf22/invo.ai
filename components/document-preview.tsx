@@ -631,17 +631,38 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               <span className="hidden sm:inline">Send</span>
             </button>
           )}
-          {/* Download Signed PDF button */}
+          {/* Download Signed PDF button — client-side generation */}
           {supportsSignatures && sessionId && allSigned && (
-            <a
-              href={`/api/signatures/download/${sessionId}`}
-              download
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const cleanedData = cleanDataForExport(data)
+                  const logoUrl = await resolveLogoUrl(cleanedData.fromLogo)
+                  const templates = await import("@/lib/pdf-templates")
+                  const docType = (cleanedData.documentType || "").toLowerCase()
+                  let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
+                  switch (docType) {
+                    case "contract": PdfComponent = templates.ContractPDF; break
+                    case "quotation": PdfComponent = templates.QuotationPDF; break
+                    case "proposal": PdfComponent = templates.ProposalPDF; break
+                    default: PdfComponent = templates.InvoicePDF; break
+                  }
+                  const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
+                  const ref = cleanedData.referenceNumber || cleanedData.invoiceNumber || "signed"
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement("a"); a.href = url
+                  a.download = `${ref}_signed_${new Date().toISOString().slice(0, 10)}.pdf`
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
+                  toast.success("Signed PDF downloaded!")
+                } catch { toast.error("Failed to generate PDF") }
+              }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-95"
               title="Download signed PDF"
             >
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">Signed PDF</span>
-            </a>
+            </button>
           )}
           {sessionId && (
             <PaymentLinkButton
