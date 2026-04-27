@@ -1019,6 +1019,11 @@ function DocCard({
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground transition-all duration-200">
                 <FileText size={11} /> View Signed
               </a>
+              <a href={`/api/signatures/certificate?sessionId=${session.id}`}
+                download
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-950/20 dark:border-violet-800 dark:text-violet-400 transition-all duration-200">
+                <Download size={11} /> Certificate
+              </a>
             </>
           )}
         </div>
