@@ -93,6 +93,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to cancel signature" }, { status: 500 })
     }
 
+    // Reset session status back to 'active' so a new signature request can be sent
+    // Only reset if the session was in a pending state (not already signed/paid)
+    if (sessionId) {
+      await auth.supabase
+        .from("document_sessions")
+        .update({ status: "active" } as any)
+        .eq("id", sessionId)
+        .eq("user_id", auth.user.id)
+        .in("status", ["finalized", "active"]) // only reset if not signed/paid
+    }
+
     // Record signature.cancelled audit event
     const clientIP = getClientIP(request)
     const userAgent = request.headers.get("user-agent") ?? undefined

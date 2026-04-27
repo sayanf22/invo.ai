@@ -223,6 +223,7 @@ export default function SigningPage() {
     const [business, setBusiness] = useState<BusinessData | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [isExpired, setIsExpired] = useState(false)
+    const [isCancelled, setIsCancelled] = useState(false)
     const [isAlreadySigned, setIsAlreadySigned] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [confirmation, setConfirmation] = useState<ConfirmationData | null>(null)
@@ -252,7 +253,12 @@ export default function SigningPage() {
                 const data = await response.json()
 
                 if (response.status === 410) {
-                    setIsExpired(true)
+                    const data410 = await response.json().catch(() => ({}))
+                    if (data410.cancelled) {
+                        setIsCancelled(true)
+                    } else {
+                        setIsExpired(true)
+                    }
                     return
                 }
 
@@ -397,7 +403,50 @@ export default function SigningPage() {
         )
     }
 
-    // Sub-task 13.4: Already-signed state
+    // Cancelled state — professional message
+    if (isCancelled) {
+        return (
+            <div className="min-h-screen flex flex-col bg-background">
+                <header className="border-b py-4 px-6 flex items-center justify-between">
+                    <InvoLogo />
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Shield className="h-4 w-4 text-green-500" />
+                        Secured by Clorefy
+                    </div>
+                </header>
+                <main className="flex-1 flex items-center justify-center px-4 py-12">
+                    <div className="w-full max-w-md">
+                        <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+                            <div className="px-8 py-8 text-center space-y-4">
+                                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto">
+                                    <XCircle className="h-8 w-8 text-muted-foreground" />
+                                </div>
+                                <div className="space-y-2">
+                                    <h1 className="text-xl font-semibold text-foreground">
+                                        This signing request is no longer available
+                                    </h1>
+                                    <p className="text-sm text-muted-foreground leading-relaxed">
+                                        The document owner has withdrawn this signing request. This link is no longer valid and cannot be used to sign the document.
+                                    </p>
+                                </div>
+                                <div className="pt-2 border-t border-border/50">
+                                    <p className="text-xs text-muted-foreground">
+                                        If you believe this is an error, please contact the sender directly to request a new signing link.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="px-8 py-4 bg-muted/30 border-t border-border/50">
+                                <p className="text-xs text-muted-foreground text-center">
+                                    Powered by <span className="font-semibold text-foreground">Clorefy</span> · Secure Electronic Signatures
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        )
+    }
+
     if (isAlreadySigned && signature) {
         return (
             <div className="min-h-screen flex flex-col bg-background">

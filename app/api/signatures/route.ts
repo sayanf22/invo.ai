@@ -385,6 +385,14 @@ export async function GET(request: NextRequest) {
             const ipAddress = getClientIP(request)
             const userAgent = request.headers.get("user-agent") ?? undefined
 
+            // Check if signing request was cancelled by the document owner
+            if ((signature as any).signer_action === "cancelled") {
+                return NextResponse.json(
+                    { error: "This signing request has been cancelled by the document owner.", cancelled: true },
+                    { status: 410 }
+                )
+            }
+
             // Check expiry — Sub-task 6.3
             if (signature.expires_at && new Date(signature.expires_at) < new Date()) {
                 // Fetch session to get owner user_id and document info for notification
