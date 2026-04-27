@@ -644,6 +644,8 @@ interface SignatureDetailRecord extends SignatureRecord {
   ip_address?: string | null
   verification_url?: string | null
   signer_reason?: string | null
+  user_agent?: string | null
+  document_hash?: string | null
 }
 
 function SignatureDetailsPanel({ sessionId, expanded }: { sessionId: string; expanded: boolean }) {
@@ -720,6 +722,20 @@ function SignatureDetailsPanel({ sessionId, expanded }: { sessionId: string; exp
             )}
             {sig.ip_address && (
               <p className="text-xs text-muted-foreground">IP: {sig.ip_address}</p>
+            )}
+            {sig.user_agent && (
+              <p className="text-xs text-muted-foreground/70 truncate max-w-[280px]" title={sig.user_agent}>
+                Device: {sig.user_agent.includes("Mobile") ? "Mobile" : "Desktop"} · {
+                  sig.user_agent.includes("Chrome") ? "Chrome" :
+                  sig.user_agent.includes("Firefox") ? "Firefox" :
+                  sig.user_agent.includes("Safari") ? "Safari" : "Browser"
+                }
+              </p>
+            )}
+            {sig.document_hash && (
+              <p className="text-xs text-muted-foreground/70 font-mono truncate max-w-[280px]" title={sig.document_hash}>
+                Hash: {sig.document_hash.slice(0, 16)}…
+              </p>
             )}
             {sig.verification_url && (
               <a

@@ -560,7 +560,7 @@ export async function GET(request: NextRequest) {
 
             const { data: signatures, error } = await auth.supabase
                 .from("signatures")
-                .select("id, signer_name, signer_email, party, signed_at, signer_action, signer_reason, created_at, ip_address, verification_url, signature_image_url")
+                .select("id, signer_name, signer_email, party, signed_at, signer_action, signer_reason, created_at, ip_address, verification_url, signature_image_url, user_agent, document_hash")
                 .eq("session_id", sessionId)
                 .order("created_at", { ascending: false })
 
