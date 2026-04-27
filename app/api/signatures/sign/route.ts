@@ -379,7 +379,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Upload signature image to R2
+    // Upload signature image — try Supabase Storage first (works on all runtimes),
+    // fall back to R2 native binding, then mark as data_url_fallback if both fail.
     let signatureImageKey = "data_url_fallback"
     try {
       const binaryStr = atob(base64Part)
@@ -388,12 +389,35 @@ export async function POST(request: NextRequest) {
         bytes[i] = binaryStr.charCodeAt(i)
       }
       const objectKey = `signatures/${signature.id}_${Date.now()}.png`
-      // Use direct R2 upload (native binding on Workers, S3 SDK locally)
-      const { uploadToR2 } = await import("@/lib/r2")
-      await uploadToR2(objectKey, bytes, "image/png")
-      signatureImageKey = objectKey
+
+      // Primary: Supabase Storage (service role — works on all runtimes, no native binding needed)
+      let uploadedToSupabase = false
+      try {
+        const { error: storageError } = await supabase.storage
+          .from("signatures")
+          .upload(objectKey, bytes, {
+            contentType: "image/png",
+            upsert: false,
+          })
+        if (!storageError) {
+          // Prefix with "sb:" so the image proxy knows to use Supabase Storage
+          signatureImageKey = `sb:${objectKey}`
+          uploadedToSupabase = true
+        } else {
+          console.warn("[sign] Supabase Storage upload failed, trying R2:", storageError.message)
+        }
+      } catch (sbErr) {
+        console.warn("[sign] Supabase Storage exception, trying R2:", sbErr)
+      }
+
+      // Fallback: R2 native binding
+      if (!uploadedToSupabase) {
+        const { uploadToR2 } = await import("@/lib/r2")
+        await uploadToR2(objectKey, bytes, "image/png")
+        signatureImageKey = objectKey
+      }
     } catch (uploadErr) {
-      console.error("[sign] R2 upload error:", uploadErr)
+      console.error("[sign] All upload attempts failed:", uploadErr)
       await recordAuditEvent(supabase, {
         action: "signature.r2_fallback",
         signature_id: signature.id,

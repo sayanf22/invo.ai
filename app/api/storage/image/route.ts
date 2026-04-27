@@ -1,17 +1,21 @@
 /**
- * Image Proxy API — Returns R2 images as base64 data URLs
+ * Image Proxy API — Returns images as base64 data URLs
  *
- * This avoids CORS issues with @react-pdf/renderer's <Image> component
- * which fetches images via XMLHttpRequest (different from browser <img>).
- * By converting to base64 data URLs server-side, the image works everywhere.
+ * Supports two storage backends:
+ * - Supabase Storage: key prefixed with "sb:" (e.g. "sb:signatures/xxx.png")
+ * - R2: plain key (e.g. "logos/userId/uuid.jpg")
  *
+ * This avoids CORS issues with @react-pdf/renderer's <Image> component.
+ *
+ * GET /api/storage/image?key=sb:signatures/xxx.png
  * GET /api/storage/image?key=logos/userId/uuid.jpg
- * Response: { dataUrl: "data:image/jpeg;base64,..." }
+ * Response: { dataUrl: "data:image/png;base64,..." }
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { getObject } from "@/lib/r2"
+import { createClient } from "@supabase/supabase-js"
 
 const MIME_MAP: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
@@ -32,49 +36,73 @@ function extractUserIdFromKey(key: string): string | null {
   return segments.length >= 3 ? segments[1] : null
 }
 
+function getServiceRoleClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    const key = request.nextUrl.searchParams.get("key")
-    if (!key) {
+    const rawKey = request.nextUrl.searchParams.get("key")
+    if (!rawKey) {
       return NextResponse.json({ error: "Missing key parameter" }, { status: 400 })
     }
+
+    // Detect storage backend from prefix
+    const isSupabaseStorage = rawKey.startsWith("sb:")
+    const key = isSupabaseStorage ? rawKey.slice(3) : rawKey
 
     // Security: prevent path traversal attacks
     if (key.includes("..") || key.startsWith("/") || key.startsWith("\\")) {
       return NextResponse.json({ error: "Invalid key" }, { status: 400 })
     }
 
-    // Verify ownership
-    if (!isSignatureKey(key)) {
+    // Ownership check for non-signature R2 keys (logos etc.)
+    if (!isSupabaseStorage && !isSignatureKey(key)) {
       const keyUserId = extractUserIdFromKey(key)
       if (!keyUserId || keyUserId !== auth.user.id) {
         return NextResponse.json({ error: "Access denied" }, { status: 403 })
       }
     }
 
-    // Read object directly from R2 (native binding on Workers, S3 SDK locally)
-    const obj = await getObject(key)
+    let bodyBuffer: ArrayBuffer
+    let mime: string
 
-    if (!obj) {
-      return NextResponse.json({ error: "Image not found" }, { status: 404 })
+    if (isSupabaseStorage) {
+      // Supabase Storage — use service role to bypass RLS (auth already verified above)
+      const supabase = getServiceRoleClient()
+      const bucket = key.startsWith("signatures/") ? "signatures" : "business-assets"
+      const { data, error } = await supabase.storage.from(bucket).download(key)
+      if (error || !data) {
+        return NextResponse.json({ error: "Image not found" }, { status: 404 })
+      }
+      bodyBuffer = await data.arrayBuffer()
+      mime = data.type || getMimeFromKey(key)
+    } else {
+      // R2 storage
+      const obj = await getObject(key)
+      if (!obj) {
+        return NextResponse.json({ error: "Image not found" }, { status: 404 })
+      }
+      bodyBuffer = obj.body
+      mime = obj.contentType !== "application/octet-stream" ? obj.contentType : getMimeFromKey(key)
     }
 
-    // Convert to base64 data URL
-    const base64 = Buffer.from(obj.body).toString("base64")
-    const mime = obj.contentType !== "application/octet-stream" ? obj.contentType : getMimeFromKey(key)
+    const base64 = Buffer.from(bodyBuffer).toString("base64")
     const dataUrl = `data:${mime};base64,${base64}`
 
     return NextResponse.json({ dataUrl }, {
       headers: {
-        // Cache for 1 hour in browser, 24h in CDN — logos rarely change
         "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400",
       },
     })
   } catch (error) {
-    console.error("Image proxy error:", error instanceof Error ? `${error.name}: ${error.message}\n${error.stack}` : error)
+    console.error("Image proxy error:", error instanceof Error ? `${error.name}: ${error.message}` : error)
     return NextResponse.json({ error: "Failed to load image" }, { status: 500 })
   }
 }
