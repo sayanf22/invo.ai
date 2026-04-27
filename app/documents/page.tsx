@@ -993,13 +993,15 @@ function DocCard({
           {/* Download pills for signed docs */}
           {session.status === "signed" && (
             <>
-              <a href={`/api/signatures/download/${session.id}`}
+              <button
+                onClick={() => onDownload(session)}
+                disabled={downloading}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground transition-all duration-200 disabled:opacity-50">
+                {downloading ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />} Signed PDF
+              </button>
+              <a href={`/view/${session.id}`}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground transition-all duration-200">
-                <Download size={11} /> Signed PDF
-              </a>
-              <a href={`/api/signatures/evidence/${session.id}`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground transition-all duration-200">
-                <FileText size={11} /> Evidence
+                <FileText size={11} /> View Signed
               </a>
             </>
           )}
