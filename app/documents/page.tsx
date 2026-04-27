@@ -800,194 +800,144 @@ function DocCard({
       )}
     >
       {/* Main row */}
-      <div className="flex items-start gap-3 px-3.5 py-5 sm:px-4 sm:py-6">
-        {/* Type badge */}
-        <div className={cn("px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5", TYPE_COLORS[docType] || "bg-muted text-muted-foreground")}>
-          {docType}
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-semibold text-sm leading-tight truncate">{title}</p>
-            {/* Payment status badge — show for invoices always */}
-            {docType === "invoice" && (
-              payment
-                ? (session.status === "paid" && payment.status !== "paid")
-                  ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">
-                      <CheckCircle2 size={10} />
-                      Paid
-                    </span>
-                  )
-                  : <PaymentBadge payment={payment} />
-                : session.status === "paid"
-                  ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">
-                      <CheckCircle2 size={10} />
-                      Paid
-                    </span>
-                  )
-                  : <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground shrink-0">
-                      No link
-                    </span>
-            )}
-            {/* Show Paid badge for non-invoice docs with paid session status */}
-            {docType !== "invoice" && session.status === "paid" && (
-              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">
-                <CheckCircle2 size={10} />
-                Paid
-              </span>
-            )}
-            {/* Quotation response badge */}
-            {docType === "quotation" && session.quotationResponse && (
-              <QuotationResponseBadge responseType={session.quotationResponse.response_type} />
-            )}
+      <div className="px-3.5 pt-4 pb-3 sm:px-4">
+        {/* Header row: type pill + title | action icons */}
+        <div className="flex items-center gap-3">
+          <div className={cn("px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0", TYPE_COLORS[docType] || "bg-muted text-muted-foreground")}>
+            {docType}
           </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
-            {session.client_name && session.client_name !== title && (
-              <span className="truncate max-w-[120px]">{session.client_name}</span>
-            )}
-            <span className="flex items-center gap-1 shrink-0">
-              <Calendar size={10} />
-              {format(new Date(session.created_at), "MMM d, yyyy")}
-            </span>
-            {total && <span className="font-semibold text-foreground/80 shrink-0">{total}</span>}
-            {session.sent_at && (
-              <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 shrink-0">
-                <Send size={10} />
-                Sent
-              </span>
-            )}
-            {session.email && (
-              <EmailBadge email={session.email} />
-            )}
-            {hasEmails && (
+          <p className="font-semibold text-sm leading-tight truncate flex-1 min-w-0">{title}</p>
+          {/* Action icons — only Eye, Download, Recurring (for invoices without active recurring) */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            <a
+              href={`/view/${session.id}`}
+              className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground"
+              aria-label="View document"
+            >
+              <Eye size={15} />
+            </a>
+            <button
+              className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-40"
+              disabled={downloading}
+              onClick={() => onDownload(session)}
+              aria-label="Download PDF"
+            >
+              {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+            </button>
+            {/* Recurring toggle — only for invoices that don't have active recurring yet */}
+            {hasRecurring && !session.recurring?.is_active && (
               <button
-                onClick={() => setEmailExpanded(v => !v)}
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                className={cn(
+                  "flex items-center justify-center w-8 h-8 rounded-xl transition-colors",
+                  recurringExpanded
+                    ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400"
+                    : "hover:bg-secondary/60 text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => setRecurringExpanded(v => !v)}
+                aria-label="Recurring settings"
+                title="Recurring invoice settings"
               >
-                <Mail size={10} />
-                {emailStats!.totalSent} sent
-                {emailStats!.opened > 0 && ` · ${emailStats!.opened} opened`}
-                {emailExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                <Repeat2 size={15} />
               </button>
             )}
-            {/* Next reminder badge — shown inline even when email panel is collapsed */}
-            {emailStats?.nextReminderAt && !emailExpanded && (
-              <span className="flex items-center gap-1 text-[11px] font-semibold text-violet-600 dark:text-violet-400 shrink-0">
-                <Bell size={10} />
-                Reminder {formatDistanceToNow(new Date(emailStats.nextReminderAt), { addSuffix: true })}
-              </span>
-            )}
-            {/* Signature badges */}
-            {session.signatures && session.signatures.filter(s => s.signer_action !== "cancelled").map(sig => (
-              <SignatureBadge key={sig.id} signature={sig} />
-            ))}
           </div>
-
-          {/* View tracking summary (compact) */}
-          {payment && payment.view_count > 0 && (
-            <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-              <Eye size={10} />
-              Viewed {payment.view_count}×
-              {payment.link_viewed_at && ` · ${formatDistanceToNow(new Date(payment.link_viewed_at), { addSuffix: true })}`}
-            </p>
-          )}
-
-          {/* Download Signed PDF + Evidence Package links */}
-          {session.status === "signed" && (
-            <div className="flex items-center gap-2 mt-1">
-              <a
-                href={`/api/signatures/download/${session.id}`}
-                className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium"
-              >
-                <Download size={10} /> Signed PDF
-              </a>
-              <a
-                href={`/api/signatures/evidence/${session.id}`}
-                className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-700 hover:underline font-medium"
-              >
-                <FileText size={10} /> Evidence Package
-              </a>
-            </div>
-          )}
-
-          {/* Recurring badge */}
-          {session.recurring?.is_active && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-violet-600 dark:text-violet-400 mt-1">
-              <Repeat2 size={10} />
-              Recurring · {session.recurring.frequency}
-            </span>
-          )}
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-0.5 shrink-0">
-          {/* View (read-only static view) */}
-          <a
-            href={`/view/${session.id}`}
-            className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground"
-            aria-label="View document"
-          >
-            <Eye size={15} />
-          </a>
+        {/* Metadata row: client · date · total */}
+        <div className="flex items-center gap-0 text-xs text-muted-foreground mt-1 pl-[calc(2.5rem+0.75rem)] truncate">
+          {[
+            session.client_name && session.client_name !== title ? session.client_name : null,
+            format(new Date(session.created_at), "MMM d, yyyy"),
+            total,
+          ].filter(Boolean).map((item, i, arr) => (
+            <span key={i} className="truncate">
+              {item}{i < arr.length - 1 && <span className="mx-1.5 text-muted-foreground/40">·</span>}
+            </span>
+          ))}
+        </div>
 
-          {/* Download */}
-          <button
-            className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-40"
-            disabled={downloading}
-            onClick={() => onDownload(session)}
-            aria-label="Download PDF"
-          >
-            {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-          </button>
+        {/* Status pills */}
+        <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+          {/* Email pill */}
+          {(hasEmails || session.sent_at) && (
+            <button onClick={() => setEmailExpanded(v => !v)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
+                emailExpanded
+                  ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800"
+                  : "bg-card text-muted-foreground border-border/60 hover:border-border hover:text-foreground"
+              )}>
+              <Mail size={11} />
+              {emailStats ? `${emailStats.totalSent} sent` : "Sent"}
+              {emailStats?.opened ? ` · ${emailStats.opened} opened` : ""}
+            </button>
+          )}
 
-          {/* Signature details toggle — visible when session has signatures */}
+          {/* Payment pill — invoices only */}
+          {docType === "invoice" && (
+            <button onClick={() => setExpanded(v => !v)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
+                expanded
+                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800"
+                  : payment
+                    ? payment.status === "paid"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
+                      : "bg-card text-muted-foreground border-border/60 hover:border-border hover:text-foreground"
+                    : "bg-card text-muted-foreground border-border/60 hover:border-border hover:text-foreground"
+              )}>
+              <CreditCard size={11} />
+              {payment
+                ? payment.status === "paid" ? "Paid"
+                  : payment.status === "partially_paid" ? "Partial"
+                  : "Awaiting"
+                : session.status === "paid" ? "Paid" : "No link"
+              }
+            </button>
+          )}
+
+          {/* Signature pill — for contracts/quotations/proposals */}
           {hasSignatures && (
-            <button
+            <button onClick={() => setSignatureExpanded(v => !v)}
               className={cn(
-                "flex items-center justify-center w-8 h-8 rounded-xl transition-colors",
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
                 signatureExpanded
-                  ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400"
-                  : "hover:bg-secondary/60 text-muted-foreground hover:text-foreground"
-              )}
-              onClick={() => setSignatureExpanded(v => !v)}
-              aria-label="Signature details"
-              title="Signature details"
-            >
-              <PenLine size={15} />
+                  ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800"
+                  : session.status === "signed"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
+                    : "bg-card text-muted-foreground border-border/60 hover:border-border hover:text-foreground"
+              )}>
+              <PenLine size={11} />
+              {session.status === "signed" ? "Signed" : "Pending"}
             </button>
           )}
 
-          {/* Recurring toggle button — invoices only */}
-          {hasRecurring && (
-            <button
+          {/* Recurring pill */}
+          {session.recurring?.is_active && (
+            <button onClick={() => setRecurringExpanded(v => !v)}
               className={cn(
-                "flex items-center justify-center w-8 h-8 rounded-xl transition-colors",
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
                 recurringExpanded
-                  ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400"
-                  : "hover:bg-secondary/60 text-muted-foreground hover:text-foreground",
-                session.recurring?.is_active && !recurringExpanded && "text-violet-500"
-              )}
-              onClick={() => setRecurringExpanded(v => !v)}
-              aria-label="Recurring settings"
-              title="Recurring invoice settings"
-            >
-              <Repeat2 size={15} />
+                  ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800"
+                  : "bg-card text-muted-foreground border-border/60 hover:border-border hover:text-foreground"
+              )}>
+              <Repeat2 size={11} />
+              {session.recurring.frequency}
             </button>
           )}
 
-          {/* Expand details — show if payment or emails exist */}
-          {(hasPayment || hasEmails) && (
-            <button
-              className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground"
-              onClick={() => { setExpanded(v => !v); if (!expanded && hasEmails) setEmailExpanded(true) }}
-              aria-label="Toggle details"
-            >
-              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-            </button>
+          {/* Download pills for signed docs */}
+          {session.status === "signed" && (
+            <>
+              <a href={`/api/signatures/download/${session.id}`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground transition-all duration-200">
+                <Download size={11} /> Signed PDF
+              </a>
+              <a href={`/api/signatures/evidence/${session.id}`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground transition-all duration-200">
+                <FileText size={11} /> Evidence
+              </a>
+            </>
           )}
         </div>
       </div>
