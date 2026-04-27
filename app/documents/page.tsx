@@ -756,6 +756,80 @@ function SignatureDetailsPanel({ sessionId, expanded }: { sessionId: string; exp
   )
 }
 
+// ── Chain Group Card ──────────────────────────────────────────────────────────
+
+function ChainGroupCard({
+  clientName,
+  sessions,
+  onDownload,
+  downloadingId,
+  onRefresh,
+}: {
+  clientName: string | null
+  sessions: DocSession[]
+  onDownload: (s: DocSession) => void
+  downloadingId: string | null
+  onRefresh?: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const docTypes = [...new Set(sessions.map(s => s.document_type))].map(t => t.charAt(0).toUpperCase() + t.slice(1))
+  const latestSession = sessions[0]
+  const latestCtx = latestSession.context || {}
+  const latestRef = latestCtx.invoiceNumber || latestCtx.referenceNumber || ""
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-card overflow-hidden shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-all duration-300 hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)]">
+      {/* Group header */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/30 transition-colors"
+      >
+        <div className="w-9 h-9 rounded-xl bg-primary/8 dark:bg-primary/15 flex items-center justify-center shrink-0">
+          <Link2 size={16} className="text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm truncate">{clientName || latestRef || "Linked Documents"}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {sessions.length} documents · {docTypes.join(", ")}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Doc type pills */}
+          {docTypes.map(t => (
+            <span key={t} className={cn(
+              "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider",
+              TYPE_COLORS[t.toLowerCase()] || "bg-muted text-muted-foreground"
+            )}>
+              {t}
+            </span>
+          ))}
+          {expanded ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
+        </div>
+      </button>
+
+      {/* Expandable list of DocCards */}
+      <div className={cn(
+        "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+      )}>
+        <div className="min-h-0 overflow-hidden">
+          <div className="px-3 pb-3 space-y-2">
+            {sessions.map(s => (
+              <DocCard
+                key={s.id}
+                session={s}
+                onDownload={onDownload}
+                downloading={downloadingId === s.id}
+                onRefresh={onRefresh}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Document Card ─────────────────────────────────────────────────────────────
 
 function DocCard({
@@ -860,15 +934,6 @@ function DocCard({
 
         {/* Status pills */}
         <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-          {/* Chain indicator — shows when document is part of a linked chain */}
-          {session.chain_id && session.chainCount && session.chainCount > 1 && (
-            <a href={`/?sessionId=${session.id}`}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground transition-all duration-200">
-              <Link2 size={11} />
-              {session.chainCount} linked
-            </a>
-          )}
-
           {/* Email pill */}
           {(hasEmails || session.sent_at) && (
             <button onClick={() => setEmailExpanded(v => !v)}
@@ -1333,6 +1398,33 @@ export default function MyDocumentsPage() {
     return s.document_type === filter
   })
 
+  // Group filtered sessions by chain_id
+  const grouped: Array<{ chainId: string | null; clientName: string | null; sessions: DocSession[] }> = (() => {
+    const chainMap = new Map<string, DocSession[]>()
+    const standalone: DocSession[] = []
+    for (const s of filtered) {
+      if (s.chain_id) {
+        const arr = chainMap.get(s.chain_id) || []
+        arr.push(s)
+        chainMap.set(s.chain_id, arr)
+      } else {
+        standalone.push(s)
+      }
+    }
+    const result: Array<{ chainId: string | null; clientName: string | null; sessions: DocSession[] }> = []
+    for (const [chainId, chainSessions] of chainMap) {
+      chainSessions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      const clientName = chainSessions.find(s => s.client_name)?.client_name || null
+      result.push({ chainId, clientName, sessions: chainSessions })
+    }
+    for (const s of standalone) {
+      result.push({ chainId: null, clientName: s.client_name || null, sessions: [s] })
+    }
+    // Sort groups by most recent session
+    result.sort((a, b) => new Date(b.sessions[0].created_at).getTime() - new Date(a.sessions[0].created_at).getTime())
+    return result
+  })()
+
   // Summary stats
   const totalPaid = sessions.filter(s => s.payment?.status === "paid" || s.status === "paid").length
   const totalPending = sessions.filter(s => s.payment?.status === "created").length
@@ -1521,14 +1613,25 @@ export default function MyDocumentsPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {filtered.map(s => (
-                  <DocCard
-                    key={s.id}
-                    session={s}
-                    onDownload={downloadDocument}
-                    downloading={downloadingId === s.id}
-                    onRefresh={() => loadSessions(true)}
-                  />
+                {grouped.map((group, gi) => (
+                  group.sessions.length === 1 ? (
+                    <DocCard
+                      key={group.sessions[0].id}
+                      session={group.sessions[0]}
+                      onDownload={downloadDocument}
+                      downloading={downloadingId === group.sessions[0].id}
+                      onRefresh={() => loadSessions(true)}
+                    />
+                  ) : (
+                    <ChainGroupCard
+                      key={group.chainId || `group-${gi}`}
+                      clientName={group.clientName}
+                      sessions={group.sessions}
+                      onDownload={downloadDocument}
+                      downloadingId={downloadingId}
+                      onRefresh={() => loadSessions(true)}
+                    />
+                  )
                 ))}
               </div>
             )}
