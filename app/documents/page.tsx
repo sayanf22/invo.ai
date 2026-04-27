@@ -387,53 +387,42 @@ function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId:
   const [stopping, setStopping] = useState(false)
   const [stopped, setStopped] = useState(false)
 
-  const statusConfig = {
-    sent: { label: "Sent", className: "bg-muted text-muted-foreground" },
-    delivered: { label: "Delivered", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
-    opened: { label: "Opened", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-    bounced: { label: "Bounced", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-    failed: { label: "Failed", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  const statusConfig: Record<string, { label: string; dot: string }> = {
+    sent:      { label: "Sent",      dot: "bg-muted-foreground/40" },
+    delivered: { label: "Delivered", dot: "bg-emerald-500" },
+    opened:    { label: "Opened",    dot: "bg-blue-500" },
+    bounced:   { label: "Bounced",   dot: "bg-red-500" },
+    failed:    { label: "Failed",    dot: "bg-red-500" },
   }
 
   const handleStopFollowUps = async () => {
     setStopping(true)
     try {
       const res = await authFetch(`/api/emails/schedules?sessionId=${sessionId}`, { method: "DELETE" })
-      if (res.ok) {
-        setStopped(true)
-        toast.success("Follow-up reminders stopped")
-      } else {
-        toast.error("Failed to stop reminders")
-      }
-    } catch {
-      toast.error("Failed to stop reminders")
-    } finally {
-      setStopping(false)
-    }
+      if (res.ok) { setStopped(true); toast.success("Follow-up reminders stopped") }
+      else toast.error("Failed to stop reminders")
+    } catch { toast.error("Failed to stop reminders") }
+    finally { setStopping(false) }
   }
 
   const nextReminder = !stopped && stats.nextReminderAt ? new Date(stats.nextReminderAt) : null
-  const isNextSoon = nextReminder && (nextReminder.getTime() - Date.now()) < 48 * 60 * 60 * 1000 // within 48h
 
   return (
-    <div className="mt-2 rounded-xl border border-border/50 bg-muted/20 overflow-hidden">
-      {/* Next reminder banner — shown when there are pending reminders */}
+    <div className="mt-1.5 rounded-xl border border-border/40 bg-background overflow-hidden"
+      style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+
+      {/* Next reminder row — clean, no colored background */}
       {nextReminder && !stopped && (
-        <div className={cn(
-          "flex items-center justify-between px-3 py-2 border-b",
-          isNextSoon
-            ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50"
-            : "bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-800/50"
-        )}>
-          <div className="flex items-center gap-2">
-            <Bell size={12} className={isNextSoon ? "text-amber-600 dark:text-amber-400" : "text-violet-600 dark:text-violet-400"} />
+        <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border/30">
+          <div className="flex items-center gap-2.5">
+            <Bell size={13} className="text-muted-foreground shrink-0" />
             <div>
-              <p className={cn("text-[11px] font-semibold", isNextSoon ? "text-amber-800 dark:text-amber-200" : "text-violet-800 dark:text-violet-200")}>
-                Next reminder: {format(nextReminder, "MMM d, yyyy 'at' h:mm a")}
+              <p className="text-xs font-medium text-foreground">
+                Next reminder {formatDistanceToNow(nextReminder, { addSuffix: true })}
               </p>
-              <p className={cn("text-[10px]", isNextSoon ? "text-amber-600 dark:text-amber-400" : "text-violet-600 dark:text-violet-400")}>
-                {formatDistanceToNow(nextReminder, { addSuffix: true })}
-                {stats.pendingCount > 1 && ` · ${stats.pendingCount} reminders queued`}
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {format(nextReminder, "MMM d, yyyy 'at' h:mm a")}
+                {stats.pendingCount > 1 && ` · ${stats.pendingCount} queued`}
               </p>
             </div>
           </div>
@@ -441,77 +430,76 @@ function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId:
             type="button"
             onClick={handleStopFollowUps}
             disabled={stopping}
-            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-800/50 transition-colors disabled:opacity-50 shrink-0"
+            className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-border/60 transition-colors disabled:opacity-50 shrink-0"
           >
-            {stopping ? <Loader2 size={10} className="animate-spin" /> : <BellOff size={10} />}
+            {stopping ? <Loader2 size={11} className="animate-spin" /> : <BellOff size={11} />}
             Stop
           </button>
         </div>
       )}
 
-      {/* Stats summary row */}
-      <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border/40 flex-wrap">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Mail size={11} />
+      {/* Stats summary */}
+      <div className="flex items-center gap-4 px-3.5 py-2.5 border-b border-border/30">
+        <span className="text-xs text-muted-foreground">
           <span className="font-semibold text-foreground">{stats.totalSent}</span> sent
-        </div>
+        </span>
         {stats.opened > 0 && (
-          <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-            <Eye size={11} />
-            <span className="font-semibold">{stats.opened}</span> opened
-          </div>
+          <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+            <span className="font-semibold text-foreground">{stats.opened}</span> opened
+          </span>
         )}
         {stats.delivered > 0 && (
-          <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 size={11} />
-            <span className="font-semibold">{stats.delivered}</span> delivered
-          </div>
+          <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+            <span className="font-semibold text-foreground">{stats.delivered}</span> delivered
+          </span>
         )}
         {stats.bounced > 0 && (
-          <div className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
-            <AlertCircle size={11} />
-            <span className="font-semibold">{stats.bounced}</span> bounced
-          </div>
+          <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+            <span className="font-semibold text-foreground">{stats.bounced}</span> bounced
+          </span>
         )}
-        {/* Stop follow-ups button — only shown when no pending reminders banner above */}
-        {(!nextReminder || stopped) && (
-          <div className="ml-auto">
-            {stopped ? (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
-                <BellOff size={10} />
-                Stopped
-              </span>
-            ) : stats.pendingCount > 0 ? (
-              <button
-                type="button"
-                onClick={handleStopFollowUps}
-                disabled={stopping}
-                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-800/50 transition-colors disabled:opacity-50"
-              >
-                {stopping ? <Loader2 size={10} className="animate-spin" /> : <BellOff size={10} />}
-                Stop Reminders
-              </button>
-            ) : null}
-          </div>
+        {/* Stop button when no reminder banner */}
+        {(!nextReminder || stopped) && stats.pendingCount > 0 && !stopped && (
+          <button
+            type="button"
+            onClick={handleStopFollowUps}
+            disabled={stopping}
+            className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-border/60 transition-colors disabled:opacity-50"
+          >
+            {stopping ? <Loader2 size={11} className="animate-spin" /> : <BellOff size={11} />}
+            Stop reminders
+          </button>
+        )}
+        {stopped && (
+          <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <BellOff size={11} /> Stopped
+          </span>
         )}
       </div>
 
-      {/* Individual email rows */}
+      {/* Email rows */}
       {stats.emails.length > 0 && (
-        <div className="divide-y divide-border/30">
+        <div>
           {stats.emails.map((e, i) => {
             const cfg = statusConfig[e.status] || statusConfig.sent
             return (
-              <div key={e.id} className="flex items-center justify-between px-3 py-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[11px] text-muted-foreground shrink-0">#{i + 1}</span>
-                  <span className="text-xs text-foreground/80 truncate max-w-[160px]">{e.recipient_email}</span>
+              <div key={e.id} className={cn(
+                "flex items-center justify-between px-3.5 py-2.5",
+                i < stats.emails.length - 1 && "border-b border-border/20"
+              )}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-[11px] text-muted-foreground/60 shrink-0 tabular-nums">#{i + 1}</span>
+                  <span className="text-xs text-foreground truncate max-w-[180px]">{e.recipient_email}</span>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-full", cfg.className)}>
-                    {cfg.label}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", cfg.dot)} />
+                    <span className="text-[11px] text-muted-foreground">{cfg.label}</span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground/60 tabular-nums">
                     {format(new Date(e.created_at), "MMM d")}
                   </span>
                 </div>
