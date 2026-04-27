@@ -582,6 +582,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     // ── Send intent detection ──────────────────────────────────────────
                     // If the user's prompt contained a send intent (e.g. "send to xyz@email.com"),
                     // append a send card after the assistant message.
+                    // The AI message is kept brief — the card IS the action.
                     const { hasSendIntent, email: detectedEmail } = detectSendIntent(userMessage)
                     if (hasSendIntent) {
                         const cardEmail = detectedEmail || docData.toEmail || ""
@@ -601,24 +602,29 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 }
             } else {
                 // Not JSON — plain text response from AI (e.g., clarification question)
-                setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
-                await saveMessage("user", displayText)
-                await saveMessage("assistant", cleaned)
-
                 // ── Send intent detection for plain-text responses ─────────────────
-                // If user asked to send and document already exists, show send card
+                // If user asked to send and document already exists, show send card ONLY
+                // Replace the AI's "click Send button" instructions with a minimal message
                 if (documentGenerated && session) {
                     const { hasSendIntent, email: detectedEmail } = detectSendIntent(userMessage)
                     if (hasSendIntent) {
                         const cardEmail = detectedEmail || data.toEmail || ""
-                        setMessages(prev => [...prev, {
+                        // Show a minimal message + card instead of the AI's verbose instructions
+                        const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`
+                        setMessages(prev => [...prev, { role: "assistant", content: minimalMsg }, {
                             role: "assistant",
                             content: "",
                             sendCard: { email: cardEmail },
                         }])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", minimalMsg)
+                        return
                     }
                 }
                 // ── End send intent detection ──────────────────────────────────────
+                setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
+                await saveMessage("user", displayText)
+                await saveMessage("assistant", cleaned)
             }
         } catch (err: any) {
             const errorMsg = err.message || "Something went wrong"

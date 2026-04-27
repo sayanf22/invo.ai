@@ -344,6 +344,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [userTier, setUserTier] = useState<"free" | "starter" | "pro" | "agency">("free")
   const [exportingDocx, setExportingDocx] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
+  const [sentAt, setSentAt] = useState<string | null>(null)
   const hasContent = data.documentType || data.fromName || data.toName || data.description
 
   const supportsSignatures = SIGNATURE_DOCUMENT_TYPES.includes((data.documentType || "").toLowerCase())
@@ -390,6 +391,22 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       .catch(() => {})
       .finally(() => setSignaturesLoading(false))
   }, [sessionId, supportsSignatures])
+
+  // Fetch sent_at for invoice "Sent" badge — reset when session changes
+  useEffect(() => {
+    setSentAt(null)
+    if (!sessionId || !user) return
+    ;(supabase as any)
+      .from("document_sessions")
+      .select("sent_at")
+      .eq("id", sessionId)
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data: s }: { data: { sent_at?: string | null } | null }) => {
+        if (s?.sent_at) setSentAt(s.sent_at)
+      })
+      .catch(() => {})
+  }, [sessionId, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleZoomIn = useCallback(() => {
     setZoom(prev => {
@@ -619,16 +636,21 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               <span className="hidden sm:inline">Request Signature</span>
             </button>
           )}
-          {/* For non-signature docs (invoices): show Send button separately */}
+          {/* For non-signature docs (invoices): show Sent badge + Send button */}
+          {!supportsSignatures && sessionId && sentAt && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shrink-0">
+              Sent
+            </span>
+          )}
           {!supportsSignatures && sessionId && (
             <button
               type="button"
               onClick={() => setSendEmailDialogOpen(true)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-95"
-              title="Send document via email"
+              title={sentAt ? "Resend document via email" : "Send document via email"}
             >
               <Mail className="w-4 h-4" />
-              <span className="hidden sm:inline">Send</span>
+              <span className="hidden sm:inline">{sentAt ? "Resend" : "Send"}</span>
             </button>
           )}
           {/* Download Signed PDF button — client-side generation */}
@@ -780,6 +802,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           invoiceData={data}
           documentType={data.documentType || "invoice"}
           userTier={userTier}
+          onEmailSent={() => setSentAt(new Date().toISOString())}
         />
       )}
       {supportsSignatures && sessionId && (
