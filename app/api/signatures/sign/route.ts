@@ -518,10 +518,10 @@ export async function POST(request: NextRequest) {
 
         const documentType = session?.document_type ?? "document"
         const context = (session?.context ?? {}) as Record<string, unknown>
-        const referenceNumber =
-          (context.invoiceNumber as string) ||
-          (context.referenceNumber as string) ||
-          ""
+        // For non-invoice docs, prefer referenceNumber over invoiceNumber
+        const referenceNumber = documentType === "invoice"
+          ? ((context.invoiceNumber as string) || (context.referenceNumber as string) || "")
+          : ((context.referenceNumber as string) || (context.invoiceNumber as string) || "")
         const docTypeLabel =
           documentType.charAt(0).toUpperCase() + documentType.slice(1)
 
@@ -530,11 +530,11 @@ export async function POST(request: NextRequest) {
         if (session?.user_id) {
           const { data: business } = await supabase
             .from("businesses")
-            .select("business_name")
+            .select("name")
             .eq("user_id", session.user_id)
             .single()
-          if (business?.business_name) {
-            businessName = business.business_name
+          if (business?.name) {
+            businessName = business.name
           }
         }
 
