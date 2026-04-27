@@ -365,7 +365,7 @@ export default function ViewDocumentPage() {
             .select("context, document_type")
             .eq("id", sessionId)
             .eq("user_id", user.id)
-            .single()
+            .maybeSingle()
 
           if (session?.context) {
             setDocData(session.context as unknown as InvoiceData)
@@ -436,7 +436,12 @@ export default function ViewDocumentPage() {
         if (res.ok) {
           const data = await res.json()
           if (data.context) {
-            setDocData(data.context as InvoiceData)
+            const ctx = data.context as InvoiceData
+            // Attach signature images if returned by the API
+            if (data.signatureImages && data.signatureImages.length > 0) {
+              ctx.signatureImages = data.signatureImages
+            }
+            setDocData(ctx)
             if (data.payment) setPayment(data.payment as PaymentInfo)
             setLoading(false)
             return

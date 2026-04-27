@@ -488,6 +488,7 @@ export default function SigningPage() {
 
     // Sub-task 13.5: Confirmation screen after successful submission
     if (confirmation) {
+        const sessionId = (signature as any)?.session_id
         return (
             <div className="min-h-screen flex flex-col bg-background">
                 <header className="border-b py-4 px-6 flex items-center justify-between">
@@ -497,8 +498,8 @@ export default function SigningPage() {
                         Secured by Invo.ai
                     </div>
                 </header>
-                <main className="flex-1 flex items-center justify-center px-4 py-12">
-                    <div className="w-full max-w-md space-y-6">
+                <main className="flex-1 px-4 py-10">
+                    <div className="w-full max-w-md mx-auto space-y-6">
                         <div className="text-center space-y-2">
                             <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
                             <h1 className="text-2xl font-semibold">Signature Complete</h1>
@@ -541,11 +542,22 @@ export default function SigningPage() {
                                         rel="noopener noreferrer"
                                         className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
                                     >
-                                        View <ExternalLink className="h-3 w-3" />
+                                        Verify <ExternalLink className="h-3 w-3" />
                                     </a>
                                 </div>
                             )}
                         </div>
+
+                        {/* View signed PDF button */}
+                        {sessionId && (
+                            <a
+                                href={`/view/${sessionId}`}
+                                className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+                            >
+                                <FileText className="h-4 w-4" />
+                                View Signed Document
+                            </a>
+                        )}
 
                         <p className="text-xs text-center text-muted-foreground">
                             A confirmation email will be sent to {signature?.signer_email}

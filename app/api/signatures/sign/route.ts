@@ -548,13 +548,51 @@ export async function POST(request: NextRequest) {
             await sendEmail({
               to: signerEmail,
               subject: `You signed ${docTypeLabel} ${referenceNumber} — ${businessName}`,
-              html: `
-                <p>Hi ${signerName},</p>
-                <p>You have successfully signed <strong>${docTypeLabel} ${referenceNumber}</strong>.</p>
-                <p><strong>Signed at:</strong> ${new Date(signedAt).toUTCString()}</p>
-                ${verificationUrl ? `<p><strong>Verification URL:</strong> <a href="${verificationUrl}">${verificationUrl}</a></p>` : ""}
-                <p>Thank you,<br/>${businessName}</p>
-              `,
+              html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f5;">
+  <tr><td align="center" style="padding:24px 8px;">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+      <tr><td style="padding:28px 28px 20px 28px;border-bottom:1px solid #f0f0f0;">
+        <p style="margin:0;font-size:20px;font-weight:700;color:#18181b;">${businessName}</p>
+      </td></tr>
+      <tr><td style="padding:28px 28px 8px 28px;">
+        <div style="width:48px;height:48px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+          <span style="font-size:24px;">✓</span>
+        </div>
+        <p style="margin:0 0 8px 0;font-size:18px;font-weight:700;color:#18181b;">You signed ${docTypeLabel} ${referenceNumber}</p>
+        <p style="margin:0 0 24px 0;font-size:14px;color:#52525b;line-height:1.6;">
+          Hi ${signerName}, your electronic signature has been successfully recorded.
+        </p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fafafa;border-radius:10px;border:1px solid #e4e4e7;margin-bottom:24px;">
+          <tr><td style="padding:16px 20px;">
+            <p style="margin:0 0 6px 0;font-size:11px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.1em;">Signed at</p>
+            <p style="margin:0;font-size:14px;color:#18181b;">${new Date(signedAt).toUTCString()}</p>
+          </td></tr>
+          ${verificationUrl ? `<tr><td style="padding:0 20px 16px 20px;">
+            <p style="margin:0 0 6px 0;font-size:11px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.1em;">Verification</p>
+            <a href="${verificationUrl}" style="font-size:13px;color:#6366f1;word-break:break-all;">${verificationUrl}</a>
+          </td></tr>` : ""}
+        </table>
+      </td></tr>
+      <tr><td style="padding:0 28px 28px 28px;">
+        <a href="https://clorefy.com/view/${signature.session_id}"
+          style="display:inline-block;padding:13px 28px;background:#18181b;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;">
+          View Signed Document
+        </a>
+      </td></tr>
+      <tr><td style="padding:16px 28px;border-top:1px solid #f0f0f0;background:#fafafa;">
+        <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
+          Sent via <a href="https://clorefy.com" style="color:#6366f1;text-decoration:none;font-weight:600;">Clorefy</a>
+        </p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`,
               senderName: businessName,
               category: "signature_completion",
             })
