@@ -637,6 +637,14 @@ export function ContractPDF({ data, logoUrl }: Props) {
                             if (clientSig?.imageDataUrl) {
                                 return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
                             }
+                            // If document is signed but image unavailable, show a signed indicator
+                            if (data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) {
+                                return (
+                                    <View style={{ height: 56, marginBottom: 4, justifyContent: "center", alignItems: "flex-start" }}>
+                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                    </View>
+                                )
+                            }
                             return <View style={s.sigLine} />
                         })()}
                         <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>

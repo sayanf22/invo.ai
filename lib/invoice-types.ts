@@ -100,6 +100,7 @@ export interface InvoiceData {
   signatureName: string
   signatureTitle: string
   signatureImages?: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }>
+  signedAt?: string  // ISO timestamp — set when doc is signed but image unavailable
 
   // Design & Branding
   design?: {

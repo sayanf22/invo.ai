@@ -1364,6 +1364,11 @@ export default function MyDocumentsPage() {
             if (sigImages.length > 0) {
               cleanedData.signatureImages = sigImages
             }
+            // Mark as signed even if no images loaded (data_url_fallback case)
+            // This triggers the "Electronically Signed" placeholder in the PDF
+            if (sigs.length > 0 && sigImages.length === 0) {
+              cleanedData.signedAt = sigs[0].signed_at || new Date().toISOString()
+            }
           }
         } catch { /* non-fatal — generate PDF without signatures */ }
       }

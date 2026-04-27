@@ -405,7 +405,8 @@ export default function ViewDocumentPage() {
               for (const sig of sigs) {
                 if (sig.signature_image_url && sig.signature_image_url !== "data_url_fallback") {
                   try {
-                    const imgRes = await fetch(`/api/storage/image?key=${encodeURIComponent(sig.signature_image_url)}`)
+                    const { authFetch } = await import("@/lib/auth-fetch")
+                    const imgRes = await authFetch(`/api/storage/image?key=${encodeURIComponent(sig.signature_image_url)}`)
                     if (imgRes.ok) {
                       const imgData = await imgRes.json()
                       if (imgData.dataUrl) {
