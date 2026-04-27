@@ -189,6 +189,17 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
 
     const isInvoice = documentType.toLowerCase() === "invoice"
     const hasFetchedRef = useRef(false)
+    const prevSessionIdRef = useRef(sessionId)
+
+    // Reset state when sessionId changes (e.g., switching between chain sessions)
+    useEffect(() => {
+        if (prevSessionIdRef.current !== sessionId) {
+            prevSessionIdRef.current = sessionId
+            hasFetchedRef.current = false
+            setPaymentLink(null)
+            setCopied(false)
+        }
+    }, [sessionId])
 
     const fetchExisting = useCallback(async (showErrors = false) => {
         if (!sessionId || !isInvoice) return

@@ -66,6 +66,9 @@ export function PromptScreen({
   }, [])
 
   const handleSessionSelect = useCallback((sessionId: string) => {
+    // Reset data to clean state — the new session's context will be loaded by InvoiceChat
+    setData(prev => ({ ...getInitialInvoiceData(), design: prev.design }))
+    setInvoiceLocked(false)
     setSelectedSessionId(sessionId)
   }, [])
 
@@ -83,6 +86,8 @@ export function PromptScreen({
     const currentDesign = data.design
     setData(prev => ({ ...getInitialInvoiceData(), documentType: capitalized, design: currentDesign || prev.design }))
     setSelectedSessionId(sessionId)
+    // Reset lock — new document has no payment link
+    setInvoiceLocked(false)
   }, [data.design])
 
   // Translate offset: 0% = chat, -100% = edit, -200% = preview
