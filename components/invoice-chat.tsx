@@ -818,13 +818,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     documentType={docType}
                                     detectedEmail={msg.sendCard.email}
                                     onDismiss={() => setMessages(prev => prev.filter((_, i) => i !== idx))}
-                                    onCustomize={(email) => {
-                                        setSendDialogEmail(email)
-                                        setSendDialogOpen(true)
-                                        setMessages(prev => prev.filter((_, i) => i !== idx))
-                                    }}
                                     onSent={() => {
-                                        // Replace card with success (card handles its own sent state)
+                                        // Card handles its own sent state
                                     }}
                                 />
                             ) : msg.role === "user" ? (
