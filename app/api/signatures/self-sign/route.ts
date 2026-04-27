@@ -36,6 +36,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing sessionId or signatureDataUrl" }, { status: 400 })
     }
 
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(sessionId)) {
+      return NextResponse.json({ error: "Invalid sessionId" }, { status: 400 })
+    }
+
     // Validate signature format
     if (!signatureDataUrl.startsWith("data:image/png") && !signatureDataUrl.startsWith("data:image/jpeg")) {
       return NextResponse.json({ error: "Invalid signature format" }, { status: 400 })

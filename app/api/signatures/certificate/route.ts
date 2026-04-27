@@ -69,6 +69,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Missing sessionId" }, { status: 400 })
     }
 
+    // Validate UUID format to prevent injection
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(sessionId)) {
+      return NextResponse.json({ error: "Invalid sessionId" }, { status: 400 })
+    }
+
     const supabase = getServiceRoleClient()
 
     // Verify ownership
