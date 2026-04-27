@@ -5,16 +5,30 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, sanitizeError } from "@/lib/api-auth"
+import { checkRateLimit } from "@/lib/rate-limiter"
 
 export async function GET(request: NextRequest) {
     try {
         const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
+        // Rate limit: general category (120 req/min)
+        const rateLimitError = await checkRateLimit(auth.user.id, "general")
+        if (rateLimitError) return rateLimitError
+
         const sessionId = request.nextUrl.searchParams.get("sessionId")
         if (!sessionId) {
             return NextResponse.json(
                 { success: false, error: "sessionId query parameter is required" },
+                { status: 400 }
+            )
+        }
+
+        // Validate UUID format
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        if (!uuidRegex.test(sessionId)) {
+            return NextResponse.json(
+                { success: false, error: "Invalid sessionId" },
                 { status: 400 }
             )
         }

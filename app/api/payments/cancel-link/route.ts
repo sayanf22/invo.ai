@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
+import { checkRateLimit } from "@/lib/rate-limiter"
 import { cancelPaymentLink } from "@/lib/razorpay"
 import { createClient } from "@supabase/supabase-js"
 import { logAudit } from "@/lib/audit-log"
@@ -11,12 +12,17 @@ import { logAudit } from "@/lib/audit-log"
  *
  * SECURITY:
  * - Requires authentication
+ * - Rate limited (payment category)
  * - Verifies session ownership before cancelling
  * - Only allows cancelling links in "created" or "partially_paid" status
  */
 export async function POST(request: NextRequest) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
+
+    // Rate limit: max 20 payment operations per minute
+    const rateLimitError = await checkRateLimit(auth.user.id, "payment")
+    if (rateLimitError) return rateLimitError
 
     let body: Record<string, unknown>
     try {
@@ -34,9 +40,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "razorpayPaymentLinkId is required" }, { status: 400 })
     }
 
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(sessionId)) {
+        return NextResponse.json({ error: "Invalid sessionId" }, { status: 400 })
+    }
+
+    // Service role required for invoice_payments (may not be in RLS scope)
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
+    }
     const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
     // Verify ownership + status

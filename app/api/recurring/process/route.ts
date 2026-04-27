@@ -45,9 +45,27 @@ function computeNextDueDate(frequency: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  // Verify cron secret
+  // Verify cron secret using timing-safe comparison to prevent timing attacks
   const secret = request.headers.get("x-cron-secret")
-  if (secret !== process.env.CRON_SECRET) {
+  const expectedSecret = process.env.CRON_SECRET
+
+  if (!secret || !expectedSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  // Timing-safe comparison — prevents timing-based secret enumeration
+  let isValid = false
+  try {
+    const { timingSafeEqual } = await import("crypto")
+    const secretBuf = Buffer.from(secret)
+    const expectedBuf = Buffer.from(expectedSecret)
+    // Must be same length before comparing (timingSafeEqual throws on length mismatch)
+    isValid = secretBuf.length === expectedBuf.length && timingSafeEqual(secretBuf, expectedBuf)
+  } catch {
+    isValid = false
+  }
+
+  if (!isValid) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
