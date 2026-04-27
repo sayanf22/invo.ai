@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { SignaturePad } from "@/components/signature-pad"
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
+import type { InvoiceData } from "@/lib/invoice-types"
+import { cleanDataForExport } from "@/lib/invoice-types"
 
 interface BusinessData {
     name: string
@@ -77,152 +79,138 @@ function getDocumentType(signature: SignatureData): string {
     return type.charAt(0).toUpperCase() + type.slice(1)
 }
 
-function DocumentContentPreview({ context, documentType }: { context: any; documentType: string | null }) {
-    const detailsRef = useRef<HTMLDetailsElement>(null)
+// ── Inline PDF Viewer for signing page ───────────────────────────────────────
+// Renders the actual document PDF so the signer can read what they're signing.
+// Uses the same PDF templates as the rest of the app.
 
+const PDF_OPTIONS = { standardFontDataUrl: "/standard_fonts/", cMapUrl: "/cmaps/", cMapPacked: true } as const
+
+function SigningDocumentPreview({ context, documentType }: { context: any; documentType: string | null }) {
+    const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
+    const [rendering, setRendering] = useState(false)
+    const [open, setOpen] = useState(false) // collapsed by default on mobile
+    const [ViewerComponents, setViewerComponents] = useState<{ Document: any; Page: any } | null>(null)
+    const [numPages, setNumPages] = useState(0)
+    const containerRef = useRef<HTMLDivElement>(null)
+    const [containerWidth, setContainerWidth] = useState(0)
+    const optionsRef = useRef(PDF_OPTIONS)
+
+    // Load react-pdf viewer
     useEffect(() => {
-        if (detailsRef.current) {
-            const isDesktop = window.innerWidth >= 640
-            detailsRef.current.open = isDesktop
-        }
+        let cancelled = false
+        import("react-pdf").then(m => {
+            m.pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
+            if (!cancelled) setViewerComponents({ Document: m.Document, Page: m.Page })
+        })
+        return () => { cancelled = true }
     }, [])
 
-    if (!context || (typeof context === "object" && Object.keys(context).length === 0)) {
-        return (
-            <div className="rounded-lg border bg-muted/30 p-5">
-                <p className="text-sm text-muted-foreground">
-                    Document details are not available for preview. Please contact the sender if you need more information.
-                </p>
-            </div>
-        )
-    }
+    // Measure container width
+    useEffect(() => {
+        const el = containerRef.current
+        if (!el) return
+        const obs = new ResizeObserver(entries => setContainerWidth(entries[0].contentRect.width))
+        obs.observe(el)
+        setContainerWidth(el.clientWidth)
+        return () => obs.disconnect()
+    }, [])
 
-    const fromName = context.fromName || context.businessName || context.senderName || ""
-    const toName = context.toName || context.clientName || context.recipientName || ""
-    const fromEmail = context.fromEmail || context.businessEmail || ""
-    const toEmail = context.toEmail || context.clientEmail || ""
-    const fromAddress = context.fromAddress || context.businessAddress || ""
-    const toAddress = context.toAddress || context.clientAddress || ""
-    const description = context.description || context.scope || context.projectDescription || ""
-    const items = context.items || context.lineItems || []
-    const total = context.total || context.totalAmount || context.grandTotal || null
-    const currency = context.currency || "USD"
-    const terms = context.terms || context.paymentTerms || ""
-    const notes = context.notes || ""
-    const issueDate = context.issueDate || context.invoiceDate || context.date || ""
-    const dueDate = context.dueDate || ""
+    // Generate PDF when context is available and panel is opened
+    useEffect(() => {
+        if (!context || !open) return
+        let cancelled = false
+        const generate = async () => {
+            setRendering(true)
+            try {
+                const { pdf } = await import("@react-pdf/renderer")
+                const { resolveLogoUrl } = await import("@/lib/resolve-logo-url")
+                const templates = await import("@/lib/pdf-templates")
+                const docData = cleanDataForExport(context as InvoiceData)
+                const logoUrl = await resolveLogoUrl(docData.fromLogo)
+                const docType = (docData.documentType || documentType || "").toLowerCase()
+
+                let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
+                switch (docType) {
+                    case "contract": PdfComponent = templates.ContractPDF; break
+                    case "quotation": PdfComponent = templates.QuotationPDF; break
+                    case "proposal": PdfComponent = templates.ProposalPDF; break
+                    default: PdfComponent = templates.InvoicePDF; break
+                }
+
+                const blob = await pdf(<PdfComponent data={docData} logoUrl={logoUrl} />).toBlob()
+                if (cancelled) return
+                const buf = await blob.arrayBuffer()
+                setPdfBytes(new Uint8Array(buf))
+            } catch (err) {
+                console.error("Sign page PDF render error:", err)
+            } finally {
+                if (!cancelled) setRendering(false)
+            }
+        }
+        generate()
+        return () => { cancelled = true }
+    }, [context, documentType, open])
+
+    const fileData = useMemo(() => pdfBytes ? { data: pdfBytes.slice() } : null, [pdfBytes])
+    const pageWidth = containerWidth > 0 ? Math.min(containerWidth - 16, 560) : 400
+
+    if (!context) return null
 
     return (
-        <details ref={detailsRef} className="rounded-lg border bg-muted/30 group">
-            <summary className="flex items-center justify-between cursor-pointer p-5 text-sm font-medium select-none list-none">
-                <span>View Document Details</span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="px-5 pb-5 space-y-4 text-sm">
-                {/* Parties */}
-                {(fromName || toName) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {fromName && (
-                            <div className="space-y-1">
-                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">From</p>
-                                <p className="font-medium">{fromName}</p>
-                                {fromEmail && <p className="text-muted-foreground text-xs">{fromEmail}</p>}
-                                {fromAddress && <p className="text-muted-foreground text-xs">{fromAddress}</p>}
-                            </div>
-                        )}
-                        {toName && (
-                            <div className="space-y-1">
-                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">To</p>
-                                <p className="font-medium">{toName}</p>
-                                {toEmail && <p className="text-muted-foreground text-xs">{toEmail}</p>}
-                                {toAddress && <p className="text-muted-foreground text-xs">{toAddress}</p>}
-                            </div>
-                        )}
-                    </div>
-                )}
+        <div className="rounded-xl border border-border overflow-hidden">
+            {/* Toggle header */}
+            <button
+                type="button"
+                onClick={() => setOpen(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3.5 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+            >
+                <div className="flex items-center gap-2.5">
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-semibold text-foreground">View Document</span>
+                    <span className="text-xs text-muted-foreground">(read before signing)</span>
+                </div>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+            </button>
 
-                {/* Dates */}
-                {(issueDate || dueDate) && (
-                    <div className="flex flex-wrap gap-4">
-                        {issueDate && (
-                            <div>
-                                <span className="text-xs text-muted-foreground">Issue Date: </span>
-                                <span className="text-xs font-medium">{issueDate}</span>
+            {/* PDF content */}
+            {open && (
+                <div ref={containerRef} className="bg-neutral-100 dark:bg-neutral-900 overflow-auto max-h-[70vh]">
+                    {rendering && (
+                        <div className="flex items-center justify-center py-12">
+                            <div className="flex items-center gap-2.5 bg-card px-4 py-2.5 rounded-xl shadow border border-border/60">
+                                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                                <span className="text-sm text-muted-foreground">Loading document...</span>
                             </div>
-                        )}
-                        {dueDate && (
-                            <div>
-                                <span className="text-xs text-muted-foreground">Due Date: </span>
-                                <span className="text-xs font-medium">{dueDate}</span>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Description */}
-                {description && (
-                    <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Description</p>
-                        <p className="text-muted-foreground">{description}</p>
-                    </div>
-                )}
-
-                {/* Line Items */}
-                {Array.isArray(items) && items.length > 0 && (
-                    <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Items</p>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-xs">
-                                <thead>
-                                    <tr className="border-b">
-                                        <th className="text-left py-1.5 pr-2 font-medium text-muted-foreground">Description</th>
-                                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Qty</th>
-                                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Rate</th>
-                                        <th className="text-right py-1.5 pl-2 font-medium text-muted-foreground">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {items.map((item: any, i: number) => (
-                                        <tr key={i} className="border-b border-dashed last:border-0">
-                                            <td className="py-1.5 pr-2">{item.description || item.name || ""}</td>
-                                            <td className="text-right py-1.5 px-2">{item.quantity ?? ""}</td>
-                                            <td className="text-right py-1.5 px-2">{item.rate ?? item.unitPrice ?? ""}</td>
-                                            <td className="text-right py-1.5 pl-2 font-medium">{item.amount ?? item.total ?? ""}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
                         </div>
-                    </div>
-                )}
-
-                {/* Total */}
-                {total && (
-                    <div className="flex justify-end pt-1">
-                        <div className="text-right">
-                            <span className="text-xs text-muted-foreground">Total: </span>
-                            <span className="font-semibold">{currency} {total}</span>
+                    )}
+                    {fileData && ViewerComponents && !rendering && (
+                        <div className="flex flex-col items-center gap-4 py-4 px-2">
+                            <ViewerComponents.Document
+                                file={fileData}
+                                onLoadSuccess={({ numPages: n }: { numPages: number }) => setNumPages(n)}
+                                options={optionsRef.current}
+                                loading={
+                                    <div className="flex justify-center py-12">
+                                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                                    </div>
+                                }
+                            >
+                                {Array.from({ length: numPages }, (_, i) => (
+                                    <div key={i} className="shadow-lg rounded-lg overflow-hidden bg-white mb-4">
+                                        <ViewerComponents.Page
+                                            pageNumber={i + 1}
+                                            width={pageWidth}
+                                            renderTextLayer={false}
+                                            renderAnnotationLayer={false}
+                                        />
+                                    </div>
+                                ))}
+                            </ViewerComponents.Document>
                         </div>
-                    </div>
-                )}
-
-                {/* Terms */}
-                {terms && (
-                    <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Terms</p>
-                        <p className="text-muted-foreground">{terms}</p>
-                    </div>
-                )}
-
-                {/* Notes */}
-                {notes && (
-                    <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Notes</p>
-                        <p className="text-muted-foreground">{notes}</p>
-                    </div>
-                )}
-            </div>
-        </details>
+                    )}
+                </div>
+            )}
+        </div>
     )
 }
 
@@ -640,8 +628,8 @@ export default function SigningPage() {
                         </div>
                     </div>
 
-                    {/* Document Content Preview */}
-                    <DocumentContentPreview context={sessionContext} documentType={documentType} />
+                    {/* Document PDF Preview — signer reads the actual document before signing */}
+                    <SigningDocumentPreview context={sessionContext} documentType={documentType} />
 
                     {/* Signer info (readonly) */}
                     <div className="grid gap-4">
