@@ -624,10 +624,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     <View style={s.sigBlk}>
                         <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
                         {(() => {
-                            const providerSig = data.signatureImages?.find(s => s.party === "Provider")
-                            if (providerSig?.imageDataUrl) {
-                                return <Image src={providerSig.imageDataUrl} style={{ width: 140, height: 50, objectFit: "contain", marginBottom: 4 }} />
-                            }
+                            // Party A is the document owner (Provider) — no drawn signature
                             return <View style={s.sigLine} />
                         })()}
                         <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
@@ -636,9 +633,11 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     <View style={{ ...s.sigBlk, marginRight: 0 }}>
                         <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
                         {(() => {
-                            const clientSig = data.signatureImages?.find(s => s.party === "Client")
+                            // Party B is the signer (Client) — show their drawn signature if available
+                            // All signers are stored with party="Client" by default
+                            const clientSig = data.signatureImages?.[0]
                             if (clientSig?.imageDataUrl) {
-                                return <Image src={clientSig.imageDataUrl} style={{ width: 140, height: 50, objectFit: "contain", marginBottom: 4 }} />
+                                return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
                             }
                             return <View style={s.sigLine} />
                         })()}

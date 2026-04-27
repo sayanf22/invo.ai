@@ -1291,6 +1291,42 @@ export default function MyDocumentsPage() {
         default: PdfComponent = templates.InvoicePDF; filePrefix = cleanedData.invoiceNumber || "invoice"; break
       }
 
+      // Load signature images for signed documents (contracts/quotations/proposals)
+      if (["contract", "quotation", "proposal"].includes(docType) && session.status === "signed") {
+        try {
+          const { data: sigs } = await (supabase as any)
+            .from("signatures")
+            .select("signer_name, party, signed_at, signature_image_url")
+            .eq("session_id", session.id)
+            .not("signed_at", "is", null)
+
+          if (sigs && sigs.length > 0) {
+            const sigImages: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }> = []
+            for (const sig of sigs) {
+              if (sig.signature_image_url && sig.signature_image_url !== "data_url_fallback") {
+                try {
+                  const imgRes = await authFetch(`/api/storage/image?key=${encodeURIComponent(sig.signature_image_url)}`)
+                  if (imgRes.ok) {
+                    const imgData = await imgRes.json()
+                    if (imgData.dataUrl) {
+                      sigImages.push({
+                        signerName: sig.signer_name || "Signer",
+                        party: sig.party || "Client",
+                        imageDataUrl: imgData.dataUrl,
+                        signedAt: sig.signed_at,
+                      })
+                    }
+                  }
+                } catch { /* ignore */ }
+              }
+            }
+            if (sigImages.length > 0) {
+              cleanedData.signatureImages = sigImages
+            }
+          }
+        } catch { /* non-fatal — generate PDF without signatures */ }
+      }
+
       const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
