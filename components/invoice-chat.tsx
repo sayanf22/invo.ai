@@ -17,6 +17,19 @@ import AIThinkingBlock from "@/components/ui/ai-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
 import { createClient } from "@/lib/supabase"
 import { ClientSelector } from "@/components/clients/client-selector"
+import { ChatSendCard } from "@/components/chat-send-card"
+import { SendEmailDialog } from "@/components/send-email-dialog"
+
+// ── Send intent detection ─────────────────────────────────────────────────────
+
+const SEND_INTENT_REGEX = /\b(send|email|mail|deliver|dispatch|forward)\b/i
+const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
+
+function detectSendIntent(prompt: string): { hasSendIntent: boolean; email: string } {
+    const hasSendIntent = SEND_INTENT_REGEX.test(prompt)
+    const emailMatch = prompt.match(EMAIL_REGEX)
+    return { hasSendIntent, email: emailMatch ? emailMatch[0] : "" }
+}
 
 interface InvoiceChatProps {
     data: InvoiceData
@@ -52,7 +65,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; sendCard?: { email: string } }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
@@ -62,6 +75,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [documentLimitReached, setDocumentLimitReached] = useState(false)
     const [showUpgradeModal, setShowUpgradeModal] = useState(false)
     const [upgradeInfo, setUpgradeInfo] = useState<{ tier: string; currentUsage?: number; limit?: number; errorType: "limit" | "type_restriction" | "feature_restricted"; message?: string } | null>(null)
+    // Send dialog state (opened from chat card "Customize" button)
+    const [sendDialogOpen, setSendDialogOpen] = useState(false)
+    const [sendDialogEmail, setSendDialogEmail] = useState("")
 
     const scrollRef = useRef<HTMLDivElement>(null)
     const initialPromptSentRef = useRef(false)
@@ -558,6 +574,20 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     await saveMessage("user", displayText)
                     await saveMessage("assistant", displayMsg)
                     toast.success("Document updated!")
+
+                    // ── Send intent detection ──────────────────────────────────────────
+                    // If the user's prompt contained a send intent (e.g. "send to xyz@email.com"),
+                    // append a send card after the assistant message.
+                    const { hasSendIntent, email: detectedEmail } = detectSendIntent(userMessage)
+                    if (hasSendIntent) {
+                        const cardEmail = detectedEmail || docData.toEmail || ""
+                        setMessages(prev => [...prev, {
+                            role: "assistant",
+                            content: "",
+                            sendCard: { email: cardEmail },
+                        }])
+                    }
+                    // ── End send intent detection ──────────────────────────────────────
                 } else {
                     // JSON parse completely failed — show the raw text as a chat message
                     console.error("Failed to parse AI response as JSON:", cleaned.slice(0, 200))
@@ -570,6 +600,21 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
                 await saveMessage("user", displayText)
                 await saveMessage("assistant", cleaned)
+
+                // ── Send intent detection for plain-text responses ─────────────────
+                // If user asked to send and document already exists, show send card
+                if (documentGenerated && session) {
+                    const { hasSendIntent, email: detectedEmail } = detectSendIntent(userMessage)
+                    if (hasSendIntent) {
+                        const cardEmail = detectedEmail || data.toEmail || ""
+                        setMessages(prev => [...prev, {
+                            role: "assistant",
+                            content: "",
+                            sendCard: { email: cardEmail },
+                        }])
+                    }
+                }
+                // ── End send intent detection ──────────────────────────────────────
             }
         } catch (err: any) {
             const errorMsg = err.message || "Something went wrong"
@@ -765,7 +810,24 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             "flex w-full animate-in fade-in slide-in-from-bottom-1 duration-300",
                             msg.role === "user" ? "justify-end" : "justify-start"
                         )}>
-                            {msg.role === "user" ? (
+                            {msg.sendCard ? (
+                                // Inline send card — only shown when send intent detected
+                                <ChatSendCard
+                                    sessionId={session!.id}
+                                    invoiceData={data}
+                                    documentType={docType}
+                                    detectedEmail={msg.sendCard.email}
+                                    onDismiss={() => setMessages(prev => prev.filter((_, i) => i !== idx))}
+                                    onCustomize={(email) => {
+                                        setSendDialogEmail(email)
+                                        setSendDialogOpen(true)
+                                        setMessages(prev => prev.filter((_, i) => i !== idx))
+                                    }}
+                                    onSent={() => {
+                                        // Replace card with success (card handles its own sent state)
+                                    }}
+                                />
+                            ) : msg.role === "user" ? (
                                 <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300 break-words"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)" }}
                                 >
@@ -958,6 +1020,22 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         // Reset limit state so user can immediately continue
                         setDocumentLimitReached(false)
                         setUpgradeInfo(null)
+                    }}
+                />
+            )}
+
+            {/* Send Email Dialog — opened from chat card "Customize" button */}
+            {session && sendDialogOpen && (
+                <SendEmailDialog
+                    open={sendDialogOpen}
+                    onClose={() => setSendDialogOpen(false)}
+                    sessionId={session.id}
+                    invoiceData={data}
+                    documentType={docType}
+                    defaultEmail={sendDialogEmail}
+                    onEmailSent={() => {
+                        setSendDialogOpen(false)
+                        toast.success("Document sent!")
                     }}
                 />
             )}
