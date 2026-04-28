@@ -5,7 +5,7 @@ import { authFetch } from "@/lib/auth-fetch"
 import { useUser } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { ExternalLink, Trash2, Loader2, Eye, EyeOff, CheckCircle2, Lock, Pencil, Copy, Check, ChevronDown, ChevronUp, Banknote, Building2, Smartphone, CreditCard, Globe, Plus, X } from "lucide-react"
+import { ExternalLink, Trash2, Loader2, Eye, EyeOff, CheckCircle2, Lock, Pencil, Copy, Check, ChevronDown, ChevronUp, Banknote, Building2, Smartphone, CreditCard, Globe, Plus, X, ShieldAlert, AlertTriangle } from "lucide-react"
 
 type Gateway = "razorpay" | "stripe" | "cashfree"
 interface GatewaySettings { razorpay?: { keyId: string; accountName?: string; testMode: boolean; webhookSecret?: string; webhookRegistered: boolean } | null; stripe?: { testMode: boolean; webhookRegistered: boolean } | null; cashfree?: { clientId: string; testMode: boolean } | null; updatedAt?: string }
@@ -60,6 +60,199 @@ function SecretInput({ value, onChange, placeholder, show, onToggle }: { value: 
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false)
   return <div><label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">{label}</label><div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/30"><code className="flex-1 text-xs font-mono text-foreground/80 truncate">{value}</code><button type="button" onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className="shrink-0 p-1 rounded-lg text-foreground/40 hover:text-foreground hover:bg-muted transition-colors">{copied ? <Check size={13} className="text-primary" /> : <Copy size={13} />}</button></div></div>
+}
+
+// ── Secure Secret Reveal Field ────────────────────────────────────────────────
+// Industry standard: never show secrets in plaintext. Require explicit confirmation.
+// Pattern used by: GitHub, Stripe, Vercel, AWS, Razorpay docs all say "never expose publicly"
+
+function SecretRevealField({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [confirmText, setConfirmText] = useState("")
+  const [revealed, setRevealed] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const maskedValue = value ? "•".repeat(Math.min(value.length, 32)) : "••••••••••••••••••••••••••••••••"
+  const displayValue = revealed ? value : maskedValue
+
+  const handleReveal = () => {
+    if (confirmText.trim().toUpperCase() === "CONFIRM") {
+      setRevealed(true)
+      setShowConfirm(false)
+      setConfirmText("")
+      // Auto-hide after 30 seconds
+      setTimeout(() => setRevealed(false), 30000)
+    }
+  }
+
+  const handleCopy = () => {
+    if (!value) return
+    navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <>
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-foreground/50">{label}</label>
+          {hint && <span className="text-[10px] text-muted-foreground/60">{hint}</span>}
+        </div>
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-muted/20">
+          <code className={cn("flex-1 text-xs font-mono truncate select-none", revealed ? "text-foreground" : "text-muted-foreground/60 tracking-widest")}>
+            {displayValue}
+          </code>
+          <div className="flex items-center gap-1 shrink-0">
+            {revealed ? (
+              <>
+                <button type="button" onClick={handleCopy} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Copy">
+                  {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                </button>
+                <button type="button" onClick={() => setRevealed(false)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Hide">
+                  <EyeOff size={13} />
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setShowConfirm(true)} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 transition-colors">
+                <Eye size={11} /> Reveal
+              </button>
+            )}
+          </div>
+        </div>
+        {revealed && (
+          <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+            <ShieldAlert size={10} /> Auto-hides in 30s · Never share this secret
+          </p>
+        )}
+      </div>
+
+      {/* Confirm dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[6px]" onClick={() => { setShowConfirm(false); setConfirmText("") }} />
+          <div className="relative bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-sm w-full space-y-4"
+            style={{ boxShadow: "0 24px 80px -12px rgba(0,0,0,0.3)" }}>
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <ShieldAlert className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Reveal Secret</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  This is sensitive. Type <strong className="text-foreground font-mono">CONFIRM</strong> to reveal.
+                </p>
+              </div>
+            </div>
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 px-3 py-2.5">
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                <strong>Never share this secret.</strong> Anyone with access can intercept your payment webhooks. Razorpay explicitly states secrets must never be exposed publicly.
+              </p>
+            </div>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={e => setConfirmText(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleReveal()}
+              placeholder="Type CONFIRM"
+              autoFocus
+              className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 transition-all"
+            />
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setShowConfirm(false); setConfirmText("") }}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-muted/60 transition-colors">
+                Cancel
+              </button>
+              <button type="button" onClick={handleReveal}
+                disabled={confirmText.trim().toUpperCase() !== "CONFIRM"}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                Reveal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── Webhook Panel (collapsed by default, secure) ──────────────────────────────
+
+function WebhookPanel({ gateway, webhookUrl, webhookSecret, webhookRegistered }: {
+  gateway: string; webhookUrl: string; webhookSecret?: string; webhookRegistered?: boolean
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className={cn(
+      "mx-4 mb-3 rounded-xl border overflow-hidden transition-all duration-200",
+      webhookRegistered
+        ? "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/10"
+        : "border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-950/10"
+    )}>
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center justify-between px-3.5 py-2.5 text-left"
+      >
+        <div className="flex items-center gap-2">
+          {webhookRegistered
+            ? <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+            : <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+          }
+          <span className={cn("text-[12px] font-semibold", webhookRegistered ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
+            {webhookRegistered ? "Webhook configured" : "Webhook setup required"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <a href={`/integrations/payments/${gateway}`} target="_blank" rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="text-[11px] font-medium text-primary hover:underline flex items-center gap-0.5">
+            Guide <ExternalLink size={10} />
+          </a>
+          {expanded ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
+        </div>
+      </button>
+
+      <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+        <div className="min-h-0 overflow-hidden">
+          <div className="px-3.5 pb-3.5 pt-1 border-t border-border/30 space-y-3">
+            {!webhookRegistered && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                Copy these into your {gateway.charAt(0).toUpperCase() + gateway.slice(1)} Dashboard → Settings → Webhooks
+              </p>
+            )}
+            {/* Webhook URL — safe to show, it's a public endpoint */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">Webhook URL</label>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-background/80">
+                <code className="flex-1 text-xs font-mono text-foreground/80 truncate">{webhookUrl}</code>
+                <CopyBtn value={webhookUrl} />
+              </div>
+            </div>
+            {/* Webhook Secret — NEVER show in plaintext, require confirmation */}
+            {webhookSecret && (
+              <SecretRevealField
+                label="Webhook Secret"
+                value={webhookSecret}
+                hint="Never share · Razorpay docs"
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CopyBtn({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button type="button" onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+      className="shrink-0 p-1 rounded-lg text-foreground/40 hover:text-foreground hover:bg-muted transition-colors">
+      {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+    </button>
+  )
 }
 
 interface CredFormProps {
@@ -329,6 +522,7 @@ export function PaymentSettings() {
                   const isEditing = editingGateway === gw.id
                   return (
                     <div key={gw.id} className={cn("rounded-2xl border bg-card overflow-hidden transition-all duration-200", isEditing ? "border-primary/50 ring-2 ring-primary/10 shadow-md" : "border-border shadow-sm hover:shadow-md")} style={{ boxShadow: isEditing ? undefined : "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)" }}>
+                      {/* Header row */}
                       <div className="flex items-center gap-3 px-4 py-3.5">
                         <GatewayAvatar gw={gw} size={40} />
                         <div className="flex-1 min-w-0">
@@ -337,7 +531,12 @@ export function PaymentSettings() {
                             <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle2 size={10} /> Connected</span>
                             {(s as any).testMode && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Test Mode</span>}
                           </div>
-                          <p className="text-xs text-foreground/60 mt-0.5">{gw.description}</p>
+                          {/* Show masked key ID hint */}
+                          <p className="text-xs text-foreground/50 mt-0.5 font-mono">
+                            {(s as any).keyId
+                              ? `${(s as any).keyId.slice(0, 8)}••••••••${(s as any).keyId.slice(-4)}`
+                              : gw.description}
+                          </p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button onClick={() => handleTestWebhook(gw.id)} disabled={testingWebhook === gw.id} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl font-medium border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors disabled:opacity-50">
@@ -351,6 +550,16 @@ export function PaymentSettings() {
                           </button>
                         </div>
                       </div>
+                      {/* Webhook panel — collapsed by default, secrets require confirmation to reveal */}
+                      {(gw.id === "razorpay" || gw.id === "cashfree") && (
+                        <WebhookPanel
+                          gateway={gw.id}
+                          webhookUrl={`${typeof window !== "undefined" ? window.location.origin : "https://yourdomain.com"}/api/${gw.id}/webhook`}
+                          webhookSecret={(s as any).webhookSecret}
+                          webhookRegistered={(s as any).webhookRegistered}
+                        />
+                      )}
+                      {/* Edit form */}
                       <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", isEditing ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
                         <div className="min-h-0 overflow-hidden">
                           <CredentialForm {...sharedFormProps} gw={gw} onSave={handleUpdate} onCancel={() => { setEditingGateway(null); resetForm() }} isUpdate />
