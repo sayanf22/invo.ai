@@ -121,11 +121,11 @@ const WEBHOOK_INSTRUCTIONS: Record<string, { steps: string[]; secretNote: string
       "Click Account & Settings (top right) → Webhooks",
       "Click + Add New Webhook",
       "Paste the Webhook URL in the URL field",
-      "Click Reveal Secret below, then copy it and paste into the Secret field",
+      "In the Secret field: click 'Reveal Secret' below to get your secret, then paste it — OR type any password you want (just remember it!)",
       "Tick these 4 events: payment_link.paid, payment_link.partially_paid, payment_link.expired, payment_link.cancelled",
       "Click Save — done! ✅",
     ],
-    secretNote: "The Secret below is a random code we created for you. It is NOT your Razorpay API Key. You just need to copy it and paste it into the Razorpay webhook form. That's it — Razorpay uses it to prove the payment notifications are genuine.",
+    secretNote: "The Secret is like a password between Razorpay and this app. You can either use the one we generated (click Reveal below), or type your own. Whatever you enter in Razorpay's Secret field must match what's saved here. If you use your own, update it below.",
     events: ["payment_link.paid", "payment_link.partially_paid", "payment_link.expired", "payment_link.cancelled"],
   },
   stripe: {
@@ -153,12 +153,16 @@ const WEBHOOK_INSTRUCTIONS: Record<string, { steps: string[]; secretNote: string
   },
 }
 
-// ── Razorpay Secret Reveal (fetched from secure API) ─────────────────────────
+// ── Razorpay Secret Reveal + Custom Secret (fetched from secure API) ─────────
 function RazorpaySecretReveal({ gateway }: { gateway: string }) {
   const [secret, setSecret] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCustom, setShowCustom] = useState(false)
+  const [customSecret, setCustomSecret] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
   const fetchSecret = async () => {
     setLoading(true)
@@ -168,7 +172,6 @@ function RazorpaySecretReveal({ gateway }: { gateway: string }) {
       if (res.ok) {
         const data = await res.json()
         setSecret(data.secret)
-        // Auto-hide after 60 seconds
         setTimeout(() => setSecret(null), 60000)
       } else {
         setError("Could not load secret")
@@ -187,34 +190,88 @@ function RazorpaySecretReveal({ gateway }: { gateway: string }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  if (secret) {
-    return (
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20">
-          <code className="flex-1 text-[11px] font-mono text-foreground break-all select-all">{secret}</code>
-          <button type="button" onClick={copy} className="shrink-0 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-            {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-          </button>
-          <button type="button" onClick={() => setSecret(null)} className="shrink-0 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-            <EyeOff size={13} />
-          </button>
-        </div>
-        <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-          <Lock size={10} /> Auto-hides in 60s · Copy this and paste into Razorpay
-        </p>
-      </div>
-    )
+  const saveCustomSecret = async () => {
+    if (!customSecret.trim() || customSecret.trim().length < 8) {
+      setError("Secret must be at least 8 characters")
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await authFetch(`/api/payments/webhook-secret`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gateway, secret: customSecret.trim() }),
+      })
+      if (res.ok) {
+        setSaved(true)
+        setShowCustom(false)
+        setCustomSecret("")
+        setTimeout(() => setSaved(false), 3000)
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error || "Failed to save")
+      }
+    } catch {
+      setError("Network error")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <div className="space-y-1">
-      <button type="button" onClick={fetchSecret} disabled={loading}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/40 transition-colors disabled:opacity-50">
-        {loading ? <Loader2 size={11} className="animate-spin" /> : <Eye size={11} />}
-        {loading ? "Loading..." : "Reveal Webhook Secret"}
-      </button>
+    <div className="space-y-2">
+      {/* Option A: Use our generated secret */}
+      <div className="space-y-1">
+        <p className="text-[11px] font-semibold text-foreground">Option A — Use our generated secret (recommended)</p>
+        {secret ? (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20">
+              <code className="flex-1 text-[11px] font-mono text-foreground break-all select-all">{secret}</code>
+              <button type="button" onClick={copy} className="shrink-0 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+              </button>
+              <button type="button" onClick={() => setSecret(null)} className="shrink-0 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <EyeOff size={13} />
+              </button>
+            </div>
+            <p className="text-[10px] text-amber-600 dark:text-amber-400">Auto-hides in 60s · Copy and paste into Razorpay's Secret field</p>
+          </div>
+        ) : (
+          <button type="button" onClick={fetchSecret} disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold border border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50">
+            {loading ? <Loader2 size={11} className="animate-spin" /> : <Eye size={11} />}
+            {loading ? "Loading..." : "Reveal Secret"}
+          </button>
+        )}
+      </div>
+
+      {/* Option B: Use your own secret */}
+      <div className="space-y-1">
+        <button type="button" onClick={() => setShowCustom(v => !v)}
+          className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2">
+          Option B — I want to use my own secret
+        </button>
+        {showCustom && (
+          <div className="space-y-1.5 p-3 rounded-xl border border-border bg-muted/20">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Type any password (min 8 chars). Use the same string in Razorpay's Secret field AND save it here so we can verify signatures.
+            </p>
+            <div className="flex gap-2">
+              <input type="text" value={customSecret} onChange={e => setCustomSecret(e.target.value)}
+                placeholder="e.g. MyWebhookSecret123"
+                className="flex-1 px-3 py-1.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all font-mono text-xs" />
+              <button type="button" onClick={saveCustomSecret} disabled={saving || !customSecret.trim()}
+                className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {saving ? <Loader2 size={11} className="animate-spin" /> : saved ? "Saved ✓" : "Save"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {error && <p className="text-[10px] text-red-500">{error}</p>}
-      <p className="text-[10px] text-muted-foreground">Paste this into the Secret field in Razorpay</p>
+      {saved && <p className="text-[10px] text-emerald-600">Secret updated! Make sure to use the same string in Razorpay.</p>}
     </div>
   )
 }
