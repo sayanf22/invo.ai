@@ -170,7 +170,7 @@ export function NextStepsBar({
                                             )}
                                             {isLocked && (
                                                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
-                                                    Pro
+                                                    Starter
                                                 </span>
                                             )}
                                         </button>

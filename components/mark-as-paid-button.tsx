@@ -65,13 +65,13 @@ function MarkAsPaidDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[6px]" onClick={onCancel} />
-      <div className="relative w-full sm:max-w-[420px] bg-card rounded-t-[28px] sm:rounded-[24px] shadow-[0_24px_80px_-12px_rgba(0,0,0,0.25)] overflow-hidden border border-border/60">
+      <div className="relative w-full sm:max-w-[420px] bg-card rounded-t-[28px] sm:rounded-[24px] shadow-[0_24px_80px_-12px_rgba(0,0,0,0.25)] border border-border/60 flex flex-col max-h-[92dvh] sm:max-h-[90vh]">
         {/* Mobile handle */}
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+        <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
           <div className="w-10 h-1 rounded-full bg-border/60" />
         </div>
 
-        <div className="px-6 pb-7 pt-4 sm:pt-6 space-y-5">
+        <div className="overflow-y-auto overscroll-contain px-6 pb-7 pt-4 sm:pt-6 space-y-5" style={{ paddingBottom: "max(1.75rem, env(safe-area-inset-bottom))" }}>
           {/* Header */}
           <div className="flex flex-col items-center text-center gap-3">
             <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
