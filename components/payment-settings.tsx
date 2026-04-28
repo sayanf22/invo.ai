@@ -100,25 +100,66 @@ function CopyField({ label, value }: { label: string; value: string }) {
 }
 
 // ── Webhook Panel (collapsed by default, secure) ──────────────────────────────
-// RESEARCH FINDINGS:
-// - Stripe: Has GET /v1/webhook_endpoints API — can verify programmatically ✅
-// - Razorpay: No public API to list merchant webhooks (Partners API only) — must track manually
-// - Cashfree: No public API to list webhooks — must be configured via dashboard manually
+// RESEARCH FINDINGS (verified from official docs):
+// - Razorpay: Secret is a CUSTOM string YOU create — NOT your API key secret.
+//   You generate it here, then paste it into Razorpay Dashboard → Settings → Webhooks.
+//   Razorpay docs: "The secret does not need to be the Razorpay API key secret."
+// - Stripe: Webhook auto-registered via API. Signing secret starts with "whsec_".
+//   Found in Dashboard → Developers → Webhooks → click endpoint → Signing secret → Reveal.
+// - Cashfree: No separate webhook secret — uses Client Secret for HMAC-SHA256 signing.
+//   Just add the webhook URL in Dashboard → Payment Gateway → Developers → Webhooks.
 //
-// LOGIC: For Razorpay/Cashfree, if webhookConfigured (secret exists in DB) = true,
-// the user has connected and the webhook URL is ready to use. Show as "ready".
-// For Stripe, webhookRegistered = true means we auto-registered it via API.
+// WEBHOOK STATUS LOGIC:
+// - Stripe: webhookRegistered = auto-registered via API (definitive check)
+// - Razorpay/Cashfree: webhookConfigured = secret exists in DB = URL is ready to use
+
+const WEBHOOK_INSTRUCTIONS: Record<string, { steps: string[]; secretNote: string; events: string[] }> = {
+  razorpay: {
+    steps: [
+      "Copy the Webhook URL below",
+      "Go to Razorpay Dashboard → Account & Settings → Webhooks",
+      "Click + Add New Webhook",
+      "Paste the URL in the Webhook URL field",
+      "In the Secret field, paste the secret we generated for you (shown below)",
+      "Enable these events: payment_link.paid, payment_link.partially_paid, payment_link.expired, payment_link.cancelled",
+      "Click Save",
+    ],
+    secretNote: "The Secret is a random string we generated for you. It is NOT your Razorpay API Key Secret. Copy it from below and paste it into the Razorpay webhook form. Razorpay uses it to sign payloads so we can verify they're genuine.",
+    events: ["payment_link.paid", "payment_link.partially_paid", "payment_link.expired", "payment_link.cancelled"],
+  },
+  stripe: {
+    steps: [
+      "Stripe webhook was auto-registered when you connected your account",
+      "To verify: go to Stripe Dashboard → Developers → Webhooks",
+      "You should see an endpoint pointing to this app",
+      "If missing, disconnect and reconnect Stripe to re-register",
+    ],
+    secretNote: "Stripe auto-registers the webhook and we store the signing secret securely. You don't need to do anything manually.",
+    events: ["checkout.session.completed", "payment_link.completed"],
+  },
+  cashfree: {
+    steps: [
+      "Copy the Webhook URL below",
+      "Go to Cashfree Dashboard → Payment Gateway → Developers → Webhooks",
+      "Click Add Webhook Endpoint",
+      "Paste the URL and select Webhook Version 2025-01-01",
+      "Enable PAYMENT_LINK_EVENT notifications",
+      "Click Save — no separate secret needed",
+    ],
+    secretNote: "Cashfree uses your Client Secret (already saved) to sign webhook payloads. You don't need to enter a separate webhook secret.",
+    events: ["PAYMENT_LINK_EVENT"],
+  },
+}
 
 function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistered }: {
   gateway: string; webhookUrl: string; webhookConfigured?: boolean; webhookRegistered?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
 
-  // Determine actual status:
-  // - Stripe: webhookRegistered = auto-registered via API (definitive)
-  // - Razorpay/Cashfree: webhookConfigured = secret exists = URL is ready to use
   const isStripe = gateway === "stripe"
+  const isCashfree = gateway === "cashfree"
   const isReady = isStripe ? webhookRegistered : webhookConfigured
+  const info = WEBHOOK_INSTRUCTIONS[gateway]
 
   return (
     <div className={cn(
@@ -139,54 +180,85 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
           }
           <span className={cn("text-[12px] font-semibold truncate", isReady ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
             {isReady
-              ? isStripe ? "Webhook auto-configured" : "Webhook URL ready"
-              : "Webhook setup required"}
+              ? isStripe ? "Webhook auto-configured" : "Webhook URL ready — add to dashboard"
+              : "Action required: add webhook to dashboard"}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <a href={`/integrations/payments/${gateway}`} target="_blank" rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            className="text-[11px] font-medium text-primary hover:underline flex items-center gap-0.5">
-            Guide <ExternalLink size={10} />
-          </a>
           {expanded ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
         </div>
       </button>
 
       <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
         <div className="min-h-0 overflow-hidden">
-          <div className="px-3 pb-3 pt-1 border-t border-border/30 space-y-2.5">
-            {!isReady && (
-              <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
-                Copy the URL below into your {gateway.charAt(0).toUpperCase() + gateway.slice(1)} Dashboard → Settings → Webhooks
-              </p>
+          <div className="px-3 pb-3 pt-1 border-t border-border/30 space-y-3">
+
+            {/* Step-by-step instructions */}
+            {info && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/50">Setup Steps</p>
+                <ol className="space-y-1.5">
+                  {info.steps.map((step, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                      <span className="text-[11px] text-foreground/80 leading-relaxed">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
             )}
-            {isReady && !isStripe && (
-              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 leading-relaxed">
-                Your webhook URL is ready. Add it in your {gateway.charAt(0).toUpperCase() + gateway.slice(1)} Dashboard → Settings → Webhooks if you haven't already.
-              </p>
-            )}
-            {/* Webhook URL — safe to show, it's a public endpoint */}
+
+            {/* Webhook URL */}
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">Webhook URL</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">
+                {isStripe ? "Your Webhook URL (auto-registered)" : "Step 1 — Copy this Webhook URL"}
+              </label>
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-background/80">
                 <code className="flex-1 text-[11px] font-mono text-foreground/80 break-all">{webhookUrl}</code>
                 <CopyBtn value={webhookUrl} />
               </div>
             </div>
-            {/* Webhook Secret — NEVER shown, only status */}
-            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-muted/30 border border-border/40">
-              <Lock size={12} className="text-muted-foreground shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-semibold text-foreground">Webhook Secret</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
-                  {webhookConfigured
-                    ? "Stored securely server-side. Never sent to the browser."
-                    : "No secret configured. Webhook URL is still functional."}
-                </p>
+
+            {/* Secret info — gateway-specific */}
+            {info && (
+              <div className="rounded-xl border border-border/40 bg-muted/20 p-3 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Lock size={12} className="text-muted-foreground shrink-0" />
+                  <p className="text-[11px] font-semibold text-foreground">
+                    {isCashfree ? "No separate secret needed" : isStripe ? "Webhook signing secret" : "About the Webhook Secret"}
+                  </p>
+                  {webhookConfigured && !isCashfree && <CheckCircle2 size={11} className="text-emerald-500 shrink-0 ml-auto" />}
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{info.secretNote}</p>
               </div>
-              {webhookConfigured && <CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" />}
-            </div>
+            )}
+
+            {/* Required events */}
+            {info && (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">
+                  {isStripe ? "Handled Events" : "Enable These Events"}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {info.events.map(ev => (
+                    <span key={ev} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-primary/8 dark:bg-primary/15 text-primary text-[10px] font-mono font-semibold">
+                      {ev}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* External link */}
+            <a href={
+              gateway === "razorpay" ? "https://dashboard.razorpay.com/app/webhooks" :
+              gateway === "stripe" ? "https://dashboard.stripe.com/webhooks" :
+              "https://merchant.cashfree.com/merchants/developer/webhooks"
+            } target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary hover:underline">
+              Open {gateway.charAt(0).toUpperCase() + gateway.slice(1)} Webhooks Dashboard
+              <ExternalLink size={10} />
+            </a>
           </div>
         </div>
       </div>
