@@ -18,12 +18,21 @@ import { authFetch } from "@/lib/auth-fetch"
 import { createClient } from "@/lib/supabase"
 import { ClientSelector } from "@/components/clients/client-selector"
 import { ChatSendCard } from "@/components/chat-send-card"
+import { ChatPaymentCard } from "@/components/chat-payment-card"
 import { SendEmailDialog } from "@/components/send-email-dialog"
+import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
 // ── Send intent detection ─────────────────────────────────────────────────────
 
 const SEND_INTENT_REGEX = /\b(send|email|mail|deliver|dispatch|forward)\b/i
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
+
+// ── Payment intent detection ──────────────────────────────────────────────────
+const PAYMENT_INTENT_REGEX = /\b(payment\s*(gateway|method|link|option)|connect\s*(razorpay|stripe|cashfree|payment)|add\s*(payment|gateway)|online\s*payment|accept\s*payment|pay\s*online|payment\s*setup)\b/i
+
+function detectPaymentIntent(prompt: string): boolean {
+    return PAYMENT_INTENT_REGEX.test(prompt)
+}
 
 function detectSendIntent(prompt: string): { hasSendIntent: boolean; email: string } {
     const hasSendIntent = SEND_INTENT_REGEX.test(prompt)
@@ -65,7 +74,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; sendCard?: { email: string } }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; sendCard?: { email: string }; paymentCard?: boolean }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
@@ -78,6 +87,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     // Send dialog state (opened from chat card "Customize" button)
     const [sendDialogOpen, setSendDialogOpen] = useState(false)
     const [sendDialogEmail, setSendDialogEmail] = useState("")
+
+    // Payment methods hook — to check if any gateway is connected
+    const { hasAnyGateway } = usePaymentMethods()
 
     const scrollRef = useRef<HTMLDivElement>(null)
     const initialPromptSentRef = useRef(false)
@@ -305,6 +317,20 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             }
         }
         // ── End pre-flight guard ───────────────────────────────────────────────
+
+        // ── Payment intent guard — show card if no gateway connected ──────────
+        if (docType === "invoice" && detectPaymentIntent(userMessage) && !hasAnyGateway) {
+            setInputValue("")
+            setMessages(prev => [...prev,
+                { role: "user" as const, content: userMessage },
+                { role: "assistant" as const, content: "To accept online payments on your invoices, you'll need to connect a payment gateway. Here's how to get started:", paymentCard: true },
+            ])
+            await saveMessage("user", userMessage)
+            await saveMessage("assistant", "To accept online payments on your invoices, you'll need to connect a payment gateway.")
+            return
+        }
+        // ── End payment intent guard ──────────────────────────────────────────
+
         // Display only the user's text, not the enriched file context
         const displayText = userMessage.includes("[CLIENT DETAILS FROM ATTACHED FILE")
             ? userMessage.split("\n\n[CLIENT DETAILS")[0].trim() || "📎 Generate from attached file"
@@ -844,6 +870,19 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                         // Card handles its own sent state
                                     }}
                                 />
+                            ) : msg.paymentCard ? (
+                                // Inline payment gateway card — shown when payment intent detected without gateway
+                                <div className="w-full space-y-2">
+                                    <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-sm bg-card border border-border/50 text-sm leading-relaxed text-foreground"
+                                        style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
+                                    >
+                                        <MarkdownMessage content={msg.content} />
+                                    </div>
+                                    <ChatPaymentCard
+                                        onDismiss={() => setMessages(prev => prev.map((m, i) => i === idx ? { ...m, paymentCard: false } : m))}
+                                        onConfigure={() => window.open("/settings?tab=payments", "_blank")}
+                                    />
+                                </div>
                             ) : msg.role === "user" ? (
                                 <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300 break-words"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)" }}

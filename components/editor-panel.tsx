@@ -971,14 +971,26 @@ export function EditorPanel({ data, onChange, documentStatus }: EditorPanelProps
           >
             <div className="flex flex-col gap-4">
               {/* Payment method — shows only connected gateways + base methods */}
-              <SelectField
-                id="payment-method"
-                label="Payment Method"
-                value={data.paymentMethod}
-                onChange={(v) => onChange({ paymentMethod: v })}
-                options={paymentMethods}
-                disabled={isPaid}
-              />
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Payment Method
+                </label>
+                <div className="relative">
+                  <select
+                    id="payment-method"
+                    value={data.paymentMethod}
+                    onChange={(v) => onChange({ paymentMethod: v.target.value })}
+                    disabled={isPaid}
+                    className="w-full appearance-none px-3 py-2 pr-9 rounded-xl border border-border bg-background text-sm text-foreground outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select payment method</option>
+                    {paymentMethods.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
 
               {/* Connected gateways info */}
               {connectedGateways.length > 0 ? (
