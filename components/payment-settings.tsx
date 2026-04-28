@@ -59,6 +59,24 @@ const DEFAULT_OFFLINE_METHODS: OfflineMethod[] = [
   { id: "crypto", label: "Cryptocurrency", details: "", enabled: false },
 ]
 
+const METHOD_PLACEHOLDERS: Record<string, string> = {
+  bank_transfer: "Bank: HDFC Bank\nAccount No: 50100123456789\nIFSC: HDFC0001234",
+  upi: "UPI ID: yourname@hdfc\nor QR code link",
+  cash: "Cash accepted at our office.\nContact us to arrange.",
+  check: "Payable to: Your Business Name\nMail to: 123 Main St, City",
+  neft: "Bank: SBI\nAccount: 12345678901\nIFSC: SBIN0001234",
+  rtgs: "Bank: ICICI Bank\nAccount: 123456789012\nIFSC: ICIC0001234",
+  imps: "Bank: Axis Bank\nAccount: 9876543210\nIFSC: UTIB0001234",
+  wire: "Bank: Citibank\nSWIFT: CITIINBX\nAccount: 1234567890\nIBAN: IN12345678",
+  ach: "Bank: Chase\nRouting: 021000021\nAccount: 1234567890",
+  sepa: "IBAN: DE89370400440532013000\nBIC: COBADEFFXXX",
+  paypal: "PayPal: payments@yourbusiness.com",
+  google_pay: "Google Pay: +91 98765 43210\nor UPI: yourname@okaxis",
+  phonepe: "PhonePe: +91 98765 43210",
+  paytm: "Paytm: +91 98765 43210",
+  crypto: "BTC: 1A1zP1eP5QGefi2DMPTfTL5SLmv7Divf\nETH: 0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+}
+
 const METHOD_ICONS: Record<string, React.ElementType> = {
   bank_transfer: Building2, upi: Smartphone, cash: Banknote, check: CreditCard,
   neft: Building2, rtgs: Building2, imps: Building2, wire: Globe,
@@ -82,42 +100,50 @@ function CopyField({ label, value }: { label: string; value: string }) {
 }
 
 // ── Webhook Panel (collapsed by default, secure) ──────────────────────────────
-// SECURITY: Webhook secret is NEVER sent to the frontend.
-// The API only returns webhookConfigured: boolean.
-// The webhook URL is safe to display (it's a public endpoint).
+// RESEARCH FINDINGS:
+// - Stripe: Has GET /v1/webhook_endpoints API — can verify programmatically ✅
+// - Razorpay: No public API to list merchant webhooks (Partners API only) — must track manually
+// - Cashfree: No public API to list webhooks — must be configured via dashboard manually
+//
+// LOGIC: For Razorpay/Cashfree, if webhookConfigured (secret exists in DB) = true,
+// the user has connected and the webhook URL is ready to use. Show as "ready".
+// For Stripe, webhookRegistered = true means we auto-registered it via API.
 
 function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistered }: {
   gateway: string; webhookUrl: string; webhookConfigured?: boolean; webhookRegistered?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
 
+  // Determine actual status:
+  // - Stripe: webhookRegistered = auto-registered via API (definitive)
+  // - Razorpay/Cashfree: webhookConfigured = secret exists = URL is ready to use
+  const isStripe = gateway === "stripe"
+  const isReady = isStripe ? webhookRegistered : webhookConfigured
+
   return (
     <div className={cn(
-      "mx-4 mb-3 rounded-xl border overflow-hidden transition-all duration-200",
-      webhookRegistered
-        ? "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/10"
-        : "border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-950/10"
+      "mx-3 mb-3 rounded-xl border overflow-hidden transition-all duration-200",
+      isReady
+        ? "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/40 dark:bg-emerald-950/10"
+        : "border-amber-200 dark:border-amber-800/50 bg-amber-50/40 dark:bg-amber-950/10"
     )}>
       <button
         type="button"
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center justify-between px-3.5 py-2.5 text-left"
+        className="w-full flex items-center justify-between px-3 py-2.5 text-left"
       >
-        <div className="flex items-center gap-2">
-          {webhookRegistered
+        <div className="flex items-center gap-2 min-w-0">
+          {isReady
             ? <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
             : <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
           }
-          <span className={cn("text-[12px] font-semibold", webhookRegistered ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
-            {webhookRegistered ? "Webhook configured" : "Webhook setup required"}
+          <span className={cn("text-[12px] font-semibold truncate", isReady ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
+            {isReady
+              ? isStripe ? "Webhook auto-configured" : "Webhook URL ready"
+              : "Webhook setup required"}
           </span>
-          {webhookConfigured && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium">
-              Secret set
-            </span>
-          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <a href={`/integrations/payments/${gateway}`} target="_blank" rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
             className="text-[11px] font-medium text-primary hover:underline flex items-center gap-0.5">
@@ -129,32 +155,37 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
 
       <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
         <div className="min-h-0 overflow-hidden">
-          <div className="px-3.5 pb-3.5 pt-1 border-t border-border/30 space-y-3">
-            {!webhookRegistered && (
-              <p className="text-[11px] text-amber-700 dark:text-amber-400">
+          <div className="px-3 pb-3 pt-1 border-t border-border/30 space-y-2.5">
+            {!isReady && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
                 Copy the URL below into your {gateway.charAt(0).toUpperCase() + gateway.slice(1)} Dashboard → Settings → Webhooks
+              </p>
+            )}
+            {isReady && !isStripe && (
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                Your webhook URL is ready. Add it in your {gateway.charAt(0).toUpperCase() + gateway.slice(1)} Dashboard → Settings → Webhooks if you haven't already.
               </p>
             )}
             {/* Webhook URL — safe to show, it's a public endpoint */}
             <div>
               <label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">Webhook URL</label>
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-background/80">
-                <code className="flex-1 text-xs font-mono text-foreground/80 truncate">{webhookUrl}</code>
+                <code className="flex-1 text-[11px] font-mono text-foreground/80 break-all">{webhookUrl}</code>
                 <CopyBtn value={webhookUrl} />
               </div>
             </div>
             {/* Webhook Secret — NEVER shown, only status */}
-            <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-muted/30 border border-border/40">
-              <Lock size={13} className="text-muted-foreground shrink-0 mt-0.5" />
-              <div>
-                <p className="text-[12px] font-semibold text-foreground">Webhook Secret</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-muted/30 border border-border/40">
+              <Lock size={12} className="text-muted-foreground shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-semibold text-foreground">Webhook Secret</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
                   {webhookConfigured
-                    ? "Secret is configured and stored securely. It is never sent to the browser."
-                    : "No secret configured. The webhook URL above is still functional without a secret."}
+                    ? "Stored securely server-side. Never sent to the browser."
+                    : "No secret configured. Webhook URL is still functional."}
                 </p>
               </div>
-              {webhookConfigured && <CheckCircle2 size={13} className="text-emerald-500 shrink-0 mt-0.5 ml-auto" />}
+              {webhookConfigured && <CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" />}
             </div>
           </div>
         </div>
@@ -272,7 +303,7 @@ function OfflineMethodsSection() {
                       <div className="px-4 pb-4 pt-1 border-t border-border/40">
                         <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Payment Details (shown on invoice)</label>
                         <textarea value={method.details} onChange={e => updateDetails(method.id, e.target.value)} rows={3}
-                          placeholder={method.id === "upi" ? "UPI ID: yourname@bank" : (method.id === "bank_transfer" || method.id === "neft" || method.id === "rtgs" || method.id === "imps") ? "Bank: Example Bank\nAccount: 1234567890\nIFSC: EXMP0001234" : (method.id === "wire" || method.id === "ach" || method.id === "sepa") ? "Bank: Example Bank\nSWIFT: EXAMUS33\nAccount: 1234567890" : "Payment details..."}
+                          placeholder={METHOD_PLACEHOLDERS[method.id] || "Payment details..."}
                           className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground font-mono placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all" />
                       </div>
                     </div>
@@ -419,7 +450,8 @@ export function PaymentSettings() {
   const sharedFormProps = { saving, showSecret, setShowSecret, rzpKeyId, setRzpKeyId, rzpKeySecret, setRzpKeySecret, rzpAccountName, setRzpAccountName, stripeSecretKey, setStripeSecretKey, cfClientId, setCfClientId, cfClientSecret, setCfClientSecret, cfTestMode, setCfTestMode }
 
   return (
-    <div className="space-y-6 max-w-2xl font-sans">
+    <div className="w-full max-w-2xl mx-auto space-y-5 font-sans">
+      {/* Tab switcher */}
       <div className="flex gap-1 p-1 rounded-xl bg-muted/50 border border-border/50">
         {(["gateways", "offline"] as const).map(tab => (
           <button key={tab} type="button" onClick={() => setActiveTab(tab)}
@@ -429,109 +461,119 @@ export function PaymentSettings() {
         ))}
       </div>
 
-      {activeTab === "gateways" && (
-        <div className="space-y-6">
-          {connectedGateways.length > 0 && (
-            <section className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/50 px-0.5">Connected</p>
-              <div className="space-y-2">
-                {connectedGateways.map(gw => {
-                  const s = settings![gw.id]!
-                  const isEditing = editingGateway === gw.id
-                  return (
-                    <div key={gw.id} className={cn("rounded-2xl border bg-card overflow-hidden transition-all duration-200", isEditing ? "border-primary/50 ring-2 ring-primary/10 shadow-md" : "border-border shadow-sm hover:shadow-md")} style={{ boxShadow: isEditing ? undefined : "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)" }}>
-                      {/* Header row */}
-                      <div className="flex items-center gap-3 px-4 py-3.5">
-                        <GatewayAvatar gw={gw} size={40} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-semibold text-foreground">{gw.name}</span>
-                            <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle2 size={10} /> Connected</span>
-                            {(s as any).testMode && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Test Mode</span>}
+      {/* Animated tab content */}
+      <div className="relative">
+        {/* Online Gateways */}
+        <div className={cn(
+          "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          activeTab === "gateways" ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none absolute inset-0 overflow-hidden"
+        )}>
+          <div className="space-y-5">
+            {connectedGateways.length > 0 && (
+              <section className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/50 px-0.5">Connected</p>
+                <div className="space-y-2">
+                  {connectedGateways.map(gw => {
+                    const s = settings![gw.id]!
+                    const isEditing = editingGateway === gw.id
+                    return (
+                      <div key={gw.id} className={cn("rounded-2xl border bg-card overflow-hidden transition-all duration-200", isEditing ? "border-primary/50 ring-2 ring-primary/10 shadow-md" : "border-border shadow-sm hover:shadow-md")} style={{ boxShadow: isEditing ? undefined : "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)" }}>
+                        <div className="flex items-center gap-3 px-4 py-3.5">
+                          <GatewayAvatar gw={gw} size={40} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-semibold text-foreground">{gw.name}</span>
+                              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle2 size={10} /> Connected</span>
+                              {(s as any).testMode && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Test Mode</span>}
+                            </div>
+                            <p className="text-xs text-foreground/50 mt-0.5 font-mono truncate">
+                              {(s as any).keyIdHint || (s as any).clientIdHint || gw.description}
+                            </p>
                           </div>
-                          {/* Show masked key ID hint — never the full key */}
-                          <p className="text-xs text-foreground/50 mt-0.5 font-mono">
-                            {(s as any).keyIdHint || (s as any).clientIdHint || gw.description}
-                          </p>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button onClick={() => handleTestWebhook(gw.id)} disabled={testingWebhook === gw.id}
+                              className="hidden sm:inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded-xl font-medium border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors disabled:opacity-50">
+                              {testingWebhook === gw.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
+                              <span className="hidden md:inline ml-1">Test</span>
+                            </button>
+                            <button onClick={() => { if (isEditing) { setEditingGateway(null); resetForm() } else { setEditingGateway(gw.id); setSelectedGateway(null); resetForm() } }}
+                              className={cn("inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded-xl font-medium border transition-colors", isEditing ? "bg-muted/60 border-primary/30" : "border-border hover:bg-muted/60")}>
+                              <Pencil size={11} /><span className="hidden sm:inline ml-1">{isEditing ? "Cancel" : "Edit"}</span>
+                            </button>
+                            <button onClick={() => handleRemove(gw.id)} disabled={removing === gw.id}
+                              className="p-1.5 rounded-xl text-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50">
+                              {removing === gw.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button onClick={() => handleTestWebhook(gw.id)} disabled={testingWebhook === gw.id} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl font-medium border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors disabled:opacity-50">
-                            {testingWebhook === gw.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />} Test
-                          </button>
-                          <button onClick={() => { if (isEditing) { setEditingGateway(null); resetForm() } else { setEditingGateway(gw.id); setSelectedGateway(null); resetForm() } }} className={cn("inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl font-medium border transition-colors", isEditing ? "bg-muted/60 border-primary/30" : "border-border hover:bg-muted/60")}>
-                            <Pencil size={11} /> {isEditing ? "Cancel" : "Edit"}
-                          </button>
-                          <button onClick={() => handleRemove(gw.id)} disabled={removing === gw.id} className="p-1.5 rounded-xl text-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50">
-                            {removing === gw.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                          </button>
-                        </div>
-                      </div>
-                      {/* Webhook panel — collapsed by default, secret NEVER sent to browser */}
-                      {(gw.id === "razorpay" || gw.id === "cashfree" || gw.id === "stripe") && (
                         <WebhookPanel
                           gateway={gw.id}
                           webhookUrl={`${typeof window !== "undefined" ? window.location.origin : "https://yourdomain.com"}/api/${gw.id}/webhook`}
                           webhookConfigured={(s as any).webhookConfigured}
                           webhookRegistered={(s as any).webhookRegistered}
                         />
-                      )}
-                      {/* Edit form */}
-                      <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", isEditing ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
-                        <div className="min-h-0 overflow-hidden">
-                          <CredentialForm {...sharedFormProps} gw={gw} onSave={handleUpdate} onCancel={() => { setEditingGateway(null); resetForm() }} isUpdate />
+                        <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", isEditing ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+                          <div className="min-h-0 overflow-hidden">
+                            <CredentialForm {...sharedFormProps} gw={gw} onSave={handleUpdate} onCancel={() => { setEditingGateway(null); resetForm() }} isUpdate />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          )}
-          {unconnectedGateways.length > 0 && (
-            <section className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/50 px-0.5">{connectedGateways.length > 0 ? "Add Another Gateway" : "Connect a Gateway"}</p>
-              <div className="space-y-2">
-                {unconnectedGateways.map(gw => {
-                  const isSelected = selectedGateway === gw.id
-                  return (
-                    <div key={gw.id} className={cn("rounded-2xl border bg-card overflow-hidden transition-all duration-200", isSelected ? "border-primary ring-2 ring-primary/15 shadow-md" : "border-border shadow-sm hover:shadow-md")} style={{ boxShadow: isSelected ? undefined : "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)" }}>
-                      <button type="button" onClick={() => { if (isSelected) { setSelectedGateway(null); resetForm() } else { setSelectedGateway(gw.id); setEditingGateway(null); resetForm() } }} className="w-full flex items-center gap-4 px-4 py-4 text-left hover:bg-muted/20 transition-colors">
-                        <GatewayAvatar gw={gw} size={48} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[15px] font-semibold text-foreground leading-tight">{gw.name}</p>
-                          <p className="text-sm text-foreground/60 mt-0.5">{gw.description}</p>
-                          <p className="text-xs text-foreground/50 mt-1 font-medium">{gw.countries}</p>
-                        </div>
-                        {isSelected ? <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-lg shrink-0">Selected</span> : <Plus size={18} className="text-muted-foreground/40 shrink-0" />}
-                      </button>
-                      <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", isSelected ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
-                        <div className="min-h-0 overflow-hidden">
-                          <CredentialForm {...sharedFormProps} gw={gw} onSave={handleSave} onCancel={() => { setSelectedGateway(null); resetForm() }} />
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+            {unconnectedGateways.length > 0 && (
+              <section className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/50 px-0.5">{connectedGateways.length > 0 ? "Add Another Gateway" : "Connect a Gateway"}</p>
+                <div className="space-y-2">
+                  {unconnectedGateways.map(gw => {
+                    const isSelected = selectedGateway === gw.id
+                    return (
+                      <div key={gw.id} className={cn("rounded-2xl border bg-card overflow-hidden transition-all duration-200", isSelected ? "border-primary ring-2 ring-primary/15 shadow-md" : "border-border shadow-sm hover:shadow-md")} style={{ boxShadow: isSelected ? undefined : "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)" }}>
+                        <button type="button" onClick={() => { if (isSelected) { setSelectedGateway(null); resetForm() } else { setSelectedGateway(gw.id); setEditingGateway(null); resetForm() } }}
+                          className="w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-muted/20 transition-colors">
+                          <GatewayAvatar gw={gw} size={44} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[15px] font-semibold text-foreground leading-tight">{gw.name}</p>
+                            <p className="text-xs text-foreground/60 mt-0.5">{gw.description}</p>
+                            <p className="text-[11px] text-foreground/40 mt-0.5 font-medium">{gw.countries}</p>
+                          </div>
+                          {isSelected ? <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-lg shrink-0">Selected</span> : <Plus size={18} className="text-muted-foreground/40 shrink-0" />}
+                        </button>
+                        <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", isSelected ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+                          <div className="min-h-0 overflow-hidden">
+                            <CredentialForm {...sharedFormProps} gw={gw} onSave={handleSave} onCancel={() => { setSelectedGateway(null); resetForm() }} />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          )}
-          <div className="flex items-center justify-center gap-2 py-2 text-xs text-foreground/40 select-none">
-            <Lock size={11} className="text-emerald-500 shrink-0" />
-            <span>AES-256 encrypted · Keys never logged</span>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+            <div className="flex items-center justify-center gap-2 py-2 text-xs text-foreground/40 select-none">
+              <Lock size={11} className="text-emerald-500 shrink-0" />
+              <span>AES-256 encrypted · Keys never sent to browser</span>
+            </div>
           </div>
         </div>
-      )}
 
-      {activeTab === "offline" && (
-        <div className="space-y-4">
-          <div className="rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 px-4 py-3">
-            <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
-              These methods appear in the <strong>Payment Method</strong> dropdown in the document editor and are printed on your invoices. Add bank details so clients know how to pay you.
-            </p>
+        {/* Offline Methods */}
+        <div className={cn(
+          "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          activeTab === "offline" ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4 pointer-events-none absolute inset-0 overflow-hidden"
+        )}>
+          <div className="space-y-4">
+            <div className="rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 px-4 py-3">
+              <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
+                These methods appear in the <strong>Payment Method</strong> dropdown in the document editor and are printed on your invoices. Add bank details so clients know how to pay you.
+              </p>
+            </div>
+            <OfflineMethodsSection />
           </div>
-          <OfflineMethodsSection />
         </div>
-      )}
+      </div>
     </div>
   )
 }
