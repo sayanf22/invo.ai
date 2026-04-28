@@ -38,10 +38,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
         settings: data ? {
             razorpay: data.razorpay_enabled ? {
-                keyId: data.razorpay_key_id,
+                // SECURITY: Never return the full key ID — only a masked hint
+                keyIdHint: data.razorpay_key_id
+                    ? `${data.razorpay_key_id.slice(0, 8)}••••${data.razorpay_key_id.slice(-4)}`
+                    : null,
                 accountName: data.razorpay_account_name,
                 testMode: data.razorpay_test_mode,
-                webhookSecret: data.razorpay_webhook_secret,
+                // SECURITY: NEVER return webhookSecret to the client — not even masked
+                // The secret is only needed server-side to verify webhook signatures
+                // If user needs to reconfigure, they must re-enter it via the Razorpay dashboard
+                webhookConfigured: !!(data.razorpay_webhook_secret),
                 webhookRegistered: !!data.razorpay_webhook_id,
             } : null,
             stripe: data.stripe_enabled ? {
@@ -49,7 +55,10 @@ export async function GET(request: NextRequest) {
                 webhookRegistered: !!data.stripe_webhook_id,
             } : null,
             cashfree: data.cashfree_enabled ? {
-                clientId: data.cashfree_client_id,
+                // SECURITY: Only return masked client ID hint
+                clientIdHint: data.cashfree_client_id
+                    ? `${data.cashfree_client_id.slice(0, 4)}••••${data.cashfree_client_id.slice(-4)}`
+                    : null,
                 testMode: data.cashfree_test_mode,
             } : null,
             updatedAt: data.updated_at,
@@ -164,7 +173,7 @@ async function handleRazorpay(auth: any, body: Record<string, unknown>, request:
     const isTestMode = safeKeyId.startsWith("rzp_test_")
     const supabase = adminClient()
 
-    // Preserve existing webhook secret
+    // Preserve existing webhook secret (or generate new one)
     const { data: existing } = await supabase
         .from("user_payment_settings")
         .select("razorpay_webhook_secret")
