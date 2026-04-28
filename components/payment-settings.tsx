@@ -117,38 +117,106 @@ const WEBHOOK_INSTRUCTIONS: Record<string, { steps: string[]; secretNote: string
   razorpay: {
     steps: [
       "Copy the Webhook URL below",
-      "Go to Razorpay Dashboard → Account & Settings → Webhooks",
+      "Open a new tab → go to dashboard.razorpay.com",
+      "Click Account & Settings (top right) → Webhooks",
       "Click + Add New Webhook",
-      "Paste the URL in the Webhook URL field",
-      "In the Secret field, paste the secret we generated for you (shown below)",
-      "Enable these events: payment_link.paid, payment_link.partially_paid, payment_link.expired, payment_link.cancelled",
-      "Click Save",
+      "Paste the Webhook URL in the URL field",
+      "Click Reveal Secret below, then copy it and paste into the Secret field",
+      "Tick these 4 events: payment_link.paid, payment_link.partially_paid, payment_link.expired, payment_link.cancelled",
+      "Click Save — done! ✅",
     ],
-    secretNote: "The Secret is a random string we generated for you. It is NOT your Razorpay API Key Secret. Copy it from below and paste it into the Razorpay webhook form. Razorpay uses it to sign payloads so we can verify they're genuine.",
+    secretNote: "The Secret below is a random code we created for you. It is NOT your Razorpay API Key. You just need to copy it and paste it into the Razorpay webhook form. That's it — Razorpay uses it to prove the payment notifications are genuine.",
     events: ["payment_link.paid", "payment_link.partially_paid", "payment_link.expired", "payment_link.cancelled"],
   },
   stripe: {
     steps: [
-      "Stripe webhook was auto-registered when you connected your account",
-      "To verify: go to Stripe Dashboard → Developers → Webhooks",
-      "You should see an endpoint pointing to this app",
-      "If missing, disconnect and reconnect Stripe to re-register",
+      "Stripe webhook was set up automatically when you connected — nothing to do!",
+      "To double-check: open dashboard.stripe.com → Developers → Webhooks",
+      "You should see an endpoint pointing to this app with status Enabled",
+      "If it's missing, disconnect Stripe and reconnect to re-register it",
     ],
-    secretNote: "Stripe auto-registers the webhook and we store the signing secret securely. You don't need to do anything manually.",
+    secretNote: "Stripe automatically registered the webhook when you connected your account. The signing secret is stored securely and you don't need to do anything.",
     events: ["checkout.session.completed", "payment_link.completed"],
   },
   cashfree: {
     steps: [
       "Copy the Webhook URL below",
-      "Go to Cashfree Dashboard → Payment Gateway → Developers → Webhooks",
-      "Click Add Webhook Endpoint",
-      "Paste the URL and select Webhook Version 2025-01-01",
-      "Enable PAYMENT_LINK_EVENT notifications",
-      "Click Save — no separate secret needed",
+      "Open a new tab → go to merchant.cashfree.com",
+      "Click Developers in the left menu",
+      "Click Webhooks → Add Webhook Endpoint",
+      "Paste the Webhook URL",
+      "Select version: 2025-01-01",
+      "Click Save — that's it! No secret needed ✅",
     ],
-    secretNote: "Cashfree uses your Client Secret (already saved) to sign webhook payloads. You don't need to enter a separate webhook secret.",
+    secretNote: "Cashfree does not need a separate secret. It uses your Client Secret (already saved) to sign the notifications automatically. Just add the URL above and you're done.",
     events: ["PAYMENT_LINK_EVENT"],
   },
+}
+
+// ── Razorpay Secret Reveal (fetched from secure API) ─────────────────────────
+function RazorpaySecretReveal({ gateway }: { gateway: string }) {
+  const [secret, setSecret] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchSecret = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await authFetch(`/api/payments/webhook-secret?gateway=${gateway}`)
+      if (res.ok) {
+        const data = await res.json()
+        setSecret(data.secret)
+        // Auto-hide after 60 seconds
+        setTimeout(() => setSecret(null), 60000)
+      } else {
+        setError("Could not load secret")
+      }
+    } catch {
+      setError("Network error")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const copy = () => {
+    if (!secret) return
+    navigator.clipboard.writeText(secret)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  if (secret) {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20">
+          <code className="flex-1 text-[11px] font-mono text-foreground break-all select-all">{secret}</code>
+          <button type="button" onClick={copy} className="shrink-0 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+          </button>
+          <button type="button" onClick={() => setSecret(null)} className="shrink-0 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            <EyeOff size={13} />
+          </button>
+        </div>
+        <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+          <Lock size={10} /> Auto-hides in 60s · Copy this and paste into Razorpay
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-1">
+      <button type="button" onClick={fetchSecret} disabled={loading}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/40 transition-colors disabled:opacity-50">
+        {loading ? <Loader2 size={11} className="animate-spin" /> : <Eye size={11} />}
+        {loading ? "Loading..." : "Reveal Webhook Secret"}
+      </button>
+      {error && <p className="text-[10px] text-red-500">{error}</p>}
+      <p className="text-[10px] text-muted-foreground">Paste this into the Secret field in Razorpay</p>
+    </div>
+  )
 }
 
 function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistered }: {
@@ -221,15 +289,19 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
 
             {/* Secret info — gateway-specific */}
             {info && (
-              <div className="rounded-xl border border-border/40 bg-muted/20 p-3 space-y-1.5">
+              <div className="rounded-xl border border-border/40 bg-muted/20 p-3 space-y-2">
                 <div className="flex items-center gap-1.5">
                   <Lock size={12} className="text-muted-foreground shrink-0" />
                   <p className="text-[11px] font-semibold text-foreground">
-                    {isCashfree ? "No separate secret needed" : isStripe ? "Webhook signing secret" : "About the Webhook Secret"}
+                    {isCashfree ? "✅ No separate secret needed" : isStripe ? "✅ Webhook signing secret (auto-managed)" : "Step 2 — Copy your Webhook Secret"}
                   </p>
-                  {webhookConfigured && !isCashfree && <CheckCircle2 size={11} className="text-emerald-500 shrink-0 ml-auto" />}
+                  {webhookConfigured && !isCashfree && !isStripe && <CheckCircle2 size={11} className="text-emerald-500 shrink-0 ml-auto" />}
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">{info.secretNote}</p>
+                {/* Show reveal button for Razorpay/Cashfree */}
+                {!isStripe && !isCashfree && webhookConfigured && (
+                  <RazorpaySecretReveal gateway={gateway} />
+                )}
               </div>
             )}
 
@@ -330,6 +402,38 @@ function OfflineMethodsSection() {
   const [addingCustom, setAddingCustom] = useState(false)
   const [customLabel, setCustomLabel] = useState("")
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  // Load saved methods on mount
+  useEffect(() => {
+    authFetch("/api/payments/offline-methods")
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.methods) && data.methods.length > 0) {
+          setMethods(data.methods)
+        }
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [])
+
+  // Auto-save when methods change (debounced)
+  useEffect(() => {
+    if (!loaded) return
+    const t = setTimeout(async () => {
+      setSaving(true)
+      try {
+        await authFetch("/api/payments/offline-methods", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ methods }),
+        })
+      } catch { /* silent */ }
+      finally { setSaving(false) }
+    }, 800)
+    return () => clearTimeout(t)
+  }, [methods, loaded])
 
   const enabledMethods = methods.filter(m => m.enabled)
   const disabledMethods = methods.filter(m => !m.enabled)
@@ -344,6 +448,12 @@ function OfflineMethodsSection() {
 
   return (
     <div className="space-y-4">
+      {/* Auto-save indicator */}
+      {saving && (
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Loader2 size={11} className="animate-spin" /> Saving...
+        </div>
+      )}
       {enabledMethods.length > 0 && (
         <div className="space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/40 px-0.5">Active Methods</p>

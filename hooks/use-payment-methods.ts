@@ -46,8 +46,8 @@ const GATEWAY_METHODS: Record<string, PaymentMethodOption> = {
 }
 
 /**
- * Returns payment method options based on user's connected gateways.
- * Connected gateways appear first, then offline methods.
+ * Returns payment method options based on user's connected gateways + saved offline methods.
+ * Connected gateways appear first, then enabled offline methods.
  * If no gateway is connected, only offline methods are shown.
  */
 export function usePaymentMethods() {
@@ -63,23 +63,49 @@ export function usePaymentMethods() {
     let cancelled = false
     async function load() {
       try {
-        const res = await authFetch("/api/payments/settings")
-        if (!res.ok || cancelled) return
-        const data = await res.json()
-        const settings = data.settings
-        if (!settings || cancelled) return
+        // Load gateway settings and offline methods in parallel
+        const [gatewayRes, offlineRes] = await Promise.all([
+          authFetch("/api/payments/settings"),
+          authFetch("/api/payments/offline-methods"),
+        ])
+
+        if (cancelled) return
 
         const gateways: string[] = []
-        if (settings.razorpay) gateways.push("razorpay")
-        if (settings.stripe) gateways.push("stripe")
-        if (settings.cashfree) gateways.push("cashfree")
+        if (gatewayRes.ok) {
+          const data = await gatewayRes.json()
+          const settings = data.settings
+          if (settings) {
+            if (settings.razorpay) gateways.push("razorpay")
+            if (settings.stripe) gateways.push("stripe")
+            if (settings.cashfree) gateways.push("cashfree")
+          }
+        }
 
         setConnectedGateways(gateways)
         setHasAnyGateway(gateways.length > 0)
 
-        // Connected gateways first, then offline methods
+        // Load saved offline methods — fall back to defaults if none saved
+        let offlineMethods = OFFLINE_METHODS
+        if (offlineRes.ok) {
+          const offlineData = await offlineRes.json()
+          if (Array.isArray(offlineData.methods) && offlineData.methods.length > 0) {
+            // Use saved methods, only show enabled ones in the dropdown
+            offlineMethods = offlineData.methods
+              .filter((m: any) => m.enabled)
+              .map((m: any) => ({
+                value: m.label, // use label as value for PDF display
+                label: m.label,
+                group: "cash" as const,
+              }))
+            // If no enabled methods saved, fall back to defaults
+            if (offlineMethods.length === 0) offlineMethods = OFFLINE_METHODS
+          }
+        }
+
+        // Connected gateways first, then enabled offline methods
         const gatewayOptions = gateways.map(g => GATEWAY_METHODS[g]).filter(Boolean)
-        setMethods([...gatewayOptions, ...OFFLINE_METHODS])
+        if (!cancelled) setMethods([...gatewayOptions, ...offlineMethods])
       } catch { /* silent */ }
       finally { if (!cancelled) setLoading(false) }
     }
