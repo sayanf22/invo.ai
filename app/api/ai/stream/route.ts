@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { streamGenerateDocument, type AIGenerationRequest } from "@/lib/deepseek"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 
-import { checkCostLimit, trackUsage, checkMessageLimit, incrementDocumentCount, type UserTier, parseTier } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, type UserTier, parseTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText } from "@/lib/sanitize"
 
@@ -29,6 +29,12 @@ export async function POST(request: NextRequest) {
         // SECURITY: Cost protection - check monthly document limit with actual tier
         const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
         if (costError) return costError
+
+        // SECURITY: Document type restriction — free tier only gets invoice + contract
+        // This is the server-side enforcement — the frontend check is just UX
+        const docTypeToCheck = (body.documentType || "invoice").toLowerCase()
+        const typeError = checkDocumentTypeAllowed(docTypeToCheck, userTier)
+        if (typeError) return typeError
 
         // Check per-session message limit (if sessionId provided)
         const sessionId = (body as any).sessionId

@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { FileText, ScrollText, ClipboardList, Lightbulb, Loader2, ChevronDown, FilePlus } from "lucide-react"
+import { FileText, ScrollText, ClipboardList, Lightbulb, Loader2, ChevronDown, FilePlus, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { InvoiceData } from "@/lib/invoice-types"
+import { useTier } from "@/hooks/use-tier"
 
 const DOC_OPTIONS: Record<string, { label: string; icon: React.ElementType }> = {
     invoice:   { label: "Invoice",   icon: FileText },
@@ -36,12 +37,13 @@ export function NextStepsBar({
 }: NextStepsBarProps) {
     const [open, setOpen] = useState(false)
     const [loadingType, setLoadingType] = useState<string | null>(null)
+    const { allowedDocTypes } = useTier()
 
     const currentType = currentDocType.toLowerCase()
     const allTypes = Object.keys(DOC_OPTIONS)
 
-    const handleClick = async (targetType: string) => {
-        if (loadingType) return
+    const handleClick = async (targetType: string, isLocked: boolean) => {
+        if (loadingType || isLocked) return
         setLoadingType(targetType)
         try {
             await onCreateLinked(parentSessionId, targetType)
@@ -133,31 +135,42 @@ export function NextStepsBar({
                                     const Icon = opt.icon
                                     const isLoading = loadingType === type
                                     const isCurrent = type === currentType
+                                    const isLocked = !allowedDocTypes.includes(type)
                                     return (
                                         <button
                                             key={type}
                                             type="button"
-                                            onClick={() => handleClick(type)}
-                                            disabled={!!loadingType}
+                                            onClick={() => handleClick(type, isLocked)}
+                                            disabled={!!loadingType || isLocked}
+                                            title={isLocked ? "Upgrade to Starter to unlock" : undefined}
                                             className={cn(
                                                 // min-h-[44px] = Apple HIG minimum touch target
                                                 "flex items-center gap-2.5 px-4 min-h-[44px]",
-                                                "text-[13px] font-medium text-foreground",
+                                                "text-[13px] font-medium",
                                                 "bg-card transition-colors duration-100",
-                                                "hover:bg-secondary/50 active:bg-secondary/80",
-                                                "disabled:opacity-50 disabled:cursor-not-allowed",
+                                                isLocked
+                                                    ? "text-muted-foreground/50 cursor-not-allowed"
+                                                    : "text-foreground hover:bg-secondary/50 active:bg-secondary/80",
+                                                "disabled:cursor-not-allowed",
                                                 "touch-manipulation select-none",
-                                                isCurrent && "bg-primary/5"
+                                                isCurrent && !isLocked && "bg-primary/5"
                                             )}
                                         >
                                             {isLoading
                                                 ? <Loader2 className="w-4 h-4 animate-spin text-foreground/40 shrink-0" />
-                                                : <Icon className="w-4 h-4 text-foreground/50 shrink-0" />
+                                                : isLocked
+                                                    ? <Lock className="w-4 h-4 text-muted-foreground/40 shrink-0" />
+                                                    : <Icon className="w-4 h-4 text-foreground/50 shrink-0" />
                                             }
                                             <span className="flex-1 text-left">{opt.label}</span>
-                                            {isCurrent && (
+                                            {isCurrent && !isLocked && (
                                                 <span className="text-[10px] font-semibold text-primary/70 bg-primary/8 px-1.5 py-0.5 rounded-md shrink-0 leading-none">
                                                     current
+                                                </span>
+                                            )}
+                                            {isLocked && (
+                                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
+                                                    Pro
                                                 </span>
                                             )}
                                         </button>

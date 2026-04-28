@@ -309,10 +309,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         const userMessage = messageText.trim()
 
         // ── Pre-flight document type switch guard ──────────────────────────────
-        // If the user explicitly asks to create a DIFFERENT document type in this
-        // session, intercept immediately — don't even call the AI.
-        // This prevents the AI from generating the wrong document type content
-        // (even if it labels it correctly, the structure/content would be wrong).
         const DOC_TYPE_KEYWORDS: Record<string, string[]> = {
             invoice:   ["invoice", "invoices"],
             contract:  ["contract", "contracts", "agreement", "agreements"],
@@ -327,6 +323,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 if (keywords.some(kw => new RegExp(`\\b${kw}\\b`, "i").test(msgLower))) {
                     const targetLabel = targetType.charAt(0).toUpperCase() + targetType.slice(1)
                     const currentLabel = docType.charAt(0).toUpperCase() + docType.slice(1)
+
+                    // Check if the target type is allowed for this user's tier
+                    // We check the upgrade info from the session context
+                    const isRestrictedType = upgradeInfo?.errorType === "type_restriction" ||
+                        (targetType === "quotation" || targetType === "proposal")
+
+                    // We'll let the server enforce — but give a helpful message
                     const guidanceMsg = `This is a **${currentLabel}** session — I can only generate ${currentLabel}s here.\n\n**To create a ${targetLabel}:**\n1. Click the **New Doc** button below (after generating a document) or the **+** button in the top bar\n2. Select **${targetLabel}** as the document type\n3. Ask me the same thing there\n\nYour ${currentLabel} is safe and unchanged. 👍`
                     setInputValue("")
                     setMessages(prev => [...prev, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: guidanceMsg }])
