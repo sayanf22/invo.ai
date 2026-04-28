@@ -22,6 +22,16 @@ export function HeroSection() {
 
                 <div className="relative z-10 max-w-6xl mx-auto text-center pt-24 sm:pt-20 pb-20 sm:pb-32 px-5 sm:px-6">
 
+                    {/* Beta announcement pill */}
+                    <div className="animate-fade-in-up flex justify-center mb-6 sm:mb-8" style={{ animationDelay: "0.05s" }}>
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[var(--landing-amber)]/30 bg-[var(--landing-amber)]/8 text-sm font-medium text-[var(--landing-text-dark)]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--landing-amber)] text-white text-[11px] font-bold uppercase tracking-wider leading-none">
+                                Beta
+                            </span>
+                            <span className="text-[var(--landing-text-muted)]">We&apos;re live — try it free and share your feedback</span>
+                        </div>
+                    </div>
+
                     {/* Main heading — brand name in H1 for SEO, visual copy for humans */}
                     <h1 className="animate-fade-in-up font-display text-[2.75rem] sm:text-7xl md:text-8xl lg:text-9xl font-semibold tracking-tighter leading-[0.92] text-[var(--landing-text-dark)] mb-6 sm:mb-10" style={{ animationDelay: "0.15s" }}>
                         {/* Hidden brand + description for crawlers — visible copy below */}
