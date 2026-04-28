@@ -230,6 +230,29 @@ export default function StripeGuidePage() {
           </div>
         </section>
 
+        {/* ── About the Webhook Secret ─────────────────────────── */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
+            About the Webhook Signing Secret
+          </h2>
+          <div className="rounded-[2rem] border border-indigo-200/60 dark:border-indigo-800/40 bg-indigo-50/30 dark:bg-indigo-950/20 p-5 sm:p-8 shadow-sm space-y-4">
+            <div className="flex items-start gap-4">
+              <span className="text-3xl shrink-0">✅</span>
+              <div>
+                <h3 className="font-bold text-indigo-900 dark:text-indigo-200 text-lg mb-2">Fully automatic — nothing to do!</h3>
+                <p className="text-[15px] text-indigo-800 dark:text-indigo-300 leading-relaxed">
+                  When you connect Stripe, we automatically register a webhook endpoint via the Stripe API and receive the signing secret (<code className="px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/50 text-xs font-mono">whsec_...</code>). This secret is stored encrypted and used to verify every incoming webhook.
+                </p>
+              </div>
+            </div>
+            <div className="border-t border-indigo-200/60 dark:border-indigo-800/40 pt-4">
+              <p className="text-[14px] text-indigo-700 dark:text-indigo-400 leading-relaxed">
+                <strong>Unlike Razorpay</strong>, Stripe generates the signing secret automatically — you cannot set your own. It starts with <code className="px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/50 text-xs font-mono">whsec_</code> and is only shown once in the Stripe dashboard when the endpoint is created. We capture it at that moment and store it securely.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* ── Security Notes ───────────────────────────────────── */}
         <section className="mb-16">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">

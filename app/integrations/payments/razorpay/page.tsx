@@ -226,6 +226,80 @@ export default function RazorpayGuidePage() {
           </div>
         </section>
 
+        {/* ── Step 3: Webhook Secret ───────────────────────────── */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
+            Step 3 — The Webhook Secret
+          </h2>
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-5 sm:p-8 shadow-sm space-y-6">
+
+            <div className="rounded-2xl border border-blue-200 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-950/20 p-5">
+              <h3 className="font-bold text-blue-900 dark:text-blue-200 mb-2">What is the Webhook Secret?</h3>
+              <p className="text-[15px] text-blue-800 dark:text-blue-300 leading-relaxed">
+                Think of it like a <strong>shared password</strong> between Razorpay and this app. When Razorpay sends a payment notification, it signs the message with this secret. Our app checks the signature to confirm the message is genuinely from Razorpay and not from a hacker.
+              </p>
+              <p className="text-[14px] text-blue-700 dark:text-blue-400 mt-3 leading-relaxed">
+                <strong>Important:</strong> Razorpay's own docs say: <em>"The webhook secret does not need to be the Razorpay API key secret."</em> — it's a completely separate string.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="font-bold text-slate-900 dark:text-white">You have two options:</h3>
+
+              <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/30 dark:bg-emerald-950/10 p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex items-center justify-center shrink-0">A</span>
+                  <h4 className="font-bold text-emerald-900 dark:text-emerald-200">Use our generated secret (recommended)</h4>
+                </div>
+                <p className="text-[14px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                  We already generated a secure 64-character random secret for you when you connected Razorpay. Go to <strong>Settings → Payment Gateways → Razorpay → Webhook section → Reveal Secret</strong>. Copy it and paste it into the Secret field in Razorpay's webhook form.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-6 h-6 rounded-full bg-slate-400 text-white text-xs font-bold flex items-center justify-center shrink-0">B</span>
+                  <h4 className="font-bold text-slate-900 dark:text-white">Use your own custom secret</h4>
+                </div>
+                <p className="text-[14px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  You can type any string you want (minimum 8 characters) in Razorpay's Secret field. Then go to <strong>Settings → Payment Gateways → Razorpay → Webhook section → "I want to use my own secret"</strong> and save the same string there. Both sides must match exactly.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-950/10 p-4">
+              <p className="text-[13px] text-amber-800 dark:text-amber-300">
+                ⚠️ <strong>Never share your webhook secret publicly.</strong> Anyone who has it could forge fake payment notifications. Keep it private, just like a password.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Security Notes ───────────────────────────────────── */}
+        <section className="mb-16">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Security Notes</h2>
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-5 sm:p-8 shadow-sm">
+            <ul className="space-y-4 text-[15px] text-slate-600 dark:text-slate-400">
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Your Key Secret is encrypted with AES-256-GCM before storage — it is never logged or returned to the browser.</span>
+              </li>
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Webhook signatures are verified using HMAC-SHA256 on every incoming request to guarantee authenticity.</span>
+              </li>
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Replay attacks are prevented — each webhook event ID is stored and duplicate events are silently ignored.</span>
+              </li>
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Use <strong>test mode keys</strong> (<code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs font-mono">rzp_test_</code>) during development, then switch to live keys for production.</span>
+              </li>
+            </ul>
+          </div>
+        </section>
+
         <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-8 flex justify-center">
           <Link
             href="/integrations/payments"

@@ -282,9 +282,8 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
   const [expanded, setExpanded] = useState(false)
 
   const isStripe = gateway === "stripe"
-  const isCashfree = gateway === "cashfree"
   const isReady = isStripe ? webhookRegistered : webhookConfigured
-  const info = WEBHOOK_INSTRUCTIONS[gateway]
+  const guideUrl = `/integrations/payments/${gateway}`
 
   return (
     <div className={cn(
@@ -305,8 +304,8 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
           }
           <span className={cn("text-[12px] font-semibold truncate", isReady ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
             {isReady
-              ? isStripe ? "Webhook auto-configured" : "Webhook URL ready — add to dashboard"
-              : "Action required: add webhook to dashboard"}
+              ? isStripe ? "Webhook auto-configured ✓" : "Webhook URL ready"
+              : "Webhook setup needed"}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -316,76 +315,23 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
 
       <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
         <div className="min-h-0 overflow-hidden">
-          <div className="px-3 pb-3 pt-1 border-t border-border/30 space-y-3">
-
-            {/* Step-by-step instructions */}
-            {info && (
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/50">Setup Steps</p>
-                <ol className="space-y-1.5">
-                  {info.steps.map((step, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
-                      <span className="text-[11px] text-foreground/80 leading-relaxed">{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )}
-
-            {/* Webhook URL */}
+          <div className="px-3 pb-3 pt-1 border-t border-border/30 space-y-2.5">
+            {/* Webhook URL — always show */}
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">
-                {isStripe ? "Your Webhook URL (auto-registered)" : "Step 1 — Copy this Webhook URL"}
-              </label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">Webhook URL</label>
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-background/80">
                 <code className="flex-1 text-[11px] font-mono text-foreground/80 break-all">{webhookUrl}</code>
                 <CopyBtn value={webhookUrl} />
               </div>
             </div>
-
-            {/* Secret info — gateway-specific */}
-            {info && (
-              <div className="rounded-xl border border-border/40 bg-muted/20 p-3 space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Lock size={12} className="text-muted-foreground shrink-0" />
-                  <p className="text-[11px] font-semibold text-foreground">
-                    {isCashfree ? "✅ No separate secret needed" : isStripe ? "✅ Webhook signing secret (auto-managed)" : "Step 2 — Copy your Webhook Secret"}
-                  </p>
-                  {webhookConfigured && !isCashfree && !isStripe && <CheckCircle2 size={11} className="text-emerald-500 shrink-0 ml-auto" />}
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">{info.secretNote}</p>
-                {/* Show reveal button for Razorpay/Cashfree */}
-                {!isStripe && !isCashfree && webhookConfigured && (
-                  <RazorpaySecretReveal gateway={gateway} />
-                )}
-              </div>
+            {/* Secret reveal for Razorpay/Cashfree */}
+            {!isStripe && webhookConfigured && (
+              <RazorpaySecretReveal gateway={gateway} />
             )}
-
-            {/* Required events */}
-            {info && (
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">
-                  {isStripe ? "Handled Events" : "Enable These Events"}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {info.events.map(ev => (
-                    <span key={ev} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-primary/8 dark:bg-primary/15 text-primary text-[10px] font-mono font-semibold">
-                      {ev}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* External link */}
-            <a href={
-              gateway === "razorpay" ? "https://dashboard.razorpay.com/app/webhooks" :
-              gateway === "stripe" ? "https://dashboard.stripe.com/webhooks" :
-              "https://merchant.cashfree.com/merchants/developer/webhooks"
-            } target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary hover:underline">
-              Open {gateway.charAt(0).toUpperCase() + gateway.slice(1)} Webhooks Dashboard
+            {/* Link to full guide */}
+            <a href={guideUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline">
+              📖 View full setup guide with screenshots
               <ExternalLink size={10} />
             </a>
           </div>
@@ -394,7 +340,6 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
     </div>
   )
 }
-
 function CopyBtn({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
   return (

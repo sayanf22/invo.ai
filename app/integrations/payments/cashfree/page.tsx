@@ -218,15 +218,49 @@ export default function CashfreeGuidePage() {
           </div>
         </section>
 
-        {/* ── Test / Sandbox Mode ──────────────────────────────── */}
+        {/* ── About the Webhook Secret ─────────────────────────── */}
         <section className="mb-12">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
-            Test / Sandbox Mode
+            About the Webhook Secret
           </h2>
-          <div className="rounded-[2rem] border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/30 dark:bg-amber-950/20 p-5 sm:p-8 shadow-sm">
-            <p className="text-[15px] text-amber-900 dark:text-amber-300 leading-relaxed">
-              Cashfree provides a separate sandbox environment for testing. In the Cashfree dashboard, toggle between <strong>Production</strong> and <strong>Sandbox</strong> mode using the switch in the top navigation bar. Make sure to use the matching API keys for each environment. In Clorefy, enable the <strong>"Test Mode"</strong> toggle when using sandbox credentials.
-            </p>
+          <div className="rounded-[2rem] border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/30 dark:bg-emerald-950/20 p-5 sm:p-8 shadow-sm">
+            <div className="flex items-start gap-4">
+              <span className="text-3xl shrink-0">✅</span>
+              <div>
+                <h3 className="font-bold text-emerald-900 dark:text-emerald-200 text-lg mb-2">No separate webhook secret needed!</h3>
+                <p className="text-[15px] text-emerald-800 dark:text-emerald-300 leading-relaxed mb-3">
+                  Cashfree uses your <strong>Client Secret</strong> (the one you already entered when connecting) to sign all webhook notifications using HMAC-SHA256. Our app already has this stored securely and uses it automatically to verify every incoming webhook.
+                </p>
+                <p className="text-[14px] text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                  You don't need to configure anything extra. Just add the Webhook URL to your Cashfree dashboard (Step 2 above) and everything works automatically.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Security Notes ───────────────────────────────────── */}
+        <section className="mb-16">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Security Notes</h2>
+          <div className="rounded-[2rem] border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-5 sm:p-8 shadow-sm">
+            <ul className="space-y-4 text-[15px] text-slate-600 dark:text-slate-400">
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Your Client Secret is encrypted with AES-256-GCM before storage — never logged or returned to the browser.</span>
+              </li>
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Webhook signatures are verified using HMAC-SHA256 with your Client Secret on every incoming request.</span>
+              </li>
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Webhook timestamps are validated — requests older than 5 minutes are rejected to prevent replay attacks.</span>
+              </li>
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 shrink-0 mt-0.5">✓</span>
+                <span>Use <strong>Sandbox mode</strong> during testing — toggle it in Clorefy when connecting with sandbox credentials.</span>
+              </li>
+            </ul>
           </div>
         </section>
 
