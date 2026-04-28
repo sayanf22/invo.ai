@@ -16,10 +16,15 @@ interface GatewaySettings {
     webhookConfigured: boolean
     webhookRegistered: boolean
   } | null
-  stripe?: { testMode: boolean; webhookRegistered: boolean } | null
+  stripe?: {
+    testMode: boolean
+    webhookConfigured: boolean
+    webhookRegistered: boolean
+  } | null
   cashfree?: {
     clientIdHint?: string | null
     testMode: boolean
+    webhookConfigured: boolean
   } | null
   updatedAt?: string
 }
@@ -462,7 +467,7 @@ export function PaymentSettings() {
                         </div>
                       </div>
                       {/* Webhook panel — collapsed by default, secret NEVER sent to browser */}
-                      {(gw.id === "razorpay" || gw.id === "cashfree") && (
+                      {(gw.id === "razorpay" || gw.id === "cashfree" || gw.id === "stripe") && (
                         <WebhookPanel
                           gateway={gw.id}
                           webhookUrl={`${typeof window !== "undefined" ? window.location.origin : "https://yourdomain.com"}/api/${gw.id}/webhook`}

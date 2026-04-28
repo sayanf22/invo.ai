@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { decrypt } from "@/lib/encrypt"
 
 /**
  * POST /api/razorpay/webhook/[userId]
@@ -51,8 +52,13 @@ export async function POST(
         return NextResponse.json({ received: true })
     }
 
+    // Decrypt the webhook secret (stored encrypted since security hardening)
+    // Falls back to raw value for legacy plaintext secrets (migration compatibility)
+    const webhookSecretPlain = await decrypt(settings.razorpay_webhook_secret)
+        ?? settings.razorpay_webhook_secret
+
     // Verify signature using user's webhook secret
-    const isValid = await verifySignature(body, signature, settings.razorpay_webhook_secret)
+    const isValid = await verifySignature(body, signature, webhookSecretPlain)
     if (!isValid) {
         console.error(`[webhook/${userId}] Signature verification failed`)
         return NextResponse.json({ error: "Invalid signature" }, { status: 400 })

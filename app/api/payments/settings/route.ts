@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
         .select(`
             razorpay_key_id, razorpay_account_name, razorpay_enabled, razorpay_test_mode,
             razorpay_webhook_id, razorpay_webhook_secret,
-            stripe_enabled, stripe_test_mode, stripe_webhook_id,
-            cashfree_client_id, cashfree_enabled, cashfree_test_mode,
+            stripe_enabled, stripe_test_mode, stripe_webhook_id, stripe_webhook_secret,
+            cashfree_client_id, cashfree_enabled, cashfree_test_mode, cashfree_webhook_secret,
             updated_at
         `)
         .eq("user_id", auth.user.id)
@@ -44,14 +44,14 @@ export async function GET(request: NextRequest) {
                     : null,
                 accountName: data.razorpay_account_name,
                 testMode: data.razorpay_test_mode,
-                // SECURITY: NEVER return webhookSecret to the client — not even masked
-                // The secret is only needed server-side to verify webhook signatures
-                // If user needs to reconfigure, they must re-enter it via the Razorpay dashboard
+                // SECURITY: NEVER return webhookSecret to the client — only boolean status
                 webhookConfigured: !!(data.razorpay_webhook_secret),
                 webhookRegistered: !!data.razorpay_webhook_id,
             } : null,
             stripe: data.stripe_enabled ? {
                 testMode: data.stripe_test_mode,
+                // SECURITY: NEVER return stripe webhook secret — only boolean status
+                webhookConfigured: !!(data.stripe_webhook_secret),
                 webhookRegistered: !!data.stripe_webhook_id,
             } : null,
             cashfree: data.cashfree_enabled ? {
@@ -60,6 +60,8 @@ export async function GET(request: NextRequest) {
                     ? `${data.cashfree_client_id.slice(0, 4)}••••${data.cashfree_client_id.slice(-4)}`
                     : null,
                 testMode: data.cashfree_test_mode,
+                // SECURITY: NEVER return cashfree webhook secret — only boolean status
+                webhookConfigured: !!(data.cashfree_webhook_secret),
             } : null,
             updatedAt: data.updated_at,
         } : null,
@@ -173,14 +175,23 @@ async function handleRazorpay(auth: any, body: Record<string, unknown>, request:
     const isTestMode = safeKeyId.startsWith("rzp_test_")
     const supabase = adminClient()
 
-    // Preserve existing webhook secret (or generate new one)
+    // Preserve existing webhook secret (or generate new one), always store encrypted
     const { data: existing } = await supabase
         .from("user_payment_settings")
         .select("razorpay_webhook_secret")
         .eq("user_id", auth.user.id)
         .maybeSingle()
 
-    const webhookSecret = existing?.razorpay_webhook_secret || generateWebhookSecret()
+    // Decrypt existing to check if it's already encrypted, or generate new plaintext secret
+    let webhookSecretPlain: string
+    if (existing?.razorpay_webhook_secret) {
+        // Try to decrypt — if it fails it was stored plaintext (legacy), keep as-is and re-encrypt
+        const decrypted = await decrypt(existing.razorpay_webhook_secret)
+        webhookSecretPlain = decrypted || existing.razorpay_webhook_secret
+    } else {
+        webhookSecretPlain = generateWebhookSecret()
+    }
+    const encryptedWebhookSecret = await encrypt(webhookSecretPlain)
 
     await supabase.from("user_payment_settings").upsert({
         user_id: auth.user.id,
@@ -189,7 +200,7 @@ async function handleRazorpay(auth: any, body: Record<string, unknown>, request:
         razorpay_account_name: accountName ? sanitizeInput(String(accountName)).slice(0, 100) : null,
         razorpay_enabled: true,
         razorpay_test_mode: isTestMode,
-        razorpay_webhook_secret: webhookSecret,
+        razorpay_webhook_secret: encryptedWebhookSecret,
         updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" })
 
@@ -291,7 +302,9 @@ async function handleCashfree(auth: any, body: Record<string, unknown>, request:
     }
 
     const encryptedSecret = await encrypt(String(clientSecret).trim())
-    const webhookSecret = generateWebhookSecret()
+    // SECURITY: Encrypt webhook secret before storing — same as Razorpay and Stripe
+    const webhookSecretPlain = generateWebhookSecret()
+    const encryptedWebhookSecret = await encrypt(webhookSecretPlain)
 
     await adminClient().from("user_payment_settings").upsert({
         user_id: auth.user.id,
@@ -299,7 +312,7 @@ async function handleCashfree(auth: any, body: Record<string, unknown>, request:
         cashfree_client_secret_encrypted: encryptedSecret,
         cashfree_enabled: true,
         cashfree_test_mode: isTestMode,
-        cashfree_webhook_secret: webhookSecret,
+        cashfree_webhook_secret: encryptedWebhookSecret,
         updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" })
 
