@@ -34,7 +34,7 @@ export default function RazorpayGuidePage() {
 
         {/* Hero Section */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-12">
-          <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#1a3a6e] to-[#2563EB] flex items-center justify-center shadow-lg shadow-blue-900/20 shrink-0">
+          <div className="w-20 h-20 rounded-[2rem] bg-[#012652] flex items-center justify-center shadow-lg shadow-blue-900/20 shrink-0">
             <RazorpayLogo size={48} />
           </div>
           <div>

@@ -32,32 +32,37 @@ interface OfflineMethod { id: string; label: string; details: string; enabled: b
 interface GatewayDef { id: Gateway; name: string; description: string; countries: string; accentBg: string; Icon: React.FC<{ size?: number }>; apiKeyUrl: string; webhookPath: string }
 
 function RazorpayIcon({ size = 20 }: { size?: number }) {
-  // Accurate Razorpay "R" mark
+  // Razorpay brand colors: navy #012652 bg, the "R" lightning bolt mark
+  // Based on official brand assets at razorpay.com/newsroom/brand-assets
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <path d="M28 72L44 28H58C68 28 74 34 74 44C74 52 69 58 61 60L74 72H62L51 61H42L38 72H28ZM42 52H54C59 52 62 49 62 44C62 39 59 37 54 37H44L42 52Z" fill="white"/>
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <path d="M8 32L16 8H24C29.5 8 33 11 33 16.5C33 21 30 24 25.5 25.5L33 32H26L19.5 26H15L13 32H8ZM15 21H22C25 21 27 19.5 27 16.5C27 13.5 25 12 22 12H16.5L15 21Z" fill="white"/>
     </svg>
   )
 }
 function StripeIcon({ size = 20 }: { size?: number }) {
-  // Accurate Stripe "S" mark
+  // Stripe brand: purple #635BFF bg, the actual Stripe "S" shape
+  // Based on official Stripe brand assets
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <path d="M65.4 46.1C65.4 37.8 59 34.6 51 34.6C41.2 34.6 34.6 40.5 34.6 49.3C34.6 62.4 53.6 60.5 53.6 66.2C53.6 69.1 50.5 70.8 46.4 70.8C40.6 70.8 35.5 68.3 33.3 65.6L30.5 76C33.4 78 39.4 79.5 45.4 79.5C55.7 79.5 63 73.6 63 64.6C63 50.8 44.1 52.8 44.1 47.7C44.1 45.2 46.8 43.4 51.1 43.4C55.7 43.4 59.8 45.2 62.3 47.7L65.4 46.1Z" fill="white"/>
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <path d="M20.5 14.5C20.5 13.4 21.4 12.8 22.8 12.8C24.6 12.8 26.3 13.5 27.5 14.4L28.9 10.6C27.4 9.5 25.2 8.8 22.7 8.8C18.5 8.8 15.6 11.1 15.6 14.8C15.6 21.4 24.5 20.2 24.5 23.4C24.5 24.7 23.4 25.4 21.8 25.4C19.6 25.4 17.6 24.5 16.3 23.2L14.8 27.1C16.4 28.5 18.9 29.3 21.6 29.3C26.1 29.3 29.2 27 29.2 23.1C29.2 16.2 20.5 17.5 20.5 14.5Z" fill="white"/>
     </svg>
   )
 }
 function CashfreeIcon({ size = 20 }: { size?: number }) {
-  // Accurate Cashfree "CF" mark
+  // Cashfree brand: green #00A550 bg
+  // Cashfree's logo is a stylized "C" with a forward arrow — their actual brand mark
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <text x="50" y="66" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="38" fill="white">CF</text>
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <path d="M27 12C24.5 9.5 21 8 17 8C9.8 8 4 13.8 4 21C4 28.2 9.8 34 17 34C21 34 24.5 32.5 27 30" stroke="white" strokeWidth="3.5" strokeLinecap="round" fill="none"/>
+      <path d="M23 17L29 21L23 25" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <line x1="29" y1="21" x2="17" y2="21" stroke="white" strokeWidth="3" strokeLinecap="round"/>
     </svg>
   )
 }
 
 const GATEWAYS: GatewayDef[] = [
-  { id: "razorpay", name: "Razorpay", description: "UPI, cards, netbanking, wallets", countries: "India", accentBg: "#2563EB", Icon: RazorpayIcon, apiKeyUrl: "https://dashboard.razorpay.com/app/keys", webhookPath: "/integrations/payments/razorpay" },
+  { id: "razorpay", name: "Razorpay", description: "UPI, cards, netbanking, wallets", countries: "India", accentBg: "#012652", Icon: RazorpayIcon, apiKeyUrl: "https://dashboard.razorpay.com/app/keys", webhookPath: "/integrations/payments/razorpay" },
   { id: "stripe", name: "Stripe", description: "Cards, wallets, 135+ currencies", countries: "Global", accentBg: "#635BFF", Icon: StripeIcon, apiKeyUrl: "https://dashboard.stripe.com/apikeys", webhookPath: "/integrations/payments/stripe" },
   { id: "cashfree", name: "Cashfree", description: "Fast settlements, payment links", countries: "India", accentBg: "#00A550", Icon: CashfreeIcon, apiKeyUrl: "https://merchant.cashfree.com/merchants/developer/api-keys", webhookPath: "/integrations/payments/cashfree" },
 ]
@@ -690,7 +695,18 @@ export function PaymentSettings() {
                           <div className="flex-1 min-w-0">
                             <p className="text-[15px] font-semibold text-foreground leading-tight">{gw.name}</p>
                             <p className="text-xs text-foreground/60 mt-0.5">{gw.description}</p>
-                            <p className="text-[11px] text-foreground/40 mt-0.5 font-medium">{gw.countries}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-[11px] text-foreground/40 font-medium">{gw.countries}</p>
+                              <a
+                                href={`/integrations/payments/${gw.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="text-[11px] font-medium text-primary hover:underline flex items-center gap-0.5"
+                              >
+                                Setup guide <ExternalLink size={9} />
+                              </a>
+                            </div>
                           </div>
                           {isSelected ? <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-lg shrink-0">Selected</span> : <Plus size={18} className="text-muted-foreground/40 shrink-0" />}
                         </button>

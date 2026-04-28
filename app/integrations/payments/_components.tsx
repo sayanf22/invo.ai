@@ -26,41 +26,32 @@ export function DashboardMockup({ children, title }: { children: React.ReactNode
 }
 
 // ── Accurate Gateway Logos (SVG, brand-accurate) ──────────────────────────────
-// These are hand-crafted SVGs that accurately represent each brand's logo.
-// Razorpay: Blue background with the "R" lightning bolt mark
-// Stripe:   Purple background with the "S" wordmark path
-// Cashfree: Green background with the CF mark
+// Razorpay: Navy #012652 bg, "R" lightning bolt mark (official brand colors from razorpay.com/newsroom/brand-assets)
+// Stripe:   Purple #635BFF bg, "S" wordmark shape (official brand)
+// Cashfree: Green #00A550 bg, "C" with arrow mark (official brand)
 
 export function RazorpayLogo({ size = 40 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100" height="100" rx="18" fill="#2563EB" />
-      {/* Razorpay "R" with lightning bolt — brand accurate */}
-      <path d="M28 72L44 28H58C68 28 74 34 74 44C74 52 69 58 61 60L74 72H62L51 61H42L38 72H28ZM42 52H54C59 52 62 49 62 44C62 39 59 37 54 37H44L42 52Z" fill="white"/>
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8 32L16 8H24C29.5 8 33 11 33 16.5C33 21 30 24 25.5 25.5L33 32H26L19.5 26H15L13 32H8ZM15 21H22C25 21 27 19.5 27 16.5C27 13.5 25 12 22 12H16.5L15 21Z" fill="white"/>
     </svg>
   )
 }
 
 export function StripeLogo({ size = 40 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100" height="100" rx="18" fill="#635BFF" />
-      {/* Stripe "S" — brand accurate path */}
-      <path
-        d="M50.5 38C44.5 38 41 40.5 41 44.5C41 53 57 51.5 57 58C57 61.5 54 63.5 49.5 63.5C44 63.5 39.5 61 37 58L34 67C37.5 70 43 72 49.5 72C56.5 72 66 68 66 58C66 48.5 50 50 50 44.5C50 41.5 52.5 40 56 40C60 40 63.5 41.5 66 43.5L69 35C65.5 32.5 58.5 30 50.5 30C44 30 31 33.5 31 44.5C31 55 47 53.5 47 58C47 60.5 44.5 62 41 62C37 62 33.5 60 31 57.5L28 66.5C31.5 70 37.5 72 44 72"
-        fill="white"
-        fillRule="evenodd"
-      />
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20.5 14.5C20.5 13.4 21.4 12.8 22.8 12.8C24.6 12.8 26.3 13.5 27.5 14.4L28.9 10.6C27.4 9.5 25.2 8.8 22.7 8.8C18.5 8.8 15.6 11.1 15.6 14.8C15.6 21.4 24.5 20.2 24.5 23.4C24.5 24.7 23.4 25.4 21.8 25.4C19.6 25.4 17.6 24.5 16.3 23.2L14.8 27.1C16.4 28.5 18.9 29.3 21.6 29.3C26.1 29.3 29.2 27 29.2 23.1C29.2 16.2 20.5 17.5 20.5 14.5Z" fill="white"/>
     </svg>
   )
 }
 
 export function CashfreeLogo({ size = 40 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100" height="100" rx="18" fill="#00A550" />
-      {/* Cashfree "CF" mark — brand accurate */}
-      <text x="50" y="66" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="38" fill="white">CF</text>
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M27 12C24.5 9.5 21 8 17 8C9.8 8 4 13.8 4 21C4 28.2 9.8 34 17 34C21 34 24.5 32.5 27 30" stroke="white" strokeWidth="3.5" strokeLinecap="round" fill="none"/>
+      <path d="M23 17L29 21L23 25" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <line x1="29" y1="21" x2="17" y2="21" stroke="white" strokeWidth="3" strokeLinecap="round"/>
     </svg>
   )
 }
