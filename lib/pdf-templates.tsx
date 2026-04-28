@@ -622,7 +622,11 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     <View style={s.sigBlk}>
                         <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
                         {(() => {
-                            // Party A is the document owner (Provider) — no drawn signature
+                            // Party A is the document owner (Provider)
+                            // Show their drawn signature if showSenderSignature is true and image is available
+                            if (data.showSenderSignature !== false && data.senderSignatureDataUrl) {
+                                return <Image src={data.senderSignatureDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                            }
                             return <View style={s.sigLine} />
                         })()}
                         <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>

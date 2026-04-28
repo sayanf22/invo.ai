@@ -16,6 +16,8 @@ import {
   X,
   Loader2,
   CheckCircle2,
+  PenLine,
+  RotateCcw,
 } from "lucide-react"
 import { toast } from "sonner"
 import type { InvoiceData, LineItem } from "@/lib/invoice-types"
@@ -196,6 +198,311 @@ function SelectField({
           })}
         </select>
         <ChevronDown className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      </div>
+    </div>
+  )
+}
+
+// ── Signature Step Component ──────────────────────────────────────────────────
+// Handles: saved signature auto-fill, per-document signature, toggle on/off, lock after send
+
+function SignatureStep({
+  data,
+  onChange,
+  isPaid,
+  isSent,
+}: {
+  data: InvoiceData
+  onChange: (updates: Partial<InvoiceData>) => void
+  isPaid: boolean
+  isSent: boolean
+}) {
+  const [savedSigUrl, setSavedSigUrl] = useState<string | null>(null)
+  const [loadingSaved, setLoadingSaved] = useState(true)
+  const [showDocPad, setShowDocPad] = useState(false)
+  const isLocked = isPaid || isSent
+
+  // Load saved signature from profile on mount
+  useEffect(() => {
+    let cancelled = false
+    authFetch("/api/profile/signature")
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return
+        if (d.signatureDataUrl) {
+          setSavedSigUrl(d.signatureDataUrl)
+          // Auto-fill into document if not already set and showSenderSignature is true
+          if (!data.senderSignatureDataUrl && data.showSenderSignature !== false) {
+            onChange({ senderSignatureDataUrl: d.signatureDataUrl })
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingSaved(false) })
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDocSignature = (dataUrl: string) => {
+    onChange({ senderSignatureDataUrl: dataUrl, showSenderSignature: true })
+    setShowDocPad(false)
+  }
+
+  const clearDocSignature = () => {
+    onChange({ senderSignatureDataUrl: undefined })
+    setShowDocPad(false)
+  }
+
+  const toggleShowSignature = () => {
+    if (isLocked) return
+    const next = data.showSenderSignature === false ? true : false
+    onChange({ showSenderSignature: next })
+  }
+
+  // The active signature for this document
+  const activeSignature = data.senderSignatureDataUrl || savedSigUrl
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Lock notice */}
+      {isSent && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40">
+          <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Document has been sent — signature is locked and cannot be changed.
+          </p>
+        </div>
+      )}
+
+      {/* Show/hide toggle */}
+      <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-border bg-muted/20">
+        <div className="flex items-center gap-2">
+          <PenLine className="w-4 h-4 text-muted-foreground shrink-0" />
+          <div>
+            <p className="text-xs font-semibold text-foreground">Show my signature on document</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {data.showSenderSignature !== false ? "Your signature will appear in the PDF" : "Signature block will show a blank line"}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={toggleShowSignature}
+          disabled={isLocked}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 ${isLocked ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${data.showSenderSignature !== false ? "bg-primary" : "bg-muted"}`}
+          aria-label="Toggle signature visibility"
+        >
+          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.showSenderSignature !== false ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+        </button>
+      </div>
+
+      {/* Signature preview / pad */}
+      {data.showSenderSignature !== false && (
+        <div className="space-y-2">
+          {loadingSaved ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading saved signature...
+            </div>
+          ) : activeSignature && !showDocPad ? (
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {data.senderSignatureDataUrl && data.senderSignatureDataUrl !== savedSigUrl
+                  ? "Document-specific signature"
+                  : "Using saved profile signature"}
+              </p>
+              <div className="inline-block border border-border rounded-xl p-2.5 bg-white dark:bg-white/5">
+                <img src={activeSignature} alt="Your signature" className="max-w-[180px] max-h-[60px] object-contain" />
+              </div>
+              {!isLocked && (
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowDocPad(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-border hover:bg-muted/60 transition-colors"
+                  >
+                    <PenLine className="w-3 h-3" /> Sign differently for this doc
+                  </button>
+                  {data.senderSignatureDataUrl && data.senderSignatureDataUrl !== savedSigUrl && (
+                    <button
+                      type="button"
+                      onClick={clearDocSignature}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Use profile signature
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : !isLocked ? (
+            <div className="space-y-2">
+              {!savedSigUrl && (
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  No saved signature found. Draw one below for this document, or{" "}
+                  <a href="/profile" target="_blank" className="text-primary hover:underline">save one to your profile</a> to auto-fill on all documents.
+                </p>
+              )}
+              {showDocPad && savedSigUrl && (
+                <p className="text-xs text-muted-foreground">Draw a different signature for this document only:</p>
+              )}
+              <div className="max-w-sm">
+                {/* Inline signature pad */}
+                <InlineSignaturePad
+                  onSignature={handleDocSignature}
+                  onCancel={showDocPad ? () => setShowDocPad(false) : undefined}
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Name and title fields */}
+      <div className="space-y-2 pt-1 border-t border-border/50">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Signature Block Text</p>
+        <Field
+          id="sig-name"
+          label="Full Name"
+          value={data.signatureName}
+          onChange={(v) => onChange({ signatureName: v })}
+          placeholder="e.g. Jane Smith"
+          disabled={isLocked}
+        />
+        <Field
+          id="sig-title"
+          label="Title / Role"
+          value={data.signatureTitle}
+          onChange={(v) => onChange({ signatureTitle: v })}
+          placeholder="e.g. CEO, Founder"
+          optional
+          disabled={isLocked}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── Inline Signature Pad (compact version for editor) ─────────────────────────
+
+function InlineSignaturePad({
+  onSignature,
+  onCancel,
+}: {
+  onSignature: (dataUrl: string) => void
+  onCancel?: () => void
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [hasStrokes, setHasStrokes] = useState(false)
+  const lastPos = useRef<{ x: number; y: number } | null>(null)
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ("touches" in e) {
+      const t = e.touches[0]
+      return { x: (t.clientX - rect.left) * scaleX, y: (t.clientY - rect.top) * scaleY }
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }
+
+  const initCanvas = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+    ctx.fillStyle = "#ffffff"
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.strokeStyle = "#1a1a1a"
+    ctx.lineWidth = 2
+    ctx.lineCap = "round"
+    ctx.lineJoin = "round"
+  }, [])
+
+  useEffect(() => { initCanvas() }, [initCanvas])
+
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    setIsDrawing(true)
+    lastPos.current = getPos(e, canvas)
+  }
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    if (!isDrawing) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx || !lastPos.current) return
+    const pos = getPos(e, canvas)
+    ctx.beginPath()
+    ctx.moveTo(lastPos.current.x, lastPos.current.y)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.stroke()
+    lastPos.current = pos
+    setHasStrokes(true)
+  }
+
+  const endDraw = () => { setIsDrawing(false); lastPos.current = null }
+
+  const clear = () => { initCanvas(); setHasStrokes(false) }
+
+  const save = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    onSignature(canvas.toDataURL("image/jpeg", 0.8))
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="relative rounded-xl border-2 border-dashed border-border overflow-hidden bg-white" style={{ touchAction: "none" }}>
+        <canvas
+          ref={canvasRef}
+          width={400}
+          height={120}
+          className="w-full cursor-crosshair"
+          style={{ display: "block" }}
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+        />
+        {!hasStrokes && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <p className="text-xs text-muted-foreground/50">Draw your signature here</p>
+          </div>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={save}
+          disabled={!hasStrokes}
+          className="flex-1 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Check className="w-3.5 h-3.5 inline mr-1" /> Apply Signature
+        </button>
+        <button
+          type="button"
+          onClick={clear}
+          className="px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+        >
+          Clear
+        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   )
@@ -1178,29 +1485,12 @@ export function EditorPanel({ data, onChange, documentStatus }: EditorPanelProps
             isOpen={openStep === 5}
             onToggle={() => setOpenStep(openStep === 5 ? 0 : 5)}
           >
-            <div className="flex flex-col gap-3">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Add your name and title to generate a signature block on the
-                document. The recipient will receive a secure signing link.
-              </p>
-              <Field
-                id="sig-name"
-                label="Full Name"
-                value={data.signatureName}
-                onChange={(v) => onChange({ signatureName: v })}
-                placeholder="e.g. Jane Smith"
-                disabled={isPaid}
-              />
-              <Field
-                id="sig-title"
-                label="Title / Role"
-                value={data.signatureTitle}
-                onChange={(v) => onChange({ signatureTitle: v })}
-                placeholder="e.g. CEO, Founder"
-                optional
-                disabled={isPaid}
-              />
-            </div>
+            <SignatureStep
+              data={data}
+              onChange={onChange}
+              isPaid={isPaid}
+              isSent={documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"}
+            />
           </Step>
         )}
 

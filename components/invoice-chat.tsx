@@ -241,6 +241,26 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         return () => { cancelled = true }
     }, [session?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Load saved signature from profile and auto-fill into document
+    useEffect(() => {
+        let cancelled = false
+        async function loadProfileSignature() {
+            try {
+                // Only auto-fill if document doesn't already have a sender signature
+                if (data.senderSignatureDataUrl) return
+                const { authFetch: af } = await import("@/lib/auth-fetch")
+                const res = await af("/api/profile/signature")
+                if (!res.ok || cancelled) return
+                const d = await res.json()
+                if (d.signatureDataUrl && !cancelled) {
+                    onChange({ senderSignatureDataUrl: d.signatureDataUrl, showSenderSignature: true })
+                }
+            } catch { /* non-fatal */ }
+        }
+        loadProfileSignature()
+        return () => { cancelled = true }
+    }, [session?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
     // Handle document limit error from session creation
     useEffect(() => {
         if (limitError) {
