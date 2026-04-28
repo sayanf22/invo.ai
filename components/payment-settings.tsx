@@ -31,9 +31,30 @@ interface GatewaySettings {
 interface OfflineMethod { id: string; label: string; details: string; enabled: boolean }
 interface GatewayDef { id: Gateway; name: string; description: string; countries: string; accentBg: string; Icon: React.FC<{ size?: number }>; apiKeyUrl: string; webhookPath: string }
 
-function RazorpayIcon({ size = 20 }: { size?: number }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M4 20L10.5 4H14L20 20H16.5L15.2 16.5H9.3L8 20H4ZM10.4 13.5H14.1L12.25 8.2L10.4 13.5Z" fill="white"/></svg> }
-function StripeIcon({ size = 20 }: { size?: number }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z" fill="white"/></svg> }
-function CashfreeIcon({ size = 20 }: { size?: number }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-11v2H9v2h2v4h2v-4h2v-2h-2V8h-2z" fill="white"/></svg> }
+function RazorpayIcon({ size = 20 }: { size?: number }) {
+  // Accurate Razorpay "R" mark
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <path d="M28 72L44 28H58C68 28 74 34 74 44C74 52 69 58 61 60L74 72H62L51 61H42L38 72H28ZM42 52H54C59 52 62 49 62 44C62 39 59 37 54 37H44L42 52Z" fill="white"/>
+    </svg>
+  )
+}
+function StripeIcon({ size = 20 }: { size?: number }) {
+  // Accurate Stripe "S" mark
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <path d="M65.4 46.1C65.4 37.8 59 34.6 51 34.6C41.2 34.6 34.6 40.5 34.6 49.3C34.6 62.4 53.6 60.5 53.6 66.2C53.6 69.1 50.5 70.8 46.4 70.8C40.6 70.8 35.5 68.3 33.3 65.6L30.5 76C33.4 78 39.4 79.5 45.4 79.5C55.7 79.5 63 73.6 63 64.6C63 50.8 44.1 52.8 44.1 47.7C44.1 45.2 46.8 43.4 51.1 43.4C55.7 43.4 59.8 45.2 62.3 47.7L65.4 46.1Z" fill="white"/>
+    </svg>
+  )
+}
+function CashfreeIcon({ size = 20 }: { size?: number }) {
+  // Accurate Cashfree "CF" mark
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <text x="50" y="66" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="38" fill="white">CF</text>
+    </svg>
+  )
+}
 
 const GATEWAYS: GatewayDef[] = [
   { id: "razorpay", name: "Razorpay", description: "UPI, cards, netbanking, wallets", countries: "India", accentBg: "#2563EB", Icon: RazorpayIcon, apiKeyUrl: "https://dashboard.razorpay.com/app/keys", webhookPath: "/integrations/payments/razorpay" },
@@ -99,61 +120,9 @@ function CopyField({ label, value }: { label: string; value: string }) {
   return <div><label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">{label}</label><div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/30"><code className="flex-1 text-xs font-mono text-foreground/80 truncate">{value}</code><button type="button" onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className="shrink-0 p-1 rounded-lg text-foreground/40 hover:text-foreground hover:bg-muted transition-colors">{copied ? <Check size={13} className="text-primary" /> : <Copy size={13} />}</button></div></div>
 }
 
-// ── Webhook Panel (collapsed by default, secure) ──────────────────────────────
-// RESEARCH FINDINGS (verified from official docs):
-// - Razorpay: Secret is a CUSTOM string YOU create — NOT your API key secret.
-//   You generate it here, then paste it into Razorpay Dashboard → Settings → Webhooks.
-//   Razorpay docs: "The secret does not need to be the Razorpay API key secret."
-// - Stripe: Webhook auto-registered via API. Signing secret starts with "whsec_".
-//   Found in Dashboard → Developers → Webhooks → click endpoint → Signing secret → Reveal.
-// - Cashfree: No separate webhook secret — uses Client Secret for HMAC-SHA256 signing.
-//   Just add the webhook URL in Dashboard → Payment Gateway → Developers → Webhooks.
-//
-// WEBHOOK STATUS LOGIC:
-// - Stripe: webhookRegistered = auto-registered via API (definitive check)
-// - Razorpay/Cashfree: webhookConfigured = secret exists in DB = URL is ready to use
-
-const WEBHOOK_INSTRUCTIONS: Record<string, { steps: string[]; secretNote: string; events: string[] }> = {
-  razorpay: {
-    steps: [
-      "Copy the Webhook URL below",
-      "Open a new tab → go to dashboard.razorpay.com",
-      "Click Account & Settings (top right) → Webhooks",
-      "Click + Add New Webhook",
-      "Paste the Webhook URL in the URL field",
-      "In the Secret field: click 'Reveal Secret' below to get your secret, then paste it — OR type any password you want (just remember it!)",
-      "Tick these 4 events: payment_link.paid, payment_link.partially_paid, payment_link.expired, payment_link.cancelled",
-      "Click Save — done! ✅",
-    ],
-    secretNote: "The Secret is like a password between Razorpay and this app. You can either use the one we generated (click Reveal below), or type your own. Whatever you enter in Razorpay's Secret field must match what's saved here. If you use your own, update it below.",
-    events: ["payment_link.paid", "payment_link.partially_paid", "payment_link.expired", "payment_link.cancelled"],
-  },
-  stripe: {
-    steps: [
-      "Stripe webhook was set up automatically when you connected — nothing to do!",
-      "To double-check: open dashboard.stripe.com → Developers → Webhooks",
-      "You should see an endpoint pointing to this app with status Enabled",
-      "If it's missing, disconnect Stripe and reconnect to re-register it",
-    ],
-    secretNote: "Stripe automatically registered the webhook when you connected your account. The signing secret is stored securely and you don't need to do anything.",
-    events: ["checkout.session.completed", "payment_link.completed"],
-  },
-  cashfree: {
-    steps: [
-      "Copy the Webhook URL below",
-      "Open a new tab → go to merchant.cashfree.com",
-      "Click Developers in the left menu",
-      "Click Webhooks → Add Webhook Endpoint",
-      "Paste the Webhook URL",
-      "Select version: 2025-01-01",
-      "Click Save — that's it! No secret needed ✅",
-    ],
-    secretNote: "Cashfree does not need a separate secret. It uses your Client Secret (already saved) to sign the notifications automatically. Just add the URL above and you're done.",
-    events: ["PAYMENT_LINK_EVENT"],
-  },
-}
-
-// ── Razorpay Secret Reveal + Custom Secret (fetched from secure API) ─────────
+// ── Secret Reveal + Custom Secret for Razorpay/Cashfree ───────────────────────
+// Full guide is at /integrations/payments/{gateway}
+// This component handles: reveal our generated secret OR save a custom one.
 function RazorpaySecretReveal({ gateway }: { gateway: string }) {
   const [secret, setSecret] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)

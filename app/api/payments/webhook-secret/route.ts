@@ -30,20 +30,23 @@ export async function GET(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const column = gateway === "razorpay" ? "razorpay_webhook_secret" : "cashfree_webhook_secret"
-  const enabledColumn = gateway === "razorpay" ? "razorpay_enabled" : "cashfree_enabled"
-
+  // Fetch both fields explicitly to avoid TypeScript dynamic indexing issues
   const { data } = await supabase
     .from("user_payment_settings")
-    .select(`${column}, ${enabledColumn}`)
+    .select("razorpay_webhook_secret, razorpay_enabled, cashfree_webhook_secret, cashfree_enabled")
     .eq("user_id", auth.user.id)
     .maybeSingle()
 
-  if (!data || !data[enabledColumn]) {
+  if (!data) {
     return NextResponse.json({ error: "Gateway not connected" }, { status: 404 })
   }
 
-  const encryptedSecret = data[column]
+  const isEnabled = gateway === "razorpay" ? data.razorpay_enabled : data.cashfree_enabled
+  if (!isEnabled) {
+    return NextResponse.json({ error: "Gateway not connected" }, { status: 404 })
+  }
+
+  const encryptedSecret = gateway === "razorpay" ? data.razorpay_webhook_secret : data.cashfree_webhook_secret
   if (!encryptedSecret) {
     return NextResponse.json({ error: "No webhook secret configured" }, { status: 404 })
   }
@@ -88,11 +91,14 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const column = gateway === "razorpay" ? "razorpay_webhook_secret" : "cashfree_webhook_secret"
+  // Use explicit field names to avoid TypeScript dynamic indexing issues
+  const updateData = gateway === "razorpay"
+    ? { razorpay_webhook_secret: encryptedSecret, updated_at: new Date().toISOString() }
+    : { cashfree_webhook_secret: encryptedSecret, updated_at: new Date().toISOString() }
 
   const { error } = await supabase
     .from("user_payment_settings")
-    .update({ [column]: encryptedSecret, updated_at: new Date().toISOString() })
+    .update(updateData)
     .eq("user_id", auth.user.id)
 
   if (error) {

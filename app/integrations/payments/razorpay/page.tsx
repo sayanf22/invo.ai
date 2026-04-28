@@ -3,38 +3,13 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
+import { DashboardMockup, RazorpayLogo, SecurityItem } from "../_components"
 
 export const metadata: Metadata = {
   title: "Razorpay Integration Guide | Clorefy",
   description:
     "Step-by-step guide to connect Razorpay with Clorefy. Set up API keys, configure webhooks, and start accepting payments via UPI, cards, and netbanking.",
 }
-
-// Inline Razorpay Logo SVG
-const RazorpayLogoSVG = () => (
-  <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="100" height="100" rx="20" fill="#072654" />
-    <path d="M30 70L70 30" stroke="#2563eb" strokeWidth="12" strokeLinecap="square" />
-    <path d="M30 30H50C65 30 65 50 50 50H30V30Z" stroke="white" strokeWidth="10" strokeLinejoin="round" />
-  </svg>
-)
-
-// Mini Dashboard Mockup Component
-const DashboardMockup = ({ children, title }: { children: React.ReactNode, title: string }) => (
-  <div className="mt-6 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none bg-slate-50 dark:bg-slate-900/80">
-    <div className="h-10 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-2">
-      <div className="flex gap-1.5 shrink-0">
-        <div className="w-3 h-3 rounded-full bg-red-400"></div>
-        <div className="w-3 h-3 rounded-full bg-amber-400"></div>
-        <div className="w-3 h-3 rounded-full bg-green-400"></div>
-      </div>
-      <div className="mx-auto bg-slate-100 dark:bg-slate-900 px-3 sm:px-4 py-1 rounded-md text-[10px] font-mono text-slate-500 truncate max-w-[60%] sm:max-w-[80%]">{title}</div>
-    </div>
-    <div className="p-0 overflow-x-auto">
-      {children}
-    </div>
-  </div>
-)
 
 export default function RazorpayGuidePage() {
   return (
@@ -59,8 +34,8 @@ export default function RazorpayGuidePage() {
 
         {/* Hero Section */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-12">
-          <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#072654] to-[#123970] flex items-center justify-center shadow-lg shadow-blue-900/10 shrink-0">
-            <RazorpayLogoSVG />
+          <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#1a3a6e] to-[#2563EB] flex items-center justify-center shadow-lg shadow-blue-900/20 shrink-0">
+            <RazorpayLogo size={48} />
           </div>
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-3">

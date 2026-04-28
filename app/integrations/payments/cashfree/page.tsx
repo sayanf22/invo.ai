@@ -3,40 +3,13 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
+import { DashboardMockup, CashfreeLogo, SecurityItem } from "../_components"
 
 export const metadata: Metadata = {
   title: "Cashfree Integration Guide | Clorefy",
   description:
     "Step-by-step guide to connect Cashfree with Clorefy. Set up API keys, configure webhooks, and start accepting payments with fast settlements.",
 }
-
-// Inline Cashfree Logo SVG
-const CashfreeLogoSVG = () => (
-  <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="100" height="100" rx="20" fill="#00B050" />
-    <path d="M70 30L30 70M30 30L70 70" stroke="white" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
-    <circle cx="50" cy="50" r="30" stroke="white" strokeWidth="8" />
-  </svg>
-)
-
-// Mini Dashboard Mockup Component
-const DashboardMockup = ({ children, title }: { children: React.ReactNode, title: string }) => (
-  <div className="mt-6 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none bg-slate-50 dark:bg-slate-900/80">
-    {/* Browser header */}
-    <div className="h-10 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-2">
-      <div className="flex gap-1.5 shrink-0">
-        <div className="w-3 h-3 rounded-full bg-red-400"></div>
-        <div className="w-3 h-3 rounded-full bg-amber-400"></div>
-        <div className="w-3 h-3 rounded-full bg-green-400"></div>
-      </div>
-      <div className="mx-auto bg-slate-100 dark:bg-slate-900 px-3 sm:px-4 py-1 rounded-md text-[10px] font-mono text-slate-500 truncate max-w-[60%] sm:max-w-[80%]">{title}</div>
-    </div>
-    {/* Content */}
-    <div className="p-0 overflow-x-auto">
-      {children}
-    </div>
-  </div>
-)
 
 export default function CashfreeGuidePage() {
   return (
@@ -61,8 +34,8 @@ export default function CashfreeGuidePage() {
 
         {/* Hero Section */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-12">
-          <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#00B050] to-[#00C95B] flex items-center justify-center shadow-lg shadow-green-900/10 shrink-0">
-            <CashfreeLogoSVG />
+          <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#00A550] to-[#00C95B] flex items-center justify-center shadow-lg shadow-green-900/20 shrink-0">
+            <CashfreeLogo size={48} />
           </div>
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-3">

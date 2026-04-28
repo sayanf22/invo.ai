@@ -3,37 +3,13 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
+import { DashboardMockup, StripeLogo, SecurityItem } from "../_components"
 
 export const metadata: Metadata = {
   title: "Stripe Integration Guide | Clorefy",
   description:
     "Step-by-step guide to connect Stripe with Clorefy. Set up your API key, understand auto-registered webhooks, and start accepting global payments.",
 }
-
-// Inline Stripe Logo SVG
-const StripeLogoSVG = () => (
-  <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="100" height="100" rx="20" fill="#635BFF" />
-    <path d="M65.4 46.1C65.4 37.8 59 34.6 51 34.6C41.2 34.6 34.6 40.5 34.6 49.3C34.6 62.4 53.6 60.5 53.6 66.2C53.6 69.1 50.5 70.8 46.4 70.8C40.6 70.8 35.5 68.3 33.3 65.6L30.5 76C33.4 78 39.4 79.5 45.4 79.5C55.7 79.5 63 73.6 63 64.6C63 50.8 44.1 52.8 44.1 47.7C44.1 45.2 46.8 43.4 51.1 43.4C55.7 43.4 59.8 45.2 62.3 47.7L65.4 46.1Z" fill="white" />
-  </svg>
-)
-
-// Mini Dashboard Mockup Component
-const DashboardMockup = ({ children, title }: { children: React.ReactNode, title: string }) => (
-  <div className="mt-6 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none bg-slate-50 dark:bg-slate-900/80">
-    <div className="h-10 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-2">
-      <div className="flex gap-1.5 shrink-0">
-        <div className="w-3 h-3 rounded-full bg-red-400"></div>
-        <div className="w-3 h-3 rounded-full bg-amber-400"></div>
-        <div className="w-3 h-3 rounded-full bg-green-400"></div>
-      </div>
-      <div className="mx-auto bg-slate-100 dark:bg-slate-900 px-3 sm:px-4 py-1 rounded-md text-[10px] font-mono text-slate-500 truncate max-w-[60%] sm:max-w-[80%]">{title}</div>
-    </div>
-    <div className="p-0 overflow-x-auto">
-      {children}
-    </div>
-  </div>
-)
 
 export default function StripeGuidePage() {
   return (
@@ -58,8 +34,8 @@ export default function StripeGuidePage() {
 
         {/* Hero Section */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-12">
-          <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#635BFF] to-[#7A73FF] flex items-center justify-center shadow-lg shadow-indigo-900/10 shrink-0">
-            <StripeLogoSVG />
+          <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#635BFF] to-[#7A73FF] flex items-center justify-center shadow-lg shadow-indigo-900/20 shrink-0">
+            <StripeLogo size={48} />
           </div>
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-3">
