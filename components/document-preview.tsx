@@ -11,6 +11,7 @@ import { TemplatePicker } from "@/components/template-picker"
 import { ShareButton } from "@/components/share-button"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { PaymentLinkButton } from "@/components/payment-link-button"
+import { MarkAsPaidButton } from "@/components/mark-as-paid-button"
 import { GetSignatureModal } from "@/components/get-signature-modal"
 import { SignatureCancelDialog } from "@/components/signature-cancel-dialog"
 import { SignaturePad } from "@/components/signature-pad"
@@ -346,6 +347,9 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [exportingDocx, setExportingDocx] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
   const [sentAt, setSentAt] = useState<string | null>(null)
+  const [manualPaid, setManualPaid] = useState(false)
+  const [manualPaidAt, setManualPaidAt] = useState<string | null>(null)
+  const [manualPaymentMethod, setManualPaymentMethod] = useState<string | null>(null)
   const [selfSignOpen, setSelfSignOpen] = useState(false)
   const [selfSignLoading, setSelfSignLoading] = useState(false)
   const [savedSignatureUrl, setSavedSignatureUrl] = useState<string | null | undefined>(undefined) // undefined = not loaded yet
@@ -411,6 +415,31 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       })
       .catch(() => {})
   }, [sessionId, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Check if invoice is already manually marked as paid
+  useEffect(() => {
+    setManualPaid(false)
+    setManualPaidAt(null)
+    setManualPaymentMethod(null)
+    const docType = (data.documentType || "").toLowerCase()
+    if (!sessionId || !user || docType !== "invoice") return
+    ;(supabase as any)
+      .from("invoice_payments")
+      .select("status, is_manual, manual_payment_method, paid_at, manually_marked_at, gateway")
+      .eq("session_id", sessionId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data: p }: { data: { status?: string; is_manual?: boolean; manual_payment_method?: string | null; paid_at?: string | null; manually_marked_at?: string | null; gateway?: string } | null }) => {
+        if (p?.status === "paid" && (p.is_manual || p.gateway === "manual")) {
+          setManualPaid(true)
+          setManualPaidAt(p.paid_at || p.manually_marked_at || null)
+          setManualPaymentMethod(p.manual_payment_method || null)
+        }
+      })
+      .catch(() => {})
+  }, [sessionId, user?.id, data.documentType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Check if sender has already self-signed this session
   const [senderSigned, setSenderSigned] = useState(false)
@@ -780,6 +809,34 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               documentType={data.documentType || "invoice"}
               onPaymentLinkChange={onPaymentLinkChange}
               onLockChange={onLockChange}
+            />
+          )}
+          {/* Mark as Paid — shown for invoices when no gateway payment link exists or it's not gateway-paid */}
+          {sessionId && (data.documentType || "invoice").toLowerCase() === "invoice" && !manualPaid && (
+            <MarkAsPaidButton
+              sessionId={sessionId}
+              isPaid={false}
+              onStatusChange={(paid) => {
+                if (paid) {
+                  setManualPaid(true)
+                  setManualPaidAt(new Date().toISOString())
+                }
+              }}
+            />
+          )}
+          {sessionId && (data.documentType || "invoice").toLowerCase() === "invoice" && manualPaid && (
+            <MarkAsPaidButton
+              sessionId={sessionId}
+              isPaid
+              paidAt={manualPaidAt}
+              paymentMethod={manualPaymentMethod}
+              onStatusChange={(paid) => {
+                if (!paid) {
+                  setManualPaid(false)
+                  setManualPaidAt(null)
+                  setManualPaymentMethod(null)
+                }
+              }}
             />
           )}
           <ShareButton data={data} sessionId={sessionId ?? null} onOpenSendDialog={() => setSendEmailDialogOpen(true)} />

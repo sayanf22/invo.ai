@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import { authFetch } from "@/lib/auth-fetch"
 import { useSafeBack } from "@/hooks/use-safe-back"
+import { MarkAsPaidButton } from "@/components/mark-as-paid-button"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -53,6 +54,10 @@ interface PaymentRecord {
   customer_name: string | null
   gateway: string
   razorpay_payment_link_id: string | null
+  is_manual?: boolean
+  manual_payment_method?: string | null
+  manual_payment_note?: string | null
+  manually_marked_at?: string | null
 }
 
 interface EmailRecord {
@@ -851,6 +856,8 @@ function DocCard({
   const [emailExpanded, setEmailExpanded] = useState(false)
   const [recurringExpanded, setRecurringExpanded] = useState(false)
   const [signatureExpanded, setSignatureExpanded] = useState(false)
+  const [localPayment, setLocalPayment] = useState<PaymentRecord | null>(session.payment ?? null)
+  const [localStatus, setLocalStatus] = useState(session.status)
   const docType = (session.document_type || "invoice").toLowerCase()
   const ctx = session.context || {}
 
@@ -864,12 +871,19 @@ function DocCard({
     return `${ctx.currency || "₹"}${subtotal.toLocaleString()}`
   })()
 
-  const payment = session.payment
+  const payment = localPayment
   const hasPayment = !!payment
   const emailStats = session.emailStats
   const hasEmails = !!emailStats && (emailStats.totalSent > 0 || emailStats.pendingCount > 0)
   const hasRecurring = docType === "invoice" // show recurring option for all invoices
   const hasSignatures = !!(session.signatures && session.signatures.length > 0)
+
+  // Determine if this invoice is manually paid (no gateway)
+  const isManuallyPaid = payment?.is_manual === true || payment?.gateway === "manual"
+  const isGatewayPaid = payment?.status === "paid" && !isManuallyPaid
+  // Show mark-as-paid for invoices that are NOT paid via gateway and NOT already manually paid
+  const showMarkAsPaid = docType === "invoice" && !isGatewayPaid && localStatus !== "paid"
+  const showManualPaidBadge = docType === "invoice" && (isManuallyPaid || localStatus === "paid") && !isGatewayPaid
 
   return (
     <div
@@ -1006,6 +1020,60 @@ function DocCard({
             </button>
           )}
 
+          {/* Mark as Paid — for invoices without a connected gateway payment */}
+          {showMarkAsPaid && (
+            <MarkAsPaidButton
+              sessionId={session.id}
+              isPaid={false}
+              compact
+              onStatusChange={(paid) => {
+                if (paid) {
+                  setLocalStatus("paid")
+                  setLocalPayment(prev => prev
+                    ? { ...prev, status: "paid", is_manual: true, manually_marked_at: new Date().toISOString() }
+                    : {
+                        id: "manual",
+                        short_url: "",
+                        amount: 0,
+                        currency: "USD",
+                        status: "paid",
+                        amount_paid: null,
+                        paid_at: new Date().toISOString(),
+                        expires_at: null,
+                        created_at: new Date().toISOString(),
+                        view_count: 0,
+                        link_viewed_at: null,
+                        reference_id: null,
+                        customer_name: null,
+                        gateway: "manual",
+                        razorpay_payment_link_id: null,
+                        is_manual: true,
+                        manually_marked_at: new Date().toISOString(),
+                      }
+                  )
+                }
+              }}
+            />
+          )}
+
+          {/* Manual paid badge */}
+          {showManualPaidBadge && (
+            <MarkAsPaidButton
+              sessionId={session.id}
+              isPaid
+              isGatewayPaid={false}
+              paidAt={payment?.paid_at || payment?.manually_marked_at}
+              paymentMethod={payment?.manual_payment_method}
+              compact
+              onStatusChange={(paid) => {
+                if (!paid) {
+                  setLocalStatus("active")
+                  setLocalPayment(null)
+                }
+              }}
+            />
+          )}
+
           {/* Download pills for signed docs */}
           {session.status === "signed" && (
             <>
@@ -1131,7 +1199,7 @@ export default function MyDocumentsPage() {
       if (sessionIds.length > 0) {
         const { data: payments } = await (supabase as any)
           .from("invoice_payments")
-          .select("id, session_id, short_url, amount, currency, status, amount_paid, paid_at, expires_at, created_at, view_count, link_viewed_at, reference_id, customer_name, gateway, razorpay_payment_link_id")
+          .select("id, session_id, short_url, amount, currency, status, amount_paid, paid_at, expires_at, created_at, view_count, link_viewed_at, reference_id, customer_name, gateway, razorpay_payment_link_id, is_manual, manual_payment_method, manual_payment_note, manually_marked_at")
           .in("session_id", sessionIds)
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
@@ -1404,7 +1472,7 @@ export default function MyDocumentsPage() {
     { key: "quotation", label: "Quotations", count: sessions.filter(s => s.document_type === "quotation").length },
     { key: "proposal", label: "Proposals", count: sessions.filter(s => s.document_type === "proposal").length },
     { key: "paid", label: "Paid", count: sessions.filter(s => s.payment?.status === "paid" || s.status === "paid").length },
-    { key: "pending", label: "Pending", count: sessions.filter(s => s.payment?.status === "created").length },
+    { key: "pending", label: "Pending", count: sessions.filter(s => s.payment?.status === "created" || (s.document_type === "invoice" && !s.payment && s.status !== "paid")).length },
   ].filter(f => f.key === "all" || f.count > 0)
 
   const filtered = sessions.filter(s => {
