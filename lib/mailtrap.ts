@@ -34,7 +34,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailRespo
 
   const fromName =
     params.senderName && params.senderName.trim().length > 0
-      ? `${params.senderName} via Clorefy`
+      ? params.senderName.trim()
       : "Clorefy"
 
   // Generate business-specific from address: {businessname}.noreply@clorefy.com
