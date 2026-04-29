@@ -32,25 +32,32 @@ interface OfflineMethod { id: string; label: string; details: string; enabled: b
 interface GatewayDef { id: Gateway; name: string; description: string; countries: string; accentBg: string; Icon: React.FC<{ size?: number }>; apiKeyUrl: string; webhookPath: string }
 
 function RazorpayIcon({ size = 20 }: { size?: number }) {
+  // Official Razorpay logo mark from simple-icons (viewBox 0 0 24 24)
+  // The angular geometric slash/blade shape
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <path fillRule="evenodd" clipRule="evenodd" d="M12.443 31.992L18.423 8H26.347C31.258 8 34 10.742 34 15.653C34 19.347 31.956 22.016 28.484 23.363L33.726 31.992H26.54L21.323 23.516H16.29L14.476 31.992H12.443ZM17.153 21.089H23.508C26.113 21.089 27.911 19.742 27.911 17.032C27.911 14.323 26.113 12.976 23.508 12.976H18.887L17.153 21.089Z" fill="white"/>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M22.436 0l-11.91 7.773-1.174 4.276 6.625-4.297L11.65 24h4.391l6.395-24zM14.26 10.098L3.389 17.166 1.564 24h9.008l3.688-13.902Z" fill="white"/>
     </svg>
   )
 }
 function StripeIcon({ size = 20 }: { size?: number }) {
+  // Official Stripe "S" logo mark from simple-icons (viewBox 0 0 24 24)
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <path d="M19.78 24.36c-1.61 0-2.88-.34-2.88-1.26 0-.82 1.01-1.2 2.57-1.56 3.43-.8 4.96-1.55 4.96-3.65 0-2.59-2.66-4.13-6.57-4.13-2.73 0-4.99.76-6.61 1.74v4.06c1.64-1.12 3.86-1.78 6.06-1.78 1.48 0 2.59.35 2.59 1.13 0 .73-.91 1.11-2.6 1.52-3.4.82-4.93 1.61-4.93 3.73 0 2.72 2.64 4.23 6.6 4.23 2.92 0 5.48-.82 7.23-1.92v-4.13c-1.74 1.17-4 1.85-6.42 1.85z" fill="white"/>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z" fill="white"/>
     </svg>
   )
 }
 function CashfreeIcon({ size = 20 }: { size?: number }) {
+  // Cashfree Payments brand mark: curved C-bracket + forward arrow
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <path d="M26.5 13C24 10 20.5 8.5 16.5 8.5C9.5 8.5 4 14.5 4 21.5C4 28.5 9.5 34.5 16.5 34.5C20.5 34.5 24 33 26.5 30" stroke="white" strokeWidth="4" strokeLinecap="round" fill="none"/>
-      <path d="M23 17.5L29 21.5L23 25.5" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      <line x1="29" y1="21.5" x2="16.5" y2="21.5" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* C-shaped arc wrapping from bottom-right, around left, to top-right */}
+      <path d="M14.5 21c-1.2.6-2.7 1-4 1C5.8 22 2 18 2 12.5S5.8 3 10.5 3c1.3 0 2.8.3 4 1" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none"/>
+      {/* Arrow shaft */}
+      <path d="M9.5 12h11" stroke="white" strokeWidth="2.6" strokeLinecap="round"/>
+      {/* Arrow chevron */}
+      <path d="M17.5 8l4 4-4 4" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     </svg>
   )
 }
