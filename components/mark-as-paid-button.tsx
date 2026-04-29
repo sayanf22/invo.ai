@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import {
-  CheckCircle2, ChevronDown, Loader2, RotateCcw, Banknote,
+  CheckCircle2, Loader2, RotateCcw, Banknote,
   Building2, FileCheck, Smartphone, CreditCard, MoreHorizontal,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -260,25 +260,25 @@ export function MarkAsPaidButton({
     return (
       <>
         <div className={cn(
-          "inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800",
-          "bg-emerald-50 dark:bg-emerald-950/20",
+          "inline-flex items-center gap-1.5 rounded-xl border shrink-0",
+          "border-foreground/10 bg-foreground/[0.06] dark:bg-foreground/10",
           compact ? "px-2 py-1" : "px-3 py-1.5"
         )}>
-          <CheckCircle2 size={compact ? 11 : 13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <CheckCircle2 size={compact ? 11 : 12} className="text-foreground/70 shrink-0" />
           <div className="flex flex-col min-w-0">
             <span className={cn(
-              "font-semibold text-emerald-700 dark:text-emerald-400 leading-tight",
+              "font-semibold text-foreground/80 leading-tight",
               compact ? "text-[11px]" : "text-xs"
             )}>
               Paid
               {paymentMethod && (
-                <span className="font-normal text-emerald-600/70 dark:text-emerald-500/70 ml-1">
+                <span className="font-normal text-foreground/50 ml-1">
                   · {METHOD_LABELS[paymentMethod] || paymentMethod}
                 </span>
               )}
             </span>
             {paidAt && !compact && (
-              <span className="text-[10px] text-emerald-600/60 dark:text-emerald-500/60 leading-tight">
+              <span className="text-[10px] text-foreground/40 leading-tight">
                 {format(new Date(paidAt), "MMM d, yyyy")}
               </span>
             )}
@@ -289,7 +289,7 @@ export function MarkAsPaidButton({
             onClick={() => setShowUnmarkConfirm(true)}
             title="Revert to unpaid"
             className={cn(
-              "ml-1 rounded-lg text-emerald-600/50 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors",
+              "ml-0.5 rounded-lg text-foreground/30 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors",
               compact ? "p-0.5" : "p-1"
             )}
           >
@@ -339,18 +339,21 @@ export function MarkAsPaidButton({
         type="button"
         onClick={() => setShowDialog(true)}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-xl border transition-all duration-150 active:scale-[0.97]",
-          "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/20",
-          "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/40",
-          "hover:border-emerald-400 dark:hover:border-emerald-600",
+          "inline-flex items-center gap-1.5 rounded-xl border transition-all duration-150 active:scale-[0.97] shrink-0",
+          "border-foreground/10 bg-foreground text-background",
+          "hover:bg-foreground/90",
           compact
             ? "px-2.5 py-1 text-[11px] font-semibold"
-            : "px-3 py-1.5 text-xs font-semibold shadow-sm"
+            : "px-3 py-1.5 text-xs font-semibold"
         )}
+        style={{
+          boxShadow: compact
+            ? "0 1px 2px rgba(0,0,0,0.12), 0 2px 6px -1px rgba(0,0,0,0.1)"
+            : "0 1px 3px rgba(0,0,0,0.14), 0 3px 10px -2px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.08)"
+        }}
       >
-        <CheckCircle2 size={compact ? 11 : 13} />
-        Mark as Paid
-        <ChevronDown size={compact ? 10 : 11} className="opacity-60" />
+        <CheckCircle2 size={compact ? 11 : 12} className="shrink-0 opacity-80" />
+        <span>Mark Paid</span>
       </button>
 
       {showDialog && (

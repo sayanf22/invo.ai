@@ -106,29 +106,29 @@ export function PromptScreen({
   return (
     <div className="h-dvh flex flex-col bg-background overflow-hidden">
       {/* ── Header ── */}
-      <header className="flex items-center px-4 py-3 border-b border-border bg-card shrink-0 relative"
+      <header className="flex items-center px-3 py-2.5 border-b border-border bg-card shrink-0 relative gap-2"
         style={{ boxShadow: "0 1px 0 0 rgba(0,0,0,0.06), 0 4px 16px -4px rgba(0,0,0,0.1)" }}
       >
-        {/* Left: back */}
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center justify-center w-9 h-9 rounded-2xl bg-background border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all duration-200 active:scale-95 shrink-0 z-10"
-          aria-label="Go back"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-
-        {/* Center logo — absolutely centered so it's always in the middle regardless of sidebar widths */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center pointer-events-none">
-          <InvoLogo size={32} showBeta />
+        {/* Left: back + logo+beta */}
+        <div className="flex items-center gap-2 shrink-0 z-10">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center justify-center w-9 h-9 rounded-2xl bg-background border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all duration-200 active:scale-95 shrink-0"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <InvoLogo size={28} showBeta />
         </div>
 
-        {/* Spacer pushes right-side controls to the right */}
+        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Mobile tab switcher */}
-        <div className="flex items-center gap-0.5 md:hidden shrink-0 bg-secondary/50 border border-border/40 rounded-2xl p-1 shadow-sm z-10">
+        {/* Mobile tab switcher — bigger, smoother */}
+        <div className="flex items-center md:hidden shrink-0 bg-secondary/60 border border-border/50 rounded-2xl p-1 shadow-sm z-10"
+          style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.6)" }}
+        >
           {(["chat", "edit", "preview"] as MobileTab[]).map((tab) => {
             const icons = { chat: MessageSquare, edit: PenLine, preview: Eye }
             const labels = { chat: "Chat", edit: "Edit", preview: "View" }
@@ -140,17 +140,20 @@ export function PromptScreen({
                 type="button"
                 onClick={() => setMobileTab(tab)}
                 className={cn(
-                  "flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[12px] font-semibold transition-all duration-200 active:scale-95",
+                  "relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold transition-colors duration-150 active:scale-95 select-none touch-manipulation",
                   isActive
-                    ? "bg-background text-foreground shadow-md shadow-black/8"
+                    ? "bg-background text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 )}
+                style={isActive ? {
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.12), 0 2px 8px -2px rgba(0,0,0,0.08)"
+                } : undefined}
               >
-                <Icon className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">{labels[tab]}</span>
+                <Icon className="w-4 h-4 shrink-0" />
+                <span>{labels[tab]}</span>
                 {tab === "chat" && messageCount > 0 && (
                   <span className={cn(
-                    "text-[9px] font-bold px-1 py-0.5 rounded-full leading-none min-w-[14px] text-center",
+                    "text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none min-w-[16px] text-center",
                     isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                   )}>{messageCount}</span>
                 )}
@@ -176,7 +179,6 @@ export function PromptScreen({
               {showHistory ? "Hide" : "History"}
             </span>
           </button>
-          {/* Fixed-size wrapper prevents layout shift when button goes fixed */}
           <div className="shrink-0 w-10 h-10 relative">
             <HamburgerMenu />
           </div>

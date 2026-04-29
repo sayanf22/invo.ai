@@ -428,7 +428,8 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                         ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                         : <Link2 className="w-3.5 h-3.5 shrink-0" />
                     }
-                    <span>Get Payment Link</span>
+                    <span className="sm:hidden">Pay Link</span>
+                    <span className="hidden sm:inline">Get Payment Link</span>
                 </button>
 
                 {showConfirm && (
