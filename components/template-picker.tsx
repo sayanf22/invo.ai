@@ -1,5 +1,6 @@
 "use client"
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { Palette, ChevronDown, Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -119,19 +120,88 @@ function MiniPreview({ tpl, active }: { tpl: typeof TEMPLATES[number]; active: b
 export function TemplatePicker({ data, onChange }: TemplatePickerProps) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<Tab>("templates")
-  const ref = useRef<HTMLDivElement>(null)
+  const [mounted, setMounted] = useState(false)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
   const tplId = data.design?.templateId || "modern"
   const tpl = TEMPLATES.find(t => t.id === tplId) || TEMPLATES[0]
   const curColor = data.design?.headerColor || tpl.hc
   const curFont = data.design?.font || "Helvetica"
 
+  useEffect(() => { setMounted(true) }, [])
+
+  // Compute portal position whenever open changes
+  const computePosition = useCallback(() => {
+    if (!btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const PANEL_W = Math.min(340, vw - 16) // never wider than viewport - 16px margin
+    const PANEL_MAX_H = Math.min(480, vh - rect.bottom - 12) // space below button
+
+    // Prefer opening below; if not enough space, open above
+    const spaceBelow = vh - rect.bottom - 8
+    const spaceAbove = rect.top - 8
+    const openAbove = spaceBelow < 200 && spaceAbove > spaceBelow
+
+    // Horizontal: align left edge with button, but clamp so it doesn't overflow right
+    let left = rect.left
+    if (left + PANEL_W > vw - 8) left = vw - PANEL_W - 8
+    if (left < 8) left = 8
+
+    const style: React.CSSProperties = {
+      position: "fixed",
+      width: PANEL_W,
+      left,
+      zIndex: 9999,
+    }
+
+    if (openAbove) {
+      style.bottom = vh - rect.top + 8
+      style.maxHeight = Math.min(spaceAbove - 8, 480)
+    } else {
+      style.top = rect.bottom + 8
+      style.maxHeight = Math.max(PANEL_MAX_H, 200)
+    }
+
+    setDropdownStyle(style)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    computePosition()
+    window.addEventListener("resize", computePosition)
+    window.addEventListener("scroll", computePosition, true)
+    return () => {
+      window.removeEventListener("resize", computePosition)
+      window.removeEventListener("scroll", computePosition, true)
+    }
+  }, [open, computePosition])
+
+  // Close on outside click
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (
+        btnRef.current && !btnRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
+        setOpen(false)
+      }
     }
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
+  }, [open])
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false) }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
   }, [open])
 
   const applyTemplate = (id: string) => {
@@ -165,134 +235,165 @@ export function TemplatePicker({ data, onChange }: TemplatePickerProps) {
       },
     })
   }
+
+  const dropdown = (
+    <div
+      ref={dropdownRef}
+      style={dropdownStyle}
+      className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+      // Prevent touch scroll from propagating to page behind
+      onTouchMove={e => e.stopPropagation()}
+    >
+      {/* Tab bar */}
+      <div className="flex border-b border-border shrink-0">
+        {(["templates", "colors", "fonts"] as Tab[]).map(t => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={cn(
+              "flex-1 px-3 py-2.5 text-xs font-semibold capitalize transition-all duration-150",
+              tab === t
+                ? "text-primary border-b-2 border-primary bg-primary/5"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+            )}
+          >
+            {t}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="px-3 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          aria-label="Close"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto overscroll-contain p-3">
+        {tab === "templates" && (
+          <div className="grid grid-cols-3 gap-2.5">
+            {TEMPLATES.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => { applyTemplate(t.id); setOpen(false) }}
+                className={cn(
+                  "group relative flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all duration-150 active:scale-[0.97]",
+                  tplId === t.id
+                    ? "bg-primary/10 ring-2 ring-primary/40"
+                    : "hover:bg-secondary/50 ring-1 ring-border/40"
+                )}
+              >
+                <div className="w-full aspect-[4/5] relative">
+                  <MiniPreview tpl={t} active={tplId === t.id} />
+                  {tplId === t.id && (
+                    <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                      <Check className="w-2.5 h-2.5 text-primary-foreground" />
+                    </div>
+                  )}
+                </div>
+                <div className="text-center w-full">
+                  <p className="text-[11px] font-semibold leading-tight">{t.name}</p>
+                  <p className="text-[9px] text-muted-foreground leading-tight">{t.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab === "colors" && (
+          <div>
+            <p className="text-[10px] text-muted-foreground mb-2.5 font-medium uppercase tracking-wider">Accent color</p>
+            <div className="grid grid-cols-6 gap-2.5">
+              {COLORS.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => applyColor(c)}
+                  className={cn(
+                    "w-9 h-9 rounded-full relative transition-transform duration-150 hover:scale-110 active:scale-90",
+                    curColor === c && "ring-2 ring-offset-2 ring-primary"
+                  )}
+                  style={{ backgroundColor: c }}
+                >
+                  {curColor === c && <Check className="w-3 h-3 text-white absolute inset-0 m-auto" />}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center gap-2.5">
+              <span className="text-[10px] text-muted-foreground">Custom:</span>
+              <input
+                type="color"
+                value={curColor || "#2563eb"}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => applyColor(e.target.value)}
+                className="w-8 h-8 rounded-lg border border-border cursor-pointer"
+              />
+              <span className="text-[10px] font-mono text-muted-foreground">{curColor || "#2563eb"}</span>
+            </div>
+          </div>
+        )}
+
+        {tab === "fonts" && (
+          <div className="space-y-1.5">
+            {FONTS.map(f => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => applyFont(f.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 active:scale-[0.98]",
+                  curFont === f.id
+                    ? "bg-primary/10 ring-1 ring-primary/30"
+                    : "hover:bg-secondary/50 ring-1 ring-transparent"
+                )}
+              >
+                <span className={cn("text-lg leading-none w-8 text-center shrink-0", f.cls)}>Aa</span>
+                <div className="flex-1 text-left min-w-0">
+                  <div className="text-xs font-semibold">{f.label}</div>
+                  <div className={cn("text-[10px] text-muted-foreground", f.cls)}>{f.sample}</div>
+                </div>
+                {curFont === f.id && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative">
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => setOpen(v => !v)}
         className={cn(
-          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all duration-200 active:scale-95",
+          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all duration-200 active:scale-95 shrink-0",
           open
             ? "bg-primary text-primary-foreground border-primary shadow-md"
             : "bg-card border-border text-foreground hover:border-primary/40 hover:shadow-sm"
         )}
       >
-        <Palette className="w-3.5 h-3.5" />
+        <Palette className="w-3.5 h-3.5 shrink-0" />
         <span className="hidden sm:inline">Design</span>
-        <div className="w-5 h-5 rounded-full border border-black/10" style={{ backgroundColor: tpl.accent || "#a3a3a3" }} />
-        <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", open && "rotate-180")} />
+        <div className="w-4 h-4 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: tpl.accent || "#a3a3a3" }} />
+        <ChevronDown className={cn("w-3 h-3 transition-transform duration-200 shrink-0", open && "rotate-180")} />
       </button>
 
-      {open && (
-        <div className="absolute top-full left-0 mt-2 w-[340px] bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex border-b border-border">
-            {(["templates", "colors", "fonts"] as Tab[]).map(t => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                className={cn(
-                  "flex-1 px-3 py-2.5 text-xs font-medium capitalize transition-all duration-150",
-                  tab === t
-                    ? "text-primary border-b-2 border-primary bg-primary/5"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                )}
-              >
-                {t}
-              </button>
-            ))}
-            <button type="button" onClick={() => setOpen(false)} className="px-2.5 text-muted-foreground hover:text-foreground transition-colors">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="p-3 max-h-[420px] overflow-y-auto">
-            {tab === "templates" && (
-              <div className="grid grid-cols-3 gap-2.5">
-                {TEMPLATES.map(t => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => applyTemplate(t.id)}
-                    className={cn(
-                      "group relative flex flex-col items-center gap-1.5 p-2 rounded-lg transition-all duration-150 active:scale-[0.97]",
-                      tplId === t.id
-                        ? "bg-primary/10 ring-2 ring-primary/40"
-                        : "hover:bg-secondary/50 ring-1 ring-border/40"
-                    )}
-                  >
-                    <div className="w-full aspect-[4/5] relative">
-                      <MiniPreview tpl={t} active={tplId === t.id} />
-                      {tplId === t.id && (
-                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5 text-primary-foreground" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-center w-full">
-                      <p className="text-[11px] font-semibold leading-tight">{t.name}</p>
-                      <p className="text-[9px] text-muted-foreground leading-tight">{t.desc}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-            {tab === "colors" && (
-              <div>
-                <p className="text-[10px] text-muted-foreground mb-2.5 font-medium">Accent color</p>
-                <div className="grid grid-cols-6 gap-2.5">
-                  {COLORS.map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => applyColor(c)}
-                      className={cn(
-                        "w-8 h-8 rounded-full relative transition-transform duration-150 hover:scale-110 active:scale-90",
-                        curColor === c && "ring-2 ring-offset-2 ring-primary"
-                      )}
-                      style={{ backgroundColor: c }}
-                    >
-                      {curColor === c && <Check className="w-3 h-3 text-white absolute inset-0 m-auto" />}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-4 flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground">Custom:</span>
-                  <input
-                    type="color"
-                    value={curColor || "#2563eb"}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => applyColor(e.target.value)}
-                    className="w-7 h-7 rounded-lg border border-border cursor-pointer"
-                  />
-                  <span className="text-[10px] font-mono text-muted-foreground">{curColor || "#2563eb"}</span>
-                </div>
-              </div>
-            )}
-            {tab === "fonts" && (
-              <div className="space-y-1.5">
-                {FONTS.map(f => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => applyFont(f.id)}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 active:scale-[0.98]",
-                      curFont === f.id
-                        ? "bg-primary/10 ring-1 ring-primary/30"
-                        : "hover:bg-secondary/50 ring-1 ring-transparent"
-                    )}
-                  >
-                    <span className={cn("text-lg leading-none w-8 text-center", f.cls)}>Aa</span>
-                    <div className="flex-1 text-left">
-                      <div className="text-xs font-semibold">{f.label}</div>
-                      <div className={cn("text-[10px] text-muted-foreground", f.cls)}>{f.sample}</div>
-                    </div>
-                    {curFont === f.id && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Backdrop — closes on tap outside on mobile */}
+      {open && mounted && createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-[9998]"
+            onClick={() => setOpen(false)}
+            aria-hidden
+          />
+          {dropdown}
+        </>,
+        document.body
       )}
     </div>
   )
