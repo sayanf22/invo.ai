@@ -712,7 +712,7 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
             {/* ── Main Chat Panel ────────────────────────────────── */}
             <div className="flex-1 flex flex-col min-h-0 w-full rounded-2xl lg:border lg:bg-card/50 lg:shadow-sm overflow-hidden relative bg-background">
                 {/* Mobile Sticky Header */}
-                <div className="lg:hidden sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b shadow-sm px-4 py-3 flex flex-col gap-2">
+                <div className="lg:hidden bg-background/80 backdrop-blur-xl border-b shadow-sm px-4 py-3 flex flex-col gap-2 shrink-0 relative z-40">
                     <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold text-foreground">Profile Setup</span>
                         <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>

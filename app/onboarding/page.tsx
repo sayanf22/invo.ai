@@ -192,14 +192,12 @@ export default function OnboardingPage() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
+            <div className="h-[100dvh] flex items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
         )
-    }
-
     return (
-        <div className="min-h-screen flex flex-col bg-background">
+        <div className="h-[100dvh] flex flex-col bg-background overflow-hidden">
             {/* Header */}
             <header className="border-b py-4 px-5 flex items-center justify-between shrink-0 bg-card shadow-sm">
                 <div className="flex items-center gap-3">
