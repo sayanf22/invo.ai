@@ -816,22 +816,33 @@ function ChainGroupCard({
         </div>
       </button>
 
-      {/* Expandable list of DocCards */}
+      {/* Expandable list of DocCards — thread-connected */}
       <div className={cn(
         "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
         expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
       )}>
         <div className="min-h-0 overflow-hidden">
-          <div className="px-3 pb-3 space-y-2">
-            {sessions.map(s => (
-              <DocCard
-                key={s.id}
-                session={s}
-                onDownload={onDownload}
-                downloading={downloadingId === s.id}
-                onRefresh={onRefresh}
-              />
-            ))}
+          {/* Thread container: left border line + cards */}
+          <div className="relative pl-3 pr-3 pb-3 pt-1">
+            {/* Vertical thread line */}
+            <div className="absolute left-[22px] top-0 bottom-3 w-px bg-border/60" />
+
+            <div className="space-y-2">
+              {sessions.map((s, idx) => (
+                <div key={s.id} className="relative pl-5">
+                  {/* Horizontal connector from thread line to card */}
+                  <div className="absolute left-0 top-[22px] w-5 h-px bg-border/60" />
+                  {/* Small dot on the thread line */}
+                  <div className="absolute left-[-3px] top-[18px] w-[7px] h-[7px] rounded-full bg-border border-2 border-card" />
+                  <DocCard
+                    session={s}
+                    onDownload={onDownload}
+                    downloading={downloadingId === s.id}
+                    onRefresh={onRefresh}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
