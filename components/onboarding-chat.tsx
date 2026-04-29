@@ -822,26 +822,57 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                     transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
                                     className="relative group"
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-primary/5 rounded-2xl blur-xl transition-all duration-500 group-hover:blur-2xl opacity-70" />
-                                    <div className="relative flex flex-col sm:flex-row items-center justify-between gap-4 p-5 rounded-2xl bg-card border shadow-xl overflow-hidden">
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/3" />
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-transparent rounded-3xl blur-2xl transition-all duration-700 opacity-60" />
+                                    <div className="relative flex flex-col sm:flex-row items-center sm:items-start lg:items-center justify-between gap-6 p-6 sm:p-8 rounded-3xl bg-card/80 backdrop-blur-xl border border-border/50 shadow-2xl overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
                                         
-                                        <div className="flex items-center gap-4 z-10">
-                                            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
-                                                <Sparkles className="w-6 h-6 text-primary" />
+                                        <div className="flex flex-col sm:flex-row items-center sm:items-start lg:items-center gap-6 z-10 w-full sm:w-auto">
+                                            <div className="w-24 h-24 sm:w-20 sm:h-20 shrink-0 relative flex items-center justify-center rounded-2xl bg-gradient-to-br from-background to-muted/30 border border-border/50 shadow-inner overflow-visible">
+                                                <div className="relative w-full h-full flex items-center justify-center">
+                                                    <motion.svg viewBox="0 0 100 100" className="w-[130%] h-[130%] drop-shadow-md absolute">
+                                                        <motion.rect 
+                                                            x="20" y="15" width="50" height="65" rx="8" 
+                                                            className="fill-card stroke-border drop-shadow-sm" strokeWidth="2"
+                                                            initial={{ y: 20, opacity: 0, rotate: -5 }}
+                                                            animate={{ y: 0, opacity: 1, rotate: -2 }}
+                                                            transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
+                                                        />
+                                                        <motion.path 
+                                                            d="M32 32h26M32 46h16" 
+                                                            className="stroke-muted-foreground/30" strokeWidth="3" strokeLinecap="round"
+                                                            initial={{ pathLength: 0 }}
+                                                            animate={{ pathLength: 1 }}
+                                                            transition={{ duration: 0.8, delay: 0.3 }}
+                                                        />
+                                                        <motion.circle 
+                                                            cx="68" cy="72" r="22" 
+                                                            className="fill-background stroke-primary" strokeWidth="2.5"
+                                                            initial={{ scale: 0 }}
+                                                            animate={{ scale: 1 }}
+                                                            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.4 }}
+                                                        />
+                                                        <motion.path 
+                                                            d="M58 72l6 6 12-12" 
+                                                            className="stroke-primary" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                                                            initial={{ pathLength: 0 }}
+                                                            animate={{ pathLength: 1 }}
+                                                            transition={{ duration: 0.5, delay: 0.7 }}
+                                                        />
+                                                    </motion.svg>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h3 className="font-semibold text-foreground text-lg">All Set!</h3>
-                                                <p className="text-sm text-muted-foreground">Your business profile is ready.</p>
+                                            <div className="text-center sm:text-left space-y-1.5">
+                                                <h3 className="font-medium tracking-tight text-foreground text-xl">Setup Complete</h3>
+                                                <p className="text-sm text-muted-foreground max-w-[280px]">We've collected all the necessary details. Your workspace is ready to go.</p>
                                             </div>
                                         </div>
                                         
                                         <Button 
                                             onClick={handleComplete} 
                                             size="lg"
-                                            className="w-full sm:w-auto gap-2 shadow-lg shadow-primary/20 z-10 transition-transform active:scale-95 rounded-xl h-12 px-6"
+                                            className="w-full sm:w-auto gap-2 shadow-xl shadow-primary/10 transition-all hover:-translate-y-0.5 active:translate-y-0 rounded-2xl h-14 sm:h-12 px-8 font-medium shrink-0 z-10"
                                         >
-                                            Complete Setup
+                                            Proceed
                                             <ArrowRight className="w-4 h-4" />
                                         </Button>
                                     </div>

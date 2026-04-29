@@ -196,6 +196,8 @@ export default function OnboardingPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
         )
+    }
+
     return (
         <div className="h-[100dvh] flex flex-col bg-background overflow-hidden">
             {/* Header */}
