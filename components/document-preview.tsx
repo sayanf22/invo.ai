@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, Mail, PenLine, Download, FileDown, ChevronDown, Image as ImageIcon, X } from "lucide-react"
+import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, PenLine, Download, FileDown, ChevronDown, Image as ImageIcon, X } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
@@ -759,15 +759,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
             </span>
           )}
           {!supportsSignatures && sessionId && (
-            <button
-              type="button"
-              onClick={() => setSendEmailDialogOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:border-primary/40 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-95"
-              title={sentAt ? "Resend document via email" : "Send document via email"}
-            >
-              <Mail className="w-4 h-4" />
-              <span className="hidden sm:inline">{sentAt ? "Resend" : "Send"}</span>
-            </button>
+            <></>
           )}
           {/* Download Signed PDF button — client-side generation */}
           {supportsSignatures && sessionId && allSigned && (

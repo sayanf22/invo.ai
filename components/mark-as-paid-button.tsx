@@ -339,20 +339,19 @@ export function MarkAsPaidButton({
         type="button"
         onClick={() => setShowDialog(true)}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-xl border transition-all duration-150 active:scale-[0.97] shrink-0",
-          "border-foreground/10 bg-foreground text-background",
-          "hover:bg-foreground/90",
+          "inline-flex items-center gap-1.5 rounded-xl border-0 transition-all duration-150",
+          "active:scale-[0.96] active:bg-foreground/80 shrink-0",
+          "bg-foreground/[0.08] text-foreground hover:bg-foreground/[0.13]",
+          "touch-manipulation select-none",
           compact
-            ? "px-2.5 py-1 text-[11px] font-semibold"
-            : "px-3 py-1.5 text-xs font-semibold"
+            ? "px-2.5 py-1 text-[11px] font-semibold h-7"
+            : "px-3 py-1.5 text-[13px] font-semibold h-9"
         )}
         style={{
-          boxShadow: compact
-            ? "0 1px 2px rgba(0,0,0,0.12), 0 2px 6px -1px rgba(0,0,0,0.1)"
-            : "0 1px 3px rgba(0,0,0,0.14), 0 3px 10px -2px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.08)"
+          boxShadow: "0 1px 2px rgba(0,0,0,0.06), 0 2px 6px -1px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(0,0,0,0.06)"
         }}
       >
-        <CheckCircle2 size={compact ? 11 : 12} className="shrink-0 opacity-80" />
+        <CheckCircle2 size={compact ? 11 : 13} className="shrink-0" />
         <span>Mark Paid</span>
       </button>
 

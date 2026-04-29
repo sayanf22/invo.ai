@@ -119,14 +119,14 @@ export function PromptScreen({
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <InvoLogo size={28} showBeta />
+          <InvoLogo size={26} showBeta />
         </div>
 
         {/* Spacer */}
-        <div className="flex-1" />
+        <div className="flex-1 min-w-0" />
 
-        {/* Mobile tab switcher — bigger, smoother */}
-        <div className="flex items-center md:hidden shrink-0 bg-secondary/60 border border-border/50 rounded-2xl p-1 shadow-sm z-10"
+        {/* Mobile tab switcher — compact, no overflow */}
+        <div className="flex items-center md:hidden shrink-0 bg-secondary/60 border border-border/50 rounded-2xl p-[3px] shadow-sm z-10"
           style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.6)" }}
         >
           {(["chat", "edit", "preview"] as MobileTab[]).map((tab) => {
@@ -140,7 +140,7 @@ export function PromptScreen({
                 type="button"
                 onClick={() => setMobileTab(tab)}
                 className={cn(
-                  "relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold transition-colors duration-150 active:scale-95 select-none touch-manipulation",
+                  "relative flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[12px] font-semibold transition-colors duration-150 active:scale-95 select-none touch-manipulation whitespace-nowrap",
                   isActive
                     ? "bg-background text-foreground"
                     : "text-muted-foreground hover:text-foreground"
@@ -149,11 +149,11 @@ export function PromptScreen({
                   boxShadow: "0 1px 4px rgba(0,0,0,0.12), 0 2px 8px -2px rgba(0,0,0,0.08)"
                 } : undefined}
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span>{labels[tab]}</span>
                 {tab === "chat" && messageCount > 0 && (
                   <span className={cn(
-                    "text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none min-w-[16px] text-center",
+                    "text-[9px] font-bold px-1 py-0.5 rounded-full leading-none min-w-[14px] text-center",
                     isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                   )}>{messageCount}</span>
                 )}

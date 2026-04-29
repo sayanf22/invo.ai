@@ -12,7 +12,7 @@ export function ClorefyLogo({ size = 72, className = "", showBeta = false }: { s
         priority
       />
       {showBeta && (
-        <span className="text-[8px] font-semibold uppercase tracking-wider px-1.5 py-[2px] rounded-full bg-foreground/[0.06] text-muted-foreground/70 border border-border/50 leading-none select-none whitespace-nowrap shrink-0">
+        <span className="text-[7px] font-bold uppercase tracking-wider px-1 py-[1px] rounded-full bg-foreground/[0.07] text-muted-foreground/60 border border-border/40 leading-none select-none whitespace-nowrap shrink-0">
           beta
         </span>
       )}

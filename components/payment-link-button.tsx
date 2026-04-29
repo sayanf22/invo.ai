@@ -418,18 +418,21 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                     disabled={isLoading || isFetching}
                     className={cn(
                         "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl",
-                        "text-[13px] font-medium bg-primary text-primary-foreground",
-                        "hover:bg-primary/90 active:scale-[0.97] transition-all duration-150",
-                        "disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation select-none"
+                        "text-[13px] font-semibold bg-foreground text-background",
+                        "hover:bg-foreground/90 active:scale-[0.96] active:bg-foreground/80",
+                        "transition-all duration-150 touch-manipulation select-none shrink-0",
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
                     )}
-                    style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.06), 0 2px 8px -2px rgba(0,0,0,0.15)" }}
+                    style={{
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.1), 0 3px 8px -2px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.08)"
+                    }}
                 >
                     {isFetching
                         ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                         : <Link2 className="w-3.5 h-3.5 shrink-0" />
                     }
                     <span className="sm:hidden">Pay Link</span>
-                    <span className="hidden sm:inline">Get Payment Link</span>
+                    <span className="hidden sm:inline">Pay Link</span>
                 </button>
 
                 {showConfirm && (
