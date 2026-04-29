@@ -18,6 +18,7 @@ import { authFetch } from "@/lib/auth-fetch"
 import { createClient } from "@/lib/supabase"
 import { ClientSelector } from "@/components/clients/client-selector"
 import { ChatSendCard } from "@/components/chat-send-card"
+import { ChatShareCard } from "@/components/chat-share-card"
 import { ChatPaymentCard } from "@/components/chat-payment-card"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
@@ -42,12 +43,14 @@ function detectSendIntent(prompt: string): { hasSendIntent: boolean; email: stri
 
 // ── Share intent detection (WhatsApp, link, general share) ────────────────────
 const SHARE_INTENT_REGEX = /\b(share\s*(it|this|document|invoice|contract|quotation|proposal)?(\s*(via|on|through|to))?\s*(whatsapp|wa)?|whatsapp|wa\b)/i
+const GENERAL_SHARE_REGEX = /\b(share|share\s*(it|this|document|invoice|contract|quotation|proposal))\s*$/i
 
-function detectShareIntent(prompt: string): { hasShareIntent: boolean; method: "whatsapp" | "link" | "none" } {
-    if (!SHARE_INTENT_REGEX.test(prompt)) return { hasShareIntent: false, method: "none" }
-    const lower = prompt.toLowerCase()
+function detectShareIntent(prompt: string): { hasShareIntent: boolean; method: "whatsapp" | "link" | "general" | "none" } {
+    const lower = prompt.toLowerCase().trim()
     if (/whatsapp|wa\b/.test(lower)) return { hasShareIntent: true, method: "whatsapp" }
-    if (/link|url|copy/.test(lower)) return { hasShareIntent: true, method: "link" }
+    if (/\b(copy\s*link|share\s*(via|on|through)?\s*link|get\s*link|share\s*url)\b/.test(lower)) return { hasShareIntent: true, method: "link" }
+    if (GENERAL_SHARE_REGEX.test(lower) || /^share$/i.test(lower.trim())) return { hasShareIntent: true, method: "general" }
+    if (SHARE_INTENT_REGEX.test(lower)) return { hasShareIntent: true, method: "general" }
     return { hasShareIntent: false, method: "none" }
 }
 
@@ -86,7 +89,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; sendCard?: { email: string }; paymentCard?: boolean }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
@@ -667,8 +670,21 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 // If user asked to send and document already exists, show send card ONLY
                 // Replace the AI's "click Send button" instructions with a minimal message
                 if (documentGenerated && session) {
-                    // Check for WhatsApp/link share intent first
+                    // Check for share intent first
                     const shareIntent = detectShareIntent(userMessage)
+
+                    // General "share" — show multi-option share card
+                    if (shareIntent.hasShareIntent && shareIntent.method === "general") {
+                        const shareMsg = `How would you like to share your ${docType}?`
+                        setMessages(prev => [...prev,
+                            { role: "assistant", content: shareMsg },
+                            { role: "assistant", content: "", shareCard: true },
+                        ])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", shareMsg)
+                        return
+                    }
+
                     if (shareIntent.hasShareIntent && shareIntent.method === "whatsapp") {
                         const clientName = data.toName || ""
                         const ref = data.invoiceNumber || data.referenceNumber || ""
@@ -930,6 +946,24 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     onSent={() => {
                                         // Card handles its own sent state
                                     }}
+                                />
+                            ) : msg.shareCard ? (
+                                // Inline share options card — shown when user types "share"
+                                <ChatShareCard
+                                    sessionId={session!.id}
+                                    documentType={docType}
+                                    clientName={data.toName || ""}
+                                    fromName={data.fromName || ""}
+                                    referenceNumber={data.invoiceNumber || data.referenceNumber || ""}
+                                    toEmail={data.toEmail || ""}
+                                    onSelectEmail={(email) => {
+                                        // Replace share card with send card
+                                        setMessages(prev => prev.map((m, i) =>
+                                            i === idx ? { role: "assistant" as const, content: "", sendCard: { email } } : m
+                                        ))
+                                    }}
+                                    onDismiss={() => setMessages(prev => prev.filter((_, i) => i !== idx))}
+                                    onLockDocument={onLockDocument}
                                 />
                             ) : msg.paymentCard ? (
                                 // Inline payment gateway card — shown when payment intent detected without gateway

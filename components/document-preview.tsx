@@ -988,7 +988,11 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           invoiceData={data}
           documentType={data.documentType || "invoice"}
           userTier={userTier}
-          onEmailSent={() => setSentAt(new Date().toISOString())}
+          onEmailSent={() => {
+            setSentAt(new Date().toISOString())
+            // Lock the document after sending from toolbar
+            onLockChange?.(true)
+          }}
         />
       )}
       {supportsSignatures && sessionId && (
