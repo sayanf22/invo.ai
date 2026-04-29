@@ -81,7 +81,12 @@ export function PromptScreen({
   }, [onSessionChange])
 
   const handlePaymentLinkChange = useCallback((url: string, status: string) => {
-    handleChange({ paymentLink: url, paymentLinkStatus: status as any, showPaymentLinkInPdf: true })
+    if (!url || status === "cancelled" || status === "expired") {
+      // Link removed/cancelled — clear from PDF
+      handleChange({ paymentLink: "", paymentLinkStatus: undefined, showPaymentLinkInPdf: false })
+    } else {
+      handleChange({ paymentLink: url, paymentLinkStatus: status as any, showPaymentLinkInPdf: true })
+    }
   }, [handleChange])
 
   const handleLockChange = useCallback((locked: boolean) => {

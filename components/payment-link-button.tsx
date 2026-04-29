@@ -365,6 +365,8 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
             if (res.ok) {
                 setPaymentLink(prev => prev ? { ...prev, status: "cancelled" } : null)
                 onLockChange?.(false)
+                // Remove payment link from PDF
+                onPaymentLinkChange?.("", "cancelled")
                 toast.success("Payment link cancelled. Invoice is now editable again.")
             } else {
                 const d = await res.json()
@@ -619,7 +621,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
             )}
 
             {(paymentLink.status === "expired" || paymentLink.status === "cancelled") && (
-                <button type="button" onClick={() => { setPaymentLink(null); onLockChange?.(false) }}
+                <button type="button" onClick={() => { setPaymentLink(null); onLockChange?.(false); onPaymentLinkChange?.("", "cancelled") }}
                     className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-xl text-[12px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all active:scale-[0.97] shadow-sm">
                     <RefreshCw className="w-3 h-3" />
                     <span>New Link</span>
