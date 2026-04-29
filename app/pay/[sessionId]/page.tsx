@@ -55,14 +55,9 @@ export default async function PayPage({ params }: PageProps) {
     .limit(1)
     .maybeSingle()
 
-  // Only show the pay page if there's an active payment link
-  // This prevents enumeration of documents without payment links
-  if (!pay) {
-    return <PayDocumentView docData={null} payment={null} />
-  }
-
+  // Show the document regardless of whether a payment link exists.
+  // payment will be null if no active link — PayDocumentView handles this gracefully.
   const docData = session.context as unknown as InvoiceData
   const payment: PaymentInfo | null = pay ?? null
 
-  return <PayDocumentView docData={docData} payment={payment} />
-}
+  return <PayDocumentView docData={docData} payment={payment} />}
