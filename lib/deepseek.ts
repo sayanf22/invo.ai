@@ -906,13 +906,14 @@ export async function generateDocument(
                 Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                model: "deepseek-chat",
+                model: "deepseek-v4-pro",
                 messages: [
                     { role: "system", content: DUAL_MODE_SYSTEM_PROMPT },
                     { role: "user", content: prompt },
                 ],
-                temperature: 0.3,
+                // Thinking mode: no temperature (not supported in thinking mode)
                 max_tokens: 4000,
+                reasoning_effort: "high",
             }),
         })
 
@@ -994,13 +995,14 @@ export async function* streamGenerateDocument(
                 Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                model: "deepseek-chat",
+                model: "deepseek-v4-pro",
                 messages: [
                     { role: "system", content: DUAL_MODE_SYSTEM_PROMPT },
                     { role: "user", content: prompt },
                 ],
-                temperature: 0.3,
+                // Thinking mode: no temperature (not supported in thinking mode)
                 max_tokens: 4000,
+                reasoning_effort: "high",
                 stream: true,
             }),
         })

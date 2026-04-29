@@ -20,9 +20,9 @@
 
 ## AI & ML
 
-- **DeepSeek V3** - Primary AI model for document generation
-  - `deepseek-chat` for onboarding conversations
-  - `deepseek-reasoner` for document generation and compliance monitoring
+- **DeepSeek V4** - Primary AI model for document generation
+  - `deepseek-v4-flash` for onboarding conversations and general chat
+  - `deepseek-v4-pro` (thinking mode) for document generation and compliance monitoring
 - **OpenAI Embeddings** - Vector embeddings for RAG (1536 dimensions)
 - **RAG (Retrieval Augmented Generation)** - Semantic search for compliance rules using pgvector
 

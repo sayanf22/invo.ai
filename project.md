@@ -27,7 +27,7 @@ Every AI response is JSON with two keys:
 | Language | TypeScript 5.7.3 (strict mode) |
 | Runtime | React 19 |
 | Backend | Supabase (Postgres, Auth, Storage, Edge Functions, RLS, pgvector) |
-| AI Model | DeepSeek V3 `deepseek-chat` for both onboarding and generation |
+| AI Model | DeepSeek V4 Flash `deepseek-v4-flash` for onboarding/chat; DeepSeek V4 Pro `deepseek-v4-pro` (thinking) for document generation |
 | File Analysis | GPT (via `/api/ai/analyze-file`) for image/PDF extraction |
 | Embeddings | OpenAI (1536-dim vectors via pgvector for RAG compliance queries) |
 | Styling | Tailwind CSS 3.4.17 + Radix UI + shadcn/ui (50+ components) |

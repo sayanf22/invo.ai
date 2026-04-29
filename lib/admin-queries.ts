@@ -3,12 +3,12 @@ import { createClient } from "@supabase/supabase-js"
 /**
  * AI Model Pricing Reference (2026)
  * 
- * DeepSeek V3.2 (deepseek-chat) — used for onboarding & general chat:
+ * DeepSeek V4 Flash (deepseek-v4-flash) — used for onboarding & general chat:
  *   Input:  $0.28 / 1M tokens
  *   Output: $0.42 / 1M tokens
  *   Cache:  $0.028 / 1M tokens
  * 
- * DeepSeek R1 (deepseek-reasoner) — used for document generation:
+ * DeepSeek V4 Pro (deepseek-v4-pro, thinking mode) — used for document generation:
  *   Input:  $0.55 / 1M tokens
  *   Output: $2.19 / 1M tokens
  * 

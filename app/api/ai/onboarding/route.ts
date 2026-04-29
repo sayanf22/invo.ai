@@ -1,8 +1,8 @@
 /**
  * AI Onboarding API Route — Conversational Agent
  * 
- * Model: DeepSeek V3 (deepseek-chat) for FAST onboarding conversations
- * Note: deepseek-reasoner is reserved for invoice/contract GENERATION (slower but more accurate)
+ * Model: DeepSeek V4 Flash (deepseek-v4-flash) for FAST onboarding conversations
+ * Note: deepseek-v4-pro (thinking mode) is reserved for invoice/contract GENERATION
  * 
  * Accepts full conversation history + collected data.
  * Returns a natural assistant reply + newly extracted structured data.
@@ -338,7 +338,7 @@ IMPORTANT FOR TAX QUESTION: When asking about tax registration (GST/VAT/Sales Ta
                 "Authorization": `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                model: "deepseek-chat",
+                model: "deepseek-v4-flash",
                 messages: apiMessages,
                 max_tokens: 2048,
                 temperature: 0.1,  // Lower temperature for more consistent, predictable responses
