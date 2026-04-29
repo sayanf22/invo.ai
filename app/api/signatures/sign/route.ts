@@ -384,8 +384,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Upload signature image — try Supabase Storage first (works on all runtimes),
-    // fall back to R2 native binding, then mark as data_url_fallback if both fail.
+    // Upload signature image to Supabase Storage (service role — bypasses RLS)
     let signatureImageKey = "data_url_fallback"
     try {
       const binaryStr = atob(base64Part)
@@ -395,36 +394,33 @@ export async function POST(request: NextRequest) {
       }
       const objectKey = `signatures/${signature.id}_${Date.now()}.${fileExt}`
 
-      // Primary: Supabase Storage (service role — works on all runtimes, no native binding needed)
-      let uploadedToSupabase = false
-      try {
-        const { error: storageError } = await supabase.storage
-          .from("signatures")
-          .upload(objectKey, bytes, {
-            contentType,
-            upsert: false,
-          })
-        if (!storageError) {
-          // Prefix with "sb:" so the image proxy knows to use Supabase Storage
-          signatureImageKey = `sb:${objectKey}`
-          uploadedToSupabase = true
-        } else {
-          console.warn("[sign] Supabase Storage upload failed, trying R2:", storageError.message)
-        }
-      } catch (sbErr) {
-        console.warn("[sign] Supabase Storage exception, trying R2:", sbErr)
-      }
+      const { error: storageError } = await supabase.storage
+        .from("signatures")
+        .upload(objectKey, bytes, {
+          contentType,
+          upsert: false,
+        })
 
-      // Fallback: R2 native binding
-      if (!uploadedToSupabase) {
-        const { uploadToR2 } = await import("@/lib/r2")
-        await uploadToR2(objectKey, bytes, contentType)
-        signatureImageKey = objectKey
+      if (!storageError) {
+        // Prefix with "sb:" so the image proxy knows to use Supabase Storage
+        signatureImageKey = `sb:${objectKey}`
+      } else {
+        console.error("[sign] Supabase Storage upload failed:", storageError.message)
+        // Log the failure for debugging
+        await recordAuditEvent(supabase, {
+          action: "signature.upload_failed",
+          signature_id: signature.id,
+          document_id: signature.document_id ?? undefined,
+          session_id: signature.session_id ?? undefined,
+          ip_address: clientIP,
+          user_agent: userAgent,
+          metadata: { error: storageError.message },
+        })
       }
     } catch (uploadErr) {
-      console.error("[sign] All upload attempts failed:", uploadErr)
+      console.error("[sign] Signature upload exception:", uploadErr)
       await recordAuditEvent(supabase, {
-        action: "signature.r2_fallback",
+        action: "signature.upload_failed",
         signature_id: signature.id,
         document_id: signature.document_id ?? undefined,
         session_id: signature.session_id ?? undefined,

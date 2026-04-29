@@ -83,8 +83,25 @@ export async function GET(request: NextRequest) {
       }
       bodyBuffer = await data.arrayBuffer()
       mime = data.type || getMimeFromKey(key)
+    } else if (isSignatureKey(key)) {
+      // Signature key without "sb:" prefix — try Supabase Storage first (new standard),
+      // then fall back to R2 for backward compatibility with old signatures
+      const supabase = getServiceRoleClient()
+      const { data: sbData, error: sbError } = await supabase.storage.from("signatures").download(key)
+      if (!sbError && sbData) {
+        bodyBuffer = await sbData.arrayBuffer()
+        mime = sbData.type || getMimeFromKey(key)
+      } else {
+        // Fallback to R2 for old signatures
+        const obj = await getObject(key)
+        if (!obj) {
+          return NextResponse.json({ error: "Image not found" }, { status: 404 })
+        }
+        bodyBuffer = obj.body
+        mime = obj.contentType !== "application/octet-stream" ? obj.contentType : getMimeFromKey(key)
+      }
     } else {
-      // R2 storage
+      // R2 storage (logos etc.)
       const obj = await getObject(key)
       if (!obj) {
         return NextResponse.json({ error: "Image not found" }, { status: 404 })
