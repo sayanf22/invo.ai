@@ -1,13 +1,15 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Send, Loader2, Check, Paperclip, FileText, X } from "lucide-react"
+import { Send, Loader2, Check, Paperclip, FileText, X, Info, Sparkles, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
+import { motion, AnimatePresence } from "framer-motion"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -29,6 +31,7 @@ export interface CollectedData {
         state?: string
         postalCode?: string
     }
+    taxRegistered?: boolean
     taxId?: string
     clientCountries?: string[]
     defaultCurrency?: string
@@ -57,23 +60,20 @@ interface OnboardingChatProps {
 
 // ── Field Labels for Display ───────────────────────────────────────────
 
-const FIELD_LABELS: Record<string, string> = {
-    businessType: "Business Type",
-    country: "Country",
-    businessName: "Business Name",
-    ownerName: "Owner Name",
-    email: "Email",
-    phone: "Phone",
-    address: "Address",
-    taxId: "Tax ID",
-    clientCountries: "Client Countries",
-    defaultCurrency: "Currency",
-}
-
-const REQUIRED_FIELDS = [
-    "businessType", "country", "businessName", "ownerName",
-    "email", "phone", "address", "clientCountries",
-    "defaultCurrency"
+const TRACKED_STEPS = [
+    { id: "businessType", label: "Business Type" },
+    { id: "country", label: "Country" },
+    { id: "businessName", label: "Business Name" },
+    { id: "ownerName", label: "Owner Name" },
+    { id: "email", label: "Email" },
+    { id: "phone", label: "Phone" },
+    { id: "address", label: "Address" },
+    { id: "taxDetails", label: "Tax Registration" },
+    { id: "services", label: "Services" },
+    { id: "clientCountries", label: "Client Countries" },
+    { id: "defaultCurrency", label: "Currency" },
+    { id: "bankDetails", label: "Bank Details" },
+    { id: "additionalNotes", label: "Additional Info" },
 ]
 
 const COUNTRY_FLAGS: Record<string, string> = {
@@ -158,7 +158,7 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
         if (scrollRef.current) {
             scrollRef.current.scrollIntoView({ behavior: "smooth" })
         }
-    }, [messages])
+    }, [messages, isLoading])
 
     const sendInitialGreeting = async () => {
         setIsLoading(true)
@@ -212,7 +212,6 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
     }
 
     // Text-only chat — ALWAYS uses DeepSeek (via /api/ai/onboarding)
-    // GPT is NEVER used for text messages — only DeepSeek handles chat
     const handleSendMessage = useCallback(async () => {
         if (!inputValue.trim() || isLoading) return
 
@@ -250,7 +249,7 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                 throw new Error(result.error)
             }
 
-            // Merge extracted data — but ONLY if AI is confident (not seeking clarification)
+            // Merge extracted data
             const hasExtractedData = result.extractedData && Object.keys(result.extractedData).length > 0
             const needsClarification = result.needsClarification || false
 
@@ -313,9 +312,7 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
         }
     }, [inputValue, isLoading, messages, collectedData])
 
-    // File upload — uses GPT (via /api/ai/analyze-file) for extraction ONLY
-    // After extraction, the follow-up goes to DeepSeek (via /api/ai/onboarding)
-    // GPT is ONLY invoked when a file is physically attached — never for text-only messages
+    // File upload logic
     const handleFileUpload = useCallback(async (file: File, userText?: string) => {
         setIsUploading(true)
         setMessages(prev => [...prev, {
@@ -346,7 +343,6 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
 
             if (!res.ok) {
                 if (res.status === 429) {
-                    // Rate limited — wait 5 seconds and retry once
                     setMessages(prev => {
                         const filtered = prev.filter(m => m.content !== "Analyzing your document... This may take a moment.")
                         return [...filtered, { role: "assistant", content: "Processing... please wait a moment." }]
@@ -362,7 +358,6 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                     }
                     const retryResult = await retryRes.json()
                     if (retryResult.extracted) {
-                        // Use retry result — fall through to the extraction logic below
                         const result = retryResult
                         const extracted = result.extracted
                         setCollectedData(prev => {
@@ -398,7 +393,6 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
             const extracted = result.extracted
 
             if (extracted) {
-                // Merge extracted data into collectedData
                 setCollectedData(prev => {
                     const updated = { ...prev }
                     for (const [key, value] of Object.entries(extracted)) {
@@ -410,7 +404,6 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                         } else if (key === "additionalContext") {
                             updated.additionalNotes = (prev.additionalNotes || "") + "\n" + String(value)
                         } else if (key === "phone2" && value) {
-                            // Store secondary phone in additional notes
                             updated.additionalNotes = (prev.additionalNotes || "") + "\nSecondary phone: " + String(value)
                         } else if (key === "services" && typeof value === "string" && value.trim().length > 0) {
                             updated.services = String(value)
@@ -424,7 +417,6 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                 })
 
                 const fieldCount = result.fieldsFound || 0
-                // Remove the "analyzing" message and add success
                 setMessages(prev => {
                     const filtered = prev.filter(m => m.content !== "Analyzing your document... This may take a moment.")
                     return [...filtered, {
@@ -435,7 +427,6 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
 
                 toast.success(`${fieldCount} fields extracted from document!`)
 
-                // Send a follow-up to the AI to check what's still needed
                 setTimeout(async () => {
                     try {
                         const followUp = await authFetch("/api/ai/onboarding", {
@@ -478,17 +469,23 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
         onComplete(collectedData)
     }
 
-    const handleReset = () => {
-        setMessages([])
-        setCollectedData({ email: userEmail || "" })
-        setAllComplete(false)
-        deleteSession()
-        setTimeout(() => sendInitialGreeting(), 100)
-    }
+    // Determine completion out of 12 tracked steps
+    const completedCount = TRACKED_STEPS.filter(step => {
+        const field = step.id
+        
+        // Handle custom resolution for specific mapped fields
+        if (field === "taxDetails") {
+            return collectedData.taxRegistered !== undefined
+        }
+        if (field === "bankDetails") {
+            return (collectedData.bankDetails && Object.keys(collectedData.bankDetails).length > 0) || collectedData.bankDetailsSkipped === true
+        }
+        if (field === "additionalNotes") {
+            return (collectedData.additionalNotes && collectedData.additionalNotes.trim() !== "") || allComplete === true
+        }
 
-    // Count completed required fields
-    const completedCount = REQUIRED_FIELDS.filter(f => {
-        const val = (collectedData as any)[f]
+        // Standard string/array check
+        const val = (collectedData as any)[field]
         if (Array.isArray(val)) return val.length > 0
         if (typeof val === "object" && val !== null) {
             return Object.values(val).some(v => v && String(v).trim().length > 0)
@@ -496,15 +493,130 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
         return val && String(val).trim().length > 0
     }).length
 
-    const progressPercent = Math.round((completedCount / REQUIRED_FIELDS.length) * 100)
+    const totalSteps = TRACKED_STEPS.length
+    const progressPercent = Math.round((completedCount / totalSteps) * 100)
+
+    // Derived view component for the field list
+    const CollectedInfoView = () => (
+        <div className="space-y-4">
+            <div className="border rounded-2xl bg-card shadow-sm p-5 space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                    <span className="font-semibold text-base">Profile Progress</span>
+                    <span className="text-muted-foreground text-base">{progressPercent}%</span>
+                </div>
+                <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                        className="h-full bg-emerald-500 transition-all duration-500 ease-out rounded-full"
+                        style={{ width: `${progressPercent}%` }}
+                    />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                    {completedCount} of {totalSteps} steps completed
+                </p>
+            </div>
+
+            <div className="border rounded-2xl bg-card shadow-sm p-5 space-y-2.5">
+                <h4 className="text-base font-semibold mb-3">Collected Info</h4>
+                {TRACKED_STEPS.map((step) => {
+                    const field = step.id
+                    
+                    let hasValue = false
+                    let displayValue: string | null = null
+
+                    if (field === "taxDetails") {
+                        hasValue = collectedData.taxRegistered !== undefined
+                        displayValue = collectedData.taxRegistered ? (collectedData.taxId || "Registered") : "Not Registered"
+                    } else if (field === "bankDetails") {
+                        hasValue = !!((collectedData.bankDetails && Object.keys(collectedData.bankDetails).length > 0) || collectedData.bankDetailsSkipped)
+                        displayValue = collectedData.bankDetailsSkipped ? "Skipped" : (collectedData.bankDetails?.bankName || "Provided")
+                    } else if (field === "additionalNotes") {
+                        hasValue = !!(collectedData.additionalNotes || allComplete)
+                        displayValue = collectedData.additionalNotes ? "Notes added" : "Skipped/Done"
+                    } else {
+                        const val = (collectedData as any)[field]
+                        if (Array.isArray(val)) {
+                            hasValue = val.length > 0
+                            if (field === "clientCountries") {
+                                displayValue = val.map((c: string) => COUNTRY_FLAGS[c] || c).join(" ")
+                            } else {
+                                displayValue = val.join(", ")
+                            }
+                        } else if (typeof val === "object" && val !== null) {
+                            hasValue = Object.values(val).some(v => v && String(v).trim().length > 0)
+                            if (field === "address") {
+                                const a = val as Record<string, string>
+                                displayValue = [a.city, a.state].filter(Boolean).join(", ") || "Provided"
+                            } else {
+                                displayValue = "Provided"
+                            }
+                        } else {
+                            hasValue = val && String(val).trim().length > 0
+                            if (field === "country") {
+                                displayValue = `${COUNTRY_FLAGS[val] || ""} ${val}`.trim()
+                            } else {
+                                displayValue = String(val)
+                            }
+                        }
+                    }
+
+                    return (
+                        <div
+                            key={field}
+                            className={cn(
+                                "flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition-colors",
+                                hasValue ? "bg-primary/5" : "bg-transparent"
+                            )}
+                        >
+                            <div className={cn(
+                                "w-5 h-5 rounded-full flex items-center justify-center shrink-0",
+                                hasValue ? "bg-primary text-primary-foreground" : "border-2 border-muted-foreground/30"
+                            )}>
+                                {hasValue && <Check className="w-3 h-3" />}
+                            </div>
+                            <span className={cn(
+                                "font-medium text-sm",
+                                hasValue ? "text-foreground" : "text-muted-foreground"
+                            )}>
+                                {step.label}
+                            </span>
+                            {displayValue && hasValue && (
+                                <span className="ml-auto text-sm text-muted-foreground truncate max-w-[120px]" title={displayValue}>
+                                    {displayValue}
+                                </span>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
+    )
 
     return (
-        <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 h-full max-w-7xl mx-auto w-full">
+        <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 h-full max-w-7xl mx-auto w-full relative">
+            
+            {/* Mobile Header Overview Trigger */}
+            <div className="lg:hidden absolute top-4 right-4 z-10">
+                <Sheet>
+                    <SheetTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-2 bg-background/80 backdrop-blur-md">
+                            <Info className="w-4 h-4" />
+                            Overview
+                        </Button>
+                    </SheetTrigger>
+                    <SheetContent side="right" className="w-[300px] sm:w-[400px] overflow-y-auto pt-10">
+                        <SheetHeader className="mb-4">
+                            <SheetTitle>Collected Information</SheetTitle>
+                        </SheetHeader>
+                        <CollectedInfoView />
+                    </SheetContent>
+                </Sheet>
+            </div>
+
             {/* ── Main Chat Panel ────────────────────────────────── */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            {/* Messages */}
-                <ScrollArea className="flex-1 p-6">
-                    <div className="space-y-5 pb-4 max-w-3xl mx-auto">
+            <div className="flex-1 flex flex-col min-h-0 w-full rounded-2xl lg:border lg:bg-card/50 lg:shadow-sm overflow-hidden relative">
+                {/* Messages Area - flex-1 with internal scroll */}
+                <ScrollArea className="flex-1 p-4 lg:p-6 pb-24">
+                    <div className="space-y-5 max-w-3xl mx-auto">
                         {messages.map((msg, idx) => (
                             <div
                                 key={idx}
@@ -514,7 +626,7 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                 )}
                             >
                                 <div className={cn(
-                                    "max-w-[80%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed whitespace-pre-wrap",
+                                    "max-w-[85%] lg:max-w-[80%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed whitespace-pre-wrap",
                                     msg.role === "user"
                                         ? "bg-primary text-primary-foreground rounded-br-sm shadow-md"
                                         : "bg-card text-foreground rounded-bl-sm border border-border/50 shadow-sm"
@@ -532,218 +644,176 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                 </div>
                             </div>
                         )}
-                        <div ref={scrollRef} />
+                        <div ref={scrollRef} className="h-4" />
                     </div>
                 </ScrollArea>
 
-                {/* Input Area */}
-                <div className="px-4 py-4 bg-background border-t shrink-0">
-                    {/* Mobile green progress bar — above prompt box */}
-                    <div className="lg:hidden mb-2 max-w-3xl mx-auto">
-                        <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-muted-foreground">{completedCount}/{REQUIRED_FIELDS.length} fields</span>
-                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{progressPercent}%</span>
-                        </div>
-                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 transition-all duration-500 ease-out rounded-full" style={{ width: `${progressPercent}%` }} />
-                        </div>
-                    </div>
-                    {allComplete ? (
-                        <div className="flex items-center gap-3 max-w-3xl mx-auto">
-                            <div className="flex-1 text-base text-muted-foreground">
-                                All information collected. Ready to complete setup.
-                            </div>
-                            <Button onClick={handleComplete} className="gap-2 h-11 px-6 text-base">
-                                <Check className="w-5 h-5" />
-                                Complete Setup
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="max-w-3xl mx-auto">
-                            {/* Prompt box with file card inside */}
-                            <div className={cn(
-                                "rounded-2xl border bg-card transition-all duration-300",
-                                (isLoading || isUploading)
-                                    ? "border-primary/40 shadow-md"
-                                    : "border-border shadow-sm focus-within:border-primary/40 focus-within:shadow-md"
-                            )}>
-                                {/* Staged file card — Claude style */}
-                                {stagedFile && (
-                                    <div className="px-4 pt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                        <div className="inline-flex items-start gap-0 rounded-xl border border-border/50 bg-muted/40 overflow-hidden shadow-sm max-w-[180px]">
-                                            <div className="w-full px-3 py-2.5">
-                                                <div className="w-10 h-10 rounded-lg bg-background border border-border/50 flex flex-col items-center justify-center mb-1.5 shadow-sm">
-                                                    <FileText className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-[7px] font-bold text-muted-foreground mt-0.5 leading-none uppercase">
-                                                        {stagedFile.type === "application/pdf" ? "PDF" : stagedFile.type.startsWith("image/") ? "IMG" : "FILE"}
-                                                    </span>
-                                                </div>
-                                                <p className="text-[11px] font-medium text-foreground truncate leading-tight">{stagedFile.name.length > 16 ? stagedFile.name.slice(0, 14) + "..." : stagedFile.name}</p>
-                                                <p className="text-[9px] text-muted-foreground mt-0.5">
-                                                    {stagedFile.size < 1024 ? `${stagedFile.size} B` : stagedFile.size < 1024 * 1024 ? `${(stagedFile.size / 1024).toFixed(1)} KB` : `${(stagedFile.size / (1024 * 1024)).toFixed(1)} MB`}
-                                                </p>
+                {/* Input Area / Completion State - Fixed to bottom */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-8 shrink-0">
+                    <div className="max-w-3xl mx-auto">
+                        <AnimatePresence mode="wait">
+                            {allComplete ? (
+                                <motion.div
+                                    key="complete-state"
+                                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                                    className="relative group"
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-2xl blur-xl transition-all duration-500 group-hover:blur-2xl opacity-70" />
+                                    <div className="relative flex flex-col sm:flex-row items-center justify-between gap-4 p-5 rounded-2xl bg-card border shadow-lg overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/3" />
+                                        
+                                        <div className="flex items-center gap-4 z-10">
+                                            <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                                                <Sparkles className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                                             </div>
-                                            <button type="button" onClick={() => setStagedFile(null)}
-                                                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-background/80 border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shadow-sm">
-                                                <X className="w-3 h-3" />
+                                            <div>
+                                                <h3 className="font-semibold text-foreground text-lg">All Set!</h3>
+                                                <p className="text-sm text-muted-foreground">Your business profile is ready.</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <Button 
+                                            onClick={handleComplete} 
+                                            size="lg"
+                                            className="w-full sm:w-auto gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md z-10 transition-transform active:scale-95"
+                                        >
+                                            Complete Setup
+                                            <ArrowRight className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </motion.div>
+                            ) : (
+                                <motion.div 
+                                    key="input-state"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                >
+                                    {/* Mobile progress bar hint */}
+                                    <div className="lg:hidden mb-3">
+                                        <div className="flex items-center justify-between mb-1.5 px-1">
+                                            <span className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">{completedCount} / {totalSteps} STEPS</span>
+                                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">{progressPercent}%</span>
+                                        </div>
+                                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                            <div className="h-full bg-emerald-500 transition-all duration-700 ease-out rounded-full" style={{ width: `${progressPercent}%` }} />
+                                        </div>
+                                    </div>
+
+                                    <div className={cn(
+                                        "rounded-2xl border bg-card/90 backdrop-blur-md transition-all duration-300 relative z-20",
+                                        (isLoading || isUploading)
+                                            ? "border-primary/40 shadow-md"
+                                            : "border-border shadow-sm focus-within:border-primary/40 focus-within:shadow-md"
+                                    )}>
+                                        {/* Staged file card */}
+                                        {stagedFile && (
+                                            <div className="px-4 pt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                                <div className="inline-flex items-start gap-0 rounded-xl border border-border/50 bg-muted/40 overflow-hidden shadow-sm max-w-[180px]">
+                                                    <div className="w-full px-3 py-2.5">
+                                                        <div className="w-10 h-10 rounded-lg bg-background border border-border/50 flex flex-col items-center justify-center mb-1.5 shadow-sm">
+                                                            <FileText className="w-4 h-4 text-muted-foreground" />
+                                                            <span className="text-[7px] font-bold text-muted-foreground mt-0.5 leading-none uppercase">
+                                                                {stagedFile.type === "application/pdf" ? "PDF" : stagedFile.type.startsWith("image/") ? "IMG" : "FILE"}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[11px] font-medium text-foreground truncate leading-tight">{stagedFile.name.length > 16 ? stagedFile.name.slice(0, 14) + "..." : stagedFile.name}</p>
+                                                        <p className="text-[9px] text-muted-foreground mt-0.5">
+                                                            {stagedFile.size < 1024 ? `${stagedFile.size} B` : stagedFile.size < 1024 * 1024 ? `${(stagedFile.size / 1024).toFixed(1)} KB` : `${(stagedFile.size / (1024 * 1024)).toFixed(1)} MB`}
+                                                        </p>
+                                                    </div>
+                                                    <button type="button" onClick={() => setStagedFile(null)}
+                                                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-background/80 border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shadow-sm">
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Text input */}
+                                        <div className="relative">
+                                            <input
+                                                ref={fileInputRef}
+                                                id="onboarding-file-input"
+                                                type="file"
+                                                accept="image/*,application/pdf"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0]
+                                                    if (file) setStagedFile(file)
+                                                    e.target.value = ""
+                                                }}
+                                            />
+                                            <Input
+                                                ref={inputRef}
+                                                value={inputValue}
+                                                onChange={(e) => setInputValue(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" && !e.shiftKey) {
+                                                        if (stagedFile) {
+                                                            handleFileUpload(stagedFile, inputValue.trim() || undefined)
+                                                            setStagedFile(null)
+                                                            setInputValue("")
+                                                        } else {
+                                                            handleSendMessage()
+                                                        }
+                                                    }
+                                                }}
+                                                placeholder={stagedFile ? "Add a note about this file..." : "Tell me about your business..."}
+                                                disabled={isLoading || isUploading}
+                                                className="border-none shadow-none h-12 px-4 text-[15px] focus-visible:ring-0 bg-transparent placeholder:text-muted-foreground/60"
+                                                autoFocus
+                                            />
+                                        </div>
+
+                                        {/* Bottom bar with attach + send */}
+                                        <div className="flex items-center justify-between px-3 pb-3">
+                                            <label
+                                                htmlFor={!(isLoading || isUploading) ? "onboarding-file-input" : undefined}
+                                                className={cn(
+                                                    "flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200",
+                                                    (isLoading || isUploading)
+                                                        ? "opacity-40 cursor-not-allowed text-muted-foreground"
+                                                        : "cursor-pointer text-muted-foreground/60 hover:text-foreground hover:bg-muted/50"
+                                                )}
+                                            >
+                                                {isUploading ? <Loader2 className="w-[18px] h-[18px] animate-spin" /> : <Paperclip className="w-[18px] h-[18px]" />}
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (stagedFile) {
+                                                        handleFileUpload(stagedFile, inputValue.trim() || undefined)
+                                                        setStagedFile(null)
+                                                        setInputValue("")
+                                                    } else {
+                                                        handleSendMessage()
+                                                    }
+                                                }}
+                                                disabled={(!inputValue.trim() && !stagedFile) || isLoading || isUploading}
+                                                className={cn(
+                                                    "flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200",
+                                                    (inputValue.trim() || stagedFile)
+                                                        ? "bg-primary text-primary-foreground hover:opacity-90 active:scale-95 shadow-sm"
+                                                        : "bg-muted text-muted-foreground/40 cursor-not-allowed"
+                                                )}
+                                            >
+                                                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 translate-x-px translate-y-px" />}
                                             </button>
                                         </div>
                                     </div>
-                                )}
-
-                                {/* Text input */}
-                                <div className="relative">
-                                    <input
-                                        ref={fileInputRef}
-                                        id="onboarding-file-input"
-                                        type="file"
-                                        accept="image/*,application/pdf"
-                                        className="hidden"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0]
-                                            if (file) setStagedFile(file)
-                                            e.target.value = ""
-                                        }}
-                                    />
-                                    <Input
-                                        ref={inputRef}
-                                        value={inputValue}
-                                        onChange={(e) => setInputValue(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter" && !e.shiftKey) {
-                                                if (stagedFile) {
-                                                    handleFileUpload(stagedFile, inputValue.trim() || undefined)
-                                                    setStagedFile(null)
-                                                    setInputValue("")
-                                                } else {
-                                                    handleSendMessage()
-                                                }
-                                            }
-                                        }}
-                                        placeholder={stagedFile ? "Add a note about this file..." : "Tell me about your business..."}
-                                        disabled={isLoading || isUploading}
-                                        className="border-none shadow-none h-12 px-4 text-[15px] focus-visible:ring-0 bg-transparent"
-                                        autoFocus
-                                    />
-                                </div>
-
-                                {/* Bottom bar with attach + send */}
-                                <div className="flex items-center justify-between px-3 pb-3">
-                                    <label
-                                        htmlFor={!(isLoading || isUploading) ? "onboarding-file-input" : undefined}
-                                        className={cn(
-                                            "flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200",
-                                            (isLoading || isUploading)
-                                                ? "opacity-40 cursor-not-allowed text-muted-foreground"
-                                                : "cursor-pointer text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/50"
-                                        )}
-                                    >
-                                        {isUploading ? <Loader2 className="w-[18px] h-[18px] animate-spin" /> : <Paperclip className="w-[18px] h-[18px]" />}
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (stagedFile) {
-                                                handleFileUpload(stagedFile, inputValue.trim() || undefined)
-                                                setStagedFile(null)
-                                                setInputValue("")
-                                            } else {
-                                                handleSendMessage()
-                                            }
-                                        }}
-                                        disabled={(!inputValue.trim() && !stagedFile) || isLoading || isUploading}
-                                        className={cn(
-                                            "flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200",
-                                            (inputValue.trim() || stagedFile)
-                                                ? "bg-foreground text-background hover:opacity-80 active:scale-90"
-                                                : "bg-muted/60 text-muted-foreground/30 cursor-not-allowed"
-                                        )}
-                                    >
-                                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
             </div>
 
-            {/* ── Collected Data Sidebar ─────────────────────────── */}
-            <div className="hidden lg:block lg:w-80 shrink-0 space-y-4">
-                {/* Progress */}
-                <div className="border rounded-2xl bg-card shadow-sm p-5 space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                        <span className="font-semibold text-base">Profile Progress</span>
-                        <span className="text-muted-foreground text-base">{progressPercent}%</span>
-                    </div>
-                    <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-emerald-500 transition-all duration-500 ease-out rounded-full"
-                            style={{ width: `${progressPercent}%` }}
-                        />
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                        {completedCount} of {REQUIRED_FIELDS.length} required fields
-                    </p>
-                </div>
-
-                {/* Fields */}
-                <div className="border rounded-2xl bg-card shadow-sm p-5 space-y-2.5">
-                    <h4 className="text-base font-semibold mb-3">Collected Info</h4>
-                    {REQUIRED_FIELDS.map((field) => {
-                        const val = (collectedData as any)[field]
-                        const hasValue = (() => {
-                            if (Array.isArray(val)) return val.length > 0
-                            if (typeof val === "object" && val !== null) {
-                                return Object.values(val).some(v => v && String(v).trim().length > 0)
-                            }
-                            return val && String(val).trim().length > 0
-                        })()
-
-                        const displayValue = (() => {
-                            if (!hasValue) return null
-                            if (field === "clientCountries" && Array.isArray(val)) {
-                                return val.map((c: string) => COUNTRY_FLAGS[c] || c).join(" ")
-                            }
-                            if (field === "country") {
-                                return `${COUNTRY_FLAGS[val] || ""} ${val}`.trim()
-                            }
-                            if (field === "address" && typeof val === "object") {
-                                const a = val as Record<string, string>
-                                return [a.city, a.state].filter(Boolean).join(", ") || "Provided"
-                            }
-                            return String(val)
-                        })()
-
-                        return (
-                            <div
-                                key={field}
-                                className={cn(
-                                    "flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition-colors",
-                                    hasValue ? "bg-primary/5" : "bg-transparent"
-                                )}
-                            >
-                                <div className={cn(
-                                    "w-5 h-5 rounded-full flex items-center justify-center shrink-0",
-                                    hasValue ? "bg-primary text-primary-foreground" : "border-2 border-muted-foreground/30"
-                                )}>
-                                    {hasValue && <Check className="w-3 h-3" />}
-                                </div>
-                                <span className={cn(
-                                    "font-medium text-sm",
-                                    hasValue ? "text-foreground" : "text-muted-foreground"
-                                )}>
-                                    {FIELD_LABELS[field] || field}
-                                </span>
-                                {displayValue && (
-                                    <span className="ml-auto text-sm text-muted-foreground truncate max-w-[120px]" title={displayValue}>
-                                        {displayValue}
-                                    </span>
-                                )}
-                            </div>
-                        )
-                    })}
-                </div>
+            {/* ── Collected Data Sidebar (Desktop) ─────────────────────────── */}
+            <div className="hidden lg:block lg:w-[320px] shrink-0">
+                <CollectedInfoView />
             </div>
         </div>
     )

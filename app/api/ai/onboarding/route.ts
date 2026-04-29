@@ -127,8 +127,9 @@ If the user asks a question instead of giving an answer (e.g., "what does that m
 7. address: { street, city, state, postalCode } — partial is OK, just city is fine
 8. taxRegistered: boolean — "Are you registered for GST/VAT/Sales Tax?"
 9. taxId: ONLY if taxRegistered=true. If false → auto-set taxId="" and SKIP to next field.
-10. clientCountries: array of 2-letter codes. "all" = all 11 countries.
-11. defaultCurrency: ONE currency code only — INR, USD, GBP, EUR, CAD, AUD, SGD, AED, PHP. Pick the FIRST one if user says multiple.
+10. services: What services or products do you provide? — ANY text is valid here
+11. clientCountries: array of 2-letter codes. "all" = all 11 countries.
+12. defaultCurrency: ONE currency code only — INR, USD, GBP, EUR, CAD, AUD, SGD, AED, PHP. Pick the FIRST one if user says multiple.
 
 After collecting all 11 required fields above, ask about OPTIONAL bank details:
 13. bankDetails (OPTIONAL): Ask "Would you like to add your bank details for invoices? (You can skip this)"
@@ -269,7 +270,7 @@ async function callDeepSeek(
     // - If taxRegistered is true, taxId must have a value
     const allRequiredFields = [
         "businessType", "country", "businessName", "ownerName",
-        "email", "phone", "address",
+        "email", "phone", "address", "services",
         "clientCountries", "defaultCurrency"
     ]
     
@@ -515,6 +516,7 @@ const FIELD_QUESTIONS: Record<string, string> = {
     address: "What's your business address? (city is enough)",
     taxRegistered: "Are you registered for GST/VAT/Sales Tax?",
     taxId: "What's your tax registration number?",
+    services: "What kind of services or products do you offer?",
     clientCountries: "Which countries do your clients come from? (or say 'all')",
     defaultCurrency: "What's your preferred currency? (e.g., INR, USD, EUR)",
     bankDetails: "Would you like to add your bank details for invoices? (You can skip this)",
@@ -670,6 +672,7 @@ function interpretRequiredField(
             }
             break
         }
+        case "services":
         case "businessName":
         case "ownerName":
         case "email":
@@ -678,6 +681,7 @@ function interpretRequiredField(
             if (userMsg.length > 0) {
                 extractedData = { [currentField]: userMsg }
                 const labels: Record<string, string> = {
+                    services: "services",
                     businessName: "business name",
                     ownerName: "name",
                     email: "email",
@@ -706,6 +710,7 @@ function interpretRequiredField(
             paymentTerms: "Payment terms define when your client should pay after receiving the invoice. Immediate means right away, Net 15 means within 15 days, Net 30 within 30 days, Net 60 within 60 days. Most businesses use Net 30. Which one works for you?",
             defaultCurrency: "This is the currency you'll use on your invoices and documents. For India it's INR (₹), for USA it's USD ($), for UK it's GBP (£), for Europe it's EUR (€). Which currency do you prefer?",
             taxRegistered: "This means whether your business is registered for tax collection — like GST in India, VAT in Europe, or Sales Tax in the US. If you're not sure, you can say 'no' for now. Are you registered?",
+            services: "This tells me what you actually do, like 'web design', 'marketing', or 'selling shoes'. What services or products do you offer?",
             clientCountries: "These are the countries where your clients are located. This helps me add the right compliance info to your documents. You can say 'all' for all 11 supported countries, or list specific ones.",
             businessType: "This helps me understand your business better. Options are: freelancer, developer, agency, ecommerce, professional, or other. Which fits best?",
         }

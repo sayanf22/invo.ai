@@ -3,78 +3,95 @@
 import { motion, useInView } from "framer-motion"
 import { useRef } from "react"
 
-const BG = "#FFFFFF"
-const DARK = "#09090B" // Zinc 950
-const MUTED = "#71717A" // Zinc 500
-const BORDER = "#E4E4E7" // Zinc 200
-const HIGHLIGHT_BG = "#F4F4F5" // Zinc 100
+const BG = "#FBF7F0"
+const DARK = "#121211"
+const MUTED = "#7A7266"
+const BORDER = "#E8DDD0"
+const HIGHLIGHT_BG = "#F5EDE0"
+const AMBER = "#C67A3C"
+const GREEN = "#143326"
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
+// ─── SVGs & Illustrations ────────────────────────────────────────────────────────
 
 function IconCheck({ highlight }: { highlight?: boolean }) {
-  const color = highlight ? DARK : "#52525B"
+  const color = highlight ? AMBER : GREEN
+  const opacity = highlight ? "0.15" : "0.06"
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <circle cx="10" cy="10" r="10" fill={color} fillOpacity={highlight ? "0.1" : "0.05"} />
-      <path d="M6 10L8.5 12.5L14 7" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="22" height="22" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="10" fill={color} fillOpacity={opacity} />
+      <path d="M6 10.5L8.5 13L14 6.5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
 
 function IconX() {
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M7 7L13 13M13 7L7 13" stroke="#A1A1AA" strokeWidth="1.5" strokeLinecap="round" />
+    <svg width="22" height="22" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="10" fill="#EF4444" fillOpacity="0.08" />
+      <path d="M7 7L13 13M13 7L7 13" stroke="#EF4444" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   )
 }
 
 function IconPartial() {
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <circle cx="10" cy="10" r="10" fill="#71717A" fillOpacity="0.05" />
-      <path d="M6.5 10H13.5" stroke="#71717A" strokeWidth="2" strokeLinecap="round" />
+    <svg width="22" height="22" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="10" fill="#F59E0B" fillOpacity="0.1" />
+      <path d="M6.5 10H13.5" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
 
+// 1. Document Generation: Depicts AI creating a rich document
 function DocSvg() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
+    <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="6" y="4" width="20" height="24" rx="3" fill="#E8A96A" fillOpacity="0.2"/>
+      <path d="M6 10H16" stroke="#C67A3C" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M16 4V10H26" stroke="#C67A3C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <line x1="11" y1="16" x2="21" y2="16" stroke="#121211" strokeWidth="2" strokeLinecap="round"/>
+      <line x1="11" y1="21" x2="17" y2="21" stroke="#121211" strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="24" cy="24" r="6" fill="#143326"/>
+      <path d="M24 20V28M20 24H28" stroke="#FBF7F0" strokeWidth="2" strokeLinecap="round"/>
     </svg>
   )
 }
 
+// 2. Tax & Compliance: Depicts global reach and checked security
 function GlobeSvg() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="2" y1="12" x2="22" y2="12" />
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="12" fill="#E8A96A" fillOpacity="0.2" stroke="#121211" strokeWidth="2"/>
+      <ellipse cx="16" cy="16" rx="6" ry="12" stroke="#121211" strokeWidth="2"/>
+      <path d="M4 16H28" stroke="#121211" strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="24" cy="24" r="7" fill="#C67A3C"/>
+      <path d="M21 24.5L23 26.5L27 21.5" stroke="#FBF7F0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   )
 }
 
+// 3. Export & Design: Depicts a premium layout palette
 function DesignSvg() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-      <path d="m2 12 10-10" />
-      <path d="m2 12 10 10" />
-      <path d="m12 2 10 10" />
+    <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="6" width="24" height="20" rx="4" fill="#143326"/>
+      <rect x="8" y="10" width="16" height="12" rx="2" fill="#FBF7F0"/>
+      <circle cx="12" cy="16" r="2.5" fill="#C67A3C"/>
+      <circle cx="16" cy="16" r="2.5" fill="#121211"/>
+      <circle cx="20" cy="16" r="2.5" fill="#E8A96A"/>
     </svg>
   )
 }
 
+// 4. Pricing & Value: Depicts a rising ROI chart
 function ValueSvg() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="6" y="14" width="5" height="14" rx="1.5" fill="#121211"/>
+      <rect x="13.5" y="9" width="5" height="19" rx="1.5" fill="#143326"/>
+      <rect x="21" y="4" width="5" height="24" rx="1.5" fill="#C67A3C"/>
+      <path d="M4 16L12 8L16 12L25 3" stroke="#E8A96A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="25" cy="3" r="3" fill="#E8A96A"/>
     </svg>
   )
 }
@@ -161,10 +178,10 @@ function Cell({ val, highlight }: { val: Val; highlight?: boolean }) {
   return (
     <div className="flex justify-center">
       <span
-        className="text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap"
+        className="text-[11px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap"
         style={highlight
-          ? { backgroundColor: DARK, color: "#FFFFFF" }
-          : { backgroundColor: HIGHLIGHT_BG, color: MUTED }
+          ? { backgroundColor: AMBER, color: "#FFFFFF", boxShadow: "0 2px 4px rgba(198,122,60,0.2)" }
+          : { backgroundColor: "#FFFFFF", color: DARK, border: `1px solid ${BORDER}` }
         }
       >
         {val}
@@ -185,18 +202,18 @@ function SectionBlock({ section, index }: { section: Section; index: number }) {
       initial={{ opacity: 0, y: 20 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.55, delay: index * 0.07, ease: [0.16, 1, 0.3, 1] }}
-      className="overflow-hidden rounded-2xl border"
+      className="overflow-hidden rounded-2xl border card-depth"
       style={{ borderColor: BORDER, backgroundColor: "#FFFFFF" }}
     >
       {/* Section header */}
       <div
-        className="flex items-center gap-3 px-5 py-3.5 border-b"
-        style={{ borderColor: BORDER, backgroundColor: "#FAFAFA" }}
+        className="flex items-center gap-3.5 px-6 py-4 border-b"
+        style={{ borderColor: BORDER, backgroundColor: HIGHLIGHT_BG }}
       >
-        <div className="text-zinc-600 flex items-center justify-center p-1.5 rounded-md bg-white border border-zinc-200 shadow-sm">
+        <div className="flex items-center justify-center p-1.5 rounded-xl bg-white border shadow-sm" style={{ borderColor: BORDER }}>
             {section.icon}
         </div>
-        <span className="text-xs font-bold uppercase tracking-widest text-zinc-800">
+        <span className="text-sm font-bold uppercase tracking-widest" style={{ color: GREEN }}>
           {section.title}
         </span>
       </div>
@@ -205,32 +222,35 @@ function SectionBlock({ section, index }: { section: Section; index: number }) {
       {section.rows.map((row, i) => (
         <div
           key={row.label}
-          className="grid items-center min-h-[52px]"
+          className="grid items-center min-h-[56px] transition-colors"
           style={{
             gridTemplateColumns: "minmax(220px, 2.5fr) 1fr 1fr 1fr 1fr",
             borderBottom: i < section.rows.length - 1 ? `1px solid ${BORDER}` : undefined,
-            backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#FAFAFA",
+            backgroundColor: i % 2 === 0 ? "#FFFFFF" : HIGHLIGHT_BG,
           }}
         >
           {/* Feature label (Sticky on mobile if scrolling horizontally) */}
-          <div className="px-5 py-3.5 sticky left-0 z-10" style={{ backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#FAFAFA" }}>
-            <p className="text-sm font-medium leading-snug" style={{ color: DARK }}>{row.label}</p>
+          <div className="px-6 py-4 sticky left-0 z-10" style={{ backgroundColor: i % 2 === 0 ? "#FFFFFF" : HIGHLIGHT_BG }}>
+            <p className="text-sm font-semibold leading-snug" style={{ color: DARK }}>{row.label}</p>
             {row.sub && (
-              <p className="text-[11px] mt-0.5 leading-snug text-zinc-500">{row.sub}</p>
+              <p className="text-[11px] mt-1 leading-snug" style={{ color: MUTED }}>{row.sub}</p>
             )}
           </div>
 
-          {/* Clorefy */}
+          {/* Clorefy Highlight Column */}
           <div
-            className="px-3 py-3.5 border-l h-full flex items-center bg-zinc-50/50"
-            style={{ borderColor: BORDER }}
+            className="px-3 py-4 border-l h-full flex items-center relative"
+            style={{ 
+              borderColor: "rgba(198,122,60,0.2)", 
+              backgroundColor: "rgba(198,122,60,0.03)" 
+            }}
           >
             <Cell val={row.clorefy} highlight />
           </div>
 
           {/* Competitors */}
           {(["freshbooks", "quickbooks", "bonsai"] as const).map((key, idx) => (
-            <div key={key} className="px-3 py-3.5 border-l h-full flex items-center" style={{ borderColor: BORDER }}>
+            <div key={key} className="px-3 py-4 border-l h-full flex items-center" style={{ borderColor: BORDER }}>
               <Cell val={row[key]} />
             </div>
           ))}
@@ -265,62 +285,65 @@ export function ComparisonTable() {
           className="text-center mb-16"
         >
           <div
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-6 shadow-sm"
-            style={{ backgroundColor: DARK, color: "#FFFFFF" }}
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest mb-6 shadow-md"
+            style={{ backgroundColor: AMBER, color: "#FFFFFF" }}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M6 1L7.5 4.5L11 5L8.5 7.5L9 11L6 9.5L3 11L3.5 7.5L1 5L4.5 4.5L6 1Z" fill="#FFFFFF" />
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
-            Why Clorefy wins
+            Why Clorefy Wins
           </div>
 
-          <h2 className="font-display text-4xl sm:text-5xl font-medium tracking-tight leading-[1.1] mb-6 text-zinc-900">
+          <h2 className="font-display text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.15] mb-6" style={{ color: DARK }}>
             Built for documents,<br />
-            <span className="font-serif italic text-zinc-500">not accounting</span>
+            <span className="font-serif italic" style={{ color: AMBER }}>not accounting</span>
           </h2>
 
-          <p className="text-base leading-relaxed max-w-xl mx-auto text-zinc-500">
-            FreshBooks starts at <strong className="text-zinc-900 font-semibold">$21/mo</strong>, QuickBooks at <strong className="text-zinc-900 font-semibold">$38/mo</strong>, Bonsai at <strong className="text-zinc-900 font-semibold">$15/mo</strong> — none have AI generation or 11-country tax compliance.
-            Clorefy starts at <strong className="text-zinc-900 font-semibold">$9/mo</strong> with a free plan.
+          <p className="text-base leading-relaxed max-w-xl mx-auto" style={{ color: MUTED }}>
+            FreshBooks starts at <strong className="font-semibold" style={{ color: DARK }}>$21/mo</strong>, QuickBooks at <strong className="font-semibold" style={{ color: DARK }}>$38/mo</strong>, Bonsai at <strong className="font-semibold" style={{ color: DARK }}>$15/mo</strong> — none have AI generation or 11-country tax compliance.
+            Clorefy starts at <strong className="font-bold" style={{ color: AMBER }}>$9/mo</strong> with a free plan.
           </p>
         </motion.div>
 
         {/* Mobile Horizontal Scroll Container */}
         <div className="overflow-x-auto pb-8 -mx-4 px-4 sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ WebkitOverflowScrolling: "touch" }}>
-          <div className="min-w-[800px]">
+          <div className="min-w-[850px]">
 
             {/* Column headers */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={headerInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="grid mb-3 rounded-2xl overflow-hidden border shadow-sm"
+              className="grid mb-4 rounded-2xl overflow-hidden border shadow-sm"
               style={{ gridTemplateColumns: "minmax(220px, 2.5fr) 1fr 1fr 1fr 1fr", borderColor: BORDER, backgroundColor: "#FFFFFF" }}
             >
-              <div className="px-5 py-4 flex items-end bg-white">
-                <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">Feature</span>
+              <div className="px-6 py-5 flex items-end">
+                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>Feature Comparison</span>
               </div>
 
               {/* Clorefy */}
               <div
-                className="px-3 py-4 border-l flex flex-col items-center justify-center gap-1.5"
-                style={{ borderColor: BORDER, backgroundColor: "#FAFAFA" }}
+                className="px-4 py-5 border-l flex flex-col items-center justify-center gap-2 relative"
+                style={{ borderColor: "rgba(198,122,60,0.2)", backgroundColor: "rgba(198,122,60,0.05)" }}
               >
+                {/* Top border highlight */}
+                <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: AMBER }} />
+                
                 <div className="flex items-center gap-2">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M7 1L8.5 5.5L13 7L8.5 8.5L7 13L5.5 8.5L1 7L5.5 5.5L7 1Z" fill={DARK} />
+                  <svg width="18" height="18" viewBox="0 0 14 14" fill="none">
+                    <path d="M7 1L8.5 5.5L13 7L8.5 8.5L7 13L5.5 8.5L1 7L5.5 5.5L7 1Z" fill={AMBER} />
                   </svg>
-                  <span className="text-sm font-bold" style={{ color: DARK }}>Clorefy</span>
+                  <span className="text-base font-bold" style={{ color: DARK }}>Clorefy</span>
                 </div>
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full text-white" style={{ backgroundColor: DARK }}>
+                <span className="text-[11px] font-bold px-3 py-1 rounded-full shadow-sm" style={{ backgroundColor: AMBER, color: "#FFFFFF" }}>
                   from $9/mo
                 </span>
               </div>
 
               {competitors.map(c => (
-                <div key={c.name} className="px-3 py-4 border-l flex flex-col items-center justify-center gap-1 bg-white" style={{ borderColor: BORDER }}>
-                  <span className="text-sm font-semibold text-center text-zinc-600">{c.name}</span>
-                  <span className="text-[11px] text-zinc-400">{c.price}</span>
+                <div key={c.name} className="px-4 py-5 border-l flex flex-col items-center justify-center gap-1.5" style={{ borderColor: BORDER, backgroundColor: "#FFFFFF" }}>
+                  <span className="text-sm font-semibold text-center" style={{ color: DARK }}>{c.name}</span>
+                  <span className="text-[12px] font-medium" style={{ color: MUTED }}>{c.price}</span>
                 </div>
               ))}
             </motion.div>
@@ -330,7 +353,7 @@ export function ComparisonTable() {
               initial={{ opacity: 0 }}
               animate={headerInView ? { opacity: 1 } : {}}
               transition={{ duration: 0.4, delay: 0.3 }}
-              className="flex items-center justify-end gap-5 mb-5"
+              className="flex items-center justify-end gap-6 mb-6"
             >
               {[
                 { icon: <IconCheck />, label: "Included" },
@@ -338,14 +361,14 @@ export function ComparisonTable() {
                 { icon: <IconX />, label: "Not available" },
               ].map(({ icon, label }) => (
                 <div key={label} className="flex items-center gap-2">
-                  <div className="w-4 h-4 flex items-center justify-center">{icon}</div>
-                  <span className="text-[11px] text-zinc-500 font-medium">{label}</span>
+                  <div className="w-5 h-5 flex items-center justify-center">{icon}</div>
+                  <span className="text-xs font-semibold" style={{ color: MUTED }}>{label}</span>
                 </div>
               ))}
             </motion.div>
 
             {/* Sections */}
-            <div className="space-y-4">
+            <div className="space-y-6">
               {SECTIONS.map((section, i) => (
                 <SectionBlock key={section.title} section={section} index={i} />
               ))}
@@ -355,21 +378,21 @@ export function ComparisonTable() {
         </div>
 
         {/* Footer note */}
-        <p className="text-center text-xs mt-6 text-zinc-400">
+        <p className="text-center text-[13px] mt-8" style={{ color: MUTED }}>
           FreshBooks from $21/mo (Lite). QuickBooks from $38/mo (Simple Start). Bonsai from $15/mo. Prices verified April 2026.
         </p>
 
         {/* CTA */}
         <div className="mt-12 text-center">
-          <p className="text-sm mb-4 text-zinc-500">Free plan · No credit card · Cancel anytime</p>
+          <p className="text-sm mb-4 font-medium" style={{ color: GREEN }}>Free plan · No credit card · Cancel anytime</p>
           <a
             href="/auth/signup"
-            className="inline-flex items-center gap-3 px-8 py-3.5 rounded-full text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 active:scale-[0.97] shadow-md hover:shadow-lg"
-            style={{ backgroundColor: DARK }}
+            className="inline-flex items-center gap-3 px-8 py-4 rounded-full text-sm font-bold text-white transition-all duration-200 hover:opacity-90 active:scale-[0.97] shadow-lg hover:shadow-xl"
+            style={{ backgroundColor: GREEN }}
           >
             Start free — no card needed
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M3 8H13M9 4L13 8L9 12" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+              <path d="M3 8H13M9 4L13 8L9 12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </a>
         </div>
