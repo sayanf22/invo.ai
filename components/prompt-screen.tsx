@@ -224,6 +224,7 @@ export function PromptScreen({
                 onLinkedSessionCreate={handleLinkedSessionCreate}
                 onChainSessionSelect={handleSessionSelect}
                 onMessageCountChange={setMessageCount}
+                onLockDocument={() => setInvoiceLocked(true)}
                 onSaveContext={handleSaveContextReady}
                 initialPrompt={initialPrompt}
               />
@@ -268,6 +269,7 @@ export function PromptScreen({
                 onLinkedSessionCreate={handleLinkedSessionCreate}
                 onChainSessionSelect={handleSessionSelect}
                 onMessageCountChange={setMessageCount}
+                onLockDocument={() => setInvoiceLocked(true)}
                 onSaveContext={handleSaveContextReady}
                 initialPrompt={initialPrompt}
               />

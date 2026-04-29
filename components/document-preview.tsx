@@ -803,8 +803,8 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               onLockChange={onLockChange}
             />
           )}
-          {/* Mark as Paid — shown for invoices when no gateway payment link exists or it's not gateway-paid */}
-          {sessionId && (data.documentType || "invoice").toLowerCase() === "invoice" && !manualPaid && (
+          {/* Mark as Paid — only shown for invoices AFTER the document has been sent */}
+          {sessionId && sentAt && (data.documentType || "invoice").toLowerCase() === "invoice" && !manualPaid && (
             <MarkAsPaidButton
               sessionId={sessionId}
               isPaid={false}
@@ -816,7 +816,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               }}
             />
           )}
-          {sessionId && (data.documentType || "invoice").toLowerCase() === "invoice" && manualPaid && (
+          {sessionId && sentAt && (data.documentType || "invoice").toLowerCase() === "invoice" && manualPaid && (
             <MarkAsPaidButton
               sessionId={sessionId}
               isPaid

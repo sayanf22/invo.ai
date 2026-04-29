@@ -40,6 +40,17 @@ function detectSendIntent(prompt: string): { hasSendIntent: boolean; email: stri
     return { hasSendIntent, email: emailMatch ? emailMatch[0] : "" }
 }
 
+// ── Share intent detection (WhatsApp, link, general share) ────────────────────
+const SHARE_INTENT_REGEX = /\b(share\s*(it|this|document|invoice|contract|quotation|proposal)?(\s*(via|on|through|to))?\s*(whatsapp|wa)?|whatsapp|wa\b)/i
+
+function detectShareIntent(prompt: string): { hasShareIntent: boolean; method: "whatsapp" | "link" | "none" } {
+    if (!SHARE_INTENT_REGEX.test(prompt)) return { hasShareIntent: false, method: "none" }
+    const lower = prompt.toLowerCase()
+    if (/whatsapp|wa\b/.test(lower)) return { hasShareIntent: true, method: "whatsapp" }
+    if (/link|url|copy/.test(lower)) return { hasShareIntent: true, method: "link" }
+    return { hasShareIntent: false, method: "none" }
+}
+
 interface InvoiceChatProps {
     data: InvoiceData
     onChange: (updates: Partial<InvoiceData>) => void
@@ -48,12 +59,13 @@ interface InvoiceChatProps {
     onLinkedSessionCreate?: (sessionId: string, docType: string) => void
     onChainSessionSelect?: (sessionId: string) => void
     onMessageCountChange?: (count: number) => void
+    onLockDocument?: () => void
     initialPrompt?: string
     /** Called once the session is ready with a function to persist context to DB */
     onSaveContext?: (saveFn: (data: InvoiceData) => Promise<void>) => void
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, initialPrompt, onSaveContext }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, initialPrompt, onSaveContext }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
 
     // Hook handles session init + switching when selectedSessionId changes
@@ -655,6 +667,31 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 // If user asked to send and document already exists, show send card ONLY
                 // Replace the AI's "click Send button" instructions with a minimal message
                 if (documentGenerated && session) {
+                    // Check for WhatsApp/link share intent first
+                    const shareIntent = detectShareIntent(userMessage)
+                    if (shareIntent.hasShareIntent && shareIntent.method === "whatsapp") {
+                        const clientName = data.toName || ""
+                        const ref = data.invoiceNumber || data.referenceNumber || ""
+                        const platformLink = `${window.location.origin}/pay/${session.id}`
+                        const defaultMsg = `Hi ${clientName},\n\nPlease find the ${docType} ${ref}.\n\n${platformLink}\n\nThank you,\n${data.fromName || ""}`
+                        const waMsg = `Sure! Opening WhatsApp with a pre-filled message for your ${docType}.`
+                        setMessages(prev => [...prev, { role: "assistant", content: waMsg }])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", waMsg)
+                        window.open(`https://wa.me/?text=${encodeURIComponent(defaultMsg)}`, "_blank")
+                        onLockDocument?.()
+                        return
+                    }
+                    if (shareIntent.hasShareIntent && shareIntent.method === "link") {
+                        const platformLink = `${window.location.origin}/pay/${session.id}`
+                        try { await navigator.clipboard.writeText(platformLink) } catch {}
+                        const linkMsg = `Done! Here's your shareable link:\n\n\`${platformLink}\`\n\nIt's been copied to your clipboard.`
+                        setMessages(prev => [...prev, { role: "assistant", content: linkMsg }])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", linkMsg)
+                        return
+                    }
+
                     const { hasSendIntent, email: detectedEmail } = detectSendIntent(userMessage)
                     if (hasSendIntent) {
                         const cardEmail = detectedEmail || data.toEmail || ""
@@ -889,6 +926,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     documentType={docType}
                                     detectedEmail={msg.sendCard.email}
                                     onDismiss={() => setMessages(prev => prev.filter((_, i) => i !== idx))}
+                                    onLockDocument={onLockDocument}
                                     onSent={() => {
                                         // Card handles its own sent state
                                     }}

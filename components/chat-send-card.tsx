@@ -26,6 +26,7 @@ interface ChatSendCardProps {
   detectedEmail: string
   onDismiss: () => void
   onSent: () => void
+  onLockDocument?: () => void
   userTier?: "free" | "starter" | "pro" | "agency"
 }
 
@@ -54,7 +55,7 @@ function calcTotal(data: InvoiceData): string {
 }
 
 export function ChatSendCard({
-  sessionId, invoiceData, documentType, detectedEmail, onDismiss, onSent, userTier = "free",
+  sessionId, invoiceData, documentType, detectedEmail, onDismiss, onSent, onLockDocument, userTier = "free",
 }: ChatSendCardProps) {
   const [step, setStep] = useState<Step>("compose")
   const [slideDir, setSlideDir] = useState<SlideDir>("right")
@@ -164,6 +165,7 @@ export function ChatSendCard({
           }
           setSlideDir("right")
           setStep("sent")
+          onLockDocument?.()
           onSent()
           return
         } catch {
@@ -198,6 +200,7 @@ export function ChatSendCard({
         }
         setSlideDir("right")
         setStep("sent")
+        onLockDocument?.()
         onSent()
       } else {
         const data = await res.json().catch(() => ({}))
