@@ -8,7 +8,7 @@ export type AuditAction =
   | "signature.expired"
   | "signature.tamper_detected"
   | "signature.abuse_detected"
-  | "signature.r2_fallback"
+  | "signature.upload_failed"
   | "signature.cancelled"
 
 export function buildAuditEventRow(event: {
