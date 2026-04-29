@@ -80,10 +80,15 @@ export function PromptScreen({
     onSessionChange?.(sessionId)
   }, [onSessionChange])
 
+  const [paymentLinkCancelledAt, setPaymentLinkCancelledAt] = useState<number>(0)
+
   const handlePaymentLinkChange = useCallback((url: string, status: string) => {
     if (!url || status === "cancelled" || status === "expired") {
-      // Link removed/cancelled — clear from PDF
+      // Link removed/cancelled — clear from PDF and signal chat
       handleChange({ paymentLink: "", paymentLinkStatus: undefined, showPaymentLinkInPdf: false })
+      if (status === "cancelled") {
+        setPaymentLinkCancelledAt(Date.now())
+      }
     } else {
       handleChange({ paymentLink: url, paymentLinkStatus: status as any, showPaymentLinkInPdf: true })
     }
@@ -225,6 +230,7 @@ export function PromptScreen({
                 onChainSessionSelect={handleSessionSelect}
                 onMessageCountChange={setMessageCount}
                 onLockDocument={() => setInvoiceLocked(true)}
+                onPaymentLinkCancelled={paymentLinkCancelledAt > 0 ? () => {} : undefined}
                 onSaveContext={handleSaveContextReady}
                 initialPrompt={initialPrompt}
               />
@@ -270,6 +276,7 @@ export function PromptScreen({
                 onChainSessionSelect={handleSessionSelect}
                 onMessageCountChange={setMessageCount}
                 onLockDocument={() => setInvoiceLocked(true)}
+                onPaymentLinkCancelled={paymentLinkCancelledAt > 0 ? () => {} : undefined}
                 onSaveContext={handleSaveContextReady}
                 initialPrompt={initialPrompt}
               />

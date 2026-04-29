@@ -57,7 +57,17 @@ function calcTotal(data: InvoiceData): string {
 export function ChatSendCard({
   sessionId, invoiceData, documentType, detectedEmail, onDismiss, onSent, onLockDocument, userTier = "free",
 }: ChatSendCardProps) {
-  const [step, setStep] = useState<Step>("compose")
+  // Restore sent state from localStorage on mount (persists across refresh)
+  const sentKey = `clorefy_sent_${sessionId}`
+  const [step, setStep] = useState<Step>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(sentKey)
+        if (saved) return "sent"
+      } catch {}
+    }
+    return "compose"
+  })
   const [slideDir, setSlideDir] = useState<SlideDir>("right")
   const [email, setEmail] = useState(detectedEmail)
   const [message, setMessage] = useState("")
@@ -165,6 +175,8 @@ export function ChatSendCard({
           }
           setSlideDir("right")
           setStep("sent")
+          // Persist sent state so it survives page refresh
+          try { localStorage.setItem(sentKey, "1") } catch {}
           onLockDocument?.()
           onSent()
           return
@@ -200,6 +212,8 @@ export function ChatSendCard({
         }
         setSlideDir("right")
         setStep("sent")
+        // Persist sent state so it survives page refresh
+        try { localStorage.setItem(sentKey, "1") } catch {}
         onLockDocument?.()
         onSent()
       } else {

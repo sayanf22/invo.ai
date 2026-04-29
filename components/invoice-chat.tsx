@@ -63,12 +63,13 @@ interface InvoiceChatProps {
     onChainSessionSelect?: (sessionId: string) => void
     onMessageCountChange?: (count: number) => void
     onLockDocument?: () => void
+    onPaymentLinkCancelled?: () => void
     initialPrompt?: string
     /** Called once the session is ready with a function to persist context to DB */
     onSaveContext?: (saveFn: (data: InvoiceData) => Promise<void>) => void
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, initialPrompt, onSaveContext }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onPaymentLinkCancelled, initialPrompt, onSaveContext }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
 
     // Hook handles session init + switching when selectedSessionId changes
@@ -89,7 +90,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
@@ -116,6 +117,27 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         if (!session || !onSaveContext) return
         onSaveContext(updateSessionContext)
     }, [session?.id, onSaveContext, updateSessionContext]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Inject "payment link cancelled" card when parent signals cancellation
+    const prevCancelledRef = useRef(false)
+    useEffect(() => {
+        if (!onPaymentLinkCancelled) return
+        // Register a trigger: when parent calls onPaymentLinkCancelled, inject the card
+        // We do this by watching the function reference change (parent passes new fn each time)
+        // This is a fire-once pattern — inject card on first call
+        const originalFn = onPaymentLinkCancelled
+        return () => {
+            // When the effect re-runs (fn changed), it means parent triggered it
+            if (prevCancelledRef.current) {
+                setMessages(prev => [...prev, {
+                    role: "assistant" as const,
+                    content: "",
+                    cancelledCard: true,
+                }])
+            }
+            prevCancelledRef.current = true
+        }
+    }, [onPaymentLinkCancelled]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Sync messages from hook when session changes (new session loaded or switched)
     useEffect(() => {
@@ -977,6 +999,19 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                         onDismiss={() => setMessages(prev => prev.map((m, i) => i === idx ? { ...m, paymentCard: false } : m))}
                                         onConfigure={() => window.open("/settings?tab=payments", "_blank")}
                                     />
+                                </div>
+                            ) : msg.cancelledCard ? (
+                                // Payment link cancelled notification card
+                                <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/50 px-4 py-3 flex items-center gap-3"
+                                    style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
+                                >
+                                    <div className="w-7 h-7 rounded-lg bg-muted/60 flex items-center justify-center shrink-0">
+                                        <span className="text-sm">🔗</span>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold text-foreground">Payment link cancelled</p>
+                                        <p className="text-[11px] text-muted-foreground mt-0.5">The invoice is now editable again</p>
+                                    </div>
                                 </div>
                             ) : msg.role === "user" ? (
                                 <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300 break-words"

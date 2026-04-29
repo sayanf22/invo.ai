@@ -43,6 +43,7 @@ export function ChatShareCard({
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
   const [isLocking, setIsLocking] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [whatsappMessage, setWhatsappMessage] = useState("")
 
   const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
   const platformLink = `${typeof window !== "undefined" ? window.location.origin : ""}/pay/${sessionId}`
@@ -51,6 +52,15 @@ export function ChatShareCard({
     const t = requestAnimationFrame(() => setMounted(true))
     return () => cancelAnimationFrame(t)
   }, [])
+
+  // Pre-fill WhatsApp message when that action is selected
+  useEffect(() => {
+    if (pendingAction === "whatsapp") {
+      const ref = referenceNumber || ""
+      const msg = `Hi ${clientName || ""},\n\nPlease find the ${docLabel.toLowerCase()} ${ref}.\n\n${platformLink}\n\nThank you,\n${fromName || ""}`
+      setWhatsappMessage(msg)
+    }
+  }, [pendingAction]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lock the document server-side by setting sent_at
   const lockDocument = async () => {
@@ -81,14 +91,11 @@ export function ChatShareCard({
     }
 
     if (pendingAction === "whatsapp") {
-      const ref = referenceNumber || ""
-      const msg = `Hi ${clientName || ""},\n\nPlease find the ${docLabel.toLowerCase()} ${ref}.\n\n${platformLink}\n\nThank you,\n${fromName || ""}`
       await lockDocument()
       setPendingAction(null)
-      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank")
+      window.open(`https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`, "_blank")
       return
     }
-
     if (pendingAction === "link") {
       try {
         await navigator.clipboard.writeText(platformLink)
@@ -134,6 +141,19 @@ export function ChatShareCard({
                 </p>
               </div>
             </div>
+
+            {/* Editable WhatsApp message */}
+            {pendingAction === "whatsapp" && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Message</p>
+                <textarea
+                  value={whatsappMessage}
+                  onChange={e => setWhatsappMessage(e.target.value)}
+                  rows={5}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border/60 bg-background text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/60 transition-all duration-150 leading-relaxed"
+                />
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-2.5">
