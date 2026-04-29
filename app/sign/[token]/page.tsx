@@ -373,7 +373,7 @@ export default function SigningPage() {
                     <InvoLogo />
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Shield className="h-4 w-4 text-green-500" />
-                        Secured by Invo.ai
+                        Secured by Clorefy
                     </div>
                 </header>
                 <main className="flex-1 flex items-center justify-center px-4 py-12">
@@ -454,7 +454,7 @@ export default function SigningPage() {
                     <InvoLogo />
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Shield className="h-4 w-4 text-green-500" />
-                        Secured by Invo.ai
+                        Secured by Clorefy
                     </div>
                 </header>
                 <main className="flex-1 flex items-center justify-center px-4 py-12">
@@ -503,7 +503,7 @@ export default function SigningPage() {
                     <InvoLogo />
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Shield className="h-4 w-4 text-green-500" />
-                        Secured by Invo.ai
+                        Secured by Clorefy
                     </div>
                 </header>
                 <main className="flex-1 flex items-center justify-center px-4 py-12">
@@ -532,7 +532,7 @@ export default function SigningPage() {
                     <InvoLogo />
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Shield className="h-4 w-4 text-green-500" />
-                        Secured by Invo.ai
+                        Secured by Clorefy
                     </div>
                 </header>
                 <main className="flex-1 px-4 py-10">
@@ -627,10 +627,10 @@ export default function SigningPage() {
             {/* Header */}
             <header className="border-b py-4 px-6 flex items-center justify-between">
                 <InvoLogo />
-                {/* Sub-task 13.1: "Secured by Invo.ai" trust badge */}
+                {/* Sub-task 13.1: "Secured by Clorefy" trust badge */}
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Shield className="h-4 w-4 text-green-500" />
-                    Secured by Invo.ai
+                    Secured by Clorefy
                 </div>
             </header>
 
