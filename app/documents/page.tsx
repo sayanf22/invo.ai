@@ -1175,12 +1175,12 @@ export default function MyDocumentsPage() {
     else setRefreshing(true)
 
     try {
-      // Load sessions — only show documents that have been sent
+      // Load sessions — show documents that have been sent, finalized, or signed
       const { data: rawSessions, error } = await supabase
         .from("document_sessions")
         .select("id, document_type, status, client_name, created_at, updated_at, sent_at, context, chain_id")
         .eq("user_id", user.id)
-        .not("sent_at", "is", null)
+        .or("sent_at.not.is.null,status.eq.finalized,status.eq.signed")
         .not("context", "eq", "{}")
         .order("created_at", { ascending: false })
         .limit(100)
