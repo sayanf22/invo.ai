@@ -51,7 +51,7 @@ export default function ChoosePlanPage() {
                 await supabase.from("profiles").update({ plan_selected: true } as any).eq("id", user.id)
             }
             toast.success("Plan activated! Let's set up your business profile.")
-            router.push("/onboarding")
+            router.push("/onboarding?plan_selected=1")
         },
     })
 
@@ -101,7 +101,9 @@ export default function ChoosePlanPage() {
             await supabase.from("profiles").update({ plan_selected: true } as any).eq("id", user.id)
 
             toast.success("Free plan activated! Let's set up your business profile.")
-            router.push("/onboarding")
+            // Pass plan_selected=1 as a query param so the onboarding page
+            // knows the plan was just selected and skips the DB re-check race.
+            router.push("/onboarding?plan_selected=1")
         } catch (err) {
             toast.error("Something went wrong. Please try again.")
         } finally {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { InvoLogo } from "@/components/invo-logo"
 import { OnboardingChat, type CollectedData } from "@/components/onboarding-chat"
@@ -15,6 +15,7 @@ import { PaymentSettings } from "@/components/payment-settings"
 
 export default function OnboardingPage() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const { supabase, user, isLoading } = useAuth()
     
     // Restore phase and data from localStorage on mount
@@ -55,7 +56,9 @@ export default function OnboardingPage() {
                 .single()
                 .then(({ data }: any) => {
                     // Must select a plan before onboarding
-                    if (!data?.plan_selected) {
+                    // Trust the plan_selected URL param if we just came from choose-plan to avoid DB replication races
+                    const hasJustSelectedPlan = searchParams.get("plan_selected") === "1"
+                    if (!data?.plan_selected && !hasJustSelectedPlan) {
                         router.push("/choose-plan")
                         return
                     }
@@ -80,7 +83,7 @@ export default function OnboardingPage() {
                     }
                 })
         }
-    }, [isLoading, user, router, supabase])
+    }, [isLoading, user, router, supabase, searchParams])
 
     // Called when the chat phase completes — transition to logo upload step
     const handleChatComplete = (data: CollectedData) => {
