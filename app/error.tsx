@@ -12,6 +12,24 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error("Unhandled error:", error)
+
+    // ChunkLoadError = stale deployment cache. Auto-reload once to get fresh chunks.
+    // Guard with sessionStorage to prevent infinite reload loops.
+    const isChunkError =
+      error?.name === "ChunkLoadError" ||
+      error?.message?.includes("Loading chunk") ||
+      error?.message?.includes("ChunkLoadError")
+
+    if (isChunkError) {
+      const reloadKey = "clorefy_chunk_reload"
+      const lastReload = sessionStorage.getItem(reloadKey)
+      const now = Date.now()
+      // Only auto-reload once per 30 seconds to prevent loops
+      if (!lastReload || now - Number(lastReload) > 30_000) {
+        sessionStorage.setItem(reloadKey, String(now))
+        window.location.reload()
+      }
+    }
   }, [error])
 
   return (

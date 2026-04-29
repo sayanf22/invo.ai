@@ -344,6 +344,22 @@ export default function RootLayout({
             <SonnerToaster richColors position="top-right" />
           </AuthProvider>
         </ThemeProvider>
+        {/* Auto-reload on ChunkLoadError (stale deployment cache) */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          window.addEventListener('error', function(e) {
+            var msg = e.message || (e.error && e.error.message) || '';
+            var isChunk = msg.indexOf('Loading chunk') !== -1 || msg.indexOf('ChunkLoadError') !== -1;
+            if (isChunk) {
+              var key = 'clorefy_chunk_reload';
+              var last = sessionStorage.getItem(key);
+              var now = Date.now();
+              if (!last || now - Number(last) > 30000) {
+                sessionStorage.setItem(key, String(now));
+                window.location.reload();
+              }
+            }
+          });
+        ` }} />
       </body>
     </html>
   )
