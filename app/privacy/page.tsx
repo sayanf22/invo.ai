@@ -62,7 +62,7 @@ export default function PrivacyPage() {
                 <li><strong>Export:</strong> Download your documents in PDF, DOCX, or image format</li>
                 <li><strong>Withdraw Consent:</strong> Opt out of non-essential data processing</li>
             </ul>
-            <p>To exercise these rights, contact us at <a href="mailto:privacy@clorefy.com">privacy@clorefy.com</a>.</p>
+            <p>To exercise these rights, contact us at <a href="mailto:info@clorefy.com">info@clorefy.com</a>.</p>
 
             <h2>7. Cookies</h2>
             <p>We use essential cookies for authentication and session management. These are necessary for the Service to function and cannot be disabled. We do not use third-party tracking or advertising cookies.</p>
@@ -80,7 +80,7 @@ export default function PrivacyPage() {
             <p>We may update this Privacy Policy periodically. We will notify you of material changes via email or through the Service.</p>
 
             <h2>12. Contact</h2>
-            <p>For privacy-related inquiries, contact us at <a href="mailto:privacy@clorefy.com">privacy@clorefy.com</a> or visit our <a href="/contact">Contact page</a>.</p>
+            <p>For privacy-related inquiries, contact us at <a href="mailto:info@clorefy.com">info@clorefy.com</a> or visit our <a href="/contact">Contact page</a>.</p>
         </LegalPageLayout>
     )
 }

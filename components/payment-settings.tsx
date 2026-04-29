@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useState, useEffect, useCallback } from "react"
 import { authFetch } from "@/lib/auth-fetch"
@@ -32,31 +32,25 @@ interface OfflineMethod { id: string; label: string; details: string; enabled: b
 interface GatewayDef { id: Gateway; name: string; description: string; countries: string; accentBg: string; Icon: React.FC<{ size?: number }>; apiKeyUrl: string; webhookPath: string }
 
 function RazorpayIcon({ size = 20 }: { size?: number }) {
-  // Razorpay brand colors: navy #012652 bg, the "R" lightning bolt mark
-  // Based on official brand assets at razorpay.com/newsroom/brand-assets
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <path d="M8 32L16 8H24C29.5 8 33 11 33 16.5C33 21 30 24 25.5 25.5L33 32H26L19.5 26H15L13 32H8ZM15 21H22C25 21 27 19.5 27 16.5C27 13.5 25 12 22 12H16.5L15 21Z" fill="white"/>
+      <path fillRule="evenodd" clipRule="evenodd" d="M12.443 31.992L18.423 8H26.347C31.258 8 34 10.742 34 15.653C34 19.347 31.956 22.016 28.484 23.363L33.726 31.992H26.54L21.323 23.516H16.29L14.476 31.992H12.443ZM17.153 21.089H23.508C26.113 21.089 27.911 19.742 27.911 17.032C27.911 14.323 26.113 12.976 23.508 12.976H18.887L17.153 21.089Z" fill="white"/>
     </svg>
   )
 }
 function StripeIcon({ size = 20 }: { size?: number }) {
-  // Stripe brand: purple #635BFF bg, the actual Stripe "S" shape
-  // Based on official Stripe brand assets
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <path d="M20.5 14.5C20.5 13.4 21.4 12.8 22.8 12.8C24.6 12.8 26.3 13.5 27.5 14.4L28.9 10.6C27.4 9.5 25.2 8.8 22.7 8.8C18.5 8.8 15.6 11.1 15.6 14.8C15.6 21.4 24.5 20.2 24.5 23.4C24.5 24.7 23.4 25.4 21.8 25.4C19.6 25.4 17.6 24.5 16.3 23.2L14.8 27.1C16.4 28.5 18.9 29.3 21.6 29.3C26.1 29.3 29.2 27 29.2 23.1C29.2 16.2 20.5 17.5 20.5 14.5Z" fill="white"/>
+      <path d="M19.78 24.36c-1.61 0-2.88-.34-2.88-1.26 0-.82 1.01-1.2 2.57-1.56 3.43-.8 4.96-1.55 4.96-3.65 0-2.59-2.66-4.13-6.57-4.13-2.73 0-4.99.76-6.61 1.74v4.06c1.64-1.12 3.86-1.78 6.06-1.78 1.48 0 2.59.35 2.59 1.13 0 .73-.91 1.11-2.6 1.52-3.4.82-4.93 1.61-4.93 3.73 0 2.72 2.64 4.23 6.6 4.23 2.92 0 5.48-.82 7.23-1.92v-4.13c-1.74 1.17-4 1.85-6.42 1.85z" fill="white"/>
     </svg>
   )
 }
 function CashfreeIcon({ size = 20 }: { size?: number }) {
-  // Cashfree brand: green #00A550 bg
-  // Cashfree's logo is a stylized "C" with a forward arrow — their actual brand mark
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <path d="M27 12C24.5 9.5 21 8 17 8C9.8 8 4 13.8 4 21C4 28.2 9.8 34 17 34C21 34 24.5 32.5 27 30" stroke="white" strokeWidth="3.5" strokeLinecap="round" fill="none"/>
-      <path d="M23 17L29 21L23 25" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      <line x1="29" y1="21" x2="17" y2="21" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+      <path d="M26.5 13C24 10 20.5 8.5 16.5 8.5C9.5 8.5 4 14.5 4 21.5C4 28.5 9.5 34.5 16.5 34.5C20.5 34.5 24 33 26.5 30" stroke="white" strokeWidth="4" strokeLinecap="round" fill="none"/>
+      <path d="M23 17.5L29 21.5L23 25.5" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <line x1="29" y1="21.5" x2="16.5" y2="21.5" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
     </svg>
   )
 }
@@ -110,8 +104,8 @@ const METHOD_ICONS: Record<string, React.ElementType> = {
   phonepe: Smartphone, paytm: Smartphone, crypto: Globe,
 }
 
-function GatewayAvatar({ gw, size = 44 }: { gw: GatewayDef; size?: number }) {
-  return <div className="rounded-xl flex items-center justify-center shrink-0" style={{ width: size, height: size, background: gw.accentBg, boxShadow: `0 4px 12px ${gw.accentBg}40` }}><gw.Icon size={Math.round(size * 0.5)} /></div>
+function GatewayAvatar({ gw, size = 52 }: { gw: GatewayDef; size?: number }) {
+  return <div className="rounded-xl flex items-center justify-center shrink-0" style={{ width: size, height: size, background: gw.accentBg }}><gw.Icon size={Math.round(size * 0.55)} /></div>
 }
 function FieldLabel({ children }: { children: React.ReactNode }) { return <label className="block text-[13px] font-medium text-foreground/70 mb-1.5 leading-none">{children}</label> }
 function Input({ value, onChange, placeholder, type = "text" }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
@@ -630,21 +624,21 @@ export function PaymentSettings() {
             {connectedGateways.length > 0 && (
               <section className="space-y-2">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/50 px-0.5">Connected</p>
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {connectedGateways.map(gw => {
                     const s = settings![gw.id]!
                     const isEditing = editingGateway === gw.id
                     return (
-                      <div key={gw.id} className={cn("rounded-2xl border bg-card overflow-hidden transition-all duration-200", isEditing ? "border-primary/50 ring-2 ring-primary/10 shadow-md" : "border-border shadow-sm hover:shadow-md")} style={{ boxShadow: isEditing ? undefined : "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)" }}>
-                        <div className="flex items-center gap-3 px-4 py-3.5">
-                          <GatewayAvatar gw={gw} size={40} />
+                      <div key={gw.id} className={cn("rounded-3xl border bg-card overflow-hidden transition-all duration-200", isEditing ? "border-primary/50 ring-2 ring-primary/10 shadow-md" : "border-border shadow-sm hover:shadow-md")} style={{ boxShadow: isEditing ? undefined : "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)" }}>
+                        <div className="flex items-center gap-4 px-5 py-4 sm:p-5">
+                          <GatewayAvatar gw={gw} size={48} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-semibold text-foreground">{gw.name}</span>
+                              <span className="text-[15px] font-semibold text-foreground">{gw.name}</span>
                               <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle2 size={10} /> Connected</span>
                               {(s as any).testMode && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Test Mode</span>}
                             </div>
-                            <p className="text-xs text-foreground/50 mt-0.5 font-mono truncate">
+                            <p className="text-[13px] text-muted-foreground mt-1 font-mono truncate">
                               {(s as any).keyIdHint || (s as any).clientIdHint || gw.description}
                             </p>
                           </div>
@@ -684,31 +678,52 @@ export function PaymentSettings() {
             {unconnectedGateways.length > 0 && (
               <section className="space-y-2">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/50 px-0.5">{connectedGateways.length > 0 ? "Add Another Gateway" : "Connect a Gateway"}</p>
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {unconnectedGateways.map(gw => {
                     const isSelected = selectedGateway === gw.id
                     return (
-                      <div key={gw.id} className={cn("rounded-2xl border bg-card overflow-hidden transition-all duration-200", isSelected ? "border-primary ring-2 ring-primary/15 shadow-md" : "border-border shadow-sm hover:shadow-md")} style={{ boxShadow: isSelected ? undefined : "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)" }}>
+                      <div key={gw.id} className={cn("rounded-3xl border bg-card overflow-hidden transition-all duration-200 relative group", isSelected ? "border-primary ring-2 ring-primary/15 shadow-md" : "border-border shadow-sm hover:shadow-md")} style={{ boxShadow: isSelected ? undefined : "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px -4px rgba(0,0,0,0.08)" }}>
                         <button type="button" onClick={() => { if (isSelected) { setSelectedGateway(null); resetForm() } else { setSelectedGateway(gw.id); setEditingGateway(null); resetForm() } }}
-                          className="w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-muted/20 transition-colors">
-                          <GatewayAvatar gw={gw} size={44} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[15px] font-semibold text-foreground leading-tight">{gw.name}</p>
-                            <p className="text-xs text-foreground/60 mt-0.5">{gw.description}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-[11px] text-foreground/40 font-medium">{gw.countries}</p>
-                              <a
-                                href={`/integrations/payments/${gw.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={e => e.stopPropagation()}
-                                className="text-[11px] font-medium text-primary hover:underline flex items-center gap-0.5"
-                              >
-                                Setup guide <ExternalLink size={9} />
-                              </a>
+                          className="w-full flex items-center gap-4 px-5 py-5 sm:p-6 text-left hover:bg-muted/10 transition-colors">
+                          <GatewayAvatar gw={gw} />
+                          <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <p className="text-base font-semibold text-foreground leading-tight">{gw.name}</p>
+                                <p className="text-[13px] text-muted-foreground mt-0.5">{gw.description}</p>
+                                <div className="flex items-center gap-2 mt-1.5">
+                                    <p className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{gw.countries}</p>
+                                    <div className="sm:hidden">
+                                        <a
+                                            href={`/integrations/payments/${gw.id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={e => e.stopPropagation()}
+                                            className="text-[12px] font-medium text-primary hover:underline flex items-center gap-1"
+                                        >
+                                            Setup guide <ExternalLink size={10} />
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Setup Guide link on Desktop (right aligned) */}
+                            <div className="hidden sm:flex flex-col items-end gap-2 shrink-0">
+                                {isSelected ? (
+                                    <span className="text-[13px] font-semibold text-primary bg-primary/10 px-3 py-1 rounded-xl">Selected</span>
+                                ) : (
+                                    <span className="text-[13px] font-medium text-muted-foreground/50 group-hover:text-primary transition-colors px-3 py-1">Connect <Plus size={14} className="inline ml-1" /></span>
+                                )}
+                                <a
+                                    href={`/integrations/payments/${gw.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    className="text-[12px] font-medium text-primary hover:underline flex items-center gap-1 opacity-80 hover:opacity-100"
+                                >
+                                    Setup guide <ExternalLink size={10} />
+                                </a>
                             </div>
                           </div>
-                          {isSelected ? <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-lg shrink-0">Selected</span> : <Plus size={18} className="text-muted-foreground/40 shrink-0" />}
                         </button>
                         <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", isSelected ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
                           <div className="min-h-0 overflow-hidden">

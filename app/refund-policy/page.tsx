@@ -54,7 +54,7 @@ export default function RefundPolicyPage() {
             <h2>7. How to Request a Refund</h2>
             <p>To request a refund:</p>
             <ol>
-                <li>Email us at <a href="mailto:billing@clorefy.com">billing@clorefy.com</a> with your account email and reason for the refund</li>
+                <li>Email us at <a href="mailto:support@clorefy.com">support@clorefy.com</a> with your account email and reason for the refund</li>
                 <li>Include your payment receipt or transaction ID</li>
                 <li>Our team will review and respond within 2 business days</li>
             </ol>
@@ -69,7 +69,7 @@ export default function RefundPolicyPage() {
             <p>In the event of extended service outages (exceeding 24 consecutive hours) caused by us, we may offer billing credits at our discretion. This does not apply to scheduled maintenance or force majeure events.</p>
 
             <h2>10. Contact</h2>
-            <p>For billing or refund inquiries, contact us at <a href="mailto:billing@clorefy.com">billing@clorefy.com</a> or visit our <a href="/contact">Contact page</a>.</p>
+            <p>For billing or refund inquiries, contact us at <a href="mailto:support@clorefy.com">support@clorefy.com</a> or visit our <a href="/contact">Contact page</a>.</p>
         </LegalPageLayout>
     )
 }

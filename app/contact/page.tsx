@@ -56,9 +56,9 @@ export default function ContactPage() {
                             </div>
                             <div>
                                 <h3 className="font-semibold mb-1">Email</h3>
-                                <p className="text-sm text-muted-foreground">General: <a href="mailto:support@clorefy.com" className="text-primary">support@clorefy.com</a></p>
-                                <p className="text-sm text-muted-foreground">Billing: <a href="mailto:billing@clorefy.com" className="text-primary">billing@clorefy.com</a></p>
-                                <p className="text-sm text-muted-foreground">Privacy: <a href="mailto:privacy@clorefy.com" className="text-primary">privacy@clorefy.com</a></p>
+                                <p className="text-sm text-muted-foreground">General: <a href="mailto:info@clorefy.com" className="text-primary">info@clorefy.com</a></p>
+                                <p className="text-sm text-muted-foreground">Support: <a href="mailto:support@clorefy.com" className="text-primary">support@clorefy.com</a></p>
+                                <p className="text-sm text-muted-foreground">Sales: <a href="mailto:sales@clorefy.com" className="text-primary">sales@clorefy.com</a></p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4">

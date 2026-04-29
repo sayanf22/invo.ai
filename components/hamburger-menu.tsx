@@ -164,7 +164,7 @@ export function HamburgerMenu() {
                             )}
 
                             <MenuSection label="Support & Legal">
-                                <MenuItem icon={HelpCircle} label="Help Center" onClick={() => navigate("/contact")} />
+                                <MenuItem icon={HelpCircle} label="Support Center" onClick={() => navigate("/support")} />
                                 <MenuItem icon={BookOpen} label="Blog" onClick={() => navigate("/blog")} divider />
                                 <MenuItem icon={Mail} label="Contact Us" onClick={() => navigate("/contact")} divider />
                                 <MenuItem icon={Info} label="About Us" onClick={() => navigate("/about")} divider />

@@ -12,6 +12,7 @@ import { Loader2, ImageIcon, ArrowRight, CreditCard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getTaxIdFieldName } from "@/lib/countries"
 import { PaymentSettings } from "@/components/payment-settings"
+import { motion, AnimatePresence } from "framer-motion"
 
 export default function OnboardingPage() {
     const router = useRouter()
@@ -215,27 +216,55 @@ export default function OnboardingPage() {
                 </button>
             </header>
 
-            {/* Main — Upload, Chat, or Logo */}
-            <main className="flex-1 overflow-hidden">
-                {phase === "upload" ? (
-                    <UploadScreen
-                        onContinue={(data) => {
-                            setExtractedData(data)
-                            setPhase("chat")
-                        }}
-                        onSkip={() => {
-                            setExtractedData({})
-                            setPhase("chat")
-                        }}
-                    />
-                ) : phase === "chat" ? (
-                    <OnboardingChat
-                        onComplete={handleChatComplete}
-                        userEmail={user?.email || ""}
-                        initialData={extractedData}
-                    />
-                ) : phase === "logo" ? (
-                    <div className="flex items-center justify-center h-full p-6">
+            {/* Main — Upload, Chat, Logo, Payments */}
+            <main className="flex-1 relative overflow-hidden">
+                <AnimatePresence mode="wait">
+                    {phase === "upload" && (
+                        <motion.div 
+                            key="upload" 
+                            initial={{ opacity: 0, y: 15 }} 
+                            animate={{ opacity: 1, y: 0 }} 
+                            exit={{ opacity: 0, y: -15 }} 
+                            transition={{ duration: 0.4, ease: "easeOut" }}
+                            className="absolute inset-0 h-full w-full"
+                        >
+                            <UploadScreen
+                                onContinue={(data) => {
+                                    setExtractedData(data)
+                                    setPhase("chat")
+                                }}
+                                onSkip={() => {
+                                    setExtractedData({})
+                                    setPhase("chat")
+                                }}
+                            />
+                        </motion.div>
+                    )}
+                    {phase === "chat" && (
+                        <motion.div 
+                            key="chat" 
+                            initial={{ opacity: 0, y: 15 }} 
+                            animate={{ opacity: 1, y: 0 }} 
+                            exit={{ opacity: 0, y: -15 }} 
+                            transition={{ duration: 0.4, ease: "easeOut" }}
+                            className="absolute inset-0 h-full w-full"
+                        >
+                            <OnboardingChat
+                                onComplete={handleChatComplete}
+                                userEmail={user?.email || ""}
+                                initialData={extractedData}
+                            />
+                        </motion.div>
+                    )}
+                    {phase === "logo" && (
+                        <motion.div 
+                            key="logo" 
+                            initial={{ opacity: 0, y: 15 }} 
+                            animate={{ opacity: 1, y: 0 }} 
+                            exit={{ opacity: 0, y: -15 }} 
+                            transition={{ duration: 0.4, ease: "easeOut" }}
+                            className="absolute inset-0 h-full w-full flex items-center justify-center p-6 bg-background"
+                        >
                         <div className="w-full max-w-md space-y-6">
                             <div className="text-center space-y-2">
                                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
@@ -273,36 +302,44 @@ export default function OnboardingPage() {
                                 </button>
                             </div>
                         </div>
-                    </div>
-                ) : (
-                    /* Payments phase */
-                    <div className="flex items-center justify-center h-full p-6 overflow-y-auto">
-                        <div className="w-full max-w-lg space-y-6 py-4">
-                            <div className="text-center space-y-2">
-                                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                                    <CreditCard className="w-6 h-6 text-primary" />
+                    </motion.div>
+                    )}
+                    {phase === "payments" && (
+                        <motion.div 
+                            key="payments" 
+                            initial={{ opacity: 0, y: 15 }} 
+                            animate={{ opacity: 1, y: 0 }} 
+                            exit={{ opacity: 0, y: -15 }} 
+                            transition={{ duration: 0.4, ease: "easeOut" }}
+                            className="absolute inset-0 h-full w-full flex items-center justify-center p-6 overflow-y-auto bg-background"
+                        >
+                            <div className="w-full max-w-lg space-y-6 py-4">
+                                <div className="text-center space-y-2">
+                                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                                        <CreditCard className="w-6 h-6 text-primary" />
+                                    </div>
+                                    <h2 className="text-xl font-semibold text-foreground">Set up payment collection</h2>
+                                    <p className="text-sm text-muted-foreground">
+                                        Connect your payment gateway so clients can pay invoices directly. You can skip and set it up later in Settings.
+                                    </p>
                                 </div>
-                                <h2 className="text-xl font-semibold text-foreground">Set up payment collection</h2>
-                                <p className="text-sm text-muted-foreground">
-                                    Connect your payment gateway so clients can pay invoices directly. You can skip and set it up later in Settings.
-                                </p>
-                            </div>
 
-                            <PaymentSettings />
+                                <PaymentSettings />
 
-                            <div className="flex flex-col gap-3 pt-2">
-                                <Button onClick={() => handleFinalSave(extractedData)} className="w-full gap-2 h-11">
-                                    Complete Setup
-                                    <ArrowRight className="w-4 h-4" />
-                                </Button>
-                                <button type="button" onClick={() => handleFinalSave(extractedData)}
-                                    className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                                    Skip — I&apos;ll set up payments later
-                                </button>
+                                <div className="flex flex-col gap-3 pt-2">
+                                    <Button onClick={() => handleFinalSave(extractedData)} className="w-full gap-2 h-11">
+                                        Complete Setup
+                                        <ArrowRight className="w-4 h-4" />
+                                    </Button>
+                                    <button type="button" onClick={() => handleFinalSave(extractedData)}
+                                        className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                                        Skip — I&apos;ll set up payments later
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </main>
         </div>
     )
