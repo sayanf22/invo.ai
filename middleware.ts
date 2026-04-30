@@ -346,26 +346,97 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Redirect authenticated users away from auth pages (except callback/confirm/update-password)
-  // NOTE: We do NOT redirect from login/signup — the user may be initiating OAuth
-  // from there, and redirecting away would break the PKCE flow.
-  // The app-shell handles routing authenticated users to the right page.
+  // Redirect authenticated users away from auth pages (login/signup/reset)
+  // OAuth flows navigate FROM these pages to providers, not TO them — safe to redirect.
   if (
     isAuthenticated &&
     pathname.startsWith("/auth") &&
     !pathname.startsWith("/auth/callback") &&
     !pathname.startsWith("/auth/confirm") &&
-    !pathname.startsWith("/auth/update-password") &&
-    !pathname.startsWith("/auth/login") &&
-    !pathname.startsWith("/auth/signup")
+    !pathname.startsWith("/auth/update-password")
   ) {
     return NextResponse.redirect(new URL("/", request.url))
   }
 
-  // ── Onboarding: allow users to revisit /onboarding anytime ─────────
-  // The onboarding page itself handles whether to show the form or redirect.
-  // No middleware guard needed — users with incomplete profiles should be
-  // able to click "Complete your business profile" and reach onboarding.
+  // ── Onboarding guard: prevent completed users from re-entering ───────
+  // If user has already completed onboarding AND has a filled business profile,
+  // redirect them to home. This prevents re-accessing /onboarding by typing the URL.
+  if (isAuthenticated && userId && pathname === "/onboarding") {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (supabaseUrl && supabaseKey) {
+        const profileRes = await fetch(
+          `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=onboarding_complete`,
+          {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+            signal: AbortSignal.timeout(2000),
+          }
+        )
+        if (profileRes.ok) {
+          const profiles = await profileRes.json()
+          if (Array.isArray(profiles) && profiles.length > 0 && profiles[0].onboarding_complete) {
+            // Also check if business profile is actually filled
+            const bizRes = await fetch(
+              `${supabaseUrl}/rest/v1/businesses?user_id=eq.${userId}&select=name,country,email`,
+              {
+                headers: {
+                  apikey: supabaseKey,
+                  Authorization: `Bearer ${supabaseKey}`,
+                },
+                signal: AbortSignal.timeout(2000),
+              }
+            )
+            if (bizRes.ok) {
+              const businesses = await bizRes.json()
+              if (Array.isArray(businesses) && businesses.length > 0) {
+                const biz = businesses[0]
+                if (biz.name && biz.country && biz.email) {
+                  return NextResponse.redirect(new URL("/", request.url))
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Non-blocking — if check fails, allow access to onboarding
+    }
+  }
+
+  // ── Choose-plan guard: prevent plan re-selection after plan is chosen ──
+  if (isAuthenticated && userId && pathname === "/choose-plan") {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (supabaseUrl && supabaseKey) {
+        const profileRes = await fetch(
+          `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=plan_selected,onboarding_complete`,
+          {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+            signal: AbortSignal.timeout(2000),
+          }
+        )
+        if (profileRes.ok) {
+          const profiles = await profileRes.json()
+          if (Array.isArray(profiles) && profiles.length > 0) {
+            const profile = profiles[0]
+            if (profile.plan_selected && profile.onboarding_complete) {
+              return NextResponse.redirect(new URL("/", request.url))
+            }
+          }
+        }
+      }
+    } catch {
+      // Non-blocking
+    }
+  }
 
   return response
 }
