@@ -88,9 +88,10 @@ export function CategoryPills({ onSelect, selectedCategory }: CategoryPillsProps
         <button
           type="button"
           onClick={() => router.push("/billing")}
-          className="flex items-center gap-2 px-5 py-3 rounded-full text-[14px] font-medium text-muted-foreground border border-border/50 bg-secondary/30 hover:bg-secondary/80 hover:text-foreground transition-all duration-200"
+          className="flex items-center gap-1.5 px-3 py-2 text-[13.5px] font-medium text-muted-foreground hover:text-foreground transition-colors group ml-1"
         >
           <span>Upgrade to use more documents</span>
+          <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </button>
       )}
     </div>
