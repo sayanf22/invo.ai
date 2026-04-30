@@ -79,22 +79,11 @@ export function UserProfileMenu() {
                 aria-haspopup="true"
                 id="user-profile-menu-trigger"
             >
-                {/* Avatar */}
-                {avatarUrl ? (
-                    <Image
-                        src={avatarUrl}
-                        alt={fullName || email}
-                        width={32}
-                        height={32}
-                        className="w-8 h-8 rounded-full object-cover border-2 border-border group-hover:border-primary/30 transition-colors"
-                    />
-                ) : (
-                    <div className="w-8 h-8 rounded-full bg-primary/10 border-2 border-border group-hover:border-primary/30 transition-colors flex items-center justify-center">
-                        <span className="text-xs font-semibold text-primary">
-                            {initials}
-                        </span>
-                    </div>
-                )}
+                <div className="w-8 h-8 rounded-full bg-primary/10 border-2 border-border group-hover:border-primary/30 transition-colors flex items-center justify-center shrink-0">
+                    <span className="text-xs font-semibold text-primary">
+                        {initials}
+                    </span>
+                </div>
 
                 {/* Name (hidden on mobile) */}
                 <span className="text-sm font-medium text-foreground hidden sm:inline max-w-[120px] truncate">

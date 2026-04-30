@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     const bytes = new Uint8Array(binaryStr.length)
     for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i)
 
-    let signatureImageKey = "data_url_fallback"
+    let signatureImageKey = signatureDataUrl // fallback: store raw data URL if upload fails
     const sigId = randomUUID()
     const objectKey = `signatures/${sigId}_${Date.now()}.${fileExt}`
 
@@ -117,8 +117,10 @@ export async function POST(request: NextRequest) {
         .upload(objectKey, bytes, { contentType, upsert: false })
       if (!uploadError) {
         signatureImageKey = `sb:${objectKey}`
+      } else {
+        console.error("[self-sign] Storage upload failed, using data URL fallback:", uploadError.message)
       }
-    } catch { /* fallback */ }
+    } catch { /* fallback to data URL */ }
 
     // Compute document hash
     const context = (session.context ?? {}) as Record<string, unknown>

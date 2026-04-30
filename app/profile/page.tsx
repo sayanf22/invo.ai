@@ -542,10 +542,10 @@ export default function ProfilePage() {
             // Invalidate cache
             const { invalidateLogoCache } = await import("@/hooks/use-logo-url")
             invalidateLogoCache(profile.logo_url)
-            // Clear DB — both logo_url and logo_data_url
+            // Clear DB
             const { createClient } = await import("@/lib/supabase")
             const sb = createClient()
-            const { error } = await sb.from("businesses").update({ logo_url: null, logo_data_url: null } as any).eq("user_id", user.id)
+            const { error } = await sb.from("businesses").update({ logo_url: null } as any).eq("user_id", user.id)
             if (error) throw error
             toast.success("Logo removed.")
             await loadProfile()

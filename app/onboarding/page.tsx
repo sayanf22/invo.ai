@@ -107,12 +107,11 @@ export default function OnboardingPage() {
             // First check if there's an existing logo that should be preserved
             const { data: existingBiz } = await supabase
                 .from("businesses")
-                .select("logo_url, logo_data_url")
+                .select("logo_url")
                 .eq("user_id", user.id)
                 .single() as any
 
             const logoUrl = data.logoUrl || existingBiz?.logo_url || null
-            const logoDataUrl = existingBiz?.logo_data_url || null
 
             const { error: businessError } = await supabase.from("businesses").upsert({
                 user_id: user.id,
@@ -138,7 +137,6 @@ export default function OnboardingPage() {
                 additional_notes: [data.services, data.additionalNotes].filter(Boolean).join("\n\n") || "",
                 payment_methods: data.bankDetails ? { bank: data.bankDetails } : {},
                 logo_url: logoUrl,
-                logo_data_url: logoDataUrl,
                 signature_url: data.signatureUrl || null,
             } as any, { onConflict: 'user_id' })
 

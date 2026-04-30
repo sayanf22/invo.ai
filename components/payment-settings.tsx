@@ -49,19 +49,10 @@ function StripeIcon({ size = 20 }: { size?: number }) {
   )
 }
 function CashfreeIcon({ size = 20 }: { size?: number }) {
-  // Cashfree Payments brand mark: stylized "F" shape
-  // Green curved top-right element + Gold vertical left stroke
-  // Background: dark navy (#0B1340)
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      {/* Gold/yellow vertical left stroke */}
-      <path d="M5 8.5v11" stroke="#F5A623" strokeWidth="3.2" strokeLinecap="round"/>
-      {/* Green curved shape - top bar curving down to right */}
-      <path d="M5 8.5c0-3 2-5.5 5.5-5.5 2.5 0 4.5 1 6 2.5" stroke="#00B860" strokeWidth="3.2" strokeLinecap="round" fill="none"/>
-      {/* Green right vertical that curves outward */}
-      <path d="M16.5 5.5c1.5 1.5 2.5 3.5 2.5 6 0 2-0.5 3.5-1.5 5" stroke="#00B860" strokeWidth="3.2" strokeLinecap="round" fill="none"/>
-      {/* Green horizontal middle bar */}
-      <path d="M5 13h8" stroke="#00B860" strokeWidth="3.2" strokeLinecap="round"/>
+      <path d="M 7.5 19 V 10.5 C 7.5 5, 13.5 5, 13.5 9.5" stroke="#F5A623" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M 13.5 14.5 V 6 C 13.5 0.5, 19.5 0.5, 19.5 5" stroke="#00B860" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   )
 }

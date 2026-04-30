@@ -700,6 +700,9 @@ export function QuotationPDF({ data, logoUrl }: Props) {
         totBox: { width: 220, ...(tpl === "classic" ? bAll(1, c.bdr) : bAll(0, "transparent")), backgroundColor: tpl === "bold" ? c.bg : "transparent", ...r(8), padding: 14 },
         totRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
         gRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 10, marginTop: 6, ...bTop(2, c.pri) },
+        sigRow: { flexDirection: "row", paddingHorizontal: 48, marginTop: 24, marginBottom: 16 },
+        sigBlk: { flex: 1, marginRight: 24 },
+        sigLine: { ...bBottom(1, c.mut), marginTop: 36, marginBottom: 8, width: 180 },
         nWrap: { paddingHorizontal: 48, marginBottom: 16 },
         footer: { position: "absolute", bottom: 0, left: 0, right: 0, height: 36, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bTop(tpl === "bold" ? 0 : 1, c.bdr), backgroundColor: tpl === "bold" ? c.pri : "#fff" },
     })
@@ -787,6 +790,38 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                     </View>
                 </View>
 
+                <View style={s.sigRow} wrap={false}>
+                    <View style={s.sigBlk}>
+                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
+                        {(() => {
+                            if (data.showSenderSignature !== false && data.senderSignatureDataUrl) {
+                                return <Image src={data.senderSignatureDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                            }
+                            return <View style={s.sigLine} />
+                        })()}
+                        <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
+                        {data.signatureTitle ? <Text style={{ fontSize: 9, color: c.mut }}>{data.signatureTitle}</Text> : null}
+                    </View>
+                    <View style={{ ...s.sigBlk, marginRight: 0 }}>
+                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
+                        {(() => {
+                            const clientSig = data.signatureImages?.[0]
+                            if (clientSig?.imageDataUrl) {
+                                return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                            }
+                            if (data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) {
+                                return (
+                                    <View style={{ height: 56, marginBottom: 4, justifyContent: "center", alignItems: "flex-start" }}>
+                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                    </View>
+                                )
+                            }
+                            return <View style={s.sigLine} />
+                        })()}
+                        <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>
+                    </View>
+                </View>
+
                 {data.notes ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Notes</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text></View> : null}
                 {data.terms ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Terms & Conditions</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text></View> : null}
 
@@ -836,6 +871,9 @@ export function ProposalPDF({ data, logoUrl }: Props) {
         totRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
         gRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 10, marginTop: 6, ...bTop(2, c.pri) },
         ctaBox: { marginHorizontal: 48, backgroundColor: c.acc, ...r(8), padding: 18, ...bLeft(4, c.pri), marginBottom: 16 },
+        sigRow: { flexDirection: "row", paddingHorizontal: 48, marginTop: 24, marginBottom: 16 },
+        sigBlk: { flex: 1, marginRight: 24 },
+        sigLine: { ...bBottom(1, c.mut), marginTop: 36, marginBottom: 8, width: 180 },
         nWrap: { paddingHorizontal: 48, marginBottom: 16 },
         footer: { position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: tpl === "bold" ? c.pri : c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48 },
     })
@@ -961,6 +999,38 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 <View style={s.ctaBox} wrap={false}>
                     <Text style={{ fontSize: 11, color: c.pri, marginBottom: 4, ...bold(c) }}>Next Steps</Text>
                     <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.5 }}>{data.paymentInstructions || "To proceed with this proposal, please sign and return this document. We look forward to working with you."}</Text>
+                </View>
+
+                <View style={s.sigRow} wrap={false}>
+                    <View style={s.sigBlk}>
+                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
+                        {(() => {
+                            if (data.showSenderSignature !== false && data.senderSignatureDataUrl) {
+                                return <Image src={data.senderSignatureDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                            }
+                            return <View style={s.sigLine} />
+                        })()}
+                        <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
+                        {data.signatureTitle ? <Text style={{ fontSize: 9, color: c.mut }}>{data.signatureTitle}</Text> : null}
+                    </View>
+                    <View style={{ ...s.sigBlk, marginRight: 0 }}>
+                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
+                        {(() => {
+                            const clientSig = data.signatureImages?.[0]
+                            if (clientSig?.imageDataUrl) {
+                                return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                            }
+                            if (data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) {
+                                return (
+                                    <View style={{ height: 56, marginBottom: 4, justifyContent: "center", alignItems: "flex-start" }}>
+                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                    </View>
+                                )
+                            }
+                            return <View style={s.sigLine} />
+                        })()}
+                        <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>
+                    </View>
                 </View>
 
                 {data.notes ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Notes</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text></View> : null}

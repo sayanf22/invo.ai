@@ -402,27 +402,56 @@ export default function ViewDocumentPage() {
 
             if (sigs && sigs.length > 0) {
               const sigImages: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }> = []
+              let senderSigDataUrl: string | null = null
               for (const sig of sigs) {
-                if (sig.signature_image_url && sig.signature_image_url !== "data_url_fallback") {
+                const imgKey = sig.signature_image_url
+                if (!imgKey || imgKey === "data_url_fallback") continue
+
+                let imageDataUrl: string | null = null
+
+                // Handle inline data URLs directly (fallback from failed storage uploads)
+                if (imgKey.startsWith("data:image/")) {
+                  imageDataUrl = imgKey
+                } else {
+                  // Fetch from storage via proxy
                   try {
                     const { authFetch } = await import("@/lib/auth-fetch")
-                    const imgRes = await authFetch(`/api/storage/image?key=${encodeURIComponent(sig.signature_image_url)}`)
+                    const imgRes = await authFetch(`/api/storage/image?key=${encodeURIComponent(imgKey)}`)
                     if (imgRes.ok) {
                       const imgData = await imgRes.json()
-                      if (imgData.dataUrl) {
-                        sigImages.push({
-                          signerName: sig.signer_name || "Signer",
-                          party: sig.party || "Client",
-                          imageDataUrl: imgData.dataUrl,
-                          signedAt: sig.signed_at,
-                        })
-                      }
+                      if (imgData.dataUrl) imageDataUrl = imgData.dataUrl
                     }
                   } catch { /* ignore image load failures */ }
                 }
+
+                if (imageDataUrl) {
+                  if (sig.party === "Sender") {
+                    // Map Sender signature to senderSignatureDataUrl for Party A in PDF
+                    senderSigDataUrl = imageDataUrl
+                  } else {
+                    // Map Client/other signatures to signatureImages for Party B in PDF
+                    sigImages.push({
+                      signerName: sig.signer_name || "Signer",
+                      party: sig.party || "Client",
+                      imageDataUrl,
+                      signedAt: sig.signed_at,
+                    })
+                  }
+                }
               }
-              if (sigImages.length > 0) {
-                setDocData(prev => prev ? { ...prev, signatureImages: sigImages } : prev)
+              if (sigImages.length > 0 || senderSigDataUrl) {
+                setDocData(prev => {
+                  if (!prev) return prev
+                  const updates: Partial<InvoiceData> = {}
+                  if (sigImages.length > 0) updates.signatureImages = sigImages
+                  if (senderSigDataUrl) {
+                    updates.senderSignatureDataUrl = senderSigDataUrl
+                    updates.showSenderSignature = true
+                  }
+                  // Also mark as signed for the "Electronically Signed" fallback
+                  if (sigs.length > 0) updates.signedAt = sigs[0].signed_at || new Date().toISOString()
+                  return { ...prev, ...updates }
+                })
               }
             }
 
@@ -440,6 +469,11 @@ export default function ViewDocumentPage() {
             // Attach signature images if returned by the API
             if (data.signatureImages && data.signatureImages.length > 0) {
               ctx.signatureImages = data.signatureImages
+            }
+            // Attach sender signature for Party A in PDF
+            if (data.senderSignatureDataUrl) {
+              ctx.senderSignatureDataUrl = data.senderSignatureDataUrl
+              ctx.showSenderSignature = true
             }
             setDocData(ctx)
             if (data.payment) setPayment(data.payment as PaymentInfo)

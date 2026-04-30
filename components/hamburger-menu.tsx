@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
@@ -23,7 +23,14 @@ export function HamburgerMenu() {
         setMounted(true)
     }, [])
 
+    const [buttonRect, setButtonRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
+    const buttonRef = useRef<HTMLButtonElement>(null)
+
     const handleOpen = useCallback(() => {
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect()
+            setButtonRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
+        }
         setIsOpen(true)
         requestAnimationFrame(() => requestAnimationFrame(() => setVisibleOpen(true)))
     }, [])
@@ -60,7 +67,6 @@ export function HamburgerMenu() {
     const initials = fullName
         ? fullName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
         : email.charAt(0).toUpperCase()
-    const avatarUrl = user?.user_metadata?.avatar_url || ""
 
     useEffect(() => {
         // Don't lock body scroll — scrollbars are hidden globally so no layout shift occurs
@@ -75,20 +81,41 @@ export function HamburgerMenu() {
 
     return (
         <div className="relative">
-            {/* Toggle button — NEVER moves, always in its original position */}
+            {/* Toggle button — NEVER moves, always in its original position. Hidden when portal is open so the clone can take over */}
             <button
+                ref={buttonRef}
                 type="button"
                 onClick={toggle}
-                className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-secondary/50 transition-colors duration-200 shrink-0"
+                className={cn(
+                    "flex items-center justify-center w-10 h-10 rounded-xl transition-colors duration-200 shrink-0",
+                    isOpen ? "opacity-0 pointer-events-none" : "hover:bg-secondary/50 opacity-100"
+                )}
                 aria-expanded={isOpen}
                 aria-label={isOpen ? "Close menu" : "Open menu"}
             >
-                <MenuToggleIcon open={visibleOpen} className="w-9 h-9" strokeWidth={3} duration={350} />
+                <MenuToggleIcon open={false} className="w-9 h-9" strokeWidth={3} duration={350} />
             </button>
 
             {/* Render Overlay and Panel in a Portal to escape stacking contexts (e.g. backdrop-filter) */}
             {mounted && createPortal(
                 <div className="hamburger-menu-portal">
+                    {/* Cloned toggle button that sits ABOVE the overlay */}
+                    {isOpen && buttonRect && (
+                        <button
+                            type="button"
+                            onClick={handleClose}
+                            className="fixed flex items-center justify-center rounded-xl hover:bg-secondary/50 transition-colors duration-200 shrink-0 z-[120]"
+                            style={{
+                                top: buttonRect.top,
+                                left: buttonRect.left,
+                                width: buttonRect.width,
+                                height: buttonRect.height,
+                            }}
+                            aria-label="Close menu"
+                        >
+                            <MenuToggleIcon open={visibleOpen} className="w-9 h-9" strokeWidth={3} duration={350} />
+                        </button>
+                    )}
                     {/* Overlay */}
                     <div
                         className={cn(
@@ -120,18 +147,11 @@ export function HamburgerMenu() {
                         {user ? (
                             <div className="px-6 pt-6 pb-5 shrink-0 border-b border-border/50">
                                 <div className="flex items-center gap-3.5">
-                                    {avatarUrl ? (
-                                        <Image src={avatarUrl} alt={fullName || email} width={44} height={44}
-                                            className="w-11 h-11 rounded-2xl object-cover"
-                                            style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}
-                                        />
-                                    ) : (
-                                        <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-primary/10"
-                                            style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
-                                        >
-                                            <span className="text-sm font-bold text-primary">{initials}</span>
-                                        </div>
-                                    )}
+                                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-primary/10 shrink-0"
+                                        style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
+                                    >
+                                        <span className="text-sm font-bold text-primary">{initials}</span>
+                                    </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-foreground truncate">{fullName || "User"}</p>
                                         <p className="text-xs text-muted-foreground truncate mt-0.5">{email}</p>

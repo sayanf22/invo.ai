@@ -385,7 +385,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Upload signature image to Supabase Storage (service role — bypasses RLS)
-    let signatureImageKey = "data_url_fallback"
+    let signatureImageKey = signatureDataUrl // fallback: store raw data URL if upload fails
     try {
       const binaryStr = atob(base64Part)
       const bytes = new Uint8Array(binaryStr.length)
@@ -405,7 +405,7 @@ export async function POST(request: NextRequest) {
         // Prefix with "sb:" so the image proxy knows to use Supabase Storage
         signatureImageKey = `sb:${objectKey}`
       } else {
-        console.error("[sign] Supabase Storage upload failed:", storageError.message)
+        console.error("[sign] Supabase Storage upload failed, using data URL fallback:", storageError.message)
         // Log the failure for debugging
         await recordAuditEvent(supabase, {
           action: "signature.upload_failed",

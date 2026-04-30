@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       try {
         const { data: updated, error: updateErr } = await auth.supabase
           .from("businesses")
-          .update({ logo_url: objectKey, logo_data_url: dataUrl } as any)
+          .update({ logo_url: objectKey } as any)
           .eq("user_id", auth.user.id)
           .select("user_id") as any
 
@@ -123,7 +123,6 @@ export async function POST(request: NextRequest) {
               user_id: auth.user.id,
               name: "",
               logo_url: objectKey,
-              logo_data_url: dataUrl,
             } as any)
             .then(() => {})
         }
@@ -135,13 +134,13 @@ export async function POST(request: NextRequest) {
       try {
         const { data: updated } = await auth.supabase
           .from("businesses")
-          .update({ logo_url: objectKey, logo_data_url: null } as any)
+          .update({ logo_url: objectKey } as any)
           .eq("user_id", auth.user.id)
           .select("user_id") as any
         if (!updated || updated.length === 0) {
           await auth.supabase
             .from("businesses")
-            .insert({ user_id: auth.user.id, name: "", logo_url: objectKey, logo_data_url: null } as any)
+            .insert({ user_id: auth.user.id, name: "", logo_url: objectKey } as any)
             .then(() => {})
         }
       } catch { /* non-blocking */ }

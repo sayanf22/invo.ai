@@ -1429,21 +1429,39 @@ export default function MyDocumentsPage() {
           if (sigs && sigs.length > 0) {
             const sigImages: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }> = []
             for (const sig of sigs) {
-              if (sig.signature_image_url && sig.signature_image_url !== "data_url_fallback") {
+              const imgKey = sig.signature_image_url
+              if (!imgKey || imgKey === "data_url_fallback") continue
+
+              let imageDataUrl: string | null = null
+
+              // Handle inline data URLs directly (fallback from failed storage uploads)
+              if (imgKey.startsWith("data:image/")) {
+                imageDataUrl = imgKey
+              } else {
+                // Fetch from storage via proxy
                 try {
-                  const imgRes = await authFetch(`/api/storage/image?key=${encodeURIComponent(sig.signature_image_url)}`)
+                  const imgRes = await authFetch(`/api/storage/image?key=${encodeURIComponent(imgKey)}`)
                   if (imgRes.ok) {
                     const imgData = await imgRes.json()
-                    if (imgData.dataUrl) {
-                      sigImages.push({
-                        signerName: sig.signer_name || "Signer",
-                        party: sig.party || "Client",
-                        imageDataUrl: imgData.dataUrl,
-                        signedAt: sig.signed_at,
-                      })
-                    }
+                    if (imgData.dataUrl) imageDataUrl = imgData.dataUrl
                   }
                 } catch { /* ignore */ }
+              }
+
+              if (imageDataUrl) {
+                if (sig.party === "Sender") {
+                  // Map Sender signature to senderSignatureDataUrl for Party A in PDF
+                  cleanedData.senderSignatureDataUrl = imageDataUrl
+                  cleanedData.showSenderSignature = true
+                } else {
+                  // Map Client/other signatures to signatureImages for Party B in PDF
+                  sigImages.push({
+                    signerName: sig.signer_name || "Signer",
+                    party: sig.party || "Client",
+                    imageDataUrl,
+                    signedAt: sig.signed_at,
+                  })
+                }
               }
             }
             if (sigImages.length > 0) {
@@ -1451,7 +1469,7 @@ export default function MyDocumentsPage() {
             }
             // Mark as signed even if no images loaded (data_url_fallback case)
             // This triggers the "Electronically Signed" placeholder in the PDF
-            if (sigs.length > 0 && sigImages.length === 0) {
+            if (sigs.length > 0 && sigImages.length === 0 && !cleanedData.senderSignatureDataUrl) {
               cleanedData.signedAt = sigs[0].signed_at || new Date().toISOString()
             }
           }

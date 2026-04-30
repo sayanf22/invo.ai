@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
     // Load signature images for signed documents
     // Returns base64 data URLs so the PDF template can embed them
     let signatureImages: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }> = []
+    let senderSignatureDataUrl: string | undefined = undefined
     if (["contract", "quotation", "proposal"].includes(session.document_type || "")) {
       const { data: sigs } = await supabase
         .from("signatures")
@@ -76,9 +77,14 @@ export async function GET(request: NextRequest) {
           const imgKey = (sig as any).signature_image_url as string | null
           if (!imgKey || imgKey === "data_url_fallback") continue
 
-          try {
-            if (imgKey.startsWith("sb:")) {
-              // Supabase Storage
+          let imageDataUrl: string | null = null
+
+          // Handle inline data URLs directly (fallback from failed storage uploads)
+          if (imgKey.startsWith("data:image/")) {
+            imageDataUrl = imgKey
+          } else if (imgKey.startsWith("sb:")) {
+            // Supabase Storage
+            try {
               const storagePath = imgKey.slice(3)
               const bucket = storagePath.startsWith("signatures/") ? "signatures" : "business-assets"
               const { data: blob, error: dlErr } = await supabase.storage.from(bucket).download(storagePath)
@@ -86,29 +92,36 @@ export async function GET(request: NextRequest) {
                 const buf = await blob.arrayBuffer()
                 const b64 = Buffer.from(buf).toString("base64")
                 const mime = blob.type || "image/jpeg"
-                signatureImages.push({
-                  signerName: sig.signer_name || "Signer",
-                  party: (sig as any).party || "Client",
-                  imageDataUrl: `data:${mime};base64,${b64}`,
-                  signedAt: sig.signed_at!,
-                })
+                imageDataUrl = `data:${mime};base64,${b64}`
               }
-            } else {
-              // R2 — use getObject
+            } catch { /* non-fatal */ }
+          } else {
+            // R2 — use getObject
+            try {
               const { getObject } = await import("@/lib/r2")
               const obj = await getObject(imgKey)
               if (obj) {
                 const b64 = Buffer.from(obj.body).toString("base64")
                 const mime = obj.contentType !== "application/octet-stream" ? obj.contentType : "image/png"
-                signatureImages.push({
-                  signerName: sig.signer_name || "Signer",
-                  party: (sig as any).party || "Client",
-                  imageDataUrl: `data:${mime};base64,${b64}`,
-                  signedAt: sig.signed_at!,
-                })
+                imageDataUrl = `data:${mime};base64,${b64}`
               }
+            } catch { /* non-fatal */ }
+          }
+
+          if (imageDataUrl) {
+            if ((sig as any).party === "Sender") {
+              // Map Sender signature for Party A in PDF
+              senderSignatureDataUrl = imageDataUrl
+            } else {
+              // Map Client/other signatures for Party B in PDF
+              signatureImages.push({
+                signerName: sig.signer_name || "Signer",
+                party: (sig as any).party || "Client",
+                imageDataUrl,
+                signedAt: sig.signed_at!,
+              })
             }
-          } catch { /* non-fatal — PDF renders without signature image */ }
+          }
         }
       }
     }
@@ -119,6 +132,7 @@ export async function GET(request: NextRequest) {
       sessionStatus: session.status,
       payment,
       signatureImages: signatureImages.length > 0 ? signatureImages : undefined,
+      senderSignatureDataUrl,
     })
   } catch (err) {
     console.error("View document error:", err)
