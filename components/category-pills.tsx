@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, ScrollText, Sparkles } from "lucide-react"
+import { FileText, ScrollText, Sparkles, Lock } from "lucide-react"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { useTier } from "@/hooks/use-tier"
 import { cn } from "@/lib/utils"
@@ -88,10 +88,10 @@ export function CategoryPills({ onSelect, selectedCategory }: CategoryPillsProps
         <button
           type="button"
           onClick={() => router.push("/billing")}
-          className="flex items-center gap-1.5 px-3 py-2 text-[13.5px] font-medium text-muted-foreground hover:text-foreground transition-colors group ml-1"
+          className="flex items-center gap-2.5 px-5 py-3 rounded-full border border-dashed border-border bg-transparent text-[15px] font-medium text-muted-foreground transition-all duration-200 hover:border-primary/40 hover:bg-secondary hover:text-foreground hover:shadow-sm btn-press"
         >
+          <Lock className="w-[16px] h-[16px] opacity-70" />
           <span>Upgrade to use more documents</span>
-          <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </button>
       )}
     </div>
