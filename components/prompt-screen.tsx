@@ -1,6 +1,6 @@
-﻿"use client"
+"use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { ArrowLeft, Eye, PenLine, MessageSquare, History as HistoryIcon } from "lucide-react"
 import { EditorPanel } from "@/components/editor-panel"
 import { DocumentPreview } from "@/components/document-preview"
@@ -13,6 +13,7 @@ import { PDFDownloadButton } from "@/components/pdf-download-button"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { getInitialInvoiceData } from "@/lib/invoice-types"
 import { cn } from "@/lib/utils"
+import { useMediaQuery } from "@/hooks/use-media-query"
 
 type MobileTab = "chat" | "edit" | "preview"
 const TAB_INDEX: Record<MobileTab, number> = { chat: 0, edit: 1, preview: 2 }
@@ -44,6 +45,9 @@ export function PromptScreen({
   const [messageCount, setMessageCount] = useState(0)
   // Lock invoice editing after payment link is created (anti-fraud)
   const [invoiceLocked, setInvoiceLocked] = useState(false)
+
+  // ── Single InvoiceChat: render only for mobile OR desktop, never both ──
+  const isDesktop = useMediaQuery("(min-width: 768px)")
 
   // Called when InvoiceChat starts a new session (new conversation button)
   const handleChatSessionChange = useCallback((sessionId: string) => {
@@ -112,6 +116,21 @@ export function PromptScreen({
 
   // Translate offset: 0% = chat, -100% = edit, -200% = preview
   const slideOffset = TAB_INDEX[mobileTab] * -100
+
+  // ── Shared InvoiceChat props — used by exactly ONE instance at a time ──
+  const chatProps = {
+    data,
+    onChange: handleChange,
+    selectedSessionId,
+    onSessionChange: handleChatSessionChange,
+    onLinkedSessionCreate: handleLinkedSessionCreate,
+    onChainSessionSelect: handleSessionSelect,
+    onMessageCountChange: setMessageCount,
+    onLockDocument: () => setInvoiceLocked(true),
+    onPaymentLinkCancelled: paymentLinkCancelledAt > 0 ? () => {} : undefined,
+    onSaveContext: handleSaveContextReady,
+    initialPrompt,
+  } as const
 
   return (
     <div className="h-dvh flex flex-col bg-background overflow-hidden">
@@ -221,19 +240,8 @@ export function PromptScreen({
           >
             {/* Each panel is 1/3 of the 300%-wide track = exactly 100vw wide and 100% tall */}
             <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col">
-              <InvoiceChat
-                data={data}
-                onChange={handleChange}
-                selectedSessionId={selectedSessionId}
-                onSessionChange={handleChatSessionChange}
-                onLinkedSessionCreate={handleLinkedSessionCreate}
-                onChainSessionSelect={handleSessionSelect}
-                onMessageCountChange={setMessageCount}
-                onLockDocument={() => setInvoiceLocked(true)}
-                onPaymentLinkCancelled={paymentLinkCancelledAt > 0 ? () => {} : undefined}
-                onSaveContext={handleSaveContextReady}
-                initialPrompt={initialPrompt}
-              />
+              {/* MOBILE CHAT: only rendered when NOT desktop — prevents duplicate InvoiceChat */}
+              {!isDesktop && <InvoiceChat {...chatProps} />}
             </div>
 
             <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col">
@@ -267,19 +275,8 @@ export function PromptScreen({
               "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
               showEditor ? "-translate-x-full opacity-0 pointer-events-none" : "translate-x-0 opacity-100"
             )}>
-              <InvoiceChat
-                data={data}
-                onChange={handleChange}
-                selectedSessionId={selectedSessionId}
-                onSessionChange={handleChatSessionChange}
-                onLinkedSessionCreate={handleLinkedSessionCreate}
-                onChainSessionSelect={handleSessionSelect}
-                onMessageCountChange={setMessageCount}
-                onLockDocument={() => setInvoiceLocked(true)}
-                onPaymentLinkCancelled={paymentLinkCancelledAt > 0 ? () => {} : undefined}
-                onSaveContext={handleSaveContextReady}
-                initialPrompt={initialPrompt}
-              />
+              {/* DESKTOP CHAT: only rendered when IS desktop — prevents duplicate InvoiceChat */}
+              {isDesktop && <InvoiceChat {...chatProps} />}
             </div>
             {/* Editor */}
             <div className={cn(

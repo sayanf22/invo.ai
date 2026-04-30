@@ -11,6 +11,8 @@ import { HamburgerMenu } from "@/components/hamburger-menu"
 import { Loader2 } from "lucide-react"
 import { authFetch } from "@/lib/auth-fetch"
 import { PageLoader } from "@/components/ui/page-loader"
+import { useTier } from "@/hooks/use-tier"
+import { toast } from "sonner"
 
 type View = "start" | "prompt"
 
@@ -25,6 +27,10 @@ export function AppShell() {
   const [promptKey, setPromptKey] = useState(0)
   const [checkingOnboarding, setCheckingOnboarding] = useState(true)
   const [setupIncomplete, setSetupIncomplete] = useState(false)
+  const [detectingType, setDetectingType] = useState(false)
+
+  // Tier info — used to gate premium document types
+  const { allowedDocTypes, loading: tierLoading } = useTier()
 
   useEffect(() => {
     const sessionId = searchParams.get("sessionId")
@@ -119,15 +125,11 @@ export function AppShell() {
       return
     }
 
-    // No category selected — detect type first, but show prompt screen immediately with "Invoice" as default
-    // Switch view NOW so user sees the screen instantly
-    const defaultCategory = "Invoice"
-    setSelectedCategory(defaultCategory)
-    setInitialPrompt(prompt)
-    setPromptKey(prev => prev + 1)
-    setView("prompt")
+    // ── No category selected — detect type FIRST, then switch view ──
+    // The detect-type endpoint uses server-side regex (not AI), so it's fast (~100ms).
+    // We wait for the result to avoid creating a session with the wrong document type.
+    setDetectingType(true)
 
-    // Detect type in background and update if different
     try {
       let enrichedPrompt = prompt
 
@@ -135,28 +137,55 @@ export function AppShell() {
         enrichedPrompt = await handleFileEnrichment(file, prompt)
       }
 
-      const response = await authFetch("/api/ai/detect-type", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: enrichedPrompt }),
-      })
-      if (response.ok) {
-        const detection = await response.json()
-        const t = detection.type as string
-        const detected = t.charAt(0).toUpperCase() + t.slice(1)
-        if (detected !== defaultCategory) {
-          setSelectedCategory(detected)
+      // Detect document type from the user's prompt
+      let detectedCategory = "Invoice" // safe default
+      try {
+        const response = await authFetch("/api/ai/detect-type", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: enrichedPrompt }),
+        })
+        if (response.ok) {
+          const detection = await response.json()
+          const t = detection.type as string
+          detectedCategory = t.charAt(0).toUpperCase() + t.slice(1)
         }
+      } catch (error) {
+        console.error("Detection error:", error)
+        // Fall back to Invoice — already set as default above
       }
 
-      if (enrichedPrompt !== prompt) {
-        setInitialPrompt(enrichedPrompt)
-        setPromptKey(prev => prev + 1)
+      // ── Tier gate: block premium types for free users ──
+      const detectedLower = detectedCategory.toLowerCase()
+      if (!tierLoading && !allowedDocTypes.includes(detectedLower)) {
+        // User tried to create a premium doc type (quotation/proposal) on free tier
+        setDetectingType(false)
+        toast.error(`${detectedCategory}s are available on paid plans`, {
+          description: "Upgrade to Starter to unlock Quotations and Proposals.",
+          action: {
+            label: "Upgrade",
+            onClick: () => router.push("/billing"),
+          },
+          duration: 6000,
+        })
+        return // Stay on start screen
       }
+
+      // Set the correct category and switch to prompt view
+      setSelectedCategory(detectedCategory)
+      setInitialPrompt(enrichedPrompt)
+      setPromptKey(prev => prev + 1)
+      setView("prompt")
     } catch (error) {
-      console.error("Detection error:", error)
-      // Already showing Invoice as default — no action needed
+      console.error("Error in prompt submission:", error)
+      // Fallback: just go with Invoice
+      setSelectedCategory("Invoice")
+      setInitialPrompt(prompt)
+      setPromptKey(prev => prev + 1)
+      setView("prompt")
+    } finally {
+      setDetectingType(false)
     }
-  }, [selectedCategory])
+  }, [selectedCategory, allowedDocTypes, tierLoading, router])
 
   // Helper: enrich prompt with file data
   const handleFileEnrichment = useCallback(async (file: File, prompt: string): Promise<string> => {
@@ -310,7 +339,7 @@ export function AppShell() {
                 <>{"What do you want to "}<span className="font-medium relative text-amber-700 dark:text-amber-500">{"create"}<span className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-amber-700/30 dark:bg-amber-500/30" /></span>{"?"}</>
               )}
             </h1>
-            <div className="w-full mt-2">
+            <div className="w-full mt-2 relative">
               <PromptInput
                 onSubmit={handlePromptSubmit}
                 placeholder={
@@ -324,6 +353,15 @@ export function AppShell() {
                     : undefined
                 }
               />
+              {/* Brief loading overlay while detecting document type */}
+              {detectingType && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[2px] rounded-2xl z-10">
+                  <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-card border border-border/80 shadow-lg">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    <span className="text-sm font-medium text-muted-foreground">Detecting document type…</span>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="mt-2">
               <CategoryPills onSelect={handleCategorySelect} selectedCategory={selectedCategory} />
