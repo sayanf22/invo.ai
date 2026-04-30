@@ -109,7 +109,7 @@ export default function OnboardingPage() {
                 .from("businesses")
                 .select("logo_url")
                 .eq("user_id", user.id)
-                .single() as any
+                .maybeSingle() as any
 
             const logoUrl = data.logoUrl || existingBiz?.logo_url || null
 
