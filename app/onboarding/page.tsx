@@ -105,15 +105,16 @@ export default function OnboardingPage() {
 
             // Save business profile to Supabase
             // First check if there's an existing logo that should be preserved
-            const { data: existingBiz } = await supabase
+            // Check if business exists to decide insert vs update
+            const { data: existingBiz, error: fetchError } = await supabase
                 .from("businesses")
-                .select("logo_url")
+                .select("id, logo_url")
                 .eq("user_id", user.id)
                 .maybeSingle() as any
 
             const logoUrl = data.logoUrl || existingBiz?.logo_url || null
 
-            const { error: businessError } = await supabase.from("businesses").upsert({
+            const bizPayload = {
                 user_id: user.id,
                 name: data.businessName || "",
                 business_type: data.businessType || "",
@@ -138,7 +139,16 @@ export default function OnboardingPage() {
                 payment_methods: data.bankDetails ? { bank: data.bankDetails } : {},
                 logo_url: logoUrl,
                 signature_url: data.signatureUrl || null,
-            } as any, { onConflict: 'user_id' })
+            }
+
+            let businessError;
+            if (existingBiz?.id) {
+                const { error } = await supabase.from("businesses").update(bizPayload as any).eq("id", existingBiz.id)
+                businessError = error;
+            } else {
+                const { error } = await supabase.from("businesses").insert(bizPayload as any)
+                businessError = error;
+            }
 
             if (businessError) {
                 throw businessError
@@ -161,9 +171,9 @@ export default function OnboardingPage() {
             localStorage.removeItem("clorefy_onboarding_messages")
             router.push("/")
             router.refresh()
-        } catch (error) {
+        } catch (error: any) {
             console.error("Save error:", error)
-            toast.error("Failed to save profile. Please try again.")
+            toast.error(error?.message || error?.details || "Failed to save profile. Please try again.")
         }
     }
 
