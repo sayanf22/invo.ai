@@ -175,7 +175,6 @@ export default function OnboardingPage() {
             console.error("Save error:", error)
             await logErrorToDatabase("onboarding_save_profile", error, {
                 data,
-                logoUrl,
                 phase
             })
             toast.error(error?.message || error?.details || "Failed to save profile. Please try again.")
