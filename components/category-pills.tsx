@@ -42,10 +42,10 @@ export function CategoryPills({ onSelect, selectedCategory }: CategoryPillsProps
             onClick={() => handleSelect(cat.label)}
             disabled={isLoading}
             className={cn(
-              "flex items-center gap-2.5 px-5 py-3 rounded-full border text-[15px] font-medium transition-all duration-200 btn-press",
+              "flex items-center gap-2.5 px-5 py-3 rounded-full border text-[15px] font-medium transition-all duration-300 btn-press",
               isSelected
                 ? "border-primary bg-primary text-primary-foreground shadow-md scale-[1.02]"
-                : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-secondary hover:shadow-sm disabled:opacity-50"
+                : "border-border/80 bg-card text-foreground shadow-sm hover:border-primary/40 hover:bg-secondary/60 hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
             )}
           >
             <cat.icon className={cn("w-[18px] h-[18px]", isSelected ? "text-primary-foreground" : "text-primary")} />
@@ -69,10 +69,10 @@ export function CategoryPills({ onSelect, selectedCategory }: CategoryPillsProps
                 onClick={() => handleSelect(cat.label)}
                 disabled={isLoading}
                 className={cn(
-                  "flex items-center gap-2.5 px-5 py-3 rounded-full border text-[15px] font-medium transition-all duration-200 btn-press",
+                  "flex items-center gap-2.5 px-5 py-3 rounded-full border text-[15px] font-medium transition-all duration-300 btn-press",
                   isSelected
                     ? "border-primary bg-primary text-primary-foreground shadow-md scale-[1.02]"
-                    : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-secondary hover:shadow-sm disabled:opacity-50"
+                    : "border-border/80 bg-card text-foreground shadow-sm hover:border-primary/40 hover:bg-secondary/60 hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
                 )}
               >
                 <cat.icon className={cn("w-[18px] h-[18px]", isSelected ? "text-primary-foreground" : "text-primary")} />
@@ -88,7 +88,7 @@ export function CategoryPills({ onSelect, selectedCategory }: CategoryPillsProps
         <button
           type="button"
           onClick={() => router.push("/billing")}
-          className="flex items-center gap-2.5 px-5 py-3 rounded-full border border-dashed border-border bg-transparent text-[15px] font-medium text-muted-foreground transition-all duration-200 hover:border-primary/40 hover:bg-secondary hover:text-foreground hover:shadow-sm btn-press"
+          className="flex items-center gap-2.5 px-5 py-3 rounded-full border border-dashed border-border/80 bg-transparent text-[15px] font-medium text-muted-foreground shadow-sm transition-all duration-300 hover:border-primary/40 hover:bg-secondary/40 hover:text-foreground hover:shadow-md hover:-translate-y-0.5 btn-press"
         >
           <Lock className="w-[16px] h-[16px] opacity-70" />
           <span>Upgrade to use more documents</span>
