@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { getTaxIdFieldName } from "@/lib/countries"
 import { PaymentSettings } from "@/components/payment-settings"
 import { motion, AnimatePresence } from "framer-motion"
-
+import { logErrorToDatabase } from "@/lib/error-logger"
 export default function OnboardingPage() {
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -173,6 +173,11 @@ export default function OnboardingPage() {
             router.refresh()
         } catch (error: any) {
             console.error("Save error:", error)
+            await logErrorToDatabase("onboarding_save_profile", error, {
+                data,
+                logoUrl,
+                phase
+            })
             toast.error(error?.message || error?.details || "Failed to save profile. Please try again.")
         }
     }

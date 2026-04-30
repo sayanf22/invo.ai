@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Mail, MessageCircle, Clock, Send, HelpCircle, FileText, ExternalLink } from "lucide-react"
+import { createClient } from "@/lib/supabase"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,12 +17,34 @@ export default function SupportPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!email || !issue) return
+
         setIsSending(true)
-        await new Promise(r => setTimeout(r, 1000))
-        toast.success("Support ticket created! We will email you shortly.")
-        setEmail("")
-        setIssue("")
-        setIsSending(false)
+        try {
+            const supabase = createClient()
+            
+            // Try to link to a user if authenticated
+            const { data: { user } } = await supabase.auth.getUser()
+            
+            // In our DB schema, user_id is nullable for error_logs, but for support_messages it references profiles.
+            // Wait, does support_messages require a user_id?
+            // "user_id UUID REFERENCES profiles(id) ON DELETE CASCADE" - but I didn't add NOT NULL.
+            // Let's insert the message. If the user is unauthenticated, user_id will be undefined/null.
+            const { error } = await supabase.from("support_messages").insert({
+                user_id: user?.id || null,
+                message: `[Email Provided: ${email}]\n\n${issue}`
+            })
+
+            if (error) throw error
+
+            toast.success("Support ticket created! We will review it shortly.")
+            setIssue("")
+        } catch (error: any) {
+            console.error("Failed to submit support ticket:", error)
+            toast.error(error.message || "Failed to submit ticket. Please try again.")
+        } finally {
+            setIsSending(false)
+        }
     }
 
     return (
