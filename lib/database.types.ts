@@ -1799,3 +1799,6 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
+// Convenience type aliases
+export type DocumentSession = Database['public']['Tables']['document_sessions']['Row'];
