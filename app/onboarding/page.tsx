@@ -311,9 +311,9 @@ export default function OnboardingPage() {
                             animate={{ opacity: 1, y: 0 }} 
                             exit={{ opacity: 0, y: -15 }} 
                             transition={{ duration: 0.4, ease: "easeOut" }}
-                            className="absolute inset-0 h-full w-full flex items-center justify-center p-6 overflow-y-auto bg-background"
+                            className="absolute inset-0 h-full w-full overflow-y-auto bg-background"
                         >
-                            <div className="w-full max-w-lg space-y-6 py-4">
+                            <div className="w-full max-w-lg space-y-6 py-8 px-6 mx-auto">
                                 <div className="text-center space-y-2">
                                     <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
                                         <CreditCard className="w-6 h-6 text-primary" />

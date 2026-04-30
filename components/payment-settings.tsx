@@ -49,15 +49,19 @@ function StripeIcon({ size = 20 }: { size?: number }) {
   )
 }
 function CashfreeIcon({ size = 20 }: { size?: number }) {
-  // Cashfree Payments brand mark: curved C-bracket + forward arrow
+  // Cashfree Payments brand mark: stylized "F" shape
+  // Green curved top-right element + Gold vertical left stroke
+  // Background: dark navy (#0B1340)
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      {/* C-shaped arc wrapping from bottom-right, around left, to top-right */}
-      <path d="M14.5 21c-1.2.6-2.7 1-4 1C5.8 22 2 18 2 12.5S5.8 3 10.5 3c1.3 0 2.8.3 4 1" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none"/>
-      {/* Arrow shaft */}
-      <path d="M9.5 12h11" stroke="white" strokeWidth="2.6" strokeLinecap="round"/>
-      {/* Arrow chevron */}
-      <path d="M17.5 8l4 4-4 4" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      {/* Gold/yellow vertical left stroke */}
+      <path d="M5 8.5v11" stroke="#F5A623" strokeWidth="3.2" strokeLinecap="round"/>
+      {/* Green curved shape - top bar curving down to right */}
+      <path d="M5 8.5c0-3 2-5.5 5.5-5.5 2.5 0 4.5 1 6 2.5" stroke="#00B860" strokeWidth="3.2" strokeLinecap="round" fill="none"/>
+      {/* Green right vertical that curves outward */}
+      <path d="M16.5 5.5c1.5 1.5 2.5 3.5 2.5 6 0 2-0.5 3.5-1.5 5" stroke="#00B860" strokeWidth="3.2" strokeLinecap="round" fill="none"/>
+      {/* Green horizontal middle bar */}
+      <path d="M5 13h8" stroke="#00B860" strokeWidth="3.2" strokeLinecap="round"/>
     </svg>
   )
 }
@@ -65,7 +69,7 @@ function CashfreeIcon({ size = 20 }: { size?: number }) {
 const GATEWAYS: GatewayDef[] = [
   { id: "razorpay", name: "Razorpay", description: "UPI, cards, netbanking, wallets", countries: "India", accentBg: "#012652", Icon: RazorpayIcon, apiKeyUrl: "https://dashboard.razorpay.com/app/keys", webhookPath: "/integrations/payments/razorpay" },
   { id: "stripe", name: "Stripe", description: "Cards, wallets, 135+ currencies", countries: "Global", accentBg: "#635BFF", Icon: StripeIcon, apiKeyUrl: "https://dashboard.stripe.com/apikeys", webhookPath: "/integrations/payments/stripe" },
-  { id: "cashfree", name: "Cashfree", description: "Fast settlements, payment links", countries: "India", accentBg: "#00A550", Icon: CashfreeIcon, apiKeyUrl: "https://merchant.cashfree.com/merchants/developer/api-keys", webhookPath: "/integrations/payments/cashfree" },
+  { id: "cashfree", name: "Cashfree", description: "Fast settlements, payment links", countries: "India", accentBg: "#0B1340", Icon: CashfreeIcon, apiKeyUrl: "https://merchant.cashfree.com/merchants/developer/api-keys", webhookPath: "/integrations/payments/cashfree" },
 ]
 
 const DEFAULT_OFFLINE_METHODS: OfflineMethod[] = [

@@ -22,6 +22,11 @@ const nextConfig = {
   // Remove X-Powered-By header to prevent technology fingerprinting
   poweredByHeader: false,
 
+  // Optimize imports for UI libraries to reduce client bundle size
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts", "date-fns"],
+  },
+
   // Exclude heavy packages from the server bundle — they're only used client-side
   serverExternalPackages: [
     "@react-pdf/renderer",
