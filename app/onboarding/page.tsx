@@ -287,13 +287,19 @@ export default function OnboardingPage() {
                     <InvoLogo size={32} />
                     <span className="text-sm font-semibold text-foreground">Business Setup</span>
                 </div>
-                <button
-                    type="button"
-                    onClick={handleSkip}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted"
-                >
-                    Skip for now
-                </button>
+                <div className="flex items-center gap-2">
+                    <OnboardingSupportButton
+                        currentPhase={phase}
+                        userEmail={user?.email || ""}
+                    />
+                    <button
+                        type="button"
+                        onClick={handleSkip}
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted"
+                    >
+                        Skip for now
+                    </button>
+                </div>
             </header>
 
             {/* Main — Upload, Chat, Logo, Payments */}
@@ -430,12 +436,6 @@ export default function OnboardingPage() {
                         </motion.div>
                     )}
                 </AnimatePresence>
-
-                {/* Support button — visible on all 4 active phases */}
-                <OnboardingSupportButton
-                    currentPhase={phase}
-                    userEmail={user?.email || ""}
-                />
             </main>
         </div>
     )
