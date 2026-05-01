@@ -11,6 +11,7 @@ import {
     RefreshCw,
     ArrowRight,
     SkipForward,
+    Pencil,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { authFetch } from "@/lib/auth-fetch"
@@ -143,7 +144,6 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
     const { user } = useAuth()
     const [files, setFiles] = useState<UploadedFile[]>([])
     const [mergedData, setMergedData] = useState<CollectedData>(() => {
-        // Restore extracted data from localStorage on mount
         if (typeof window === "undefined") return {}
         try {
             const saved = localStorage.getItem("clorefy_upload_extracted")
@@ -152,7 +152,6 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
     })
     const [isDragOver, setIsDragOver] = useState(false)
     const [visibleFields, setVisibleFields] = useState<string[]>(() => {
-        // On mount, immediately show all previously extracted fields (no stagger on restore)
         if (typeof window === "undefined") return []
         try {
             const saved = localStorage.getItem("clorefy_upload_extracted")
@@ -170,6 +169,9 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                 .map(([k]) => k)
         } catch { return [] }
     })
+    const [editingField, setEditingField] = useState<string | null>(null)
+    const [editValue, setEditValue] = useState("")
+    const editInputRef = useRef<HTMLInputElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Persist extracted data to localStorage whenever it changes
@@ -193,17 +195,70 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
             })
             .map(([k]) => k)
 
-        // Find new keys not yet visible
         const newKeys = allKeys.filter(k => !visibleFields.includes(k))
         if (newKeys.length === 0) return
 
-        // Stagger each new field with 150ms delay
         newKeys.forEach((key, i) => {
             setTimeout(() => {
                 setVisibleFields(prev => prev.includes(key) ? prev : [...prev, key])
-            }, i * 150)
+            }, i * 200)
         })
     }, [mergedData]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Focus edit input when editing starts
+    useEffect(() => {
+        if (editingField && editInputRef.current) {
+            editInputRef.current.focus()
+            editInputRef.current.select()
+        }
+    }, [editingField])
+
+    // ── Edit handlers ──────────────────────────────────────────────────
+
+    const startEdit = useCallback((key: string) => {
+        const value = (mergedData as any)[key]
+        let displayValue: string
+        if (typeof value === "object" && !Array.isArray(value)) {
+            displayValue = Object.values(value).filter(v => v && String(v).trim()).join(", ")
+        } else if (Array.isArray(value)) {
+            displayValue = value.join(", ")
+        } else {
+            displayValue = String(value || "")
+        }
+        setEditValue(displayValue)
+        setEditingField(key)
+    }, [mergedData])
+
+    const saveEdit = useCallback(() => {
+        if (!editingField) return
+        const trimmed = editValue.trim()
+        if (trimmed) {
+            setMergedData(prev => {
+                const updated = { ...prev }
+                if (editingField === "clientCountries") {
+                    (updated as any)[editingField] = trimmed.split(",").map(s => s.trim()).filter(Boolean)
+                } else if (editingField === "address") {
+                    const parts = trimmed.split(",").map(s => s.trim())
+                    updated.address = {
+                        street: parts[0] || "",
+                        city: parts[1] || "",
+                        state: parts[2] || "",
+                        postalCode: parts[3] || "",
+                    }
+                } else {
+                    (updated as any)[editingField] = trimmed
+                }
+                return updated
+            })
+        }
+        setEditingField(null)
+        setEditValue("")
+    }, [editingField, editValue])
+
+    const cancelEdit = useCallback(() => {
+        setEditingField(null)
+        setEditValue("")
+    }, [])
 
     // ── File processing pipeline ───────────────────────────────────────
 
@@ -448,7 +503,7 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                                 exit={{ opacity: 0, scale: 0.97, y: -8 }}
                                                 transition={{ duration: 0.3, delay: idx * 0.05, ease: "easeOut" }}
-                                                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
+                                                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
                                             >
                                                 <div className={cn(
                                                     "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300",
@@ -508,14 +563,14 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                         )}
                     </AnimatePresence>
 
-                    {/* Extracted fields — monochromatic, staggered */}
+                    {/* Extracted fields — monochromatic, editable, with depth */}
                     <AnimatePresence>
                         {visibleFields.length > 0 && (
                             <motion.div
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.3 }}
-                                className="rounded-2xl border border-border bg-card p-4 space-y-3"
+                                className="rounded-2xl border border-border bg-card p-4 space-y-3 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)]"
                             >
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -527,10 +582,11 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                                 </div>
                                 <div className="space-y-0.5">
                                     <AnimatePresence mode="popLayout">
-                                        {visibleFields.map((key) => {
+                                        {visibleFields.map((key, idx) => {
                                             const value = (mergedData as any)[key]
                                             if (value === null || value === undefined || value === "") return null
                                             const label = FIELD_LABELS[key] || key
+                                            const isEditing = editingField === key
 
                                             let displayValue: string
                                             if (typeof value === "object" && !Array.isArray(value)) {
@@ -549,16 +605,40 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                                             return (
                                                 <motion.div
                                                     key={key}
-                                                    layout
-                                                    initial={{ opacity: 0, x: -8 }}
-                                                    animate={{ opacity: 1, x: 0 }}
-                                                    transition={{ duration: 0.25, ease: "easeOut" }}
-                                                    className="flex items-baseline gap-2 py-1.5 border-b border-border/40 last:border-0"
+                                                    layout="position"
+                                                    initial={{ opacity: 0, y: 6 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ duration: 0.3, delay: idx * 0.04, ease: [0.25, 0.1, 0.25, 1] }}
+                                                    className="group border-b border-border/40 last:border-0"
                                                 >
-                                                    <span className="text-[11px] text-muted-foreground shrink-0 w-20 sm:w-24">{label}</span>
-                                                    <span className="text-xs font-medium text-foreground truncate flex-1">
-                                                        {displayValue.length > 40 ? displayValue.slice(0, 37) + "…" : displayValue}
-                                                    </span>
+                                                    {isEditing ? (
+                                                        <div className="flex items-center gap-2 py-2">
+                                                            <span className="text-[11px] text-muted-foreground shrink-0 w-20">{label}</span>
+                                                            <input
+                                                                ref={editInputRef}
+                                                                type="text"
+                                                                value={editValue}
+                                                                onChange={(e) => setEditValue(e.target.value)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === "Enter") saveEdit()
+                                                                    if (e.key === "Escape") cancelEdit()
+                                                                }}
+                                                                onBlur={saveEdit}
+                                                                className="flex-1 text-xs font-medium text-foreground bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 outline-none focus:border-foreground/30 transition-colors min-w-0"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div
+                                                            className="flex items-center gap-2 py-2.5 cursor-pointer rounded-lg -mx-1.5 px-1.5 hover:bg-muted/40 transition-colors"
+                                                            onClick={() => startEdit(key)}
+                                                        >
+                                                            <span className="text-[11px] text-muted-foreground shrink-0 w-20">{label}</span>
+                                                            <span className="text-xs font-medium text-foreground truncate flex-1 min-w-0">
+                                                                {displayValue}
+                                                            </span>
+                                                            <Pencil className="w-3 h-3 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors shrink-0" />
+                                                        </div>
+                                                    )}
                                                 </motion.div>
                                             )
                                         })}
