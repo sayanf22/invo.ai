@@ -563,24 +563,24 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                         )}
                     </AnimatePresence>
 
-                    {/* Extracted fields — monochromatic, editable, with depth */}
+                    {/* Extracted fields — stacked layout, editable, with depth */}
                     <AnimatePresence>
                         {visibleFields.length > 0 && (
                             <motion.div
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.3 }}
-                                className="rounded-2xl border border-border bg-card p-4 space-y-3 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)]"
+                                className="rounded-2xl border border-border bg-card px-4 pt-3 pb-1 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)]"
                             >
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                <div className="flex items-center justify-between pb-2">
+                                    <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                                         Extracted details
                                     </h3>
                                     <span className="text-[11px] text-muted-foreground tabular-nums">
                                         {visibleFields.length} fields
                                     </span>
                                 </div>
-                                <div className="space-y-0.5">
+                                <div>
                                     <AnimatePresence mode="popLayout">
                                         {visibleFields.map((key, idx) => {
                                             const value = (mergedData as any)[key]
@@ -609,11 +609,11 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                                                     initial={{ opacity: 0, y: 6 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     transition={{ duration: 0.3, delay: idx * 0.04, ease: [0.25, 0.1, 0.25, 1] }}
-                                                    className="group border-b border-border/40 last:border-0"
+                                                    className="border-b border-border/40 last:border-0"
                                                 >
                                                     {isEditing ? (
-                                                        <div className="flex items-center gap-2 py-2">
-                                                            <span className="text-[11px] text-muted-foreground shrink-0 w-20">{label}</span>
+                                                        <div className="py-2.5">
+                                                            <span className="text-[11px] text-muted-foreground block mb-1">{label}</span>
                                                             <input
                                                                 ref={editInputRef}
                                                                 type="text"
@@ -624,20 +624,23 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                                                                     if (e.key === "Escape") cancelEdit()
                                                                 }}
                                                                 onBlur={saveEdit}
-                                                                className="flex-1 text-xs font-medium text-foreground bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 outline-none focus:border-foreground/30 transition-colors min-w-0"
+                                                                className="w-full text-[13px] font-medium text-foreground bg-muted/50 border border-border rounded-lg px-2.5 py-2 outline-none focus:border-foreground/30 transition-colors"
                                                             />
                                                         </div>
                                                     ) : (
-                                                        <div
-                                                            className="flex items-center gap-2 py-2.5 cursor-pointer rounded-lg -mx-1.5 px-1.5 hover:bg-muted/40 transition-colors"
+                                                        <button
+                                                            type="button"
+                                                            className="w-full text-left py-2.5 flex items-start justify-between gap-3 active:bg-muted/30 transition-colors rounded-md -mx-1 px-1"
                                                             onClick={() => startEdit(key)}
                                                         >
-                                                            <span className="text-[11px] text-muted-foreground shrink-0 w-20">{label}</span>
-                                                            <span className="text-xs font-medium text-foreground truncate flex-1 min-w-0">
-                                                                {displayValue}
-                                                            </span>
-                                                            <Pencil className="w-3 h-3 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors shrink-0" />
-                                                        </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <span className="text-[11px] text-muted-foreground block">{label}</span>
+                                                                <span className="text-[13px] font-medium text-foreground block mt-0.5 break-words">
+                                                                    {displayValue}
+                                                                </span>
+                                                            </div>
+                                                            <Pencil className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0 mt-1" />
+                                                        </button>
                                                     )}
                                                 </motion.div>
                                             )
