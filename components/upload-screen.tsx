@@ -378,29 +378,28 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
     return (
         <div className="flex-1 flex flex-col items-center overflow-hidden h-full">
             <ScrollArea className="flex-1 w-full">
-                <div className="max-w-2xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-5">
+                <div className="max-w-lg mx-auto px-5 py-6 sm:px-6 sm:py-8 space-y-5">
                     {/* Header */}
-                    <div className="text-center space-y-1.5">
-                        <h2 className="text-lg sm:text-2xl font-semibold text-foreground">
-                            Upload Your Business Documents
+                    <div className="text-center space-y-2">
+                        <h2 className="text-base sm:text-xl font-semibold text-foreground leading-snug">
+                            Upload your business documents
                         </h2>
-                        <p className="text-xs sm:text-sm text-muted-foreground max-w-sm sm:max-w-md mx-auto leading-relaxed">
-                            Upload catalogues, business cards, letterheads, or invoices and we&apos;ll
-                            extract your business details automatically.
+                        <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                            Upload catalogues, business cards, or invoices — we&apos;ll extract your details automatically.
                         </p>
                     </div>
 
-                    {/* Drop zone — compact on mobile */}
+                    {/* Drop zone — minimal, monochromatic */}
                     <div
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onClick={handleBrowseClick}
                         className={cn(
-                            "relative border-2 border-dashed rounded-xl p-6 sm:p-10 text-center cursor-pointer transition-all duration-200",
+                            "relative border border-dashed rounded-2xl p-5 sm:p-8 text-center cursor-pointer transition-all duration-200",
                             isDragOver
-                                ? "border-primary bg-primary/5 scale-[1.01]"
-                                : "border-border hover:border-primary/50 hover:bg-muted/30"
+                                ? "border-foreground/40 bg-muted/50 scale-[1.01]"
+                                : "border-border hover:border-foreground/30 hover:bg-muted/20"
                         )}
                     >
                         <input
@@ -411,28 +410,25 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                             className="hidden"
                             onChange={handleFileInputChange}
                         />
-                        <div className="flex flex-col items-center gap-2 sm:gap-3">
+                        <div className="flex flex-col items-center gap-2">
                             <div className={cn(
-                                "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-colors",
-                                isDragOver ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                                "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+                                isDragOver ? "bg-foreground/10 text-foreground" : "bg-muted text-muted-foreground"
                             )}>
-                                <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
+                                <Upload className="w-5 h-5" />
                             </div>
                             <div>
                                 <p className="text-sm font-medium text-foreground">
-                                    {isDragOver ? "Drop files here" : "Drag & drop files here"}
+                                    {isDragOver ? "Drop files here" : "Tap to upload"}
                                 </p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    or <span className="text-primary underline underline-offset-2">browse</span> to select
+                                <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    PDF, PNG, or JPEG — up to 10MB
                                 </p>
                             </div>
-                            <p className="text-[11px] text-muted-foreground">
-                                PDF, PNG, or JPEG — up to 10MB each
-                            </p>
                         </div>
                     </div>
 
-                    {/* File list — animated */}
+                    {/* File list — animated, monochromatic */}
                     <AnimatePresence mode="popLayout">
                         {files.length > 0 && (
                             <motion.div
@@ -442,85 +438,65 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                                 transition={{ duration: 0.3, ease: "easeOut" }}
                                 className="space-y-2 overflow-hidden"
                             >
-                                <h3 className="text-xs sm:text-sm font-medium text-foreground">
-                                    Uploaded Files ({files.length})
-                                </h3>
-                                <div className="space-y-2">
+                                <div className="space-y-1.5">
                                     <AnimatePresence mode="popLayout">
                                         {files.map((f, idx) => (
                                             <motion.div
                                                 key={f.id}
                                                 layout
-                                                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                                                initial={{ opacity: 0, y: 16, scale: 0.97 }}
                                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                                                transition={{ duration: 0.35, delay: idx * 0.05, ease: "easeOut" }}
-                                                className="flex items-center gap-2.5 sm:gap-3 rounded-xl border border-border bg-card p-2.5 sm:p-3 shadow-sm"
+                                                exit={{ opacity: 0, scale: 0.97, y: -8 }}
+                                                transition={{ duration: 0.3, delay: idx * 0.05, ease: "easeOut" }}
+                                                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
                                             >
                                                 <div className={cn(
-                                                    "w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300",
-                                                    f.status === "complete" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300",
+                                                    f.status === "complete" ? "bg-foreground/10 text-foreground"
                                                         : f.status === "failed" ? "bg-destructive/10 text-destructive"
-                                                        : f.status === "analyzing" || f.status === "uploading" ? "bg-primary/10 text-primary"
+                                                        : (f.status === "analyzing" || f.status === "uploading") ? "bg-muted text-muted-foreground"
                                                         : "bg-muted text-muted-foreground"
                                                 )}>
                                                     {f.status === "complete" ? (
                                                         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 400, damping: 15 }}>
-                                                            <Check className="w-4 h-4" />
+                                                            <Check className="w-3.5 h-3.5" />
                                                         </motion.div>
-                                                    ) : f.status === "failed" ? <AlertCircle className="w-4 h-4" />
-                                                    : (f.status === "uploading" || f.status === "analyzing") ? <Loader2 className="w-4 h-4 animate-spin" />
-                                                    : <FileText className="w-4 h-4" />}
+                                                    ) : f.status === "failed" ? <AlertCircle className="w-3.5 h-3.5" />
+                                                    : (f.status === "uploading" || f.status === "analyzing") ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    : <FileText className="w-3.5 h-3.5" />}
                                                 </div>
 
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-xs sm:text-sm font-medium text-foreground truncate">
+                                                    <p className="text-xs font-medium text-foreground truncate">
                                                         {f.file.name}
                                                     </p>
-                                                    <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+                                                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
                                                         <span>{formatFileSize(f.file.size)}</span>
-                                                        <span className="text-border">·</span>
-                                                        {f.status === "pending" && <span>Pending</span>}
-                                                        {f.status === "uploading" && (
-                                                            <span className="text-primary">Uploading...</span>
-                                                        )}
-                                                        {f.status === "analyzing" && (
-                                                            <span className="text-primary">Analyzing...</span>
-                                                        )}
+                                                        {f.status === "pending" && <><span>·</span><span>Queued</span></>}
+                                                        {f.status === "uploading" && <><span>·</span><span>Uploading…</span></>}
+                                                        {f.status === "analyzing" && <><span>·</span><span>Analyzing…</span></>}
                                                         {f.status === "complete" && (
-                                                            <motion.span
-                                                                initial={{ opacity: 0 }}
-                                                                animate={{ opacity: 1 }}
-                                                                className="text-emerald-600 dark:text-emerald-400 font-medium"
-                                                            >
-                                                                {f.fieldsFound} field{f.fieldsFound !== 1 ? "s" : ""} found
+                                                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                                                                <span>·</span> {f.fieldsFound} fields found
                                                             </motion.span>
                                                         )}
-                                                        {f.status === "failed" && (
-                                                            <span className="text-destructive line-clamp-1">{f.error || "Failed"}</span>
-                                                        )}
+                                                        {f.status === "failed" && <><span>·</span><span className="text-destructive line-clamp-1">{f.error || "Failed"}</span></>}
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center gap-0.5 shrink-0">
+                                                <div className="flex items-center shrink-0">
                                                     {f.status === "failed" && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => retryFile(f.id)}
+                                                        <button type="button" onClick={() => retryFile(f.id)}
                                                             className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                                            aria-label="Retry upload"
-                                                        >
-                                                            <RefreshCw className="w-4 h-4" />
+                                                            aria-label="Retry">
+                                                            <RefreshCw className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
                                                     {(f.status === "pending" || f.status === "failed") && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => removeFile(f.id)}
+                                                        <button type="button" onClick={() => removeFile(f.id)}
                                                             className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                                            aria-label="Remove file"
-                                                        >
-                                                            <X className="w-4 h-4" />
+                                                            aria-label="Remove">
+                                                            <X className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
                                                 </div>
@@ -532,24 +508,24 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                         )}
                     </AnimatePresence>
 
-                    {/* Extracted fields summary — animated one by one */}
+                    {/* Extracted fields — monochromatic, staggered */}
                     <AnimatePresence>
                         {visibleFields.length > 0 && (
                             <motion.div
-                                initial={{ opacity: 0, y: 10 }}
+                                initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.3 }}
-                                className="rounded-xl border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 shadow-sm space-y-3"
+                                className="rounded-2xl border border-border bg-card p-4 space-y-3"
                             >
-                                <div className="flex items-center gap-2">
-                                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                                        <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                    </div>
-                                    <h3 className="text-xs sm:text-sm font-medium text-foreground">
-                                        Extracted Information ({visibleFields.length} fields)
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                        Extracted details
                                     </h3>
+                                    <span className="text-[11px] text-muted-foreground tabular-nums">
+                                        {visibleFields.length} fields
+                                    </span>
                                 </div>
-                                <div className="grid grid-cols-1 gap-1.5">
+                                <div className="space-y-0.5">
                                     <AnimatePresence mode="popLayout">
                                         {visibleFields.map((key) => {
                                             const value = (mergedData as any)[key]
@@ -574,18 +550,15 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                                                 <motion.div
                                                     key={key}
                                                     layout
-                                                    initial={{ opacity: 0, x: -10, height: 0 }}
-                                                    animate={{ opacity: 1, x: 0, height: "auto" }}
-                                                    transition={{ duration: 0.3, ease: "easeOut" }}
-                                                    className="flex items-start gap-2 py-1.5 px-2 rounded-lg bg-background/60 border border-border/30 overflow-hidden"
+                                                    initial={{ opacity: 0, x: -8 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    transition={{ duration: 0.25, ease: "easeOut" }}
+                                                    className="flex items-baseline gap-2 py-1.5 border-b border-border/40 last:border-0"
                                                 >
-                                                    <Check className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
-                                                    <div className="min-w-0 flex-1">
-                                                        <span className="text-[11px] text-muted-foreground">{label}</span>
-                                                        <p className="text-xs font-medium text-foreground truncate">
-                                                            {displayValue.length > 50 ? displayValue.slice(0, 47) + "..." : displayValue}
-                                                        </p>
-                                                    </div>
+                                                    <span className="text-[11px] text-muted-foreground shrink-0 w-20 sm:w-24">{label}</span>
+                                                    <span className="text-xs font-medium text-foreground truncate flex-1">
+                                                        {displayValue.length > 40 ? displayValue.slice(0, 37) + "…" : displayValue}
+                                                    </span>
                                                 </motion.div>
                                             )
                                         })}
@@ -595,35 +568,26 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                         )}
                     </AnimatePresence>
 
-                    {/* Action buttons — full width on mobile, sticky feel */}
-                    <div className="flex flex-col gap-2.5 pt-2 pb-6">
+                    {/* Action buttons */}
+                    <div className="flex flex-col gap-2 pt-1 pb-8">
                         <Button
                             onClick={handleContinue}
                             disabled={(!hasCompleteFile && !hasRestoredData) || isProcessing}
-                            className="w-full gap-2 h-12 text-sm font-medium rounded-xl"
-                            size="lg"
+                            className="w-full gap-2 h-11 text-sm font-medium rounded-xl"
                         >
                             {isProcessing ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Processing...
-                                </>
+                                <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
                             ) : (
-                                <>
-                                    Continue
-                                    <ArrowRight className="w-4 h-4" />
-                                </>
+                                <><span>Continue</span> <ArrowRight className="w-4 h-4" /></>
                             )}
                         </Button>
-                        <Button
-                            variant="ghost"
+                        <button
+                            type="button"
                             onClick={onSkip}
-                            className="w-full gap-2 text-muted-foreground h-11 rounded-xl"
-                            size="lg"
+                            className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-2.5"
                         >
-                            <SkipForward className="w-4 h-4" />
-                            Skip, I&apos;ll type my details
-                        </Button>
+                            Skip — I&apos;ll type my details
+                        </button>
                     </div>
                 </div>
             </ScrollArea>
