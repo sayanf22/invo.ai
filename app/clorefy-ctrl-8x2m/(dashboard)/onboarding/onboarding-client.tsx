@@ -57,18 +57,18 @@ const ERROR_OPTIONS = [
   { value: 'without-errors', label: 'Without Errors' },
 ]
 
-const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }> = {
-  completed:   { label: 'Completed',   bg: 'rgba(34,197,94,0.15)',   color: '#22C55E' },
-  'in-progress': { label: 'In Progress', bg: 'rgba(59,130,246,0.15)',  color: '#3B82F6' },
-  'dropped-off': { label: 'Dropped Off', bg: 'rgba(245,158,11,0.15)',  color: '#F59E0B' },
+const STATUS_BADGE: Record<string, { label: string; bg: string; bgDark: string; color: string }> = {
+  completed:     { label: 'Completed',   bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
+  'in-progress': { label: 'In Progress', bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
+  'dropped-off': { label: 'Dropped Off', bg: '#E5E5E5', bgDark: '#27272A', color: '#71717A' },
 }
 
-const PHASE_BADGE: Record<string, { label: string; bg: string; color: string }> = {
-  upload:   { label: 'Upload',   bg: 'rgba(59,130,246,0.15)',  color: '#3B82F6' },
-  chat:     { label: 'Chat',     bg: 'rgba(168,85,247,0.15)',  color: '#A855F7' },
-  logo:     { label: 'Logo',     bg: 'rgba(249,115,22,0.15)',  color: '#F97316' },
-  payments: { label: 'Payments', bg: 'rgba(34,197,94,0.15)',   color: '#22C55E' },
-  completed: { label: 'Completed', bg: 'rgba(34,197,94,0.15)', color: '#22C55E' },
+const PHASE_BADGE: Record<string, { label: string; bg: string; bgDark: string; color: string }> = {
+  upload:    { label: 'Upload',    bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
+  chat:      { label: 'Chat',      bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
+  logo:      { label: 'Logo',      bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
+  payments:  { label: 'Payments',  bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
+  completed: { label: 'Completed', bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
 }
 
 /** Display names for the 12 tracked fields. */
@@ -230,7 +230,7 @@ export default function OnboardingTrackingClient({
             placeholder="Search by email…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500"
+            className="w-full pl-10 pr-4 py-2 rounded-xl border text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
             style={{ backgroundColor: inputBg, borderColor: inputBorder, color: textPrimary }}
           />
         </div>
@@ -240,7 +240,7 @@ export default function OnboardingTrackingClient({
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="appearance-none pl-3 pr-8 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 cursor-pointer"
+            className="appearance-none pl-3 pr-8 py-2 rounded-xl border text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 cursor-pointer"
             style={{ backgroundColor: inputBg, borderColor: inputBorder, color: textPrimary }}
           >
             {STATUS_OPTIONS.map(opt => (
@@ -258,7 +258,7 @@ export default function OnboardingTrackingClient({
           <select
             value={phaseFilter}
             onChange={e => setPhaseFilter(e.target.value)}
-            className="appearance-none pl-3 pr-8 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 cursor-pointer"
+            className="appearance-none pl-3 pr-8 py-2 rounded-xl border text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 cursor-pointer"
             style={{ backgroundColor: inputBg, borderColor: inputBorder, color: textPrimary }}
           >
             {PHASE_OPTIONS.map(opt => (
@@ -276,7 +276,7 @@ export default function OnboardingTrackingClient({
           <select
             value={errorsFilter}
             onChange={e => setErrorsFilter(e.target.value)}
-            className="appearance-none pl-3 pr-8 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 cursor-pointer"
+            className="appearance-none pl-3 pr-8 py-2 rounded-xl border text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 cursor-pointer"
             style={{ backgroundColor: inputBg, borderColor: inputBorder, color: textPrimary }}
           >
             {ERROR_OPTIONS.map(opt => (
@@ -357,7 +357,7 @@ export default function OnboardingTrackingClient({
       {/* Table */}
       {!loading && !error && users.length > 0 && (
         <div
-          className="rounded-lg border overflow-hidden"
+          className="rounded-xl border overflow-hidden"
           style={{ backgroundColor: cardBg, borderColor: cardBorder }}
         >
           <div className="overflow-x-auto">
@@ -422,8 +422,8 @@ export default function OnboardingTrackingClient({
                         {/* Status badge */}
                         <td className="px-4 py-3">
                           <span
-                            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
-                            style={{ backgroundColor: statusCfg.bg, color: statusCfg.color }}
+                            className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
+                            style={{ backgroundColor: isDark ? statusCfg.bgDark : statusCfg.bg, color: isDark ? '#D4D4D8' : statusCfg.color }}
                           >
                             {statusCfg.label}
                           </span>
@@ -433,8 +433,8 @@ export default function OnboardingTrackingClient({
                         <td className="px-4 py-3">
                           {phaseCfg ? (
                             <span
-                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
-                              style={{ backgroundColor: phaseCfg.bg, color: phaseCfg.color }}
+                              className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
+                              style={{ backgroundColor: isDark ? phaseCfg.bgDark : phaseCfg.bg, color: isDark ? '#D4D4D8' : phaseCfg.color }}
                             >
                               {phaseCfg.label}
                             </span>
@@ -457,7 +457,7 @@ export default function OnboardingTrackingClient({
                                 className="h-full rounded-full transition-all"
                                 style={{
                                   width: `${fieldsPercent}%`,
-                                  backgroundColor: fieldsPercent === 100 ? '#22C55E' : fieldsPercent > 50 ? '#3B82F6' : '#F59E0B',
+                                  backgroundColor: isDark ? '#A1A1AA' : '#52525B',
                                 }}
                               />
                             </div>
@@ -493,10 +493,10 @@ export default function OnboardingTrackingClient({
                                   <div className="mt-1">
                                     {user.current_phase ? (
                                       <span
-                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+                                        className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider"
                                         style={{
-                                          backgroundColor: (PHASE_BADGE[user.current_phase] ?? PHASE_BADGE['upload']).bg,
-                                          color: (PHASE_BADGE[user.current_phase] ?? PHASE_BADGE['upload']).color,
+                                          backgroundColor: isDark ? '#27272A' : '#E5E5E5',
+                                          color: isDark ? '#D4D4D8' : '#0A0A0A',
                                         }}
                                       >
                                         {(PHASE_BADGE[user.current_phase] ?? { label: user.current_phase }).label}
@@ -515,13 +515,13 @@ export default function OnboardingTrackingClient({
                                   <div className="mt-1 flex items-center gap-1.5">
                                     {user.used_extraction ? (
                                       <>
-                                        <Upload className="w-3.5 h-3.5" style={{ color: '#3B82F6' }} />
-                                        <span className="text-xs font-medium" style={{ color: '#3B82F6' }}>Upload</span>
+                                        <Upload className="w-3.5 h-3.5" style={{ color: textSecondary }} />
+                                        <span className="text-xs font-medium" style={{ color: textPrimary }}>Upload</span>
                                       </>
                                     ) : (
                                       <>
-                                        <MessageSquare className="w-3.5 h-3.5" style={{ color: '#A855F7' }} />
-                                        <span className="text-xs font-medium" style={{ color: '#A855F7' }}>Manual</span>
+                                        <MessageSquare className="w-3.5 h-3.5" style={{ color: textSecondary }} />
+                                        <span className="text-xs font-medium" style={{ color: textPrimary }}>Manual</span>
                                       </>
                                     )}
                                   </div>
@@ -555,7 +555,7 @@ export default function OnboardingTrackingClient({
                                         </span>
                                       )}
                                       {user.completed_at && (
-                                        <span className="text-[11px]" style={{ color: '#22C55E' }}>
+                                        <span className="text-[11px] font-medium" style={{ color: textPrimary }}>
                                           Completed: {new Date(user.completed_at).toLocaleDateString()}
                                         </span>
                                       )}
@@ -569,7 +569,7 @@ export default function OnboardingTrackingClient({
                                 <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: textSecondary }}>
                                   Field Completion ({user.fields_completed}/12)
                                 </span>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mt-2">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 mt-2">
                                   {(Object.keys(TRACKED_FIELDS) as TrackedFieldName[]).map(fieldKey => {
                                     const isCompleted = user.field_details?.[fieldKey] ?? false
                                     const label = TRACKED_FIELD_LABELS[fieldKey]
@@ -579,7 +579,7 @@ export default function OnboardingTrackingClient({
                                     return (
                                       <div
                                         key={fieldKey}
-                                        className="flex items-start gap-2 px-3 py-2 rounded-md"
+                                        className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
                                         style={{
                                           backgroundColor: isDark ? '#111111' : '#FFFFFF',
                                           border: `1px solid ${isDark ? '#1A1A1A' : '#E5E5E5'}`,
@@ -589,11 +589,11 @@ export default function OnboardingTrackingClient({
                                         <div
                                           className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5"
                                           style={{
-                                            backgroundColor: isCompleted ? 'rgba(34,197,94,0.15)' : isDark ? '#1A1A1A' : '#E5E5E5',
+                                            backgroundColor: isCompleted ? (isDark ? '#27272A' : '#E5E5E5') : isDark ? '#1A1A1A' : '#E5E5E5',
                                           }}
                                         >
                                           {isCompleted ? (
-                                            <Check className="w-3 h-3" style={{ color: '#22C55E' }} />
+                                            <Check className="w-3 h-3" style={{ color: isDark ? '#D4D4D8' : '#0A0A0A' }} />
                                           ) : (
                                             <Minus className="w-3 h-3" style={{ color: textSecondary }} />
                                           )}
@@ -638,7 +638,7 @@ export default function OnboardingTrackingClient({
       {/* Pagination */}
       {!loading && !error && total > PAGE_SIZE && (
         <div
-          className="flex items-center justify-between px-4 py-3 rounded-lg border"
+          className="flex items-center justify-between px-4 py-3 rounded-xl border"
           style={{ backgroundColor: cardBg, borderColor: cardBorder }}
         >
           <span className="text-xs" style={{ color: textSecondary }}>
@@ -648,7 +648,7 @@ export default function OnboardingTrackingClient({
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="px-3 py-1.5 text-xs rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-xs rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
                 backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5',
                 color: textPrimary,
@@ -662,7 +662,7 @@ export default function OnboardingTrackingClient({
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="px-3 py-1.5 text-xs rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-xs rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
                 backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5',
                 color: textPrimary,
