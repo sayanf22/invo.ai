@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Search, Users, Clock, ChevronDown, ChevronRight, Check, Minus,
   FileUp, Keyboard, MessageSquare, FileText, Mail, LayoutDashboard,
+  CreditCard,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
@@ -34,6 +35,8 @@ export interface OnboardingUser {
   total_messages: number
   tier: string | null
   signed_up_at: string | null
+  has_payment_setup: boolean
+  payment_method_type: 'gateway' | 'bank_details' | 'none'
 }
 
 interface OnboardingTrackingClientProps {
@@ -790,6 +793,24 @@ export default function OnboardingTrackingClient({
                                         <>
                                           <Keyboard className="w-3.5 h-3.5" style={{ color: textSecondary }} />
                                           <span className="text-xs font-medium" style={{ color: textPrimary }}>Manual Entry</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] uppercase tracking-wider" style={{ color: textTertiary }}>Payment Setup</span>
+                                    <div className="mt-0.5 flex items-center gap-1.5">
+                                      {user.has_payment_setup ? (
+                                        <>
+                                          <CreditCard className="w-3.5 h-3.5" style={{ color: isDark ? '#34D399' : '#059669' }} />
+                                          <span className="text-xs font-medium" style={{ color: textPrimary }}>
+                                            {user.payment_method_type === 'gateway' ? 'Payment Gateway' : 'Bank Details'}
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <CreditCard className="w-3.5 h-3.5" style={{ color: textTertiary }} />
+                                          <span className="text-xs font-medium" style={{ color: textSecondary }}>Not Configured</span>
                                         </>
                                       )}
                                     </div>

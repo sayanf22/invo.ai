@@ -9,6 +9,27 @@ import OnboardingTrackingClient from "./onboarding-client"
 
 const PAGE_SIZE = 25
 
+/** Check if a business has payment methods configured via the payment_methods column */
+function hasBusinessPaymentMethods(business: Record<string, any> | null): boolean {
+    if (!business) return false
+    const pm = business.payment_methods
+    if (!pm || (typeof pm === 'object' && Object.keys(pm).length === 0)) return false
+
+    // Array format: [{id: "bank_transfer", enabled: true, ...}]
+    if (Array.isArray(pm)) {
+        return pm.some((item: any) => item && item.enabled === true)
+    }
+
+    // Object format with bank key: {bank: {bankName: "...", ...}}
+    if (typeof pm === 'object' && pm.bank && typeof pm.bank === 'object') {
+        return Object.values(pm.bank).some(
+            (v) => v !== null && v !== undefined && v !== ''
+        )
+    }
+
+    return false
+}
+
 export default async function AdminOnboardingPage() {
     await requireAdmin()
 
@@ -71,6 +92,19 @@ export default async function AdminOnboardingPage() {
         .from("chat_messages")
         .select("session_id, document_sessions!inner(user_id)")
         .in("document_sessions.user_id", userIds)
+
+    // Fetch payment settings
+    const { data: paymentSettings } = await supabase
+        .from("user_payment_settings")
+        .select("user_id, razorpay_enabled, stripe_enabled, cashfree_enabled")
+        .in("user_id", userIds)
+
+    const usersWithPaymentGateway = new Set<string>()
+    for (const ps of paymentSettings ?? []) {
+        if (ps.razorpay_enabled || ps.stripe_enabled || ps.cashfree_enabled) {
+            usersWithPaymentGateway.add(ps.user_id)
+        }
+    }
 
     // Build analytics count maps
     const sessionCountMap = new Map<string, number>()
@@ -147,6 +181,8 @@ export default async function AdminOnboardingPage() {
             total_generations: genCountMap.get(profile.id) || 0,
             total_emails_sent: emailCountMap.get(profile.id) || 0,
             total_messages: messageCountMap.get(profile.id) || 0,
+            has_payment_setup: usersWithPaymentGateway.has(profile.id) || hasBusinessPaymentMethods(business),
+            payment_method_type: usersWithPaymentGateway.has(profile.id) ? 'gateway' as const : hasBusinessPaymentMethods(business) ? 'bank_details' as const : 'none' as const,
             tier: profile.tier ?? null,
             signed_up_at: profile.created_at ?? null,
             business_data: business
