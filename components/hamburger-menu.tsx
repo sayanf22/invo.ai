@@ -18,10 +18,29 @@ export function HamburgerMenu() {
     const [isOpen, setIsOpen] = useState(false)
     const [visibleOpen, setVisibleOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
+    const [unreadNotifCount, setUnreadNotifCount] = useState(0)
 
     useEffect(() => {
         setMounted(true)
     }, [])
+
+    // Fetch unread notification count
+    useEffect(() => {
+        if (!user) return
+        const fetchUnread = async () => {
+            try {
+                const { count } = await supabase
+                    .from("notifications" as any)
+                    .select("*", { count: "exact", head: true })
+                    .eq("user_id", user.id)
+                    .eq("read", false)
+                setUnreadNotifCount(count ?? 0)
+            } catch {}
+        }
+        fetchUnread()
+        const interval = setInterval(fetchUnread, 30000)
+        return () => clearInterval(interval)
+    }, [user, supabase])
 
     const [buttonRect, setButtonRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
     const buttonRef = useRef<HTMLButtonElement>(null)
@@ -81,6 +100,7 @@ export function HamburgerMenu() {
 
     return (
         <div className="relative">
+        <div className="relative">
             {/* Toggle button — NEVER moves, always in its original position. Hidden when portal is open so the clone can take over */}
             <button
                 ref={buttonRef}
@@ -95,6 +115,13 @@ export function HamburgerMenu() {
             >
                 <MenuToggleIcon open={false} className="w-9 h-9" strokeWidth={3} duration={350} />
             </button>
+            {/* Unread notification dot on the toggle button */}
+            {!isOpen && unreadNotifCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center pointer-events-none">
+                    {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </span>
+            )}
+        </div>
 
             {/* Render Overlay and Panel in a Portal to escape stacking contexts (e.g. backdrop-filter) */}
             {mounted && createPortal(
@@ -178,7 +205,7 @@ export function HamburgerMenu() {
                                 <MenuSection label="Account">
                                     <MenuItem icon={User} label="Business Profile" onClick={() => navigate("/profile")} />
                                     <MenuItem icon={Settings} label="Settings" onClick={() => navigate("/settings")} divider />
-                                    <MenuItem icon={Bell} label="Notifications" onClick={() => navigate("/notifications")} divider />
+                                    <MenuItem icon={Bell} label="Notifications" onClick={() => { setUnreadNotifCount(0); navigate("/notifications") }} badge={unreadNotifCount} divider />
                                     <MenuItem icon={CreditCard} label="Billing & Plans" onClick={() => navigate("/billing")} divider />
                                 </MenuSection>
                             )}
@@ -244,9 +271,10 @@ interface MenuItemProps {
     onClick: () => void
     variant?: "default" | "danger"
     divider?: boolean
+    badge?: number
 }
 
-function MenuItem({ icon: Icon, label, onClick, variant = "default", divider = false }: MenuItemProps) {
+function MenuItem({ icon: Icon, label, onClick, variant = "default", divider = false, badge = 0 }: MenuItemProps) {
     return (
         <>
             {divider && (
@@ -270,6 +298,11 @@ function MenuItem({ icon: Icon, label, onClick, variant = "default", divider = f
                     )} strokeWidth={1.5} />
                 </div>
                 <span className="flex-1 text-left">{label}</span>
+                {badge > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                        {badge > 99 ? '99+' : badge}
+                    </span>
+                )}
                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 shrink-0" />
             </button>
         </>

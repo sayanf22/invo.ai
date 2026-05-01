@@ -41,6 +41,7 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
   signature_revision_requested:    { icon: MessageSquare, color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-950/30" },
   recurring_invoice_generated:     { icon: Repeat2,       color: "text-violet-600",  bg: "bg-violet-50 dark:bg-violet-950/30" },
   auto_invoice_sent:               { icon: FileText,      color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
+  support_resolved:                { icon: CheckCircle2,  color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
 }
 
 export default function NotificationsPage() {

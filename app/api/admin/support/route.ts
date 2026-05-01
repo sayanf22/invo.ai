@@ -160,6 +160,21 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = getServiceClient()
 
+    // Prevent reverting a resolved message back to unread/read
+    if (status && status !== 'resolved') {
+      const { data: existing } = await supabase
+        .from("support_messages")
+        .select("status")
+        .eq("id", id)
+        .single()
+      if (existing?.status === 'resolved') {
+        return NextResponse.json(
+          { error: "Resolved messages cannot be reverted" },
+          { status: 400 }
+        )
+      }
+    }
+
     // Build update payload
     const updatePayload: Record<string, unknown> = {}
     if (status !== undefined) updatePayload.status = status

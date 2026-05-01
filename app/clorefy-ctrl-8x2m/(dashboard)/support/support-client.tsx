@@ -502,7 +502,7 @@ export default function SupportClient({ initialMessages, initialTotal }: Support
                         Resolve
                       </button>
                     )}
-                    {msg.status !== 'unread' && (
+                    {msg.status !== 'unread' && msg.status !== 'resolved' && (
                       <button
                         onClick={() => handleStatusChange(msg.id, 'unread')}
                         className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg transition-colors"

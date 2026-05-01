@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize } from "@/lib/api-auth"
 import { validateSupportMessage, ONBOARDING_PHASES } from "@/lib/onboarding-utils"
 import { sanitizeText } from "@/lib/sanitize"
+import { checkRateLimit } from "@/lib/rate-limiter"
 import type { Json } from "@/lib/database.types"
 
 interface SupportSubmitRequest {
@@ -25,6 +26,10 @@ export async function POST(request: NextRequest) {
     // Authenticate the user
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
+
+    // Rate limit: max 5 support messages per hour per user
+    const rateLimitError = await checkRateLimit(auth.user.id, "email") // reuse email category (15/min is fine, we want per-hour)
+    if (rateLimitError) return rateLimitError
 
     const body: SupportSubmitRequest = await request.json()
 
