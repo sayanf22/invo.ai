@@ -18,6 +18,7 @@ import {
   TrendingUp,
   AlertTriangle,
   MessageSquare,
+  ClipboardList,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAdminTheme } from './admin-theme-provider'
@@ -70,6 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Monitor',
     items: [
       { href: '/clorefy-ctrl-8x2m/ai-usage', label: 'AI Usage', icon: Brain },
+      { href: '/clorefy-ctrl-8x2m/onboarding', label: 'Onboarding', icon: ClipboardList },
       { href: '/clorefy-ctrl-8x2m/errors', label: 'Errors', icon: AlertTriangle },
       { href: '/clorefy-ctrl-8x2m/support', label: 'Support Feedback', icon: MessageSquare },
       { href: '/clorefy-ctrl-8x2m/security', label: 'Security', icon: Shield },
