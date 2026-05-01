@@ -80,7 +80,7 @@ export default function ChoosePlanPage() {
             .single()
             .then(({ data }: any) => {
                 if (data?.plan_selected) {
-                    router.push(data.onboarding_complete ? "/" : "/onboarding")
+                    router.push(data.onboarding_complete ? "/" : "/onboarding?plan_selected=1")
                 }
             })
     }, [user, supabase, router])

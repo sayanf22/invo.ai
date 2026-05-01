@@ -50,6 +50,11 @@ export default function OnboardingPage() {
             return
         }
         if (!isLoading && user) {
+            // If we just came from choose-plan, persist the flag so refreshes don't lose it
+            if (searchParams.get("plan_selected") === "1") {
+                localStorage.setItem("clorefy_plan_selected", "1")
+            }
+
             supabase
                 .from("profiles")
                 .select("onboarding_complete, plan_selected")
@@ -57,9 +62,10 @@ export default function OnboardingPage() {
                 .single()
                 .then(({ data }: any) => {
                     // Must select a plan before onboarding
-                    // Trust the plan_selected URL param if we just came from choose-plan to avoid DB replication races
+                    // Trust the URL param OR localStorage flag to avoid DB race on first load/refresh
                     const hasJustSelectedPlan = searchParams.get("plan_selected") === "1"
-                    if (!data?.plan_selected && !hasJustSelectedPlan) {
+                    const hasCachedPlanSelected = localStorage.getItem("clorefy_plan_selected") === "1"
+                    if (!data?.plan_selected && !hasJustSelectedPlan && !hasCachedPlanSelected) {
                         router.push("/choose-plan")
                         return
                     }
@@ -77,6 +83,8 @@ export default function OnboardingPage() {
                                     // Business profile is complete — redirect home
                                     localStorage.removeItem("invo_onboarding_session")
                                     localStorage.removeItem("clorefy_onboarding_skipped")
+                                    localStorage.removeItem("clorefy_plan_selected")
+                                    localStorage.removeItem("clorefy_upload_extracted")
                                     router.push("/")
                                 }
                                 // Otherwise: business profile is incomplete, let them stay on onboarding
@@ -169,6 +177,8 @@ export default function OnboardingPage() {
             localStorage.removeItem("clorefy_onboarding_phase")
             localStorage.removeItem("clorefy_onboarding_data")
             localStorage.removeItem("clorefy_onboarding_messages")
+            localStorage.removeItem("clorefy_plan_selected")
+            localStorage.removeItem("clorefy_upload_extracted")
             router.push("/")
             router.refresh()
         } catch (error: any) {
@@ -193,6 +203,8 @@ export default function OnboardingPage() {
             localStorage.removeItem("clorefy_onboarding_phase")
             localStorage.removeItem("clorefy_onboarding_data")
             localStorage.removeItem("clorefy_onboarding_messages")
+            localStorage.removeItem("clorefy_plan_selected")
+            localStorage.removeItem("clorefy_upload_extracted")
             
             toast.info("You can complete your setup anytime from the dashboard")
             router.push("/")
