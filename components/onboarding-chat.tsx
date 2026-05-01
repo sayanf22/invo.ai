@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import { motion, AnimatePresence } from "framer-motion"
+import { logErrorToDatabase } from "@/lib/error-logger"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -240,6 +241,19 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                     throw new Error("429 rate limit")
                 }
                 const errBody = await response.json().catch(() => ({}))
+                // Log AI API non-200 response with onboarding context
+                logErrorToDatabase("onboarding_chat_ai_error", new Error(errBody.error || `AI API returned ${response.status}`), {
+                    onboarding_phase: "chat",
+                    fields_completed: Object.keys(collectedData).filter(k => {
+                        const v = (collectedData as any)[k]
+                        if (!v) return false
+                        if (typeof v === "string" && v.trim() === "") return false
+                        if (Array.isArray(v) && v.length === 0) return false
+                        return true
+                    }).length,
+                    used_extraction: !!(initialData && Object.keys(initialData).filter(k => k !== "email" && (initialData as any)[k]).length > 0),
+                    http_status: response.status,
+                })
                 throw new Error(errBody.error || `API error: ${response.status}`)
             }
 

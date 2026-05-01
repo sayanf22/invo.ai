@@ -1338,12 +1338,67 @@ export type Database = {
           },
         ]
       }
+      onboarding_progress: {
+        Row: {
+          chat_started_at: string | null
+          completed_at: string | null
+          created_at: string
+          current_phase: string
+          fields_completed: number
+          id: string
+          logo_started_at: string | null
+          payments_started_at: string | null
+          updated_at: string
+          upload_started_at: string | null
+          used_extraction: boolean
+          user_id: string
+        }
+        Insert: {
+          chat_started_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_phase?: string
+          fields_completed?: number
+          id?: string
+          logo_started_at?: string | null
+          payments_started_at?: string | null
+          updated_at?: string
+          upload_started_at?: string | null
+          used_extraction?: boolean
+          user_id: string
+        }
+        Update: {
+          chat_started_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_phase?: string
+          fields_completed?: number
+          id?: string
+          logo_started_at?: string | null
+          payments_started_at?: string | null
+          updated_at?: string
+          upload_started_at?: string | null
+          used_extraction?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_messages: {
         Row: {
           admin_notes: string | null
           created_at: string
           id: string
           message: string
+          metadata: Json | null
+          onboarding_phase: string | null
           status: string
           updated_at: string
           user_id: string | null
@@ -1353,6 +1408,8 @@ export type Database = {
           created_at?: string
           id?: string
           message: string
+          metadata?: Json | null
+          onboarding_phase?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null
@@ -1362,6 +1419,8 @@ export type Database = {
           created_at?: string
           id?: string
           message?: string
+          metadata?: Json | null
+          onboarding_phase?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null

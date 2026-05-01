@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { InvoLogo } from "@/components/invo-logo"
@@ -12,8 +12,46 @@ import { Loader2, ImageIcon, ArrowRight, CreditCard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getTaxIdFieldName } from "@/lib/countries"
 import { PaymentSettings } from "@/components/payment-settings"
+import { OnboardingSupportButton } from "@/components/onboarding-support-button"
 import { motion, AnimatePresence } from "framer-motion"
 import { logErrorToDatabase } from "@/lib/error-logger"
+
+/** Fire-and-forget POST to /api/onboarding/track. Never blocks the UI. */
+function trackPhaseTransition(
+    phase: string,
+    options?: { used_extraction?: boolean; fields_completed?: number }
+) {
+    fetch("/api/onboarding/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phase, ...options }),
+    }).catch(() => {}) // silently ignore errors
+}
+
+/** Count the number of non-empty tracked fields from collected onboarding data. */
+function countCompletedFields(data: CollectedData): number {
+    let count = 0
+    if (data.businessType?.trim()) count++
+    if (data.country?.trim()) count++
+    if (data.businessName?.trim()) count++
+    if (data.ownerName?.trim()) count++
+    if (data.email?.trim()) count++
+    if (data.phone?.trim()) count++
+    // address: at least one non-empty value
+    if (data.address && Object.values(data.address).some(v => typeof v === "string" && v.trim().length > 0)) count++
+    // taxDetails: taxRegistered is defined (user answered the question)
+    if (data.taxRegistered !== undefined) count++
+    // services / additionalNotes
+    if (data.services?.trim() || data.additionalNotes?.trim()) count++
+    // clientCountries: non-empty array
+    if (data.clientCountries && data.clientCountries.length > 0) count++
+    // defaultCurrency
+    if (data.defaultCurrency?.trim()) count++
+    // bankDetails: at least one key with a value, or explicitly skipped
+    if ((data.bankDetails && Object.values(data.bankDetails).some(v => typeof v === "string" && v.trim().length > 0)) || data.bankDetailsSkipped) count++
+    return count
+}
+
 export default function OnboardingPage() {
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -42,6 +80,15 @@ export default function OnboardingPage() {
     useEffect(() => {
         localStorage.setItem("clorefy_onboarding_data", JSON.stringify(extractedData))
     }, [extractedData])
+
+    // Track whether the user used file extraction in the upload phase
+    const usedExtractionRef = useRef(false)
+
+    // Track the initial phase on mount (fire-and-forget)
+    useEffect(() => {
+        trackPhaseTransition(phase)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     // Redirect if not logged in, or if plan not selected
     useEffect(() => {
@@ -96,8 +143,10 @@ export default function OnboardingPage() {
 
     // Called when the chat phase completes — transition to logo upload step
     const handleChatComplete = (data: CollectedData) => {
-        setExtractedData(prev => ({ ...prev, ...data }))
+        const merged = { ...extractedData, ...data }
+        setExtractedData(merged)
         setPhase("logo")
+        trackPhaseTransition("logo", { fields_completed: countCompletedFields(merged) })
     }
     // Called when logo upload completes or user skips — saves everything to DB
     const handleFinalSave = async (data: CollectedData) => {
@@ -173,6 +222,7 @@ export default function OnboardingPage() {
             }
 
             toast.success("🎉 Business profile saved! Welcome to Clorefy")
+            trackPhaseTransition("completed", { fields_completed: countCompletedFields(data) })
             localStorage.removeItem("clorefy_onboarding_skipped")
             localStorage.removeItem("clorefy_onboarding_phase")
             localStorage.removeItem("clorefy_onboarding_data")
@@ -183,9 +233,10 @@ export default function OnboardingPage() {
             router.refresh()
         } catch (error: any) {
             console.error("Save error:", error)
-            await logErrorToDatabase("onboarding_save_profile", error, {
-                data,
-                phase
+            await logErrorToDatabase(`onboarding_${phase}`, error, {
+                onboarding_phase: phase,
+                fields_completed: countCompletedFields(data),
+                used_extraction: usedExtractionRef.current,
             })
             toast.error(error?.message || error?.details || "Failed to save profile. Please try again.")
         }
@@ -211,6 +262,11 @@ export default function OnboardingPage() {
             router.refresh()
         } catch (error) {
             console.error("Skip error:", error)
+            await logErrorToDatabase(`onboarding_${phase}`, error, {
+                onboarding_phase: phase,
+                fields_completed: countCompletedFields(extractedData),
+                used_extraction: usedExtractionRef.current,
+            })
             toast.error("Something went wrong. Please try again.")
         }
     }
@@ -254,12 +310,16 @@ export default function OnboardingPage() {
                         >
                             <UploadScreen
                                 onContinue={(data) => {
+                                    usedExtractionRef.current = true
                                     setExtractedData(data)
                                     setPhase("chat")
+                                    trackPhaseTransition("chat", { used_extraction: true })
                                 }}
                                 onSkip={() => {
+                                    usedExtractionRef.current = false
                                     setExtractedData({})
                                     setPhase("chat")
+                                    trackPhaseTransition("chat", { used_extraction: false })
                                 }}
                             />
                         </motion.div>
@@ -311,7 +371,10 @@ export default function OnboardingPage() {
 
                             <div className="flex flex-col gap-3">
                                 <Button
-                                    onClick={() => setPhase("payments")}
+                                    onClick={() => {
+                                        setPhase("payments")
+                                        trackPhaseTransition("payments")
+                                    }}
                                     className="w-full gap-2 h-11"
                                 >
                                     Continue
@@ -319,7 +382,10 @@ export default function OnboardingPage() {
                                 </Button>
                                 <button
                                     type="button"
-                                    onClick={() => setPhase("payments")}
+                                    onClick={() => {
+                                        setPhase("payments")
+                                        trackPhaseTransition("payments")
+                                    }}
                                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                                 >
                                     Skip — I&apos;ll add a logo later
@@ -364,6 +430,12 @@ export default function OnboardingPage() {
                         </motion.div>
                     )}
                 </AnimatePresence>
+
+                {/* Support button — visible on all 4 active phases */}
+                <OnboardingSupportButton
+                    currentPhase={phase}
+                    userEmail={user?.email || ""}
+                />
             </main>
         </div>
     )
