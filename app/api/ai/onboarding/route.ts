@@ -131,22 +131,18 @@ If the user asks a question instead of giving an answer (e.g., "what does that m
 11. clientCountries: array of 2-letter codes. "all" = all 11 countries.
 12. defaultCurrency: ONE currency code only — INR, USD, GBP, EUR, CAD, AUD, SGD, AED, PHP. Pick the FIRST one if user says multiple.
 
-After collecting all 11 required fields above, ask about OPTIONAL bank details:
-13. bankDetails (OPTIONAL): Ask "Would you like to add your bank details for invoices? (You can skip this)"
-    - If yes → collect: bankName, accountName, accountNumber, and ifscCode (for India) or swiftCode or routingNumber
-    - If no/skip → set bankDetails to {} and move to the final question
-    - Accept partial info — any fields provided are fine
+After collecting all 12 fields above, ask the FINAL question:
+"Almost done! Is there anything else you'd like to add? Like pricing, product details, or a business description? (Type 'skip' or 'no' to finish)"
+- "no" / "nothing" / "that's it" / "skip" → set allFieldsComplete: true, extractedData: {}
+- If user provides info → set extractedData: { "additionalNotes": "<their exact answer>" } AND allFieldsComplete: true
+
+IMPORTANT: Do NOT ask about bank details, payment methods, or payment setup. There is a separate payment setup step after this conversation.
 
 ## SPECIAL RULES
 - "no" to tax → set BOTH taxRegistered: false AND taxId: "" in extractedData, skip to next field.
 - If user provides country, suggest matching currency and ask to confirm.
 - Partial address is fine. Don't force all subfields.
 - If user volunteers info for a future field, extract it immediately.
-
-## FINAL QUESTION
-When ALL fields are collected (including bank details step), ask: "Is there anything else you'd like to add? Like pricing, product details, or a business description?"
-- "no" / "nothing" / "that's it" → set allFieldsComplete: true, extractedData: {}
-- If user provides info → set extractedData: { "additionalNotes": "<their exact answer>" } AND allFieldsComplete: true
 
 ## RESPONSE FORMAT — ALWAYS VALID JSON, NO MARKDOWN
 {
@@ -288,10 +284,7 @@ async function callDeepSeek(
         missingFields.push("taxId")
     }
 
-    // Determine the current phase: required fields → optional bank details → final question
-    const bankDetailsCollected = collectedKeys.includes("bankDetails")
-    const bankDetailsSkipped = collectedData.bankDetailsSkipped === true
-    const bankDetailsAsked = bankDetailsCollected || bankDetailsSkipped
+    // Determine the current phase: required fields → final question (bank details handled in separate onboarding step)
     const additionalNotesCollected = collectedKeys.includes("additionalNotes")
 
     let instruction = ""
@@ -300,16 +293,15 @@ async function callDeepSeek(
 
 IMPORTANT FOR TAX QUESTION: When asking about tax registration (GST/VAT/Sales Tax), phrase it as: "Are you registered for GST, VAT, or Sales Tax? (You can say no if not applicable)"
 - If user says "no" / "not yet" / "nah" → set extractedData: { "taxRegistered": false, "taxId": "" }
-- If user says "yes" → set extractedData: { "taxRegistered": true } and then ask for their tax number in the NEXT turn.`
-    } else if (!bankDetailsAsked) {
-        instruction = `INSTRUCTION: All required fields including tax are collected! Now ask about OPTIONAL bank details. Say exactly: "Would you like to add your bank details for invoices? You can add them later from your profile if you prefer. (Type 'skip' to continue)"
-- If user says no/skip/later/nah → set extractedData: { "bankDetailsSkipped": true } and then ask the additional info question.
-- If user says yes → collect bankName, accountName, accountNumber, and ifscCode (for India) or swiftCode or routingNumber. After collecting, ask the additional info question.`
+- If user says "yes" → set extractedData: { "taxRegistered": true } and then ask for their tax number in the NEXT turn.
+
+IMPORTANT: Do NOT ask about bank details or payment methods. There is a separate payment setup step later.`
     } else if (!additionalNotesCollected) {
-        instruction = `INSTRUCTION: Bank details step is done. Now ask the FINAL question. Say exactly: "Almost done! Is there anything else you'd like to add about your business? Like services you offer, pricing details, or a business description? (Type 'skip' or 'no' to finish)"
+        instruction = `INSTRUCTION: All required fields are collected! Now ask the FINAL question. Say exactly: "Almost done! Is there anything else you'd like to add about your business? Like services you offer, pricing details, or a business description? (Type 'skip' or 'no' to finish)"
 - If user says no/skip/nothing/that's it/done → set allFieldsComplete: true with extractedData: {}
 - If user provides actual content → set extractedData: { "additionalNotes": "<their answer>" } AND allFieldsComplete: true
-- If your LAST message already asked this question, then the user's LAST message IS their answer — process it accordingly.`
+- If your LAST message already asked this question, then the user's LAST message IS their answer — process it accordingly.
+- Do NOT ask about bank details or payment methods.`
     } else {
         instruction = "INSTRUCTION: User answered the final question. Set allFieldsComplete: true."
     }
@@ -433,9 +425,8 @@ IMPORTANT FOR TAX QUESTION: When asking about tax registration (GST/VAT/Sales Ta
             
             // SERVER-SIDE FALLBACK: Try to interpret the user's last message ourselves
             const lastUserMsg = messages[messages.length - 1]?.content?.trim().toLowerCase() || ""
-            const bankDetailsAsked = collectedKeys.includes("bankDetails") || (collectedData.bankDetailsSkipped === true)
             const additionalNotesCollected = collectedKeys.includes("additionalNotes")
-            const fallback = serverSideInterpret(lastUserMsg, missingFields, collectedData, bankDetailsAsked, additionalNotesCollected)
+            const fallback = serverSideInterpret(lastUserMsg, missingFields, collectedData, true, additionalNotesCollected)
             if (fallback) {
                 return fallback
             }
@@ -536,30 +527,7 @@ function serverSideInterpret(
         return interpretRequiredField(userMsg, missingFields, collectedData)
     }
 
-    // Phase 2: Bank details (optional)
-    if (!bankDetailsAsked) {
-        const no = ["no", "nah", "nope", "n", "skip", "no thanks", "not now", "later"]
-        const yes = ["yes", "yeah", "yep", "y", "sure", "ok", "okay"]
-        if (no.some(w => userMsg.toLowerCase().includes(w))) {
-            return {
-                message: "No problem, skipping bank details! ✅ Is there anything else you'd like to add? Like pricing, product details, or a business description?",
-                extractedData: { bankDetailsSkipped: true },
-                needsClarification: false,
-                allFieldsComplete: false,
-            }
-        }
-        if (yes.some(w => userMsg.toLowerCase().includes(w))) {
-            return {
-                message: "Great! What's your bank name?",
-                extractedData: {},
-                needsClarification: false,
-                allFieldsComplete: false,
-            }
-        }
-        return null
-    }
-
-    // Phase 3: Final question (additional notes)
+    // Phase 2: Final question (additional notes) — bank details handled in separate onboarding step
     if (!additionalNotesCollected) {
         const no = ["no", "nah", "nope", "n", "nothing", "that's it", "thats it", "that is it", "nope", "all good", "done", "no thanks", "skip", "not now", "later"]
         if (no.some(w => userMsg.toLowerCase().includes(w))) {
