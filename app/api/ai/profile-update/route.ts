@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
 import { checkCostLimit, trackUsage } from "@/lib/cost-protection"
-import { parseTier, type UserTier } from "@/lib/cost-protection"
+import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 import { sanitizeText } from "@/lib/sanitize"
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
@@ -223,10 +223,10 @@ export async function POST(request: NextRequest) {
     // Fetch user tier from subscriptions table, default to "free"
     const { data: subscription } = await (auth.supabase as any)
         .from("subscriptions")
-        .select("plan")
+        .select("plan, status, current_period_end")
         .eq("user_id", auth.user.id)
         .single()
-    const userTier = parseTier(subscription?.plan)
+    const userTier = resolveEffectiveTier(subscription as any)
 
     // Block free-tier users from AI profile editing
     if (userTier === "free") {

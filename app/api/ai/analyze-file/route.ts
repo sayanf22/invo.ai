@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { getSecret } from "@/lib/secrets"
 import { sanitizeText } from "@/lib/sanitize"
-import { checkCostLimit, trackUsage, parseTier, type UserTier } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 
 /**
  * POST /api/ai/analyze-file
@@ -98,10 +98,10 @@ export async function POST(request: Request) {
     // SECURITY: Fetch user tier and check cost limit BEFORE any AI call
     const { data: sub } = await (auth.supabase as any)
         .from("subscriptions")
-        .select("plan")
+        .select("plan, status, current_period_end")
         .eq("user_id", auth.user.id)
         .single()
-    const userTier = parseTier((sub as any)?.plan)
+    const userTier = resolveEffectiveTier(sub as any)
 
     const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
     if (costError) return costError

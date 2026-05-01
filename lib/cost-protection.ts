@@ -30,6 +30,27 @@ export function parseTier(value: unknown): UserTier {
     return "free"
 }
 
+// ─── Subscription Expiry Enforcement ──────────────────────────────────────────
+
+export interface SubscriptionRecord {
+    plan: string | null
+    status: string | null
+    current_period_end: string | null
+}
+
+/**
+ * Resolve the effective tier for a user based on their subscription record.
+ * Returns "free" if the subscription is missing, expired, or has no valid period end.
+ * Otherwise delegates to parseTier() for plan validation.
+ */
+export function resolveEffectiveTier(subscription: SubscriptionRecord | null | undefined): UserTier {
+    if (!subscription) return "free"
+    if (!subscription.current_period_end || new Date(subscription.current_period_end) < new Date()) {
+        return "free"
+    }
+    return parseTier(subscription.plan)
+}
+
 interface TierLimits {
     documentsPerMonth: number  // 0 = unlimited
     messagesPerSession: number // 0 = unlimited

@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
 import { incrementDocumentCount, checkDocumentLimit, checkDocumentTypeAllowed } from "@/lib/cost-protection"
-import { parseTier, type UserTier } from "@/lib/cost-protection"
+import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 
 const VALID_TYPES = ["invoice", "contract", "quotation", "proposal"]
 
@@ -111,10 +111,10 @@ export async function POST(request: NextRequest) {
         // Fetch user tier from subscriptions table, default to "free"
         const { data: subscription } = await (auth.supabase as any)
             .from("subscriptions")
-            .select("plan")
+            .select("plan, status, current_period_end")
             .eq("user_id", auth.user.id)
             .single()
-        const userTier = parseTier(subscription?.plan)
+        const userTier = resolveEffectiveTier(subscription as any)
 
         // Check document type is allowed for this tier
         const typeError = checkDocumentTypeAllowed(targetDocumentType, userTier)

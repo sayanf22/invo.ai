@@ -5,7 +5,7 @@ import { sendEmail } from "@/lib/mailtrap"
 import { generateEmailSubject, renderEmailTemplate } from "@/lib/email-template"
 import { logAudit } from "@/lib/audit-log"
 import { checkEmailLimit, incrementEmailCount, getFollowUpSchedule } from "@/lib/cost-protection"
-import { parseTier, type UserTier } from "@/lib/cost-protection"
+import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 import { createClient } from "@supabase/supabase-js"
 
 interface SendDocumentRequest {
@@ -67,10 +67,10 @@ export async function POST(request: NextRequest) {
     // 3b. Monthly email limit (tier-based)
     const { data: subscription } = await (supabase as any)
       .from("subscriptions")
-      .select("plan")
+      .select("plan, status, current_period_end")
       .eq("user_id", userId)
       .single()
-    const userTier = parseTier(subscription?.plan)
+    const userTier = resolveEffectiveTier(subscription as any)
 
     const emailLimitError = await checkEmailLimit(supabase, userId, userTier)
     if (emailLimitError) return emailLimitError

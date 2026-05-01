@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { resolveEffectiveTier } from "@/lib/cost-protection"
 
 function computeNextRunAt(frequency: string, from: Date = new Date()): Date {
   const next = new Date(from)
@@ -96,6 +97,32 @@ export async function POST(request: NextRequest) {
       const sourceSession = rec.document_sessions
       if (!sourceSession) {
         results.push({ recurringId: rec.id, error: "Source session not found" })
+        continue
+      }
+
+      // Check if user's subscription is still active
+      const { data: userSubscription } = await supabase
+        .from("subscriptions")
+        .select("plan, status, current_period_end")
+        .eq("user_id", sourceSession.user_id)
+        .single()
+
+      const effectiveTier = resolveEffectiveTier(userSubscription as any)
+      if (effectiveTier === "free") {
+        // Deactivate recurring invoice for expired user
+        await (supabase as any)
+          .from("recurring_invoices")
+          .update({ is_active: false })
+          .eq("id", rec.id)
+
+        // Cancel all pending email schedules for expired user
+        await (supabase as any)
+          .from("email_schedules")
+          .update({ status: "cancelled", cancelled_reason: "subscription_expired" })
+          .eq("user_id", sourceSession.user_id)
+          .eq("status", "pending")
+
+        results.push({ recurringId: rec.id, error: "Subscription expired — recurring invoice deactivated" })
         continue
       }
 

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { authenticateRequest, sanitizeError, validateOrigin, validateBodySize } from "@/lib/api-auth"
 import { sanitizeText } from "@/lib/sanitize"
 import { clientSchema } from "@/lib/invoice-types"
+import { resolveEffectiveTier } from "@/lib/cost-protection"
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
@@ -89,11 +90,11 @@ export async function POST(request: NextRequest) {
     // Check user tier — free tier cannot use AI client management
     const { data: sub } = await (auth.supabase as any)
       .from("subscriptions")
-      .select("plan")
+      .select("plan, status, current_period_end")
       .eq("user_id", auth.user.id)
       .single()
 
-    const userTier: string = sub?.plan ?? "free"
+    const userTier = resolveEffectiveTier(sub as any)
     if (userTier === "free") {
       return new Response(
         JSON.stringify({ error: "AI client management requires a paid plan" }),
