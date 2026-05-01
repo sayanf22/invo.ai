@@ -61,12 +61,11 @@ export async function GET(request: NextRequest) {
       userIdFilter = ids
     }
 
-    // Build the main query with count
+    // Build the main query with count (no join — error_logs has no FK to profiles)
     let query = supabase
       .from("error_logs")
       .select(
-        `id, error_context, error_message, metadata, status, created_at, user_id,
-         profiles:user_id (email, full_name)`,
+        `id, error_context, error_message, metadata, status, created_at, user_id`,
         { count: "exact" }
       )
 
@@ -104,8 +103,27 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Fetch profiles separately for user context
+    const errorRows = data ?? []
+    const userIds = [...new Set(errorRows.map((e: any) => e.user_id).filter(Boolean))]
+    let profilesMap: Record<string, { email: string | null; full_name: string | null }> = {}
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+        .in("id", userIds)
+      for (const p of profiles ?? []) {
+        profilesMap[(p as any).id] = { email: (p as any).email, full_name: (p as any).full_name }
+      }
+    }
+
+    const enrichedErrors = errorRows.map((e: any) => ({
+      ...e,
+      profiles: e.user_id ? (profilesMap[e.user_id] || null) : null,
+    }))
+
     return NextResponse.json({
-      errors: data ?? [],
+      errors: enrichedErrors,
       total: count ?? 0,
       page,
       pageSize: PAGE_SIZE,
