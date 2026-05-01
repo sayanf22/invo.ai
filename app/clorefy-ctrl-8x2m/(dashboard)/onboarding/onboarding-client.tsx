@@ -66,18 +66,18 @@ const ERROR_OPTIONS = [
   { value: 'without-errors', label: 'Without Errors' },
 ]
 
-const STATUS_BADGE: Record<string, { label: string; bg: string; bgDark: string; color: string }> = {
-  completed:     { label: 'Completed',   bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
-  'in-progress': { label: 'In Progress', bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
-  'dropped-off': { label: 'Dropped Off', bg: '#E5E5E5', bgDark: '#27272A', color: '#71717A' },
+const STATUS_BADGE: Record<string, { label: string; bg: string; bgDark: string; color: string; colorDark: string }> = {
+  completed:     { label: 'Completed',   bg: 'rgba(16,185,129,0.1)',  bgDark: 'rgba(16,185,129,0.15)', color: '#059669', colorDark: '#34D399' },
+  'in-progress': { label: 'In Progress', bg: 'rgba(59,130,246,0.1)',  bgDark: 'rgba(59,130,246,0.15)', color: '#2563EB', colorDark: '#60A5FA' },
+  'dropped-off': { label: 'Dropped Off', bg: 'rgba(239,68,68,0.08)',  bgDark: 'rgba(239,68,68,0.12)',  color: '#DC2626', colorDark: '#F87171' },
 }
 
-const PHASE_BADGE: Record<string, { label: string; bg: string; bgDark: string; color: string }> = {
-  upload:    { label: 'Upload',    bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
-  chat:      { label: 'Chat',      bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
-  logo:      { label: 'Logo',      bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
-  payments:  { label: 'Payments',  bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
-  completed: { label: 'Completed', bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
+const PHASE_BADGE: Record<string, { label: string; bg: string; bgDark: string; color: string; colorDark: string }> = {
+  upload:    { label: 'Upload',    bg: 'rgba(99,102,241,0.1)',  bgDark: 'rgba(99,102,241,0.15)', color: '#4F46E5', colorDark: '#818CF8' },
+  chat:      { label: 'Chat',      bg: 'rgba(168,85,247,0.1)',  bgDark: 'rgba(168,85,247,0.15)', color: '#7C3AED', colorDark: '#A78BFA' },
+  logo:      { label: 'Logo',      bg: 'rgba(245,158,11,0.1)',  bgDark: 'rgba(245,158,11,0.15)', color: '#D97706', colorDark: '#FBBF24' },
+  payments:  { label: 'Payments',  bg: 'rgba(16,185,129,0.1)',  bgDark: 'rgba(16,185,129,0.15)', color: '#059669', colorDark: '#34D399' },
+  completed: { label: 'Completed', bg: 'rgba(16,185,129,0.1)',  bgDark: 'rgba(16,185,129,0.15)', color: '#059669', colorDark: '#34D399' },
 }
 
 const FUNNEL_PHASES = ['upload', 'chat', 'logo', 'payments', 'completed'] as const
@@ -553,7 +553,7 @@ export default function OnboardingTrackingClient({
                         <td className="px-4 py-3">
                           <span
                             className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
-                            style={{ backgroundColor: isDark ? statusCfg.bgDark : statusCfg.bg, color: isDark ? '#D4D4D8' : statusCfg.color }}
+                            style={{ backgroundColor: isDark ? statusCfg.bgDark : statusCfg.bg, color: isDark ? statusCfg.colorDark : statusCfg.color }}
                           >
                             {statusCfg.label}
                           </span>
@@ -564,7 +564,7 @@ export default function OnboardingTrackingClient({
                           {phaseCfg ? (
                             <span
                               className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
-                              style={{ backgroundColor: isDark ? phaseCfg.bgDark : phaseCfg.bg, color: isDark ? '#D4D4D8' : phaseCfg.color }}
+                              style={{ backgroundColor: isDark ? phaseCfg.bgDark : phaseCfg.bg, color: isDark ? phaseCfg.colorDark : phaseCfg.color }}
                             >
                               {phaseCfg.label}
                             </span>
@@ -587,7 +587,7 @@ export default function OnboardingTrackingClient({
                                 className="h-full rounded-full transition-all"
                                 style={{
                                   width: `${fieldsPercent}%`,
-                                  backgroundColor: isDark ? '#A1A1AA' : '#52525B',
+                                  backgroundColor: '#3B82F6',
                                 }}
                               />
                             </div>
@@ -628,14 +628,26 @@ export default function OnboardingTrackingClient({
                         </td>
                       </tr>
 
-                      {/* D. Enhanced Expanded Row Detail */}
-                      {isExpanded && (
-                        <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
-                          <td colSpan={9} style={{ padding: 0 }}>
-                            <div
-                              className="px-6 py-5 space-y-5"
-                              style={{ backgroundColor: detailBg, borderTop: `1px solid ${cardBorder}` }}
-                            >
+                      {/* Expandable detail row — always rendered, animated */}
+                      <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
+                        <td colSpan={9} style={{ padding: 0 }}>
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateRows: isExpanded ? '1fr' : '0fr',
+                              transition: 'grid-template-rows 300ms ease-out',
+                            }}
+                          >
+                            <div style={{ overflow: 'hidden' }}>
+                              <div
+                                className="px-6 py-5 space-y-5"
+                                style={{
+                                  backgroundColor: detailBg,
+                                  borderTop: isExpanded ? `1px solid ${cardBorder}` : 'none',
+                                  opacity: isExpanded ? 1 : 0,
+                                  transition: 'opacity 200ms ease-out 100ms',
+                                }}
+                              >
                               {/* 1. Phase Progress Visual — Horizontal Stepper */}
                               <div>
                                 <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: textSecondary }}>
@@ -810,11 +822,13 @@ export default function OnboardingTrackingClient({
                                         <div
                                           className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5"
                                           style={{
-                                            backgroundColor: isCompleted ? (isDark ? '#27272A' : '#E5E5E5') : isDark ? '#1A1A1A' : '#E5E5E5',
+                                            backgroundColor: isCompleted
+                                              ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.08)')
+                                              : (isDark ? '#1A1A1A' : '#E5E5E5'),
                                           }}
                                         >
                                           {isCompleted ? (
-                                            <Check className="w-3 h-3" style={{ color: isDark ? '#D4D4D8' : '#0A0A0A' }} />
+                                            <Check className="w-3 h-3" style={{ color: isDark ? '#34D399' : '#059669' }} />
                                           ) : (
                                             <Minus className="w-3 h-3" style={{ color: textSecondary }} />
                                           )}
@@ -842,10 +856,11 @@ export default function OnboardingTrackingClient({
                                   })}
                                 </div>
                               </div>
+                              </div>
                             </div>
-                          </td>
-                        </tr>
-                      )}
+                          </div>
+                        </td>
+                      </tr>
                     </React.Fragment>
                   )
                 })}
