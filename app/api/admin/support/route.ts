@@ -202,7 +202,7 @@ export async function PATCH(request: NextRequest) {
         title: 'Your feedback has been reviewed',
         message: `Thank you for your feedback: "${originalMessage}". Your input helps us improve Clorefy. Keep sharing your thoughts with us!`,
         metadata: { support_message_id: id },
-      }).then(() => {}).catch(() => {}) // fire-and-forget, don't block the response
+      }) // fire-and-forget — errors are silently ignored
     }
 
     return NextResponse.json({ message: data })
