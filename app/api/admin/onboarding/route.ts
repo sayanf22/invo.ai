@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
         full_name,
         onboarding_complete,
         last_active_at,
-        created_at
+        created_at,
+        tier
       `)
       .order("created_at", { ascending: false })
 
@@ -153,6 +154,50 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // 5. Fetch additional analytics data in batch
+    const { data: sessionRows } = await supabase
+      .from("document_sessions")
+      .select("user_id")
+      .in("user_id", userIds)
+
+    const { data: genRows } = await supabase
+      .from("generation_history")
+      .select("user_id")
+      .eq("success", true)
+      .in("user_id", userIds)
+
+    const { data: emailRows } = await supabase
+      .from("document_emails")
+      .select("user_id")
+      .in("user_id", userIds)
+
+    const { data: messageRows } = await supabase
+      .from("chat_messages")
+      .select("session_id, document_sessions!inner(user_id)")
+      .in("document_sessions.user_id", userIds)
+
+    // Build count maps for analytics
+    const sessionCountMap = new Map<string, number>()
+    for (const r of sessionRows ?? []) {
+      sessionCountMap.set(r.user_id, (sessionCountMap.get(r.user_id) || 0) + 1)
+    }
+
+    const genCountMap = new Map<string, number>()
+    for (const r of genRows ?? []) {
+      genCountMap.set(r.user_id, (genCountMap.get(r.user_id) || 0) + 1)
+    }
+
+    const emailCountMap = new Map<string, number>()
+    for (const r of emailRows ?? []) {
+      emailCountMap.set(r.user_id, (emailCountMap.get(r.user_id) || 0) + 1)
+    }
+
+    const messageCountMap = new Map<string, number>()
+    for (const r of messageRows ?? []) {
+      const uid = (r as any).document_sessions?.user_id
+      if (uid) messageCountMap.set(uid, (messageCountMap.get(uid) || 0) + 1)
+    }
+
     // Build lookup maps
     const progressMap = new Map<string, any>()
     for (const p of progressRecords ?? []) {
@@ -164,7 +209,7 @@ export async function GET(request: NextRequest) {
       if (b.user_id) businessMap.set(b.user_id, b)
     }
 
-    // 5. Compute onboarding_status and fields_completed for each user
+    // 6. Compute onboarding_status and fields_completed for each user
     const enrichedUsers: (OnboardingRecord & Record<string, any>)[] = profiles.map((profile: any) => {
       const progress = progressMap.get(profile.id) || null
       const business = businessMap.get(profile.id) || null
@@ -203,6 +248,12 @@ export async function GET(request: NextRequest) {
         logo_started_at: progress?.logo_started_at || null,
         payments_started_at: progress?.payments_started_at || null,
         completed_at: progress?.completed_at || null,
+        total_sessions: sessionCountMap.get(profile.id) || 0,
+        total_generations: genCountMap.get(profile.id) || 0,
+        total_emails_sent: emailCountMap.get(profile.id) || 0,
+        total_messages: messageCountMap.get(profile.id) || 0,
+        tier: profile.tier ?? null,
+        signed_up_at: profile.created_at ?? null,
         business_data: business
           ? {
               business_type: business.business_type ?? null,
@@ -222,7 +273,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // 6. Apply all filters using shared utility functions (AND logic)
+    // 7. Apply all filters using shared utility functions (AND logic)
     const filtered = applyOnboardingFilters(enrichedUsers, {
       status,
       phase,

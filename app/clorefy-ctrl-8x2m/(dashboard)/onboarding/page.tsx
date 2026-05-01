@@ -19,7 +19,7 @@ export default async function AdminOnboardingPage() {
     // 1. Fetch profiles
     const { data: profiles, count: profileCount, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, email, full_name, onboarding_complete, last_active_at, created_at", { count: "exact" })
+        .select("id, email, full_name, onboarding_complete, last_active_at, created_at, tier", { count: "exact" })
         .order("created_at", { ascending: false })
         .range(0, PAGE_SIZE - 1)
 
@@ -50,6 +50,50 @@ export default async function AdminOnboardingPage() {
         )
         .in("user_id", userIds)
 
+    // 4. Fetch analytics data in batch
+    const { data: sessionRows } = await supabase
+        .from("document_sessions")
+        .select("user_id")
+        .in("user_id", userIds)
+
+    const { data: genRows } = await supabase
+        .from("generation_history")
+        .select("user_id")
+        .eq("success", true)
+        .in("user_id", userIds)
+
+    const { data: emailRows } = await supabase
+        .from("document_emails")
+        .select("user_id")
+        .in("user_id", userIds)
+
+    const { data: messageRows } = await supabase
+        .from("chat_messages")
+        .select("session_id, document_sessions!inner(user_id)")
+        .in("document_sessions.user_id", userIds)
+
+    // Build analytics count maps
+    const sessionCountMap = new Map<string, number>()
+    for (const r of sessionRows ?? []) {
+        sessionCountMap.set(r.user_id, (sessionCountMap.get(r.user_id) || 0) + 1)
+    }
+
+    const genCountMap = new Map<string, number>()
+    for (const r of genRows ?? []) {
+        genCountMap.set(r.user_id, (genCountMap.get(r.user_id) || 0) + 1)
+    }
+
+    const emailCountMap = new Map<string, number>()
+    for (const r of emailRows ?? []) {
+        emailCountMap.set(r.user_id, (emailCountMap.get(r.user_id) || 0) + 1)
+    }
+
+    const messageCountMap = new Map<string, number>()
+    for (const r of messageRows ?? []) {
+        const uid = (r as any).document_sessions?.user_id
+        if (uid) messageCountMap.set(uid, (messageCountMap.get(uid) || 0) + 1)
+    }
+
     // Build lookup maps
     const progressMap = new Map<string, (typeof progressRecords extends (infer T)[] | null ? T : never)>()
     for (const p of progressRecords ?? []) {
@@ -61,7 +105,7 @@ export default async function AdminOnboardingPage() {
         if (b.user_id) businessMap.set(b.user_id, b)
     }
 
-    // 4. Compute onboarding status and field completion for each user
+    // 5. Compute onboarding status and field completion for each user
     const initialUsers = profiles.map((profile) => {
         const progress = progressMap.get(profile.id) || null
         const business = businessMap.get(profile.id) || null
@@ -99,6 +143,12 @@ export default async function AdminOnboardingPage() {
             logo_started_at: progress?.logo_started_at || null,
             payments_started_at: progress?.payments_started_at || null,
             completed_at: progress?.completed_at || null,
+            total_sessions: sessionCountMap.get(profile.id) || 0,
+            total_generations: genCountMap.get(profile.id) || 0,
+            total_emails_sent: emailCountMap.get(profile.id) || 0,
+            total_messages: messageCountMap.get(profile.id) || 0,
+            tier: profile.tier ?? null,
+            signed_up_at: profile.created_at ?? null,
             business_data: business
                 ? {
                     business_type: business.business_type ?? null,

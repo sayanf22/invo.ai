@@ -1,7 +1,10 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Search, Users, Clock, ChevronDown, ChevronRight, Check, Minus, Upload, MessageSquare } from 'lucide-react'
+import {
+  Search, Users, Clock, ChevronDown, ChevronRight, Check, Minus,
+  FileUp, Keyboard, MessageSquare, FileText, Mail, LayoutDashboard,
+} from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
 import { TRACKED_FIELDS } from '@/lib/onboarding-utils'
@@ -25,6 +28,12 @@ export interface OnboardingUser {
   payments_started_at: string | null
   completed_at: string | null
   business_data: Record<string, unknown> | null
+  total_sessions: number
+  total_generations: number
+  total_emails_sent: number
+  total_messages: number
+  tier: string | null
+  signed_up_at: string | null
 }
 
 interface OnboardingTrackingClientProps {
@@ -71,7 +80,15 @@ const PHASE_BADGE: Record<string, { label: string; bg: string; bgDark: string; c
   completed: { label: 'Completed', bg: '#E5E5E5', bgDark: '#27272A', color: '#0A0A0A' },
 }
 
-/** Display names for the 12 tracked fields. */
+const FUNNEL_PHASES = ['upload', 'chat', 'logo', 'payments', 'completed'] as const
+const FUNNEL_LABELS: Record<string, string> = {
+  upload: 'Upload',
+  chat: 'Chat',
+  logo: 'Logo',
+  payments: 'Payments',
+  completed: 'Completed',
+}
+
 const TRACKED_FIELD_LABELS: Record<TrackedFieldName, string> = {
   businessType: 'Business Type',
   country: 'Country',
@@ -87,9 +104,11 @@ const TRACKED_FIELD_LABELS: Record<TrackedFieldName, string> = {
   bankDetails: 'Bank Details',
 }
 
+// Phase ordering for the stepper
+const PHASE_ORDER = ['upload', 'chat', 'logo', 'payments', 'completed'] as const
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Format a raw business field value for display in the detail view. */
 function formatFieldValue(value: unknown): string {
   if (value === null || value === undefined) return '—'
   if (typeof value === 'string') return value || '—'
@@ -101,6 +120,28 @@ function formatFieldValue(value: unknown): string {
     return entries.map(([k, v]) => `${k}: ${v}`).join(', ')
   }
   return String(value)
+}
+
+/** Get the index of a phase in the ordered list, -1 if not found */
+function getPhaseIndex(phase: string | null): number {
+  if (!phase) return -1
+  return PHASE_ORDER.indexOf(phase as typeof PHASE_ORDER[number])
+}
+
+/** Count users at each funnel phase */
+function computeFunnelCounts(users: OnboardingUser[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const phase of FUNNEL_PHASES) {
+    counts[phase] = 0
+  }
+  for (const user of users) {
+    if (user.onboarding_status === 'completed') {
+      counts['completed']++
+    } else if (user.current_phase && counts[user.current_phase] !== undefined) {
+      counts[user.current_phase]++
+    }
+  }
+  return counts
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -182,9 +223,18 @@ export default function OnboardingTrackingClient({
     fetchUsers()
   }, [fetchUsers])
 
-  // ─── Pagination ─────────────────────────────────────────────────────
+  // ─── Computed values ────────────────────────────────────────────────
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
+
+  // Summary stats
+  const completedCount = users.filter(u => u.onboarding_status === 'completed').length
+  const inProgressCount = users.filter(u => u.onboarding_status === 'in-progress').length
+  const droppedOffCount = users.filter(u => u.onboarding_status === 'dropped-off').length
+  const completedPercent = total > 0 ? Math.round((completedCount / total) * 100) : 0
+
+  // Funnel counts
+  const funnelCounts = computeFunnelCounts(users)
 
   // ─── Styles ─────────────────────────────────────────────────────────
 
@@ -192,11 +242,13 @@ export default function OnboardingTrackingClient({
   const cardBorder = isDark ? '#1A1A1A' : '#E5E5E5'
   const textPrimary = isDark ? '#F5F5F5' : '#0A0A0A'
   const textSecondary = '#71717A'
+  const textTertiary = '#A1A1AA'
   const inputBg = isDark ? '#111111' : '#FAFAFA'
   const inputBorder = isDark ? '#1A1A1A' : '#E5E5E5'
   const headerBg = isDark ? '#111111' : '#F5F5F5'
   const rowHoverBg = isDark ? '#111111' : '#FAFAFA'
   const detailBg = isDark ? '#0D0D0D' : '#F9FAFB'
+  const subtleBg = isDark ? '#111111' : '#FAFAFA'
 
   return (
     <div className="space-y-6">
@@ -214,6 +266,75 @@ export default function OnboardingTrackingClient({
               {total.toLocaleString()}
             </span>
           )}
+        </div>
+      </div>
+
+      {/* A. Summary Stats Bar */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Users', value: total },
+          { label: 'Completed', value: completedCount, suffix: completedPercent > 0 ? ` (${completedPercent}%)` : '' },
+          { label: 'In Progress', value: inProgressCount },
+          { label: 'Dropped Off', value: droppedOffCount },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-xl border px-5 py-4"
+            style={{ backgroundColor: cardBg, borderColor: cardBorder }}
+          >
+            <div className="text-2xl font-semibold" style={{ color: textPrimary }}>
+              {stat.value.toLocaleString()}
+              {stat.suffix && (
+                <span className="text-sm font-normal ml-1" style={{ color: textSecondary }}>
+                  {stat.suffix}
+                </span>
+              )}
+            </div>
+            <div className="text-xs mt-1" style={{ color: textSecondary }}>
+              {stat.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* B. Phase Funnel Visual */}
+      <div
+        className="rounded-xl border px-6 py-5"
+        style={{ backgroundColor: cardBg, borderColor: cardBorder }}
+      >
+        <div className="text-xs font-medium uppercase tracking-wider mb-4" style={{ color: textSecondary }}>
+          Onboarding Funnel
+        </div>
+        <div className="flex items-center justify-between">
+          {FUNNEL_PHASES.map((phase, idx) => {
+            const count = funnelCounts[phase] || 0
+            const hasPeople = count > 0
+            const filledColor = isDark ? '#F5F5F5' : '#0A0A0A'
+            const emptyColor = isDark ? '#27272A' : '#E5E5E5'
+            const lineColor = isDark ? '#27272A' : '#E5E5E5'
+
+            return (
+              <React.Fragment key={phase}>
+                {idx > 0 && (
+                  <div className="flex-1 h-px mx-1" style={{ backgroundColor: lineColor }} />
+                )}
+                <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold"
+                    style={{
+                      backgroundColor: hasPeople ? filledColor : emptyColor,
+                      color: hasPeople ? (isDark ? '#0A0A0A' : '#FFFFFF') : textTertiary,
+                    }}
+                  >
+                    {count}
+                  </div>
+                  <span className="text-[10px] font-medium" style={{ color: hasPeople ? textPrimary : textTertiary }}>
+                    {FUNNEL_LABELS[phase]}
+                  </span>
+                </div>
+              </React.Fragment>
+            )
+          })}
         </div>
       </div>
 
@@ -354,7 +475,7 @@ export default function OnboardingTrackingClient({
         </div>
       )}
 
-      {/* Table */}
+      {/* C. Enhanced Table */}
       {!loading && !error && users.length > 0 && (
         <div
           className="rounded-xl border overflow-hidden"
@@ -378,6 +499,15 @@ export default function OnboardingTrackingClient({
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-xs uppercase tracking-wider" style={{ color: textSecondary }}>
                     Fields
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-xs uppercase tracking-wider" style={{ color: textSecondary }}>
+                    Tier
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-xs uppercase tracking-wider" style={{ color: textSecondary }}>
+                    Sessions
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-xs uppercase tracking-wider" style={{ color: textSecondary }}>
+                    Docs Generated
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-xs uppercase tracking-wider" style={{ color: textSecondary }}>
                     Last Active
@@ -464,6 +594,29 @@ export default function OnboardingTrackingClient({
                           </div>
                         </td>
 
+                        {/* Tier */}
+                        <td className="px-4 py-3">
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider"
+                            style={{
+                              backgroundColor: isDark ? '#27272A' : '#E5E5E5',
+                              color: isDark ? '#D4D4D8' : '#0A0A0A',
+                            }}
+                          >
+                            {user.tier || 'free'}
+                          </span>
+                        </td>
+
+                        {/* Sessions */}
+                        <td className="px-4 py-3 text-xs" style={{ color: textSecondary }}>
+                          {user.total_sessions}
+                        </td>
+
+                        {/* Docs Generated */}
+                        <td className="px-4 py-3 text-xs" style={{ color: textSecondary }}>
+                          {user.total_generations}
+                        </td>
+
                         {/* Last active */}
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-1.5 text-xs" style={{ color: textSecondary }}>
@@ -475,96 +628,164 @@ export default function OnboardingTrackingClient({
                         </td>
                       </tr>
 
-                      {/* Expandable detail row */}
+                      {/* D. Enhanced Expanded Row Detail */}
                       {isExpanded && (
                         <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
-                          <td colSpan={6} style={{ padding: 0 }}>
+                          <td colSpan={9} style={{ padding: 0 }}>
                             <div
-                              className="px-6 py-5"
+                              className="px-6 py-5 space-y-5"
                               style={{ backgroundColor: detailBg, borderTop: `1px solid ${cardBorder}` }}
                             >
-                              {/* Detail header row: Phase + Data Method */}
-                              <div className="flex flex-wrap gap-6 mb-5">
-                                {/* Current / Last Phase */}
-                                <div>
-                                  <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: textSecondary }}>
-                                    Current / Last Phase
-                                  </span>
-                                  <div className="mt-1">
-                                    {user.current_phase ? (
+                              {/* 1. Phase Progress Visual — Horizontal Stepper */}
+                              <div>
+                                <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: textSecondary }}>
+                                  Phase Progress
+                                </span>
+                                <div className="flex items-center mt-3">
+                                  {PHASE_ORDER.map((phase, idx) => {
+                                    const userPhaseIdx = user.onboarding_status === 'completed'
+                                      ? PHASE_ORDER.length - 1
+                                      : getPhaseIndex(user.current_phase)
+                                    const isReached = idx <= userPhaseIdx
+                                    const filledCircle = isDark ? '#F5F5F5' : '#0A0A0A'
+                                    const emptyCircle = isDark ? '#27272A' : '#E5E5E5'
+                                    const lineColor = isDark ? '#27272A' : '#E5E5E5'
+                                    const lineFilledColor = isDark ? '#71717A' : '#71717A'
+
+                                    // Get timestamp for this phase
+                                    const timestamps: Record<string, string | null> = {
+                                      upload: user.upload_started_at,
+                                      chat: user.chat_started_at,
+                                      logo: user.logo_started_at,
+                                      payments: user.payments_started_at,
+                                      completed: user.completed_at,
+                                    }
+                                    const ts = timestamps[phase]
+
+                                    return (
+                                      <React.Fragment key={phase}>
+                                        {idx > 0 && (
+                                          <div
+                                            className="flex-1 h-px mx-1"
+                                            style={{ backgroundColor: isReached ? lineFilledColor : lineColor }}
+                                          />
+                                        )}
+                                        <div className="flex flex-col items-center min-w-[64px]">
+                                          <div
+                                            className="w-7 h-7 rounded-full flex items-center justify-center"
+                                            style={{
+                                              backgroundColor: isReached ? filledCircle : emptyCircle,
+                                            }}
+                                          >
+                                            {isReached ? (
+                                              <Check className="w-3.5 h-3.5" style={{ color: isDark ? '#0A0A0A' : '#FFFFFF' }} />
+                                            ) : (
+                                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: textTertiary }} />
+                                            )}
+                                          </div>
+                                          <span
+                                            className="text-[10px] font-medium mt-1"
+                                            style={{ color: isReached ? textPrimary : textTertiary }}
+                                          >
+                                            {FUNNEL_LABELS[phase]}
+                                          </span>
+                                          {ts && (
+                                            <span className="text-[9px] mt-0.5" style={{ color: textTertiary }}>
+                                              {new Date(ts).toLocaleDateString()}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </React.Fragment>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* 2. Activity Stats */}
+                              <div>
+                                <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: textSecondary }}>
+                                  Activity Stats
+                                </span>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+                                  {[
+                                    { icon: LayoutDashboard, label: 'Document Sessions', value: user.total_sessions },
+                                    { icon: FileText, label: 'Documents Generated', value: user.total_generations },
+                                    { icon: Mail, label: 'Emails Sent', value: user.total_emails_sent },
+                                    { icon: MessageSquare, label: 'Chat Messages', value: user.total_messages },
+                                  ].map((stat) => (
+                                    <div
+                                      key={stat.label}
+                                      className="rounded-xl border px-3 py-2.5"
+                                      style={{ backgroundColor: isDark ? '#111111' : '#FFFFFF', borderColor: cardBorder }}
+                                    >
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <stat.icon className="w-3.5 h-3.5" style={{ color: textTertiary }} />
+                                        <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: textSecondary }}>
+                                          {stat.label}
+                                        </span>
+                                      </div>
+                                      <div className="text-lg font-semibold" style={{ color: textPrimary }}>
+                                        {stat.value}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* 3. User Info */}
+                              <div>
+                                <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: textSecondary }}>
+                                  User Info
+                                </span>
+                                <div className="flex flex-wrap gap-6 mt-2">
+                                  <div>
+                                    <span className="text-[10px] uppercase tracking-wider" style={{ color: textTertiary }}>Tier</span>
+                                    <div className="mt-0.5">
                                       <span
-                                        className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider"
+                                        className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider"
                                         style={{
                                           backgroundColor: isDark ? '#27272A' : '#E5E5E5',
                                           color: isDark ? '#D4D4D8' : '#0A0A0A',
                                         }}
                                       >
-                                        {(PHASE_BADGE[user.current_phase] ?? { label: user.current_phase }).label}
+                                        {user.tier || 'free'}
                                       </span>
-                                    ) : (
-                                      <span className="text-xs" style={{ color: textSecondary }}>—</span>
-                                    )}
+                                    </div>
                                   </div>
-                                </div>
-
-                                {/* Data Entry Method */}
-                                <div>
-                                  <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: textSecondary }}>
-                                    Data Entry Method
-                                  </span>
-                                  <div className="mt-1 flex items-center gap-1.5">
-                                    {user.used_extraction ? (
-                                      <>
-                                        <Upload className="w-3.5 h-3.5" style={{ color: textSecondary }} />
-                                        <span className="text-xs font-medium" style={{ color: textPrimary }}>Upload</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <MessageSquare className="w-3.5 h-3.5" style={{ color: textSecondary }} />
-                                        <span className="text-xs font-medium" style={{ color: textPrimary }}>Manual</span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Phase Timestamps */}
-                                {(user.upload_started_at || user.chat_started_at || user.logo_started_at || user.payments_started_at || user.completed_at) && (
                                   <div>
-                                    <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: textSecondary }}>
-                                      Phase Timestamps
-                                    </span>
-                                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-                                      {user.upload_started_at && (
-                                        <span className="text-[11px]" style={{ color: textSecondary }}>
-                                          Upload: {new Date(user.upload_started_at).toLocaleDateString()}
-                                        </span>
-                                      )}
-                                      {user.chat_started_at && (
-                                        <span className="text-[11px]" style={{ color: textSecondary }}>
-                                          Chat: {new Date(user.chat_started_at).toLocaleDateString()}
-                                        </span>
-                                      )}
-                                      {user.logo_started_at && (
-                                        <span className="text-[11px]" style={{ color: textSecondary }}>
-                                          Logo: {new Date(user.logo_started_at).toLocaleDateString()}
-                                        </span>
-                                      )}
-                                      {user.payments_started_at && (
-                                        <span className="text-[11px]" style={{ color: textSecondary }}>
-                                          Payments: {new Date(user.payments_started_at).toLocaleDateString()}
-                                        </span>
-                                      )}
-                                      {user.completed_at && (
-                                        <span className="text-[11px] font-medium" style={{ color: textPrimary }}>
-                                          Completed: {new Date(user.completed_at).toLocaleDateString()}
-                                        </span>
+                                    <span className="text-[10px] uppercase tracking-wider" style={{ color: textTertiary }}>Signed Up</span>
+                                    <div className="text-xs font-medium mt-0.5" style={{ color: textPrimary }}>
+                                      {user.signed_up_at ? new Date(user.signed_up_at).toLocaleDateString() : '—'}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] uppercase tracking-wider" style={{ color: textTertiary }}>Last Active</span>
+                                    <div className="text-xs font-medium mt-0.5" style={{ color: textPrimary }}>
+                                      {user.last_active_at
+                                        ? formatDistanceToNow(new Date(user.last_active_at), { addSuffix: true })
+                                        : '—'}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] uppercase tracking-wider" style={{ color: textTertiary }}>Data Entry Method</span>
+                                    <div className="mt-0.5 flex items-center gap-1.5">
+                                      {user.used_extraction ? (
+                                        <>
+                                          <FileUp className="w-3.5 h-3.5" style={{ color: textSecondary }} />
+                                          <span className="text-xs font-medium" style={{ color: textPrimary }}>AI Extraction</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Keyboard className="w-3.5 h-3.5" style={{ color: textSecondary }} />
+                                          <span className="text-xs font-medium" style={{ color: textPrimary }}>Manual Entry</span>
+                                        </>
                                       )}
                                     </div>
                                   </div>
-                                )}
+                                </div>
                               </div>
 
-                              {/* Field completion grid */}
+                              {/* 4. Field Completion Grid */}
                               <div>
                                 <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: textSecondary }}>
                                   Field Completion ({user.fields_completed}/12)
@@ -606,7 +827,6 @@ export default function OnboardingTrackingClient({
                                           >
                                             {label}
                                           </span>
-                                          {/* Show actual value when business data exists */}
                                           {user.business_data && rawValue != null && isCompleted && (
                                             <span
                                               className="text-[11px] block truncate mt-0.5"
