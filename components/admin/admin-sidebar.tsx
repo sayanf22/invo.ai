@@ -23,6 +23,29 @@ import {
 import { cn } from '@/lib/utils'
 import { useAdminTheme } from './admin-theme-provider'
 
+// ─── Unread support count ─────────────────────────────────────────────────────
+
+function useUnreadSupportCount() {
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0)
+
+  useEffect(() => {
+    async function fetchUnreadCount() {
+      try {
+        const res = await fetch('/api/admin/support?status=unread&page=1')
+        if (res.ok) {
+          const data = await res.json()
+          setUnreadSupportCount(data.total ?? 0)
+        }
+      } catch {}
+    }
+    fetchUnreadCount()
+    const interval = setInterval(fetchUnreadCount, 30000) // refresh every 30s
+    return () => clearInterval(interval)
+  }, [])
+
+  return unreadSupportCount
+}
+
 // ─── Nav structure ────────────────────────────────────────────────────────────
 
 interface NavItem {
@@ -93,6 +116,7 @@ export default function AdminSidebar({ adminEmail }: AdminSidebarProps) {
   const pathname = usePathname()
   const { theme } = useAdminTheme()
   const [collapsed, setCollapsed] = useState(false)
+  const unreadSupportCount = useUnreadSupportCount()
   // Track which groups are open (all open by default)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     Overview: true,
@@ -318,6 +342,12 @@ export default function AdminSidebar({ adminEmail }: AdminSidebarProps) {
                       >
                         <Icon className="h-4 w-4 shrink-0" />
                         {!collapsed && <span>{label}</span>}
+                        {!collapsed && href === '/clorefy-ctrl-8x2m/support' && unreadSupportCount > 0 && (
+                          <span className="ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none"
+                            style={{ backgroundColor: '#EF4444', color: '#FFFFFF' }}>
+                            {unreadSupportCount > 99 ? '99+' : unreadSupportCount}
+                          </span>
+                        )}
                       </Link>
                     )
                   })}

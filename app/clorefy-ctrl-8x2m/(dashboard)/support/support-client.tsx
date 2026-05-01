@@ -42,10 +42,10 @@ const PHASE_CONFIG: Record<string, { label: string; bg: string; color: string }>
   payments: { label: 'Payments', bg: 'rgba(34,197,94,0.15)',   color: '#22C55E' },
 }
 
-const STATUS_CONFIG: Record<string, { label: string; bgLight: string; bgDark: string; color: string }> = {
-  unread:   { label: 'Unread',   bgLight: 'rgba(59,130,246,0.15)',  bgDark: 'rgba(59,130,246,0.2)',  color: '#3B82F6' },
-  read:     { label: 'Read',     bgLight: '#E5E5E5',                bgDark: '#27272A',               color: '#71717A' },
-  resolved: { label: 'Resolved', bgLight: 'rgba(34,197,94,0.15)',   bgDark: 'rgba(34,197,94,0.2)',   color: '#22C55E' },
+const STATUS_CONFIG: Record<string, { label: string; bgLight: string; bgDark: string; color: string; dotColor: string }> = {
+  unread:   { label: 'Unread',   bgLight: 'rgba(59,130,246,0.1)',  bgDark: 'rgba(59,130,246,0.15)', color: '#3B82F6', dotColor: '#3B82F6' },
+  read:     { label: 'Read',     bgLight: '#E5E5E5',               bgDark: '#27272A',                color: '#71717A', dotColor: '#71717A' },
+  resolved: { label: 'Resolved', bgLight: 'rgba(16,185,129,0.1)',  bgDark: 'rgba(16,185,129,0.15)', color: '#059669', dotColor: '#059669' },
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -335,8 +335,8 @@ export default function SupportClient({ initialMessages, initialTotal }: Support
                 {/* Unread indicator bar */}
                 {msg.status === 'unread' && (
                   <div
-                    className="absolute top-0 left-0 w-1 h-full"
-                    style={{ backgroundColor: '#3B82F6' }}
+                    className="absolute top-0 left-0 w-1.5 h-full"
+                    style={{ backgroundColor: '#2563EB' }}
                   />
                 )}
 
@@ -384,12 +384,13 @@ export default function SupportClient({ initialMessages, initialTotal }: Support
 
                         {/* Status badge */}
                         <span
-                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
                           style={{
                             backgroundColor: isDark ? statusCfg.bgDark : statusCfg.bgLight,
                             color: statusCfg.color,
                           }}
                         >
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusCfg.dotColor }} />
                           {statusCfg.label}
                         </span>
                       </div>
@@ -472,46 +473,46 @@ export default function SupportClient({ initialMessages, initialTotal }: Support
                   </div>
 
                   {/* Right: Status toggle buttons */}
-                  <div className="flex sm:flex-col gap-1.5 shrink-0">
+                  <div className="flex sm:flex-col gap-2 shrink-0">
                     {msg.status !== 'read' && (
                       <button
                         onClick={() => handleStatusChange(msg.id, 'read')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg transition-colors"
                         style={{
                           backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5',
                           color: textSecondary,
                         }}
                         title="Mark as read"
                       >
-                        <Eye className="w-3 h-3" />
+                        <Eye className="w-3.5 h-3.5" />
                         Read
                       </button>
                     )}
                     {msg.status !== 'resolved' && (
                       <button
                         onClick={() => handleStatusChange(msg.id, 'resolved')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg transition-colors"
                         style={{
-                          backgroundColor: 'rgba(34,197,94,0.15)',
-                          color: '#22C55E',
+                          backgroundColor: 'rgba(16,185,129,0.1)',
+                          color: '#059669',
                         }}
                         title="Mark as resolved"
                       >
-                        <CheckCircle className="w-3 h-3" />
+                        <CheckCircle className="w-3.5 h-3.5" />
                         Resolve
                       </button>
                     )}
                     {msg.status !== 'unread' && (
                       <button
                         onClick={() => handleStatusChange(msg.id, 'unread')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg transition-colors"
                         style={{
                           backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5',
                           color: textSecondary,
                         }}
                         title="Mark as unread"
                       >
-                        <Mail className="w-3 h-3" />
+                        <Mail className="w-3.5 h-3.5" />
                         Unread
                       </button>
                     )}

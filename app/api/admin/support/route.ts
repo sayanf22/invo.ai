@@ -190,6 +190,21 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
+    // When resolving, send a thank-you notification to the user
+    if (status === 'resolved' && data?.user_id) {
+      const originalMessage = data.message?.length > 80
+        ? data.message.substring(0, 80) + '...'
+        : data.message
+
+      await supabase.from("notifications").insert({
+        user_id: data.user_id,
+        type: 'support_resolved',
+        title: 'Your feedback has been reviewed',
+        message: `Thank you for your feedback: "${originalMessage}". Your input helps us improve Clorefy. Keep sharing your thoughts with us!`,
+        metadata: { support_message_id: id },
+      }).then(() => {}).catch(() => {}) // fire-and-forget, don't block the response
+    }
+
     return NextResponse.json({ message: data })
   } catch (err) {
     console.error("[admin/support] Unexpected PATCH error:", err)
