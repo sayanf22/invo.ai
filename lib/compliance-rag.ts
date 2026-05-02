@@ -8,8 +8,12 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js"
-import type { Database } from "./database.types"
 import { getSecret } from "./secrets"
+
+// Use `any` typed client for compliance_knowledge table since it's not
+// in the generated database.types.ts yet. This avoids build failures
+// while keeping the rest of the codebase type-safe.
+type AnySupabaseClient = SupabaseClient<any>
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -114,7 +118,7 @@ export function filterByEffectiveDate(rules: ComplianceRule[]): ComplianceRule[]
  * This is an internal helper called by `getComplianceContext`.
  */
 async function getDeterministicRules(
-  supabase: SupabaseClient<Database>,
+  supabase: AnySupabaseClient,
   country: string,
   documentType: string
 ): Promise<ComplianceRule[]> {
@@ -165,7 +169,7 @@ async function getDeterministicRules(
  * This is an internal helper called by `getComplianceContext`.
  */
 async function getSemanticRules(
-  supabase: SupabaseClient<Database>,
+  supabase: AnySupabaseClient,
   country: string,
   documentType: string,
   query: string
@@ -482,7 +486,7 @@ export function getFallbackContext(): string {
  * @returns ComplianceContext with mode, rules, and formatted context string
  */
 export async function getComplianceContext(
-  supabase: SupabaseClient<Database>,
+  supabase: AnySupabaseClient,
   country: string,
   documentType: string,
   userMessage?: string
