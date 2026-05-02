@@ -1,6 +1,6 @@
 "use client"
 
-import { CornerRightUp, Square, Paperclip, X, FileText, ImageIcon, Loader2 } from "lucide-react"
+import { CornerRightUp, Square, Paperclip, X, FileText, ImageIcon, Loader2, Brain } from "lucide-react"
 import { useState, useRef, useCallback } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -45,6 +45,9 @@ interface AIInputWithLoadingProps {
   onFileRemove?: () => void
   showAttachButton?: boolean
   isUploading?: boolean
+  /** Thinking mode toggle */
+  thinkingMode?: boolean
+  onThinkingModeChange?: (enabled: boolean) => void
 }
 
 export function AIInputWithLoading({
@@ -65,6 +68,8 @@ export function AIInputWithLoading({
   onFileRemove,
   showAttachButton = false,
   isUploading = false,
+  thinkingMode = false,
+  onThinkingModeChange,
 }: AIInputWithLoadingProps) {
   const [internalValue, setInternalValue] = useState("")
   const inputValue = controlledValue !== undefined ? controlledValue : internalValue
@@ -132,7 +137,7 @@ export function AIInputWithLoading({
             placeholder={stagedFile ? "Add a message about this file..." : placeholder}
             className={cn(
               "w-full rounded-2xl border-none bg-transparent pr-14 pt-3 pb-2",
-              showAttachButton ? "pl-12" : "pl-5",
+              showAttachButton && onThinkingModeChange ? "pl-[5.25rem]" : showAttachButton ? "pl-12" : onThinkingModeChange ? "pl-12" : "pl-5",
               "text-[15px] text-foreground placeholder:text-muted-foreground/40",
               "resize-none leading-relaxed focus-visible:ring-0 focus-visible:ring-offset-0",
               "overflow-y-auto"
@@ -184,6 +189,29 @@ export function AIInputWithLoading({
             </>
           )}
 
+          {/* Thinking mode toggle — between attach and send */}
+          {onThinkingModeChange && (
+            <button
+              type="button"
+              onClick={() => onThinkingModeChange(!thinkingMode)}
+              disabled={isLoading || isUploading || disabled}
+              className={cn(
+                "absolute bottom-3 flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200",
+                showAttachButton ? "left-12" : "left-3",
+                isLoading || isUploading || disabled
+                  ? "opacity-40 cursor-not-allowed"
+                  : "cursor-pointer",
+                thinkingMode
+                  ? "bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 ring-1 ring-violet-300 dark:ring-violet-700"
+                  : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50"
+              )}
+              aria-label={thinkingMode ? "Thinking mode on" : "Thinking mode off"}
+              title={thinkingMode ? "Deep thinking on — slower but more precise" : "Click for deep thinking mode"}
+            >
+              <Brain className={cn("w-4 h-4", thinkingMode && "fill-violet-200 dark:fill-violet-800")} />
+            </button>
+          )}
+
           {/* Send / Stop button — bottom right */}
           <button
             onClick={isLoading ? onStop : handleSubmit}
@@ -212,7 +240,7 @@ export function AIInputWithLoading({
           </button>
         </div>
         <p className="pl-2 pt-1.5 h-5 text-[11px] text-muted-foreground/50 select-none">
-          {statusText || (isUploading ? "Analyzing file..." : isLoading ? "Generating..." : "Shift+Enter for new line")}
+          {statusText || (isUploading ? "Analyzing file..." : isLoading ? (thinkingMode ? "Thinking deeply..." : "Generating...") : "Shift+Enter for new line")}
         </p>
       </div>
     </div>

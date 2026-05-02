@@ -92,6 +92,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [stagedFile, setStagedFile] = useState<File | null>(null)
     const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
+    const [thinkingMode, setThinkingMode] = useState(false)
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
     const [fileContext, setFileContext] = useState<string | null>(null)
@@ -411,6 +412,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     prompt: userMessage,
                     documentType: docType,
                     sessionId: session.id,
+                    thinkingMode,
                     // Send currentData if this is a follow-up OR if this is a linked session with seed data
                     currentData: (messages.length > 1 || session.chain_id) ? data : undefined,
                     conversationHistory: messages.length > 1 ? messages.slice(-20) : [],
@@ -1072,7 +1074,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     )}
                     {isLoading && !streamingContent && (
                         <div className="flex justify-start w-full animate-in fade-in duration-200">
-                            <AIThinkingBlock label="Thinking..." />
+                            <AIThinkingBlock label={thinkingMode ? "Thinking deeply..." : "Generating..."} />
                         </div>
                     )}
                     <div ref={scrollRef} />
@@ -1192,6 +1194,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     stagedFile={stagedFile}
                                     onFileSelect={(file) => setStagedFile(file)}
                                     onFileRemove={() => setStagedFile(null)}
+                                    thinkingMode={thinkingMode}
+                                    onThinkingModeChange={setThinkingMode}
                                 />
                             </>
                         ) : (
@@ -1216,6 +1220,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 stagedFile={stagedFile}
                                 onFileSelect={(file) => setStagedFile(file)}
                                 onFileRemove={() => setStagedFile(null)}
+                                thinkingMode={thinkingMode}
+                                onThinkingModeChange={setThinkingMode}
                             />
                         )
                     )}
