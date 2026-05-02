@@ -590,9 +590,9 @@ Each country block below defines the full compliance rules for that country × r
 ### Invoice (documentType: "Invoice")
 Required fields:
 - documentType: "Invoice"
-- invoiceNumber: "INV-XXXX"
-- invoiceDate: today (YYYY-MM-DD)
-- dueDate: based on payment terms
+- invoiceNumber: Use the document number provided in the [SYSTEM: ...] block. If none provided, generate a unique one with format "INV-YYYY-MM-NNN"
+- invoiceDate: Use today's date from the CURRENT DATE field (YYYY-MM-DD format). NEVER use a past date unless the user explicitly requests it.
+- dueDate: Calculate from invoiceDate based on payment terms (e.g., Net 30 = invoiceDate + 30 days)
 - fromName, fromEmail, fromAddress, fromPhone, fromTaxId: from business profile
 - toName, toEmail, toAddress, toPhone, toTaxId: client info
 - items: [{ id, description, quantity, rate }]

@@ -122,6 +122,32 @@ export async function POST(request: NextRequest) {
             // Continue without business context — AI will use placeholders
         }
 
+        // Fetch the next available invoice/document number for this user
+        // This prevents the AI from generating duplicate numbers like INV-2026-001
+        try {
+            const docType = (body.documentType || "invoice").toLowerCase()
+            const prefix = docType === "quotation" ? "QUO" : docType === "contract" ? "CTR" : docType === "proposal" ? "PROP" : "INV"
+            
+            // Count existing documents of this type for this user
+            const { count } = await auth.supabase
+                .from("document_sessions")
+                .select("id", { count: "exact", head: true })
+                .eq("user_id", auth.user.id)
+                .eq("document_type", docType)
+            
+            const nextNum = (count ?? 0) + 1
+            const year = new Date().getFullYear()
+            const month = String(new Date().getMonth() + 1).padStart(2, '0')
+            const paddedNum = String(nextNum).padStart(3, '0')
+            const nextDocNumber = `${prefix}-${year}-${month}-${paddedNum}`
+            
+            // Inject into the prompt as additional context
+            body.prompt = `[SYSTEM: Use document number "${nextDocNumber}" for this ${docType}. Today's date is ${new Date().toISOString().split('T')[0]}. The invoice date should be today and the due date should be calculated from today based on payment terms.]\n\n${body.prompt}`
+        } catch (err) {
+            console.error("Failed to generate next document number:", err)
+            // Continue without — AI will generate its own number
+        }
+
         // Fetch DeepSeek API key from Vault
         const { getSecret } = await import("@/lib/secrets")
         const deepseekKey = await getSecret("DEEPSEEK_API_KEY")
