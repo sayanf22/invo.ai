@@ -531,13 +531,19 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         const parsed = JSON.parse(line.slice(6))
                         if (parsed.type === "chunk") {
                             fullContent += parsed.data
-                            // Once we have enough content to know it's not JSON, stream it live
-                            // Use a higher threshold (80 chars) to avoid false positives from
-                            // reasoning tokens or partial JSON that starts with non-{ characters
-                            if (!isStreamingText && fullContent.length > 80 && !fullContent.trimStart().startsWith("{") && !fullContent.trimStart().startsWith("[")) {
-                                isStreamingText = true
-                                setIsLoading(false)
-                                setStreamingContent(fullContent)
+                            // Only stream live if we're confident this is NOT a JSON response.
+                            // JSON responses from DeepSeek can start with text like "Here's your invoice:"
+                            // followed by ```json or raw {. We wait for 200 chars and check for JSON indicators.
+                            if (!isStreamingText && fullContent.length > 200) {
+                                const trimmed = fullContent.trimStart()
+                                const looksLikeJSON = trimmed.startsWith("{") || trimmed.startsWith("[") 
+                                    || trimmed.includes("```json") || trimmed.includes('"document"')
+                                    || trimmed.includes('"documentType"')
+                                if (!looksLikeJSON) {
+                                    isStreamingText = true
+                                    setIsLoading(false)
+                                    setStreamingContent(fullContent)
+                                }
                             } else if (isStreamingText) {
                                 setStreamingContent(fullContent)
                             }
@@ -563,8 +569,35 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             // Phase 3: Parse the complete response
             // Prefer backend's cleaned data, fall back to our accumulated content
             let cleaned = (completeData || fullContent).trim()
-            if (cleaned.startsWith("```json")) cleaned = cleaned.replace(/^```json\s*/i, "").replace(/```\s*$/, "")
-            else if (cleaned.startsWith("```")) cleaned = cleaned.replace(/^```\s*/, "").replace(/```\s*$/, "")
+            
+            // Strip markdown code fences — handle both "starts with" and "embedded" patterns
+            // Pattern 1: Response starts with ```json
+            if (cleaned.startsWith("```json")) {
+                cleaned = cleaned.replace(/^```json\s*/i, "").replace(/```\s*$/, "")
+            } else if (cleaned.startsWith("```")) {
+                cleaned = cleaned.replace(/^```\s*/, "").replace(/```\s*$/, "")
+            }
+            // Pattern 2: Response has text before ```json (e.g., "Here's the invoice:\n\n```json\n{...}\n```")
+            // Extract the JSON block from inside the code fence
+            else if (cleaned.includes("```json")) {
+                const jsonMatch = cleaned.match(/```json\s*([\s\S]*?)```/)
+                if (jsonMatch?.[1]) {
+                    cleaned = jsonMatch[1].trim()
+                }
+            } else if (cleaned.includes("```")) {
+                const codeMatch = cleaned.match(/```\s*([\s\S]*?)```/)
+                if (codeMatch?.[1] && codeMatch[1].trim().startsWith("{")) {
+                    cleaned = codeMatch[1].trim()
+                }
+            }
+            // Pattern 3: Response has text before raw JSON (no code fence)
+            // e.g., "Here's your invoice:\n\n{"document": {...}}"
+            if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+                const jsonStart = cleaned.indexOf("\n{")
+                if (jsonStart !== -1) {
+                    cleaned = cleaned.slice(jsonStart + 1).trim()
+                }
+            }
             cleaned = cleaned.trim()
 
             if (cleaned.startsWith("{")) {

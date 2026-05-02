@@ -1,6 +1,6 @@
 "use client"
 
-import { CornerRightUp, Square, Paperclip, X, FileText, ImageIcon, Loader2, Brain } from "lucide-react"
+import { CornerRightUp, Square, Paperclip, X, FileText, ImageIcon, Loader2, Brain, Zap } from "lucide-react"
 import { useState, useRef, useCallback } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -137,7 +137,7 @@ export function AIInputWithLoading({
             placeholder={stagedFile ? "Add a message about this file..." : placeholder}
             className={cn(
               "w-full rounded-2xl border-none bg-transparent pr-14 pt-3 pb-2",
-              showAttachButton && onThinkingModeChange ? "pl-[5.25rem]" : showAttachButton ? "pl-12" : onThinkingModeChange ? "pl-12" : "pl-5",
+              (showAttachButton && onThinkingModeChange) ? "pl-[5.25rem]" : (showAttachButton || onThinkingModeChange) ? "pl-12" : "pl-5",
               "text-[15px] text-foreground placeholder:text-muted-foreground/40",
               "resize-none leading-relaxed focus-visible:ring-0 focus-visible:ring-offset-0",
               "overflow-y-auto"
@@ -189,35 +189,35 @@ export function AIInputWithLoading({
             </>
           )}
 
-          {/* Thinking mode toggle — between attach and send */}
+          {/* Mode toggle — thunder (fast) / brain (thinking) */}
           {onThinkingModeChange && (
             <button
               type="button"
               onClick={() => onThinkingModeChange(!thinkingMode)}
               disabled={isLoading || isUploading || disabled}
               className={cn(
-                "absolute bottom-3 flex items-center gap-1.5 h-8 rounded-full transition-all duration-300 ease-out",
+                "absolute bottom-3 flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 ease-out",
                 showAttachButton ? "left-12" : "left-3",
                 isLoading || isUploading || disabled
                   ? "opacity-40 cursor-not-allowed"
-                  : "cursor-pointer active:scale-95",
+                  : "cursor-pointer active:scale-90",
                 thinkingMode
-                  ? "bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400 pl-2 pr-2.5 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_1px_3px_rgba(139,92,246,0.1)]"
-                  : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/40 w-8 justify-center"
+                  ? "bg-foreground/10 text-foreground"
+                  : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/30"
               )}
-              aria-label={thinkingMode ? "Thinking mode on" : "Thinking mode off"}
-              title={thinkingMode ? "Deep thinking on — slower but more precise" : "Click for deep thinking mode"}
+              aria-label={thinkingMode ? "Deep thinking mode — click for fast mode" : "Fast mode — click for deep thinking"}
+              title={thinkingMode ? "Deep thinking (slower, precise)" : "Fast mode (quick responses)"}
             >
-              <Brain className={cn(
-                "w-[15px] h-[15px] shrink-0 transition-all duration-300",
-                thinkingMode && "text-violet-500 dark:text-violet-400"
-              )} />
-              <span className={cn(
-                "text-[11px] font-medium leading-none whitespace-nowrap overflow-hidden transition-all duration-300 ease-out",
-                thinkingMode ? "max-w-[60px] opacity-100" : "max-w-0 opacity-0"
-              )}>
-                Think
-              </span>
+              <div className="relative w-4 h-4">
+                <Zap className={cn(
+                  "w-4 h-4 absolute inset-0 transition-all duration-300",
+                  thinkingMode ? "opacity-0 scale-50 rotate-12" : "opacity-100 scale-100 rotate-0"
+                )} />
+                <Brain className={cn(
+                  "w-4 h-4 absolute inset-0 transition-all duration-300",
+                  thinkingMode ? "opacity-100 scale-100 rotate-0" : "opacity-0 scale-50 -rotate-12"
+                )} />
+              </div>
             </button>
           )}
 
