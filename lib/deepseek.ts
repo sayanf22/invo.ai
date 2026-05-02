@@ -29,6 +29,7 @@ export interface AIGenerationRequest {
         data: Record<string, any>
     }
     fileContext?: string
+    complianceContext?: string
 }
 
 export interface AIGenerationResponse {
@@ -235,323 +236,20 @@ ALWAYS include the "design" object: { templateId, font, headerColor, tableColor,
 
 The TAX_REGISTRATION_STATUS block in the user prompt is the single source of truth for registration status. Always follow its Apply Rule. Never re-infer registration status from scattered profile fields.
 
-Each country block below defines the full compliance rules for that country × registration status × document type.
+=== COUNTRY-SPECIFIC COMPLIANCE ===
+Country-specific compliance rules are provided dynamically in the COMPLIANCE CONTEXT section of the user prompt.
+Use these as the authoritative source for:
+- Tax rates and tax calculation rules
+- Mandatory fields for each document type
+- Legal requirements and regulatory compliance
+- Formatting rules and conventions
+If no COMPLIANCE CONTEXT is provided, set taxRate to 0 and ask the user to confirm their country's tax requirements.
 
----
-
-### IN — India
-
-**Tax System:** GST (Goods & Services Tax) — GST Act 2017
-
-**Registered — Tax Rate & Label:**
-- Intra-state supply: taxLabel "CGST+SGST", note in document notes that CGST and SGST are each half the total GST rate (e.g., 9% CGST + 9% SGST for 18% GST)
-- Inter-state supply: taxLabel "IGST", apply full GST rate as single tax
-- Default GST rate: 18% (standard). Use 5%, 12%, 18%, or 28% based on HSN/SAC if known.
-- If intra/inter-state is unknown: default to IGST and ask in message (Priority 1 clarification)
-
-**Registered — Mandatory Fields:**
-- fromTaxId: supplier GSTIN (format: 15-character alphanumeric)
-- Include Place of Supply with two-digit state code in document notes
-- Include HSN/SAC code in item description (ask in message as Priority 2 if not provided)
-- Invoice numbering format: INV/YYYY-YY/NNN (financial year based, e.g., INV/2025-26/001)
-
-**Registered — Document Notes Must Include:**
-- Place of Supply: [state name] ([two-digit state code])
-- GSTIN: [supplier GSTIN]
-- If amount exceeds Rs. 50,000: "Note: E-way bill may be required for this transaction."
-
-**Registered — Clarification Questions (priority order):**
-1. Ask whether client is in same state (intra-state) or different state (inter-state) — determines CGST+SGST vs IGST
-2. Ask for HSN/SAC code if not provided
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Document Notes Must Include:** Nothing special (no tax lines)
-**Unregistered — Threshold Note (message only):** "Note: GST registration is mandatory once annual turnover exceeds Rs. 20 lakh (Rs. 10 lakh for special category states: NE states, Uttarakhand, Himachal Pradesh, J&K)."
-
-**Quotation:** Apply same tax rules. Include "Quotation" as document title in notes.
-**Contract:** description must reference "Indian Contract Act 1872". Include jurisdiction clause. Note stamp duty may apply depending on state and contract value.
-
----
-
-### US — United States
-
-**Tax System:** State Sales Tax (no federal VAT)
-
-**Registered — Tax Rate & Label:**
-- taxLabel: "Sales Tax"
-- Apply correct base state sales tax rate from this table:
-  CA=7.25, TX=6.25, NY=4, FL=6, WA=6.5, IL=6.25, PA=6, OH=5.75, GA=4, NC=4.75, MI=6, NJ=6.625, VA=5.3, AZ=5.6, TN=7, MA=6.25, IN=7, MO=4.225, MD=6, WI=5, MN=6.875, CO=2.9, SC=6, AL=4, KY=6, OR=0, NH=0, MT=0, DE=0, AK=0, WV=6, NE=5.5, ID=6, NM=5, UT=4.85, NV=6.85, WY=4, SD=4.5, ND=5, MS=7, AR=6.5, LA=4.45, OK=4.5, KS=6.5, IA=6, MN=6.875, HI=4, RI=7, CT=6.35, VT=6, ME=5.5, DC=6
-- Zero-tax states (OR, NH, MT, DE, AK): taxRate=0, do NOT add a tax line
-- If client state is unknown: default taxRate=0 and ask in message (Priority 1 clarification)
-- If user explicitly provides a rate: use that rate, do not override
-- For any state not in the table: apply 0% and note in message that user should verify their state rate
-
-**Registered — Mandatory Fields:**
-- fromTaxId: EIN if provided
-
-**Registered — Document Notes Must Include:** Nothing mandatory beyond standard fields
-
-**Registered — Clarification Questions (priority order):**
-1. Ask which US state the client is located in (determines tax rate)
-
-**Registered — Message Note:** Include in message: "Note: Most US states do not tax pure services (consulting, design, software development). Please confirm whether your specific service is taxable in your client's state."
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Threshold Note (message only):** "Note: Sales tax nexus rules vary by state. Economic nexus typically triggers at $100,000 in sales or 200 transactions per year in most states."
-
-**Contract:** description must reference applicable US state law. Include governing law clause specifying the applicable US state. Include dispute resolution clause.
-
----
-
-### GB — United Kingdom
-
-**Tax System:** VAT — VAT Act 1994
-
-**Registered — Tax Rate & Label:**
-- Standard rate: taxRate=20, taxLabel="VAT"
-- Reduced rate: taxRate=5
-- Zero-rated: taxRate=0
-- Default to standard rate (20%) unless supply is known to be reduced or zero-rated
-
-**Registered — Mandatory Fields:**
-- fromTaxId: VAT registration number (format: GB + 9 digits, e.g., GB123456789)
-- Tax_Point (time of supply) in document notes — typically the invoice date unless goods were delivered earlier
-- Show net amount, VAT amount, and gross amount in document notes: "Net: £X | VAT (20%): £Y | Gross: £Z"
-- "VAT Reg No: [number]" in document notes
-
-**Registered — Clarification Questions (priority order):**
-1. Ask for client's VAT number (B2B) to include in toTaxId
-
-**Registered — Message Note:** When client appears to be in an EU country (post-Brexit): "Note: UK-to-EU B2B services may be subject to the customer's local reverse charge rules."
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Threshold Note (message only):** "Note: VAT registration is required once annual taxable turnover exceeds £90,000."
-
-**Contract:** description must reference UK GDPR (if personal data involved). Include jurisdiction clause for England and Wales. Note contract is governed by English law.
-
----
-
-### DE — Germany
-
-**Tax System:** Umsatzsteuer (USt) / VAT
-
-**Registered — Tax Rate & Label:**
-- Standard rate: taxRate=19, taxLabel="USt"
-- Reduced rate: taxRate=7
-- EU B2B reverse charge (confirmed): taxRate=0, include "Steuerschuldnerschaft des Leistungsempfängers" in document notes
-
-**Registered — Mandatory Fields:**
-- fromTaxId: Steuernummer or USt-IdNr (format: DE + 9 digits, e.g., DE123456789)
-- Leistungsdatum (service/delivery date) in document notes
-- German labels in document notes: "Nettobetrag" for net amount, "Umsatzsteuer" for tax, "Bruttobetrag" for gross amount
-- Sequential invoice numbering without gaps (e.g., RE-2025-001)
-
-**Registered — Clarification Questions (priority order):**
-1. Ask whether client is in another EU country and is VAT-registered (B2B) — determines reverse charge
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Document Notes Must Include:** "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet."
-**Unregistered — Threshold Note (message only):** "Note: USt registration is required once annual revenue exceeds EUR 22,000 (Kleinunternehmerregelung applies below this threshold)."
-
-**Quotation:** Include "Angebot" as local title in document notes.
-**Contract:** description must reference BGB (Bürgerliches Gesetzbuch) and GDPR. German law governs.
-
----
-
-### CA — Canada
-
-**Tax System:** GST/HST (federal) + PST/QST (provincial)
-
-**Registered — Tax Rate & Label:**
-- Apply province-specific rate:
-  - ON: HST 13%, taxLabel="HST"
-  - NB: HST 15%, taxLabel="HST"
-  - NS: HST 15%, taxLabel="HST"
-  - PE: HST 15%, taxLabel="HST"
-  - NL: HST 15%, taxLabel="HST"
-  - AB: GST 5%, taxLabel="GST"
-  - YT: GST 5%, taxLabel="GST"
-  - NT: GST 5%, taxLabel="GST"
-  - NU: GST 5%, taxLabel="GST"
-  - BC: GST+PST 12% (5%+7%), taxLabel="GST+PST", note breakdown in document notes: "GST: 5% + PST: 7% = 12%"
-  - SK: GST+PST 11% (5%+6%), taxLabel="GST+PST", note breakdown: "GST: 5% + PST: 6% = 11%"
-  - MB: GST+PST 12% (5%+7%), taxLabel="GST+PST", note breakdown: "GST: 5% + PST: 7% = 12%"
-  - QC: GST+QST 14.975% (5%+9.975%), taxLabel="GST+QST", note breakdown: "GST: 5% + QST: 9.975% = 14.975%"
-- If province unknown: default to GST 5% and ask in message (Priority 1 clarification)
-
-**Registered — Mandatory Fields:**
-- fromTaxId: GST/HST Business Number (BN, format: 9 digits + RT0001, e.g., 123456789RT0001)
-
-**Registered — Clarification Questions (priority order):**
-1. Ask which province the client is located in (determines HST/GST+PST/QST rate)
-2. For QC clients: note in message that QST registration may also be required separately
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Threshold Note (message only):** "Note: GST/HST registration is required once annual revenue exceeds CAD $30,000."
-
-**Contract:** description must reference applicable provincial law. Note that Quebec contracts may require a bilingual (English/French) version under the Charter of the French Language. Include dispute resolution clause.
-
----
-
-### AU — Australia
-
-**Tax System:** GST — A New Tax System (Goods and Services Tax) Act 1999
-
-**Registered — Tax Rate & Label:**
-- taxRate=10, taxLabel="GST"
-- Include "Tax Invoice" in document notes when invoice amount is AUD $82.50 or more (GST-inclusive)
-- Show amounts in document notes: amount excluding GST, GST amount (10%), total including GST
-
-**Registered — Mandatory Fields:**
-- fromTaxId: ABN (11 digits)
-- Display ABN in document notes as: "ABN: XX XXX XXX XXX" (formatted with spaces)
-- "Tax Invoice" label in document notes when amount >= AUD $82.50
-
-**Registered — Clarification Questions (priority order):**
-1. Ask for buyer's ABN to include in toTaxId when invoice amount is AUD $1,000 or more
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Document Notes Must Include:** "ABN: [number]" (always include ABN regardless of registration status)
-**Unregistered — Message Note:** Omit "Tax Invoice" label.
-**Unregistered — Threshold Note (message only):** "Note: GST registration is required once annual turnover exceeds AUD $75,000."
-
-**Contract:** description must reference applicable state/territory law and Australian Consumer Law.
-
----
-
-### SG — Singapore
-
-**Tax System:** GST — Goods and Services Tax Act
-
-**Registered — Tax Rate & Label:**
-- taxRate=9, taxLabel="GST"
-- Include "Tax Invoice" in document notes
-- Include supply date in document notes (invoices must be issued within 30 days of supply date)
-- Show amounts in document notes: amount excluding GST, GST amount (9%), total including GST
-
-**Registered — Mandatory Fields:**
-- fromTaxId: GST registration number
-- UEN (Unique Entity Number) in document notes
-
-**Registered — Clarification Questions (priority order):**
-1. Ask for client's GST registration number (B2B) to include in toTaxId
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Threshold Note (message only):** "Note: GST registration is required once annual taxable turnover exceeds SGD $1,000,000."
-
-**Contract:** description must reference Singapore contract law and PDPA (Personal Data Protection Act) if personal data is involved. Specify Singapore as governing jurisdiction.
-
----
-
-### AE — UAE
-
-**Tax System:** VAT — Federal Decree-Law No. 8 of 2017
-
-**Registered — Tax Rate & Label:**
-- taxRate=5, taxLabel="VAT"
-- Include supply date in document notes (invoices must be issued within 14 days of supply date)
-- Show AED amounts with VAT shown separately in document notes
-- Include bilingual note in document notes: "Note: A bilingual (English and Arabic) version of this invoice is recommended for UAE VAT compliance."
-
-**Registered — Mandatory Fields:**
-- fromTaxId: TRN (Tax Registration Number, 15 digits)
-- Display TRN in document notes as: "TRN: [number]"
-
-**Registered — Clarification Questions (priority order):**
-1. Ask which emirate the business is based in (Dubai, Abu Dhabi, Sharjah, etc.) if not provided — may affect free zone VAT treatment
-2. For B2B invoices exceeding AED 10,000: ask whether client is VAT-registered and for their TRN to include in toTaxId
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Threshold Note (message only):** "Note: VAT registration is mandatory once annual taxable supplies exceed AED 375,000. Voluntary registration is available above AED 187,500."
-
-**Contract:** description must reference UAE Civil Code (Federal Law No. 5 of 1985). Note that an Arabic version may be legally required for enforceability. Include jurisdiction clause specifying the applicable emirate's courts.
-
----
-
-### PH — Philippines
-
-**Tax System:** VAT — National Internal Revenue Code (NIRC), BIR regulations
-
-**Registered — Tax Rate & Label:**
-- taxRate=12, taxLabel="VAT"
-- Designate "VAT Invoice" in document notes
-- Include "BIR Permit No.: [to be filled]" in document notes as placeholder for BIR-accredited printer permit
-- Show amounts in document notes: amount excluding VAT, VAT amount (12%), total including VAT
-
-**Registered — Mandatory Fields:**
-- fromTaxId: TIN (format: XXX-XXX-XXX-XXX)
-
-**Registered — Clarification Questions (priority order):**
-1. Ask for client's TIN to include in toTaxId
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Document Notes Must Include:** "Non-VAT Invoice"
-**Unregistered — Threshold Note (message only):** "Note: VAT registration is required once annual gross sales exceed PHP 3,000,000."
-
-**Contract:** description must reference Civil Code of the Philippines. Note that notarization may be required for enforceability. Include jurisdiction clause.
-
----
-
-### FR — France
-
-**Tax System:** TVA (Taxe sur la Valeur Ajoutée) — Code Général des Impôts
-
-**Registered — Tax Rate & Label:**
-- Standard rate: taxRate=20, taxLabel="TVA"
-- Reduced rate: taxRate=10
-- Super-reduced rate: taxRate=5.5
-- EU B2B reverse charge (confirmed): taxRate=0, include "Autoliquidation de TVA — Article 283 du CGI" in document notes
-
-**Registered — Mandatory Fields:**
-- fromTaxId: SIRET (14 digits)
-- Display SIRET in document notes as: "SIRET: [number]"
-- Include TVA intracommunautaire number in document notes when available (format: FR + 2 chars + 9 digits)
-- French labels in document notes: "Montant HT" for net amount, "TVA" for tax, "Montant TTC" for gross amount
-- Sequential invoice numbering without gaps (e.g., FACT-2025-001)
-
-**Registered — Clarification Questions (priority order):**
-1. Ask whether EU client has a VAT number (B2B) — if yes, apply reverse charge (autoliquidation)
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Document Notes Must Include:** "TVA non applicable, art. 293 B du CGI"
-**Unregistered — Threshold Note (message only):** "Note: TVA registration is required once annual revenue exceeds EUR 36,800 for services (EUR 91,900 for goods)."
-
-**Quotation:** Include "Devis" as local title in document notes.
-**Contract:** description must reference Code Civil and GDPR. French law governs. Prefer French language for contract body.
-
----
-
-### NL — Netherlands
-
-**Tax System:** BTW (Belasting over de Toegevoegde Waarde) — Dutch VAT law
-
-**Registered — Tax Rate & Label:**
-- Standard rate: taxRate=21, taxLabel="BTW"
-- Reduced rate: taxRate=9
-- EU B2B reverse charge (confirmed): taxRate=0, include "BTW verlegd" in document notes
-
-**Registered — Mandatory Fields:**
-- fromTaxId: BTW-nummer (format: NL + 9 digits + B + 2 digits, e.g., NL123456789B01)
-- KvK number (8 digits) in document notes as: "KvK: [number]"
-- Dutch labels in document notes: "Bedrag excl. BTW" for net amount, "BTW" for tax, "Totaal incl. BTW" for gross amount
-- Note in document notes: "Invoice must be issued by the 15th day of the month following the month of supply."
-
-**Registered — Clarification Questions (priority order):**
-1. Ask whether EU client has a VAT number (B2B) — if yes, apply reverse charge (BTW verlegd)
-
-**Unregistered — Tax Rate:** taxRate: 0
-**Unregistered — Document Notes Must Include:** "Vrijgesteld van BTW op grond van de kleineondernemersregeling."
-**Unregistered — Threshold Note (message only):** "Note: BTW registration is required once annual revenue exceeds EUR 20,000."
-
-**Quotation:** Include "Offerte" as local title in document notes.
-**Contract:** description must reference Burgerlijk Wetboek (Dutch Civil Code) and GDPR. Dutch law governs.
-
----
 
 ## TAX HANDLING
 - The TAX_REGISTRATION_STATUS block in the user prompt is the authoritative source. Follow its Apply Rule exactly.
 - If business is NOT tax-registered: taxRate MUST be 0. No GST/VAT/tax unless user explicitly asks.
-- If business IS tax-registered: apply the appropriate tax rate for the detected country per the rules above.
+- If business IS tax-registered: apply the appropriate tax rate for the detected country per the compliance rules provided in the COMPLIANCE CONTEXT.
 - Always set taxLabel to the country-appropriate label (GST, CGST+SGST, IGST, VAT, USt, TVA, BTW, HST, etc.)
 - If country cannot be determined or is not one of the 11 supported countries, default to no tax (taxRate: 0) and ask in your message.
 
@@ -793,6 +491,11 @@ BUSINESS PROFILE (use for all "from" fields):
             const applyRule = getTaxApplyRule(country, registered, hasTaxIds)
             prompt += `\nTAX_REGISTRATION_STATUS:\n- Country: ${country}\n- Registered: ${registered ? "YES" : "NO"}\n- Tax IDs: ${taxIdsStr}\n- Apply Rule: ${applyRule}\n`
         }
+    }
+
+    // Compliance context (RAG-retrieved rules)
+    if (request.complianceContext) {
+        prompt += `\n\n${request.complianceContext}`
     }
 
     // File context (previously uploaded file contents)

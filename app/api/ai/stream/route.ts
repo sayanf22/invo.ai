@@ -122,6 +122,35 @@ export async function POST(request: NextRequest) {
             // Continue without business context — AI will use placeholders
         }
 
+        // RAG: Fetch compliance context for the user's country and document type
+        try {
+            const { getComplianceContext } = await import("@/lib/compliance-rag")
+            const country = body.businessContext?.country || ""
+            const docType = body.documentType || "invoice"
+
+            // Determine if this is a document generation or conversational query
+            // If conversation history exists and prompt doesn't match document generation patterns → semantic mode
+            const isDocGeneration = !body.conversationHistory?.length ||
+                /create|generate|make|build|draft|prepare/i.test(body.prompt)
+
+            const complianceResult = await getComplianceContext(
+                auth.supabase,
+                country,
+                docType,
+                isDocGeneration ? undefined : body.prompt  // Pass message for semantic mode
+            )
+
+            body.complianceContext = complianceResult.formattedContext
+
+            // Track embedding cost for semantic mode (deterministic mode is free)
+            if (complianceResult.mode === "semantic") {
+                await trackUsage(auth.supabase, auth.user.id, "embedding", 100)
+            }
+        } catch (err) {
+            console.error("RAG compliance context failed:", err instanceof Error ? err.message : err)
+            // Continue without compliance context — AI will use generic guidance
+        }
+
         // Fetch the next available invoice/document number for this user
         // This prevents the AI from generating duplicate numbers like INV-2026-001
         try {
