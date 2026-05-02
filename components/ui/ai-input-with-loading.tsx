@@ -196,19 +196,28 @@ export function AIInputWithLoading({
               onClick={() => onThinkingModeChange(!thinkingMode)}
               disabled={isLoading || isUploading || disabled}
               className={cn(
-                "absolute bottom-3 flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200",
+                "absolute bottom-3 flex items-center gap-1.5 h-8 rounded-full transition-all duration-300 ease-out",
                 showAttachButton ? "left-12" : "left-3",
                 isLoading || isUploading || disabled
                   ? "opacity-40 cursor-not-allowed"
-                  : "cursor-pointer",
+                  : "cursor-pointer active:scale-95",
                 thinkingMode
-                  ? "bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 ring-1 ring-violet-300 dark:ring-violet-700"
-                  : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50"
+                  ? "bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400 pl-2 pr-2.5 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_1px_3px_rgba(139,92,246,0.1)]"
+                  : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/40 w-8 justify-center"
               )}
               aria-label={thinkingMode ? "Thinking mode on" : "Thinking mode off"}
               title={thinkingMode ? "Deep thinking on — slower but more precise" : "Click for deep thinking mode"}
             >
-              <Brain className={cn("w-4 h-4", thinkingMode && "fill-violet-200 dark:fill-violet-800")} />
+              <Brain className={cn(
+                "w-[15px] h-[15px] shrink-0 transition-all duration-300",
+                thinkingMode && "text-violet-500 dark:text-violet-400"
+              )} />
+              <span className={cn(
+                "text-[11px] font-medium leading-none whitespace-nowrap overflow-hidden transition-all duration-300 ease-out",
+                thinkingMode ? "max-w-[60px] opacity-100" : "max-w-0 opacity-0"
+              )}>
+                Think
+              </span>
             </button>
           )}
 
