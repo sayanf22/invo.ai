@@ -255,7 +255,15 @@ function SignatureStep({
   const toggleShowSignature = () => {
     if (isLocked) return
     const next = data.showSenderSignature === false ? true : false
-    onChange({ showSenderSignature: next })
+    // When hiding the signature, also clear the per-document data URL so the
+    // preview disappears. The saved profile signature (savedSigUrl) is kept in
+    // local state and will be re-applied if the user turns it back on.
+    if (!next) {
+      onChange({ showSenderSignature: false, senderSignatureDataUrl: undefined })
+    } else {
+      // Turning back on — re-apply the saved profile signature if available
+      onChange({ showSenderSignature: true, ...(savedSigUrl ? { senderSignatureDataUrl: savedSigUrl } : {}) })
+    }
   }
 
   // The active signature for this document

@@ -160,6 +160,10 @@ export async function POST(request: NextRequest) {
         // Map parent context to seed data for the new document
         const seedContext = mapParentContext(parentContext, targetDocumentType)
 
+        // Store the parent's document type so the AI knows the chain origin
+        // This is used in the stream route to correctly label the "Context from previous [type]" block
+        seedContext._parentDocumentType = (parent.document_type || parentContext.documentType || "document").toLowerCase()
+
         // Create the new linked session
         const { data: newSession, error: createError } = await auth.supabase
             .from("document_sessions")

@@ -913,7 +913,7 @@ export async function generateDocument(
                 ],
                 // Thinking mode: no temperature (not supported in thinking mode)
                 max_tokens: 4000,
-                reasoning_effort: "high",
+                reasoning_effort: "low",
             }),
         })
 
@@ -1002,7 +1002,7 @@ export async function* streamGenerateDocument(
                 ],
                 // Thinking mode: no temperature (not supported in thinking mode)
                 max_tokens: 4000,
-                reasoning_effort: "high",
+                reasoning_effort: "low",
                 stream: true,
             }),
         })

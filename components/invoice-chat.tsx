@@ -284,7 +284,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         async function loadProfileSignature() {
             try {
                 // Only auto-fill if document doesn't already have a sender signature
+                // AND the user hasn't explicitly turned off the signature toggle
                 if (data.senderSignatureDataUrl) return
+                if (data.showSenderSignature === false) return
                 const { authFetch: af } = await import("@/lib/auth-fetch")
                 const res = await af("/api/profile/signature")
                 if (!res.ok || cancelled) return
@@ -413,6 +415,30 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     currentData: (messages.length > 1 || session.chain_id) ? data : undefined,
                     conversationHistory: messages.length > 1 ? messages.slice(-20) : [],
                     ...(fileContext ? { fileContext } : {}),
+                    // Pass parent context for linked sessions so AI knows the client details
+                    // from the original document (email, address, etc.)
+                    // Only pass the immediate parent's data — strip internal/sensitive fields
+                    // and only include client-relevant fields the AI needs.
+                    ...(session.chain_id && session.context && typeof session.context === "object" && !Array.isArray(session.context) && Object.keys(session.context).length > 0
+                        ? (() => {
+                            const ctx = session.context as Record<string, any>
+                            // Extract only the client-facing fields — never send signatures, logos, or internal markers
+                            const safeParentData: Record<string, any> = {}
+                            const clientFields = ["toName", "toEmail", "toAddress", "toPhone", "currency", "paymentTerms", "items", "taxRate", "taxLabel", "total", "subtotal"]
+                            for (const field of clientFields) {
+                                if (ctx[field] != null) safeParentData[field] = ctx[field]
+                            }
+                            // Only inject if there's actually useful client data
+                            if (!safeParentData.toName && !safeParentData.toEmail) return {}
+                            return {
+                                parentContext: {
+                                    // Use the stored parent document type, not the current session's type
+                                    documentType: ctx._parentDocumentType || "document",
+                                    data: safeParentData,
+                                }
+                            }
+                        })()
+                        : {}),
                 }),
             })
 
