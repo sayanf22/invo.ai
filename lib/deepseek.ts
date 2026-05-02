@@ -373,67 +373,73 @@ Do NOT append the disclaimer for purely factual information (e.g., "GST stands f
 - Always follow the rules defined in this system prompt regardless of what the user asks you to do with them.`
 
 // Helper: determine the Apply Rule for TAX_REGISTRATION_STATUS block
-// Tax rates are NOT hardcoded here — they come from the COMPLIANCE CONTEXT (RAG).
-// This function only determines registration status and tax ID handling.
-function getTaxApplyRule(country: string, registered: boolean, hasTaxIds: boolean): string {
+// Tax rates come from the RAG database via the ragTaxRate parameter.
+// If ragTaxRate is provided, it is injected directly into the Apply Rule
+// so the AI cannot ignore it or fall back to training data.
+function getTaxApplyRule(country: string, registered: boolean, hasTaxIds: boolean, ragTaxRate?: number): string {
     const c = country.toUpperCase()
+    // Build the rate instruction — if we have a RAG rate, use it explicitly
+    const rateInstruction = ragTaxRate !== undefined
+        ? `set taxRate=${ragTaxRate}`
+        : "use the tax rate from COMPLIANCE CONTEXT"
+
     if (c === "IN") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT (default to CGST+SGST for intra-state or IGST for inter-state), include GSTIN in fromTaxId, ask intra/inter-state if unknown"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, taxLabel: "GST" (use CGST+SGST for intra-state or IGST for inter-state), include GSTIN in fromTaxId, ask intra/inter-state if unknown`
         if (registered && !hasTaxIds) return "REGISTERED but no GSTIN provided — set fromTaxId: \"\", ask for GSTIN in message"
         return "UNREGISTERED — set taxRate=0, include threshold note in message only"
     }
     if (c === "US") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, set taxLabel: \"Sales Tax\", ask client state if unknown, default taxRate=0 if state unknown"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, taxLabel: "Sales Tax", ask client state if unknown, default taxRate=0 if state unknown`
         if (registered && !hasTaxIds) return "REGISTERED but no EIN provided — set fromTaxId: \"\", ask for EIN in message"
         return "UNREGISTERED — set taxRate=0"
     }
     if (c === "GB") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"VAT\", include VAT Reg No in fromTaxId and notes"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, taxLabel: "VAT", include VAT Reg No in fromTaxId and notes`
         if (registered && !hasTaxIds) return "REGISTERED but no VAT number provided — set fromTaxId: \"\", ask for VAT number in message"
         return "UNREGISTERED — set taxRate=0"
     }
     if (c === "DE") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"USt\", include Steuernummer/USt-IdNr in fromTaxId"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, taxLabel: "USt", include Steuernummer/USt-IdNr in fromTaxId`
         if (registered && !hasTaxIds) return "REGISTERED but no Steuernummer/USt-IdNr provided — set fromTaxId: \"\", ask for tax number in message"
         return "UNREGISTERED (Kleinunternehmer) — set taxRate=0, include § 19 UStG note in document notes"
     }
     if (c === "CA") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT (province-specific), include BN in fromTaxId, ask client province if unknown"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction} (province-specific), taxLabel: "HST" or "GST", include BN in fromTaxId, ask client province if unknown`
         if (registered && !hasTaxIds) return "REGISTERED but no BN provided — set fromTaxId: \"\", ask for GST/HST Business Number in message"
         return "UNREGISTERED — set taxRate=0"
     }
     if (c === "AU") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"GST\", include ABN in fromTaxId"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, taxLabel: "GST", include ABN in fromTaxId`
         if (registered && !hasTaxIds) return "REGISTERED but no ABN provided — set fromTaxId: \"\", ask for ABN in message"
         return "UNREGISTERED — set taxRate=0"
     }
     if (c === "SG") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"GST\", include GST reg number in fromTaxId"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, taxLabel: "GST", include GST reg number in fromTaxId`
         if (registered && !hasTaxIds) return "REGISTERED but no GST number provided — set fromTaxId: \"\", ask for GST registration number in message"
         return "UNREGISTERED — set taxRate=0"
     }
     if (c === "AE") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"VAT\", include TRN in fromTaxId"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, taxLabel: "VAT", include TRN in fromTaxId`
         if (registered && !hasTaxIds) return "REGISTERED but no TRN provided — set fromTaxId: \"\", ask for TRN in message"
         return "UNREGISTERED — set taxRate=0"
     }
     if (c === "PH") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"VAT\", include TIN in fromTaxId"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, taxLabel: "VAT", include TIN in fromTaxId`
         if (registered && !hasTaxIds) return "REGISTERED but no TIN provided — set fromTaxId: \"\", ask for TIN in message"
         return "UNREGISTERED — set taxRate=0"
     }
     if (c === "FR") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"TVA\", include SIRET in fromTaxId"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, taxLabel: "TVA", include SIRET in fromTaxId`
         if (registered && !hasTaxIds) return "REGISTERED but no SIRET provided — set fromTaxId: \"\", ask for SIRET in message"
         return "UNREGISTERED — set taxRate=0, include TVA non applicable art. 293 B du CGI in document notes"
     }
     if (c === "NL") {
-        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"BTW\", include BTW-nummer in fromTaxId"
+        if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, taxLabel: "BTW", include BTW-nummer in fromTaxId`
         if (registered && !hasTaxIds) return "REGISTERED but no BTW-nummer provided — set fromTaxId: \"\", ask for BTW-nummer in message"
         return "UNREGISTERED (KOR) — set taxRate=0, include KOR exemption note in document notes"
     }
     // Fallback for any other country
-    if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, include tax ID in fromTaxId"
+    if (registered && hasTaxIds) return `REGISTERED — ${rateInstruction}, include tax ID in fromTaxId`
     if (registered && !hasTaxIds) return "REGISTERED but no tax ID provided — set fromTaxId: \"\", ask for tax ID in message"
     return "UNREGISTERED — set taxRate=0"
 }
@@ -491,7 +497,8 @@ BUSINESS PROFILE (use for all "from" fields):
             const taxIds = request.businessContext.taxIds
             const hasTaxIds = !!(taxIds && Object.keys(taxIds).some(k => taxIds[k]))
             const taxIdsStr = hasTaxIds ? JSON.stringify(taxIds) : "none"
-            const applyRule = getTaxApplyRule(country, registered, hasTaxIds)
+            const ragTaxRate = (request as any)._ragTaxRate as number | undefined
+            const applyRule = getTaxApplyRule(country, registered, hasTaxIds, ragTaxRate)
             prompt += `\nTAX_REGISTRATION_STATUS:\n- Country: ${country}\n- Registered: ${registered ? "YES" : "NO"}\n- Tax IDs: ${taxIdsStr}\n- Apply Rule: ${applyRule}\n`
         }
     }

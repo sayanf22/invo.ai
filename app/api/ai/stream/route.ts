@@ -142,6 +142,18 @@ export async function POST(request: NextRequest) {
 
             body.complianceContext = complianceResult.formattedContext
 
+            // Extract the standard tax rate from RAG rules and inject directly
+            // This ensures the AI uses the DB rate, not its training data
+            if (complianceResult.rules.length > 0) {
+                const taxRule = complianceResult.rules.find(r => r.category === "tax_rates")
+                if (taxRule && taxRule.requirement_value) {
+                    const standardRate = (taxRule.requirement_value as any).standard
+                    if (standardRate !== undefined && standardRate !== null) {
+                        (body as any)._ragTaxRate = Number(standardRate)
+                    }
+                }
+            }
+
             // Track embedding cost for semantic mode (deterministic mode is free)
             if (complianceResult.mode === "semantic") {
                 await trackUsage(auth.supabase, auth.user.id, "embedding", 100)
