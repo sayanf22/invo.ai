@@ -70,6 +70,17 @@ export default function NotificationsPage() {
         .limit(50)
       if (error) throw error
       setNotifications((data || []) as unknown as Notification[])
+
+      // Auto-mark all as read when the page is opened
+      const unread = (data || []).filter((n: any) => !n.read)
+      if (unread.length > 0) {
+        await supabase
+          .from("notifications" as any)
+          .update({ read: true })
+          .eq("user_id", user.id)
+          .eq("read", false)
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+      }
     } catch (err) {
       console.error("Failed to load notifications:", err)
     } finally {
