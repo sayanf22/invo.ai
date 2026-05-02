@@ -530,7 +530,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         if (parsed.type === "chunk") {
                             fullContent += parsed.data
                             // Once we have enough content to know it's not JSON, stream it live
-                            if (!isStreamingText && fullContent.length > 10 && !fullContent.trimStart().startsWith("{")) {
+                            // Use a higher threshold (80 chars) to avoid false positives from
+                            // reasoning tokens or partial JSON that starts with non-{ characters
+                            if (!isStreamingText && fullContent.length > 80 && !fullContent.trimStart().startsWith("{") && !fullContent.trimStart().startsWith("[")) {
                                 isStreamingText = true
                                 setIsLoading(false)
                                 setStreamingContent(fullContent)
@@ -564,6 +566,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             cleaned = cleaned.trim()
 
             if (cleaned.startsWith("{")) {
+                // This is JSON — clear any streaming text that may have leaked
+                setStreamingContent(null)
                 let result: any = null
                 try {
                     result = JSON.parse(cleaned)
@@ -706,11 +710,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     }
                     // ── End send intent detection ──────────────────────────────────────
                 } else {
-                    // JSON parse completely failed — show the raw text as a chat message
+                    // JSON parse completely failed — show a friendly error instead of raw JSON
                     console.error("Failed to parse AI response as JSON:", cleaned.slice(0, 200))
-                    setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
+                    const fallbackMsg = "I generated your document but had trouble processing the response. Please try again."
+                    setMessages(prev => [...prev, { role: "assistant", content: fallbackMsg }])
                     await saveMessage("user", displayText)
-                    await saveMessage("assistant", cleaned)
+                    await saveMessage("assistant", fallbackMsg)
                 }
             } else {
                 // Not JSON — plain text response from AI (e.g., clarification question)
