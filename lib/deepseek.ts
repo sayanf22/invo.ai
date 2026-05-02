@@ -511,8 +511,19 @@ BUSINESS PROFILE (use for all "from" fields):
     }
 
     // Existing document data (for edits/updates)
+    // Strip sensitive/large fields that the AI doesn't need
     if (request.currentData && Object.keys(request.currentData).length > 0) {
-        prompt += `\nEXISTING DOCUMENT DATA:\n${JSON.stringify(request.currentData, null, 2)}\n`
+        const { 
+            fromLogo, showLogo, logoShape, logoSize,
+            senderSignatureDataUrl, showSenderSignature,
+            recipientSignatureDataUrl, showRecipientSignature,
+            signatureFields,
+            paymentLink, paymentLinkStatus, showPaymentLinkInPdf,
+            ...safeData 
+        } = request.currentData as any
+        if (Object.keys(safeData).length > 0) {
+            prompt += `\nEXISTING DOCUMENT DATA:\n${JSON.stringify(safeData, null, 2)}\n`
+        }
     }
 
     // Parent document context (for linked document generation)
@@ -615,7 +626,7 @@ export async function generateDocument(
                     { role: "user", content: prompt },
                 ],
                 // Thinking mode: no temperature (not supported in thinking mode)
-                max_tokens: 4000,
+                max_tokens: 3000,
                 reasoning_effort: "low",
             }),
         })
@@ -704,7 +715,7 @@ export async function* streamGenerateDocument(
                     { role: "user", content: prompt },
                 ],
                 // Thinking mode: no temperature (not supported in thinking mode)
-                max_tokens: 4000,
+                max_tokens: 3000,
                 reasoning_effort: "low",
                 stream: true,
             }),
