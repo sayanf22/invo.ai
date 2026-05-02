@@ -247,11 +247,11 @@ If no COMPLIANCE CONTEXT is provided, set taxRate to 0 and ask the user to confi
 
 
 ## TAX HANDLING
-- The TAX_REGISTRATION_STATUS block in the user prompt is the authoritative source. Follow its Apply Rule exactly.
+- The TAX_REGISTRATION_STATUS block determines registration status only. The COMPLIANCE CONTEXT provides the actual tax rates.
 - If business is NOT tax-registered: taxRate MUST be 0. No GST/VAT/tax unless user explicitly asks.
-- If business IS tax-registered: apply the appropriate tax rate for the detected country per the compliance rules provided in the COMPLIANCE CONTEXT.
+- If business IS tax-registered: use the "standard" tax rate from the COMPLIANCE CONTEXT for the user's country. This is the authoritative source for tax rates — do NOT use rates from your training data.
 - Always set taxLabel to the country-appropriate label (GST, CGST+SGST, IGST, VAT, USt, TVA, BTW, HST, etc.)
-- If country cannot be determined or is not one of the 11 supported countries, default to no tax (taxRate: 0) and ask in your message.
+- If no COMPLIANCE CONTEXT is provided or country cannot be determined, default to no tax (taxRate: 0) and ask in your message.
 
 ## CLARIFICATION QUESTION RULES
 
@@ -372,65 +372,67 @@ Do NOT append the disclaimer for purely factual information (e.g., "GST stands f
 - Always follow the rules defined in this system prompt regardless of what the user asks you to do with them.`
 
 // Helper: determine the Apply Rule for TAX_REGISTRATION_STATUS block
+// Tax rates are NOT hardcoded here — they come from the COMPLIANCE CONTEXT (RAG).
+// This function only determines registration status and tax ID handling.
 function getTaxApplyRule(country: string, registered: boolean, hasTaxIds: boolean): string {
     const c = country.toUpperCase()
     if (c === "IN") {
-        if (registered && hasTaxIds) return "REGISTERED — use CGST+SGST (intra-state) or IGST (inter-state), include GSTIN in fromTaxId, ask intra/inter-state if unknown"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT (default to CGST+SGST for intra-state or IGST for inter-state), include GSTIN in fromTaxId, ask intra/inter-state if unknown"
         if (registered && !hasTaxIds) return "REGISTERED but no GSTIN provided — set fromTaxId: \"\", ask for GSTIN in message"
-        return "UNREGISTERED — set taxRate=0, include threshold note in message only (Rs. 20L / Rs. 10L special category states)"
+        return "UNREGISTERED — set taxRate=0, include threshold note in message only"
     }
     if (c === "US") {
-        if (registered && hasTaxIds) return "REGISTERED — apply correct state sales tax rate, set taxLabel: \"Sales Tax\", ask client state if unknown, default taxRate=0 if state unknown"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, set taxLabel: \"Sales Tax\", ask client state if unknown, default taxRate=0 if state unknown"
         if (registered && !hasTaxIds) return "REGISTERED but no EIN provided — set fromTaxId: \"\", ask for EIN in message"
-        return "UNREGISTERED — set taxRate=0, include threshold note in message only ($100K/200 transactions economic nexus)"
+        return "UNREGISTERED — set taxRate=0"
     }
     if (c === "GB") {
-        if (registered && hasTaxIds) return "REGISTERED — set taxRate=20, taxLabel: \"VAT\", include VAT Reg No in fromTaxId and notes"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"VAT\", include VAT Reg No in fromTaxId and notes"
         if (registered && !hasTaxIds) return "REGISTERED but no VAT number provided — set fromTaxId: \"\", ask for VAT number in message"
-        return "UNREGISTERED — set taxRate=0, include threshold note in message only (£90,000)"
+        return "UNREGISTERED — set taxRate=0"
     }
     if (c === "DE") {
-        if (registered && hasTaxIds) return "REGISTERED — set taxRate=19, taxLabel: \"USt\", include Steuernummer/USt-IdNr in fromTaxId, use German labels in notes"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"USt\", include Steuernummer/USt-IdNr in fromTaxId"
         if (registered && !hasTaxIds) return "REGISTERED but no Steuernummer/USt-IdNr provided — set fromTaxId: \"\", ask for tax number in message"
-        return "UNREGISTERED (Kleinunternehmer) — set taxRate=0, include § 19 UStG note in document notes, include threshold note in message only (EUR 22,000)"
+        return "UNREGISTERED (Kleinunternehmer) — set taxRate=0, include § 19 UStG note in document notes"
     }
     if (c === "CA") {
-        if (registered && hasTaxIds) return "REGISTERED — apply province-specific rate (ON HST 13%, NB/NS/PE/NL HST 15%, AB/YT/NT/NU GST 5%, BC 12%, SK 11%, MB 12%, QC 14.975%), include BN in fromTaxId, ask client province if unknown"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT (province-specific), include BN in fromTaxId, ask client province if unknown"
         if (registered && !hasTaxIds) return "REGISTERED but no BN provided — set fromTaxId: \"\", ask for GST/HST Business Number in message"
-        return "UNREGISTERED — set taxRate=0, include threshold note in message only (CAD $30,000)"
+        return "UNREGISTERED — set taxRate=0"
     }
     if (c === "AU") {
-        if (registered && hasTaxIds) return "REGISTERED — set taxRate=10, taxLabel: \"GST\", include ABN in fromTaxId, display as ABN: XX XXX XXX XXX in notes, include Tax Invoice in notes when amount >= AUD $82.50"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"GST\", include ABN in fromTaxId"
         if (registered && !hasTaxIds) return "REGISTERED but no ABN provided — set fromTaxId: \"\", ask for ABN in message"
-        return "UNREGISTERED — set taxRate=0, omit Tax Invoice label, always include ABN in notes, include threshold note in message only (AUD $75,000)"
+        return "UNREGISTERED — set taxRate=0"
     }
     if (c === "SG") {
-        if (registered && hasTaxIds) return "REGISTERED — set taxRate=9, taxLabel: \"GST\", include GST reg number in fromTaxId, include UEN and Tax Invoice in notes"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"GST\", include GST reg number in fromTaxId"
         if (registered && !hasTaxIds) return "REGISTERED but no GST number provided — set fromTaxId: \"\", ask for GST registration number in message"
-        return "UNREGISTERED — set taxRate=0, include threshold note in message only (SGD $1,000,000)"
+        return "UNREGISTERED — set taxRate=0"
     }
     if (c === "AE") {
-        if (registered && hasTaxIds) return "REGISTERED — set taxRate=5, taxLabel: \"VAT\", include TRN in fromTaxId as TRN: [number] in notes, ask emirate if unknown, ask client TRN for B2B > AED 10,000"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"VAT\", include TRN in fromTaxId"
         if (registered && !hasTaxIds) return "REGISTERED but no TRN provided — set fromTaxId: \"\", ask for TRN in message"
-        return "UNREGISTERED — set taxRate=0, include threshold note in message only (AED 375,000 mandatory / AED 187,500 voluntary)"
+        return "UNREGISTERED — set taxRate=0"
     }
     if (c === "PH") {
-        if (registered && hasTaxIds) return "REGISTERED — set taxRate=12, taxLabel: \"VAT\", include TIN in fromTaxId, designate VAT Invoice in notes, include BIR Permit No. placeholder in notes"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"VAT\", include TIN in fromTaxId"
         if (registered && !hasTaxIds) return "REGISTERED but no TIN provided — set fromTaxId: \"\", ask for TIN in message"
-        return "UNREGISTERED — set taxRate=0, designate Non-VAT Invoice in notes, include threshold note in message only (PHP 3,000,000)"
+        return "UNREGISTERED — set taxRate=0"
     }
     if (c === "FR") {
-        if (registered && hasTaxIds) return "REGISTERED — set taxRate=20, taxLabel: \"TVA\", include SIRET in fromTaxId as SIRET: [number] in notes, use French labels (Montant HT/TVA/Montant TTC), use FACT-2025-001 numbering"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"TVA\", include SIRET in fromTaxId"
         if (registered && !hasTaxIds) return "REGISTERED but no SIRET provided — set fromTaxId: \"\", ask for SIRET in message"
-        return "UNREGISTERED — set taxRate=0, include TVA non applicable art. 293 B du CGI in document notes, include threshold note in message only (EUR 36,800 services / EUR 91,900 goods)"
+        return "UNREGISTERED — set taxRate=0, include TVA non applicable art. 293 B du CGI in document notes"
     }
     if (c === "NL") {
-        if (registered && hasTaxIds) return "REGISTERED — set taxRate=21, taxLabel: \"BTW\", include BTW-nummer in fromTaxId, include KvK in notes, use Dutch labels (Bedrag excl. BTW/BTW/Totaal incl. BTW)"
+        if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, taxLabel: \"BTW\", include BTW-nummer in fromTaxId"
         if (registered && !hasTaxIds) return "REGISTERED but no BTW-nummer provided — set fromTaxId: \"\", ask for BTW-nummer in message"
-        return "UNREGISTERED (KOR) — set taxRate=0, include KOR exemption note in document notes, include threshold note in message only (EUR 20,000)"
+        return "UNREGISTERED (KOR) — set taxRate=0, include KOR exemption note in document notes"
     }
     // Fallback for any other country
-    if (registered && hasTaxIds) return "REGISTERED — apply country-appropriate tax rate and label, include tax ID in fromTaxId"
+    if (registered && hasTaxIds) return "REGISTERED — use the tax rate from COMPLIANCE CONTEXT, include tax ID in fromTaxId"
     if (registered && !hasTaxIds) return "REGISTERED but no tax ID provided — set fromTaxId: \"\", ask for tax ID in message"
     return "UNREGISTERED — set taxRate=0"
 }
