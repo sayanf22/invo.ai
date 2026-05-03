@@ -611,7 +611,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     // Find or create the last "think" activity
                                     let thinkActivity = [...thinkingMsg.activities].reverse().find(a => a.action === "think")
                                     if (!thinkActivity) {
-                                        thinkActivity = { id: `think-${Date.now()}`, action: "think", label: "Think", reasoningText: "" }
+                                        thinkActivity = { id: `think-${Date.now()}`, action: "think", label: "Clorefy is reasoning", reasoningText: "" }
                                         thinkingMsg.activities.push(thinkActivity)
                                     }
                                     thinkActivity.reasoningText = (thinkActivity.reasoningText || "") + parsed.data

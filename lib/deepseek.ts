@@ -27,7 +27,7 @@ export function getModelConfig(thinkingMode: "fast" | "thinking"): {
     return {
         model: isThinking ? "deepseek-v4-pro" : "deepseek-chat",
         isThinking,
-        extraParams: isThinking ? { reasoning_effort: "low" } : { temperature: 0.3 },
+        extraParams: isThinking ? { reasoning_effort: "medium" } : { temperature: 0.3 },
     }
 }
 
