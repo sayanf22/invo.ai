@@ -878,6 +878,17 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     }
                     // ── End isolation guard ────────────────────────────────────────────
 
+                    // ── Merge parent context client fields for linked documents ──
+                    // If this is a linked document and the AI didn't include client fields,
+                    // carry them over from the parent document's seed data
+                    if (session.chain_id && session.context && typeof session.context === "object") {
+                        const ctx = session.context as Record<string, any>
+                        if (!docData.toName && ctx.toName) docData.toName = ctx.toName
+                        if (!docData.toEmail && ctx.toEmail) docData.toEmail = ctx.toEmail
+                        if (!docData.toAddress && ctx.toAddress) docData.toAddress = ctx.toAddress
+                        if (!docData.toPhone && ctx.toPhone) docData.toPhone = ctx.toPhone
+                    }
+
                     onChange(docData)
                     await updateSessionContext(docData)
                     await saveGeneration(userMessage, docData, null, true)

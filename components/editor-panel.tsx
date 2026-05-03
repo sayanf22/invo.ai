@@ -231,8 +231,8 @@ function SignatureStep({
         if (cancelled) return
         if (d.signatureDataUrl) {
           setSavedSigUrl(d.signatureDataUrl)
-          // Auto-fill into document if not already set and showSenderSignature is true
-          if (!data.senderSignatureDataUrl && data.showSenderSignature !== false) {
+          // Auto-fill into document if not already set and user hasn't explicitly turned it off
+          if (!data.senderSignatureDataUrl && data.showSenderSignature === undefined) {
             onChange({ senderSignatureDataUrl: d.signatureDataUrl })
           }
         }
