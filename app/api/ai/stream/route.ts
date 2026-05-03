@@ -324,16 +324,20 @@ export async function POST(request: NextRequest) {
                         }
                     }
 
-                    // ── 2d. If user explicitly asks to add tax, override unregistered status ──
-                    // so the AI uses the RAG rate instead of defaulting to 0
+                    // ── 2d. If user explicitly asks to add tax, inform about RAG rate ──
+                    // When user asks to add tax and business is unregistered, inject the RAG rate
+                    // into the prompt so the AI can ask the user to confirm before applying
                     const userWantsTax = /\b(add|apply|include|with|want)\b.*\b(gst|vat|tax|ust|tva|btw|hst)\b/i.test(body.prompt)
                         || /\b(gst|vat|tax|ust|tva|btw|hst)\b.*\b(add|apply|include)\b/i.test(body.prompt)
 
                     if (userWantsTax && (body as any)._ragTaxRate !== undefined && body.businessContext) {
-                        // Override: treat as registered for this request so the AI uses the RAG rate
-                        body.businessContext.taxRegistered = true
-                        // Add a note to the prompt so the AI knows this is a user override
-                        body.prompt = `[SYSTEM: The user has explicitly requested tax to be added. Use the RAG-provided tax rate of ${(body as any)._ragTaxRate}% regardless of registration status.]\n\n${body.prompt}`
+                        if (!body.businessContext.taxRegistered) {
+                            // Business is NOT registered — tell the AI to ask the user
+                            body.prompt = `[SYSTEM: The user wants to add tax. Their business is NOT registered for GST/VAT. The RAG compliance database says the standard rate for ${country} is ${(body as any)._ragTaxRate}%. Ask the user: "Your business isn't registered for GST. Would you like me to add ${(body as any)._ragTaxRate}% GST anyway?" If the user confirms (says yes, add it, ok, sure, etc.), regenerate the document with taxRate=${(body as any)._ragTaxRate}. Do NOT add tax without user confirmation.]\n\n${body.prompt}`
+                        } else {
+                            // Business IS registered — just use the RAG rate directly
+                            body.prompt = `[SYSTEM: The user has explicitly requested tax. Use the RAG-provided tax rate of ${(body as any)._ragTaxRate}% from the compliance database.]\n\n${body.prompt}`
+                        }
                     }
 
                     // ── 3. Generate document number (only for document generation) ──

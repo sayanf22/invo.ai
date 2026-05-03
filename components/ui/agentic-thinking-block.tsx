@@ -102,10 +102,10 @@ export function AgenticThinkingBlock({
                                 </span>
 
                                 {/* Label + detail */}
-                                <span className="flex-1 min-w-0 flex items-center gap-1.5 text-[13px]">
+                                <span className="flex-1 min-w-0 flex items-center gap-1.5 text-[13px] overflow-hidden">
                                     <span
                                         className={cn(
-                                            "font-medium text-foreground shrink-0",
+                                            "font-medium text-foreground shrink-0 max-w-[55%] truncate",
                                             isLast && isWorking && !activity.detail && "animate-pulse",
                                         )}
                                     >
