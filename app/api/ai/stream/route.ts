@@ -396,7 +396,7 @@ export async function POST(request: NextRequest) {
                             body.fileContext ? `File context: included` : null,
                             body.currentData ? `Editing existing document` : `Creating new document`,
                         ].filter(Boolean).join("\n")
-                        const modelDetail = body.thinkingMode === "thinking" ? "Clore AI • Thinking" : "Clore AI"
+                        const modelDetail = body.thinkingMode === "thinking" ? "Clorefy • Deep Think" : "Clorefy"
                         sendEvent({ type: "activity", action: "generate", label: `Writing ${docTypeLower}`, detail: modelDetail, content: contextParts })
                         for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                             sendEvent(chunk)
@@ -410,7 +410,7 @@ export async function POST(request: NextRequest) {
                     } else {
                         // Try Kimi K2.5 via Bedrock for chat, fall back to DeepSeek if unavailable
                         if (bedrockKey && bedrockKey.length > 10) {
-                            sendEvent({ type: "activity", action: "think", label: "Thinking about your question", detail: "Clore AI" })
+                            sendEvent({ type: "activity", action: "think", label: "Thinking about your question", detail: "Clorefy" })
                             const prompt = buildPrompt(body)
                             let bedrockFailed = false
                             // Track whether any chunks were forwarded from Bedrock
@@ -444,7 +444,7 @@ export async function POST(request: NextRequest) {
                                 if (bedrockChunksForwarded) {
                                     sendEvent({ type: "error", data: "__fallback_reset__" })
                                 }
-                                sendEvent({ type: "activity", action: "think", label: "Thinking about your question", detail: "Clore AI" })
+                                sendEvent({ type: "activity", action: "think", label: "Thinking about your question", detail: "Clorefy" })
                                 for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                                     sendEvent(chunk)
                                     if (chunk.type === "complete") {
@@ -456,7 +456,7 @@ export async function POST(request: NextRequest) {
                             }
                         } else {
                             // No Bedrock key — use DeepSeek for everything
-                            sendEvent({ type: "activity", action: "think", label: "Thinking about your question", detail: "Clore AI" })
+                            sendEvent({ type: "activity", action: "think", label: "Thinking about your question", detail: "Clorefy" })
                             for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                                 sendEvent(chunk)
                                 if (chunk.type === "complete") {
