@@ -1,6 +1,6 @@
 "use client"
 
-import { CornerRightUp, Square, Paperclip, X, FileText, ImageIcon, Loader2 } from "lucide-react"
+import { CornerRightUp, Square, Paperclip, X, FileText, ImageIcon, Loader2, Zap, Brain } from "lucide-react"
 import { useState, useRef, useCallback } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -44,6 +44,8 @@ interface AIInputWithLoadingProps {
   onFileRemove?: () => void
   showAttachButton?: boolean
   isUploading?: boolean
+  thinkingMode?: "fast" | "thinking"
+  onThinkingModeChange?: (mode: "fast" | "thinking") => void
 }
 
 export function AIInputWithLoading({
@@ -64,6 +66,8 @@ export function AIInputWithLoading({
   onFileRemove,
   showAttachButton = false,
   isUploading = false,
+  thinkingMode,
+  onThinkingModeChange,
 }: AIInputWithLoadingProps) {
   const [internalValue, setInternalValue] = useState("")
   const inputValue = controlledValue !== undefined ? controlledValue : internalValue
@@ -129,7 +133,7 @@ export function AIInputWithLoading({
             id={id}
             placeholder={stagedFile ? "Add a message about this file..." : placeholder}
             className={cn(
-              "w-full rounded-2xl border-none bg-transparent pr-14 pt-3 pb-2",
+              "w-full rounded-2xl border-none bg-transparent pr-24 pt-3 pb-2",
               showAttachButton ? "pl-12" : "pl-5",
               "text-[15px] text-foreground placeholder:text-muted-foreground/40",
               "resize-none leading-relaxed focus-visible:ring-0 focus-visible:ring-offset-0",
@@ -179,6 +183,41 @@ export function AIInputWithLoading({
                 {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
               </label>
             </>
+          )}
+
+          {/* Thinking mode toggle */}
+          {thinkingMode && onThinkingModeChange && (
+            <button
+              type="button"
+              onClick={() => {
+                if (isLoading || isUploading) return
+                onThinkingModeChange(thinkingMode === "fast" ? "thinking" : "fast")
+              }}
+              disabled={isLoading || isUploading}
+              className={cn(
+                "absolute right-14 bottom-3 flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200",
+                isLoading || isUploading
+                  ? "opacity-40 cursor-not-allowed text-muted-foreground"
+                  : "text-muted-foreground hover:text-foreground cursor-pointer"
+              )}
+              aria-label={thinkingMode === "fast" ? "Switch to thinking mode" : "Switch to fast mode"}
+              title={thinkingMode === "fast" ? "Fast mode" : "Thinking mode"}
+            >
+              <div className="relative w-4 h-4">
+                <Zap
+                  className={cn(
+                    "w-4 h-4 absolute inset-0 transition-opacity duration-200",
+                    thinkingMode === "fast" ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                <Brain
+                  className={cn(
+                    "w-4 h-4 absolute inset-0 transition-opacity duration-200",
+                    thinkingMode === "thinking" ? "opacity-100" : "opacity-0"
+                  )}
+                />
+              </div>
+            </button>
           )}
 
           <button

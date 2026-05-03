@@ -13,7 +13,7 @@ import { NextStepsBar } from "@/components/next-steps-bar"
 import { ChainNavigator } from "@/components/chain-navigator"
 import { MessageLimitBanner } from "@/components/message-limit-banner"
 import { UpgradeModal } from "@/components/upgrade-modal"
-import { AgenticThinkingBlock } from "@/components/ui/agentic-thinking-block"
+import { AgenticThinkingBlock, type ThinkingStep } from "@/components/ui/agentic-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
 import { createClient } from "@/lib/supabase"
 import { ClientSelector } from "@/components/clients/client-selector"
@@ -90,9 +90,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; thinkingSteps?: ThinkingStep[]; thinkingComplete?: boolean }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
-    const [agenticSteps, setAgenticSteps] = useState<import("@/components/ui/agentic-thinking-block").AgenticStep[]>([])
+    const [thinkingMode, setThinkingMode] = useState<"fast" | "thinking">("fast")
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
     const [fileContext, setFileContext] = useState<string | null>(null)
@@ -399,11 +399,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             ? userMessage.split("\n\n[CLIENT DETAILS")[0].trim() || "📎 Generate from attached file"
             : userMessage
         setInputValue("")
-        setMessages(prev => [...prev, { role: "user" as const, content: displayText }])
+        setMessages(prev => [...prev, { role: "user" as const, content: displayText }, { role: "thinking" as const, content: "", thinkingSteps: [], thinkingComplete: false }])
         // NOTE: User message is NOT saved to DB here — it's saved only after a successful
         // AI response. This prevents error responses from counting against the message limit.
         setIsLoading(true)
-        setAgenticSteps([])
 
         try {
             const response = await authFetch("/api/ai/stream", {
@@ -413,6 +412,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     prompt: userMessage,
                     documentType: docType,
                     sessionId: session.id,
+                    thinkingMode,
                     // Send currentData if this is a follow-up OR if this is a linked session with seed data
                     currentData: (messages.length > 1 || session.chain_id) ? data : undefined,
                     conversationHistory: messages.length > 1 ? messages.slice(-20) : [],
@@ -530,20 +530,23 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     try {
                         const parsed = JSON.parse(line.slice(6))
                         if (parsed.type === "progress") {
-                            // Agentic progress step from the server
-                            setAgenticSteps(prev => {
-                                // Mark previous active step as completed
-                                const updated = prev.map(s => 
-                                    s.status === "active" ? { ...s, status: "completed" as const } : s
-                                )
-                                // Add new active step
-                                return [...updated, {
-                                    id: parsed.step,
-                                    label: parsed.label,
-                                    status: "active" as const,
-                                    type: (parsed.step === "analyze" ? "thinking" : parsed.step === "generate" ? "generating" : "tool") as any,
-                                    detail: parsed.detail,
-                                }]
+                            // Update the thinking message in the messages array
+                            setMessages(prev => {
+                                const updated = [...prev]
+                                const thinkingMsg = updated.find(m => m.role === "thinking" && !m.thinkingComplete)
+                                if (thinkingMsg && thinkingMsg.thinkingSteps) {
+                                    // Mark previous active steps as completed
+                                    thinkingMsg.thinkingSteps = thinkingMsg.thinkingSteps.map(s =>
+                                        s.status === "active" ? { ...s, status: "completed" as const } : s
+                                    )
+                                    // Add new active step
+                                    thinkingMsg.thinkingSteps.push({
+                                        id: parsed.step,
+                                        label: parsed.label,
+                                        status: "active" as const,
+                                    })
+                                }
+                                return updated
                             })
                         } else if (parsed.type === "chunk") {
                             fullContent += parsed.data
@@ -563,8 +566,16 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             }
                         } else if (parsed.type === "complete") {
                             completeData = parsed.data
-                            // Mark all steps as completed
-                            setAgenticSteps(prev => prev.map(s => ({ ...s, status: "completed" as const })))
+                            // Mark all steps as completed and thinking as complete
+                            setMessages(prev => {
+                                const updated = [...prev]
+                                const thinkingMsg = updated.find(m => m.role === "thinking" && !m.thinkingComplete)
+                                if (thinkingMsg && thinkingMsg.thinkingSteps) {
+                                    thinkingMsg.thinkingSteps = thinkingMsg.thinkingSteps.map(s => ({ ...s, status: "completed" as const }))
+                                    thinkingMsg.thinkingComplete = true
+                                }
+                                return updated
+                            })
                         } else if (parsed.type === "error") {
                             streamError = parsed.data
                         }
@@ -837,7 +848,18 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 ? "⏳ High demand right now. Please wait a minute and try again."
                 : "Something went wrong. Please try again."
             setStreamingContent(null)
-            setMessages(prev => [...prev, { role: "assistant", content: assistantMsg }])
+            // Mark thinking message as complete on error
+            setMessages(prev => {
+                const updated = [...prev]
+                const thinkingMsg = updated.find(m => m.role === "thinking" && !m.thinkingComplete)
+                if (thinkingMsg) {
+                    if (thinkingMsg.thinkingSteps) {
+                        thinkingMsg.thinkingSteps = thinkingMsg.thinkingSteps.map(s => ({ ...s, status: "completed" as const }))
+                    }
+                    thinkingMsg.thinkingComplete = true
+                }
+                return [...updated, { role: "assistant" as const, content: assistantMsg }]
+            })
             // NOTE: Do NOT save user or error messages to DB on failure —
             // this prevents errors from counting against the message limit.
             // The error message is shown in the UI only.
@@ -1037,7 +1059,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             "flex w-full animate-in fade-in slide-in-from-bottom-1 duration-300",
                             msg.role === "user" ? "justify-end" : "justify-start"
                         )}>
-                            {msg.sendCard ? (
+                            {msg.role === "thinking" && msg.thinkingSteps ? (
+                                <div className="w-full max-w-[85%]">
+                                    <AgenticThinkingBlock
+                                        steps={msg.thinkingSteps}
+                                        isComplete={msg.thinkingComplete ?? false}
+                                    />
+                                </div>
+                            ) : msg.sendCard ? (
                                 // Inline send card — only shown when send intent detected
                                 <ChatSendCard
                                     sessionId={session!.id}
@@ -1117,13 +1146,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             >
                                 <MarkdownMessage content={streamingContent} />
                                 <span className="inline-block w-0.5 h-3.5 bg-foreground/40 ml-0.5 animate-pulse align-middle" />
-                            </div>
-                        </div>
-                    )}
-                    {(isLoading || agenticSteps.length > 0) && !streamingContent && (
-                        <div className="flex justify-start w-full animate-in fade-in duration-200">
-                            <div className="w-full max-w-[85%]">
-                                <AgenticThinkingBlock steps={agenticSteps} isGenerating={isLoading} />
                             </div>
                         </div>
                     )}
@@ -1244,6 +1266,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     stagedFile={stagedFile}
                                     onFileSelect={(file) => setStagedFile(file)}
                                     onFileRemove={() => setStagedFile(null)}
+                                    thinkingMode={thinkingMode}
+                                    onThinkingModeChange={setThinkingMode}
                                 />
                             </>
                         ) : (
@@ -1268,6 +1292,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 stagedFile={stagedFile}
                                 onFileSelect={(file) => setStagedFile(file)}
                                 onFileRemove={() => setStagedFile(null)}
+                                thinkingMode={thinkingMode}
+                                onThinkingModeChange={setThinkingMode}
                             />
                         )
                     )}

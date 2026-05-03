@@ -30,6 +30,7 @@ export interface AIGenerationRequest {
     }
     fileContext?: string
     complianceContext?: string
+    thinkingMode?: "fast" | "thinking"
 }
 
 export interface AIGenerationResponse {
@@ -710,6 +711,12 @@ export async function* streamGenerateDocument(
     try {
         const prompt = buildPrompt(request)
 
+        // Validate and resolve thinkingMode
+        const validModes: Array<"fast" | "thinking"> = ["fast", "thinking"]
+        const mode = request.thinkingMode && validModes.includes(request.thinkingMode) ? request.thinkingMode : "fast"
+        const isThinking = mode === "thinking"
+        const model = isThinking ? "deepseek-reasoner" : "deepseek-chat"
+
         const response = await fetch(DEEPSEEK_API_URL, {
             method: "POST",
             headers: {
@@ -717,13 +724,13 @@ export async function* streamGenerateDocument(
                 Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                model: "deepseek-chat",
+                model,
                 messages: [
                     { role: "system", content: DUAL_MODE_SYSTEM_PROMPT },
                     { role: "user", content: prompt },
                 ],
                 max_tokens: 3000,
-                temperature: 0.3,
+                ...(isThinking ? { reasoning_effort: "low" } : { temperature: 0.3 }),
                 stream: true,
             }),
         })

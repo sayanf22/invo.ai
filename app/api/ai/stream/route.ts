@@ -6,6 +6,52 @@ import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText } from "@/lib/sanitize"
 
+// Extract contextual info from the prompt and business context for progress labels
+function extractContextFromPrompt(
+    prompt: string,
+    businessContext?: { country?: string; [key: string]: any },
+    documentType?: string
+): { country: string; docType: string; clientName: string } {
+    const country = businessContext?.country || "your country"
+    const docType = documentType || "document"
+
+    // Extract client name from common prompt patterns
+    let clientName = ""
+    // Patterns: "for Acme Corp", "to John Doe", "for John's", etc.
+    const patterns = [
+        /\bfor\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3}(?:\s+(?:Corp|Inc|LLC|Ltd|Co|Company|Group|Services|Solutions|Technologies|Tech|Studio|Agency|Consulting))?)\b/,
+        /\bto\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3})\b/,
+        /\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3})(?:'s)\s+(?:invoice|quotation|contract|proposal|document)\b/i,
+    ]
+
+    for (const pattern of patterns) {
+        const match = prompt.match(pattern)
+        if (match?.[1]) {
+            // Filter out common false positives (verbs, prepositions, document types)
+            const falsePositives = ["Create", "Generate", "Make", "Build", "Draft", "Write", "Send", "Invoice", "Contract", "Quotation", "Proposal", "Document", "Net", "Due", "Payment"]
+            if (!falsePositives.includes(match[1].split(" ")[0])) {
+                clientName = match[1].trim()
+                break
+            }
+        }
+    }
+
+    return { country, docType, clientName }
+}
+
+// Map thinkingMode to DeepSeek model configuration
+function getModelConfig(thinkingMode?: "fast" | "thinking"): {
+    model: string
+    temperature?: number
+    reasoning_effort?: string
+} {
+    if (thinkingMode === "thinking") {
+        return { model: "deepseek-reasoner", reasoning_effort: "low" }
+    }
+    // Default: fast mode
+    return { model: "deepseek-chat", temperature: 0.3 }
+}
+
 export async function POST(request: NextRequest) {
     try {
         // SECURITY: Validate request origin
@@ -189,6 +235,11 @@ export async function POST(request: NextRequest) {
             // Continue without — AI will generate its own number
         }
 
+        // Validate and default thinkingMode
+        const validModes = ["fast", "thinking"] as const
+        const rawMode = (body as any).thinkingMode
+        body.thinkingMode = validModes.includes(rawMode) ? rawMode : "fast"
+
         // Fetch DeepSeek API key from Vault
         const { getSecret } = await import("@/lib/secrets")
         const deepseekKey = await getSecret("DEEPSEEK_API_KEY")
@@ -201,12 +252,19 @@ export async function POST(request: NextRequest) {
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
                 }
 
-                // Send progress steps to the client
-                sendEvent({ type: "progress", step: "analyze", label: "Analyzing your request" })
+                // Extract context for progress labels
+                const { country, docType: ctxDocType, clientName } = extractContextFromPrompt(
+                    body.prompt,
+                    body.businessContext,
+                    body.documentType
+                )
+
+                // Send contextual progress steps to the client
+                sendEvent({ type: "progress", step: "analyze", label: `Analyzing ${ctxDocType} request${clientName ? ` for ${clientName}` : ""}` })
 
                 try {
-                    sendEvent({ type: "progress", step: "compliance", label: "Loading compliance rules" })
-                    sendEvent({ type: "progress", step: "generate", label: "Generating document" })
+                    sendEvent({ type: "progress", step: "compliance", label: `Loading ${country} compliance rules` })
+                    sendEvent({ type: "progress", step: "generate", label: `Generating ${ctxDocType}${clientName ? ` for ${clientName}` : ""}` })
 
                     for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                         const data = `data: ${JSON.stringify(chunk)}\n\n`
