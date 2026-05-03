@@ -13,7 +13,7 @@ import { NextStepsBar } from "@/components/next-steps-bar"
 import { ChainNavigator } from "@/components/chain-navigator"
 import { MessageLimitBanner } from "@/components/message-limit-banner"
 import { UpgradeModal } from "@/components/upgrade-modal"
-import { AgenticThinkingBlock } from "@/components/ui/agentic-thinking-block"
+import { AgenticThinkingBlock, type ActivityItem } from "@/components/ui/agentic-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
 import { createClient } from "@/lib/supabase"
 import { ClientSelector } from "@/components/clients/client-selector"
@@ -90,7 +90,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [thinkingMode, setThinkingMode] = useState<"fast" | "thinking">("fast")
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
@@ -399,7 +399,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             ? userMessage.split("\n\n[CLIENT DETAILS")[0].trim() || "📎 Generate from attached file"
             : userMessage
         setInputValue("")
-        setMessages(prev => [...prev, { role: "user" as const, content: displayText }, { role: "thinking" as const, content: "", reasoningText: "", isThinking: true, thinkingStartTime: Date.now() }])
+        setMessages(prev => [...prev, { role: "user" as const, content: displayText }, { role: "thinking" as const, content: "", activities: [], isWorking: true, thinkingStartTime: Date.now() }])
         // NOTE: User message is NOT saved to DB here — it's saved only after a successful
         // AI response. This prevents error responses from counting against the message limit.
         setIsLoading(true)
@@ -530,13 +530,42 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     if (!line.startsWith("data: ")) continue
                     try {
                         const parsed = JSON.parse(line.slice(6))
-                        if (parsed.type === "reasoning") {
-                            // Accumulate real reasoning tokens from DeepSeek
+                        if (parsed.type === "activity") {
+                            // Append/update activity in the thinking message
                             setMessages(prev => {
                                 const updated = [...prev]
-                                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isThinking)
-                                if (thinkingMsg) {
-                                    thinkingMsg.reasoningText = (thinkingMsg.reasoningText || "") + parsed.data
+                                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
+                                if (thinkingMsg && thinkingMsg.activities) {
+                                    // Check if this is an update to an existing activity (same action + label, now has detail)
+                                    const existing = thinkingMsg.activities.find(
+                                        a => a.action === parsed.action && a.label === parsed.label && !a.detail
+                                    )
+                                    if (existing && parsed.detail) {
+                                        existing.detail = parsed.detail
+                                    } else if (!existing) {
+                                        thinkingMsg.activities.push({
+                                            id: `activity-${Date.now()}-${thinkingMsg.activities.length}`,
+                                            action: parsed.action,
+                                            label: parsed.label,
+                                            detail: parsed.detail,
+                                        })
+                                    }
+                                }
+                                return [...updated]
+                            })
+                        } else if (parsed.type === "reasoning") {
+                            // Accumulate real reasoning tokens from DeepSeek into a "think" activity
+                            setMessages(prev => {
+                                const updated = [...prev]
+                                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
+                                if (thinkingMsg && thinkingMsg.activities) {
+                                    // Find or create the last "think" activity
+                                    let thinkActivity = [...thinkingMsg.activities].reverse().find(a => a.action === "think")
+                                    if (!thinkActivity) {
+                                        thinkActivity = { id: `think-${Date.now()}`, action: "think", label: "Think", reasoningText: "" }
+                                        thinkingMsg.activities.push(thinkActivity)
+                                    }
+                                    thinkActivity.reasoningText = (thinkActivity.reasoningText || "") + parsed.data
                                 }
                                 return [...updated]
                             })
@@ -546,9 +575,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 thinkingDone = true
                                 setMessages(prev => {
                                     const updated = [...prev]
-                                    const thinkingMsg = updated.find(m => m.role === "thinking" && m.isThinking)
+                                    const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
                                     if (thinkingMsg) {
-                                        thinkingMsg.isThinking = false
+                                        thinkingMsg.isWorking = false
                                     }
                                     return [...updated]
                                 })
@@ -573,9 +602,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             // Mark thinking as done
                             setMessages(prev => {
                                 const updated = [...prev]
-                                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isThinking)
+                                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
                                 if (thinkingMsg) {
-                                    thinkingMsg.isThinking = false
+                                    thinkingMsg.isWorking = false
                                 }
                                 return updated
                             })
@@ -854,9 +883,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             // Mark thinking message as complete on error
             setMessages(prev => {
                 const updated = [...prev]
-                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isThinking)
+                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
                 if (thinkingMsg) {
-                    thinkingMsg.isThinking = false
+                    thinkingMsg.isWorking = false
                 }
                 return [...updated, { role: "assistant" as const, content: assistantMsg }]
             })
@@ -1060,12 +1089,11 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             msg.role === "user" ? "justify-end" : "justify-start"
                         )}>
                             {msg.role === "thinking" ? (
-                                (msg.reasoningText || msg.isThinking) ? (
+                                (msg.activities && msg.activities.length > 0 || msg.isWorking) ? (
                                 <div className="w-full max-w-[85%]">
                                     <AgenticThinkingBlock
-                                        reasoningText={msg.reasoningText || ""}
-                                        isThinking={msg.isThinking ?? false}
-                                        durationMs={msg.thinkingStartTime ? Date.now() - msg.thinkingStartTime : undefined}
+                                        activities={msg.activities || []}
+                                        isWorking={msg.isWorking ?? false}
                                     />
                                 </div>
                                 ) : null

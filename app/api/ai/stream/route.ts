@@ -77,136 +77,154 @@ export async function POST(request: NextRequest) {
             body.documentType = "invoice"
         }
 
-        // SECURITY: Always fetch business profile SERVER-SIDE — ignore any client-sent businessContext
-        // This prevents prompt injection via crafted businessContext payloads
-        body.businessContext = undefined // clear any client-sent value
-        try {
-            const { data: business } = await auth.supabase
-                .from("businesses")
-                .select("*")
-                .eq("user_id", auth.user.id)
-                .single()
-
-            if (business) {
-                const b: any = business
-                let addr = ""
-                if (b.address) {
-                    addr = typeof b.address === "string"
-                        ? b.address
-                        : [b.address.street, b.address.city, b.address.state, b.address.postalCode || b.address.postal_code, b.address.country]
-                            .filter(Boolean).join(", ")
-                }
-                // Check if business has any tax registration
-                const hasTaxRegistration = b.tax_ids && typeof b.tax_ids === 'object' && Object.values(b.tax_ids).some((v: any) => v && String(v).trim().length > 0)
-                
-                body.businessContext = {
-                    name: b.name || "",
-                    address: addr || "",
-                    country: b.country || "",
-                    currency: b.default_currency || "USD",
-                    paymentTerms: b.default_payment_terms || "Net 30",
-                    signatory: {
-                        name: b.primary_signatory?.name || b.owner_name || "",
-                        title: b.primary_signatory?.title || "Owner",
-                        email: b.email || "",
-                    },
-                    taxRegistered: hasTaxRegistration,
-                    taxIds: hasTaxRegistration ? b.tax_ids : undefined,
-                    phone: b.phone || "",
-                    businessType: b.business_type || "",
-                    additionalNotes: b.additional_notes || "",
-                }
-            }
-        } catch (err) {
-            console.error("Failed to fetch business profile:", err instanceof Error ? err.message : err)
-            // Continue without business context — AI will use placeholders
-        }
-
-        // RAG: Fetch compliance context for the user's country and document type
-        try {
-            const { getComplianceContext } = await import("@/lib/compliance-rag")
-            const country = body.businessContext?.country || ""
-            const docType = body.documentType || "invoice"
-
-            // Determine if this is a document generation or conversational query
-            // If conversation history exists and prompt doesn't match document generation patterns → semantic mode
-            const isDocGeneration = !body.conversationHistory?.length ||
-                /create|generate|make|build|draft|prepare/i.test(body.prompt)
-
-            const complianceResult = await getComplianceContext(
-                auth.supabase,
-                country,
-                docType,
-                isDocGeneration ? undefined : body.prompt  // Pass message for semantic mode
-            )
-
-            body.complianceContext = complianceResult.formattedContext
-
-            // Extract the standard tax rate from RAG rules and inject directly
-            // This ensures the AI uses the DB rate, not its training data
-            if (complianceResult.rules.length > 0) {
-                const taxRule = complianceResult.rules.find(r => r.category === "tax_rates")
-                if (taxRule && taxRule.requirement_value) {
-                    const standardRate = (taxRule.requirement_value as any).standard
-                    if (standardRate !== undefined && standardRate !== null) {
-                        (body as any)._ragTaxRate = Number(standardRate)
-                    }
-                }
-            }
-
-            // Track embedding cost for semantic mode (deterministic mode is free)
-            if (complianceResult.mode === "semantic") {
-                await trackUsage(auth.supabase, auth.user.id, "embedding", 100)
-            }
-        } catch (err) {
-            console.error("RAG compliance context failed:", err instanceof Error ? err.message : err)
-            // Continue without compliance context — AI will use generic guidance
-        }
-
-        // Fetch the next available invoice/document number for this user
-        // This prevents the AI from generating duplicate numbers like INV-2026-001
-        try {
-            const docType = (body.documentType || "invoice").toLowerCase()
-            const prefix = docType === "quotation" ? "QUO" : docType === "contract" ? "CTR" : docType === "proposal" ? "PROP" : "INV"
-            
-            // Count existing documents of this type for this user
-            const { count } = await auth.supabase
-                .from("document_sessions")
-                .select("id", { count: "exact", head: true })
-                .eq("user_id", auth.user.id)
-                .eq("document_type", docType)
-            
-            const nextNum = (count ?? 0) + 1
-            const year = new Date().getFullYear()
-            const month = String(new Date().getMonth() + 1).padStart(2, '0')
-            const paddedNum = String(nextNum).padStart(3, '0')
-            const nextDocNumber = `${prefix}-${year}-${month}-${paddedNum}`
-            
-            // Inject into the prompt as additional context
-            body.prompt = `[SYSTEM: Use document number "${nextDocNumber}" for this ${docType}. Today's date is ${new Date().toISOString().split('T')[0]}. The invoice date should be today and the due date should be calculated from today based on payment terms.]\n\n${body.prompt}`
-        } catch (err) {
-            console.error("Failed to generate next document number:", err)
-            // Continue without — AI will generate its own number
-        }
+        // SECURITY: Clear any client-sent businessContext (fetched server-side inside stream)
+        body.businessContext = undefined
 
         // Validate and default thinkingMode
         const validModes = ["fast", "thinking"] as const
         const rawMode = (body as any).thinkingMode
         body.thinkingMode = validModes.includes(rawMode) ? rawMode : "fast"
 
-        // Fetch DeepSeek API key from Vault
+        // Fetch DeepSeek API key from Vault (before stream — fast, no activity needed)
         const { getSecret } = await import("@/lib/secrets")
         const deepseekKey = await getSecret("DEEPSEEK_API_KEY")
 
-        // Create a readable stream from our generator
+        // Create a readable stream — data operations happen INSIDE so we can send activity events
         const stream = new ReadableStream({
             async start(controller) {
                 const encoder = new TextEncoder()
+                const sendEvent = (event: Record<string, unknown>) => {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+                }
 
                 try {
+                    // ── 1. Read business profile ──────────────────────────────────
+                    sendEvent({ type: "activity", action: "read", label: "Business profile" })
+                    try {
+                        const { data: business } = await auth.supabase
+                            .from("businesses")
+                            .select("*")
+                            .eq("user_id", auth.user.id)
+                            .single()
+
+                        if (business) {
+                            const b: any = business
+                            let addr = ""
+                            if (b.address) {
+                                addr = typeof b.address === "string"
+                                    ? b.address
+                                    : [b.address.street, b.address.city, b.address.state, b.address.postalCode || b.address.postal_code, b.address.country]
+                                        .filter(Boolean).join(", ")
+                            }
+                            const hasTaxRegistration = b.tax_ids && typeof b.tax_ids === 'object' && Object.values(b.tax_ids).some((v: any) => v && String(v).trim().length > 0)
+
+                            body.businessContext = {
+                                name: b.name || "",
+                                address: addr || "",
+                                country: b.country || "",
+                                currency: b.default_currency || "USD",
+                                paymentTerms: b.default_payment_terms || "Net 30",
+                                signatory: {
+                                    name: b.primary_signatory?.name || b.owner_name || "",
+                                    title: b.primary_signatory?.title || "Owner",
+                                    email: b.email || "",
+                                },
+                                taxRegistered: hasTaxRegistration,
+                                taxIds: hasTaxRegistration ? b.tax_ids : undefined,
+                                phone: b.phone || "",
+                                businessType: b.business_type || "",
+                                additionalNotes: b.additional_notes || "",
+                            }
+                            sendEvent({ type: "activity", action: "read", label: "Business profile", detail: b.name || "Loaded" })
+                        } else {
+                            sendEvent({ type: "activity", action: "read", label: "Business profile", detail: "Not found" })
+                        }
+                    } catch (err) {
+                        console.error("Failed to fetch business profile:", err instanceof Error ? err.message : err)
+                        sendEvent({ type: "activity", action: "read", label: "Business profile", detail: "Not found" })
+                    }
+
+                    // ── 2. Search compliance rules ────────────────────────────────
+                    const country = body.businessContext?.country || ""
+                    const docType = body.documentType || "invoice"
+                    if (country) {
+                        sendEvent({ type: "activity", action: "search", label: `${country} compliance rules` })
+                    }
+                    try {
+                        const { getComplianceContext } = await import("@/lib/compliance-rag")
+
+                        const isDocGeneration = !body.conversationHistory?.length ||
+                            /create|generate|make|build|draft|prepare/i.test(body.prompt)
+
+                        const complianceResult = await getComplianceContext(
+                            auth.supabase,
+                            country,
+                            docType,
+                            isDocGeneration ? undefined : body.prompt
+                        )
+
+                        body.complianceContext = complianceResult.formattedContext
+
+                        // Extract the standard tax rate from RAG rules
+                        let taxRateDetail = ""
+                        if (complianceResult.rules.length > 0) {
+                            const taxRule = complianceResult.rules.find(r => r.category === "tax_rates")
+                            if (taxRule && taxRule.requirement_value) {
+                                const standardRate = (taxRule.requirement_value as any).standard
+                                if (standardRate !== undefined && standardRate !== null) {
+                                    (body as any)._ragTaxRate = Number(standardRate)
+                                    taxRateDetail = `, ${standardRate}% tax`
+                                }
+                            }
+                        }
+
+                        if (complianceResult.mode === "semantic") {
+                            await trackUsage(auth.supabase, auth.user.id, "embedding", 100)
+                        }
+
+                        if (country) {
+                            sendEvent({
+                                type: "activity",
+                                action: "search",
+                                label: `${country} compliance rules`,
+                                detail: `${complianceResult.rules.length} rules found${taxRateDetail}`,
+                            })
+                        }
+                    } catch (err) {
+                        console.error("RAG compliance context failed:", err instanceof Error ? err.message : err)
+                        if (country) {
+                            sendEvent({ type: "activity", action: "search", label: `${country} compliance rules`, detail: "Unavailable" })
+                        }
+                    }
+
+                    // ── 3. Generate document number ───────────────────────────────
+                    try {
+                        const docTypeLower = (body.documentType || "invoice").toLowerCase()
+                        const prefix = docTypeLower === "quotation" ? "QUO" : docTypeLower === "contract" ? "CTR" : docTypeLower === "proposal" ? "PROP" : "INV"
+
+                        const { count } = await auth.supabase
+                            .from("document_sessions")
+                            .select("id", { count: "exact", head: true })
+                            .eq("user_id", auth.user.id)
+                            .eq("document_type", docTypeLower)
+
+                        const nextNum = (count ?? 0) + 1
+                        const year = new Date().getFullYear()
+                        const month = String(new Date().getMonth() + 1).padStart(2, '0')
+                        const paddedNum = String(nextNum).padStart(3, '0')
+                        const nextDocNumber = `${prefix}-${year}-${month}-${paddedNum}`
+
+                        body.prompt = `[SYSTEM: Use document number "${nextDocNumber}" for this ${docTypeLower}. Today's date is ${new Date().toISOString().split('T')[0]}. The invoice date should be today and the due date should be calculated from today based on payment terms.]\n\n${body.prompt}`
+
+                        sendEvent({ type: "activity", action: "generate", label: "Document number", detail: nextDocNumber })
+                    } catch (err) {
+                        console.error("Failed to generate next document number:", err)
+                        // Continue without — AI will generate its own number
+                    }
+
+                    // ── 4. Stream DeepSeek generation (reasoning + content) ──────
                     for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
-                        const data = `data: ${JSON.stringify(chunk)}\n\n`
-                        controller.enqueue(encoder.encode(data))
+                        sendEvent(chunk)
 
                         if (chunk.type === "complete" || chunk.type === "error") {
                             break
@@ -216,7 +234,7 @@ export async function POST(request: NextRequest) {
                     // Track usage for cost protection (after successful generation)
                     await trackUsage(auth.supabase, auth.user.id, "generation", 0)
 
-                    // Increment document count (only on actual document generation, not session creation)
+                    // Increment document count
                     await incrementDocumentCount(auth.supabase, auth.user.id)
 
                     // Audit log
@@ -224,8 +242,8 @@ export async function POST(request: NextRequest) {
                         auth.supabase,
                         auth.user.id,
                         body.documentType,
-                        0, // tokens used (would need to get from API response)
-                        0.00094, // estimated cost
+                        0,
+                        0.00094,
                         request
                     )
                 } catch (error) {

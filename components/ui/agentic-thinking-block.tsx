@@ -1,103 +1,159 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
-import { ChevronRight } from "lucide-react"
+import { useState, useCallback } from "react"
+import { ChevronRight, FileText, Search, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-interface ThinkingBlockProps {
-  reasoningText: string      // The actual reasoning content from DeepSeek
-  isThinking: boolean        // true while reasoning tokens are still streaming
-  durationMs?: number        // How long the thinking took
-  className?: string
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface ActivityItem {
+    id: string
+    action: "read" | "think" | "search" | "generate"
+    label: string
+    detail?: string
+    reasoningText?: string // Only for "think" items
 }
 
+export interface AgenticThinkingBlockProps {
+    activities: ActivityItem[]
+    isWorking: boolean
+    className?: string
+}
+
+// ── Icon map ──────────────────────────────────────────────────────────────────
+
+const ACTION_ICONS: Record<ActivityItem["action"], React.ReactNode> = {
+    read: <FileText className="w-3.5 h-3.5" />,
+    search: <Search className="w-3.5 h-3.5" />,
+    generate: <Sparkles className="w-3.5 h-3.5" />,
+    think: <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />,
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export function AgenticThinkingBlock({
-  reasoningText,
-  isThinking,
-  durationMs,
-  className,
-}: ThinkingBlockProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const hasAutoExpanded = useRef(false)
+    activities,
+    isWorking,
+    className,
+}: AgenticThinkingBlockProps) {
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
-  // Auto-expand when first reasoning text arrives
-  useEffect(() => {
-    if (reasoningText && !hasAutoExpanded.current) {
-      setIsExpanded(true)
-      hasAutoExpanded.current = true
-    }
-  }, [reasoningText])
+    const toggleExpand = useCallback((id: string) => {
+        setExpandedIds(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) {
+                next.delete(id)
+            } else {
+                next.add(id)
+            }
+            return next
+        })
+    }, [])
 
-  // Auto-collapse 600ms after thinking completes
-  useEffect(() => {
-    if (!isThinking && reasoningText) {
-      const timer = setTimeout(() => {
-        setIsExpanded(false)
-      }, 600)
-      return () => clearTimeout(timer)
-    }
-  }, [isThinking, reasoningText])
+    if (activities.length === 0) return null
 
-  // Format duration
-  const durationLabel = useMemo(() => {
-    if (!durationMs || durationMs < 500) return null
-    const seconds = Math.round(durationMs / 1000)
-    return `${seconds}s`
-  }, [durationMs])
+    return (
+        <div
+            className={cn(
+                "w-full rounded-xl border border-border/30 bg-card/50 overflow-hidden",
+                className,
+            )}
+        >
+            <div className="relative">
+                {/* Vertical dotted connecting line */}
+                {activities.length > 1 && (
+                    <div
+                        className="absolute left-[19px] top-[22px] w-px border-l border-dotted border-muted-foreground/20"
+                        style={{ height: `calc(100% - 44px)` }}
+                    />
+                )}
 
-  // Header label
-  const headerLabel = isThinking
-    ? "Thinking..."
-    : durationLabel
-      ? `Thought for ${durationLabel}`
-      : "Think"
+                {activities.map((activity, idx) => {
+                    const isLast = idx === activities.length - 1
+                    const isExpanded = expandedIds.has(activity.id)
+                    const hasExpandableContent =
+                        (activity.action === "think" && activity.reasoningText) ||
+                        activity.detail
 
-  return (
-    <div className={cn("w-full", className)}>
-      {/* Header — bullet + label + chevron */}
-      <button
-        type="button"
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center gap-2 py-1.5 text-left group cursor-pointer"
-      >
-        {/* Bullet */}
-        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
+                    return (
+                        <div key={activity.id}>
+                            <button
+                                type="button"
+                                onClick={() => hasExpandableContent && toggleExpand(activity.id)}
+                                className={cn(
+                                    "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors relative z-10",
+                                    hasExpandableContent && "cursor-pointer hover:bg-muted/30",
+                                    !hasExpandableContent && "cursor-default",
+                                )}
+                                disabled={!hasExpandableContent}
+                            >
+                                {/* Icon */}
+                                <span
+                                    className={cn(
+                                        "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-muted-foreground bg-muted/50",
+                                        isLast && isWorking && !activity.detail && "animate-pulse",
+                                    )}
+                                >
+                                    {ACTION_ICONS[activity.action]}
+                                </span>
 
-        {/* Label */}
-        <span className={cn(
-          "flex-1 text-[13px] text-muted-foreground select-none",
-          isThinking && "animate-pulse"
-        )}>
-          {headerLabel}
-        </span>
+                                {/* Label + detail */}
+                                <span className="flex-1 min-w-0 flex items-center gap-1.5 text-[13px]">
+                                    <span
+                                        className={cn(
+                                            "font-medium text-foreground shrink-0",
+                                            isLast && isWorking && !activity.detail && "animate-pulse",
+                                        )}
+                                    >
+                                        {activity.label}
+                                    </span>
+                                    {activity.detail && (
+                                        <>
+                                            <span className="text-muted-foreground/40 shrink-0">|</span>
+                                            <span className="text-muted-foreground truncate">
+                                                {activity.detail}
+                                            </span>
+                                        </>
+                                    )}
+                                </span>
 
-        {/* Chevron */}
-        <ChevronRight
-          className={cn(
-            "w-3.5 h-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-200",
-            isExpanded && "rotate-90"
-          )}
-        />
-      </button>
+                                {/* Chevron */}
+                                {hasExpandableContent && (
+                                    <ChevronRight
+                                        className={cn(
+                                            "w-3.5 h-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-200",
+                                            isExpanded && "rotate-90",
+                                        )}
+                                    />
+                                )}
+                            </button>
 
-      {/* Expandable reasoning content */}
-      <div
-        className="grid transition-all duration-300 ease-out"
-        style={{
-          gridTemplateRows: isExpanded ? "1fr" : "0fr",
-        }}
-      >
-        <div className="overflow-hidden">
-          <div className="pl-5 pr-2 pb-2 max-h-[240px] overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-            <p className="text-[13px] text-muted-foreground/70 leading-relaxed whitespace-pre-wrap break-words">
-              {reasoningText}
-              {isThinking && (
-                <span className="inline-block w-0.5 h-3 bg-muted-foreground/40 ml-0.5 animate-pulse align-middle" />
-              )}
-            </p>
-          </div>
+                            {/* Expandable content */}
+                            {hasExpandableContent && (
+                                <div
+                                    className="grid transition-all duration-300 ease-out"
+                                    style={{
+                                        gridTemplateRows: isExpanded ? "1fr" : "0fr",
+                                    }}
+                                >
+                                    <div className="overflow-hidden">
+                                        <div className="pl-14 pr-4 pb-2.5 max-h-[240px] overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                                            <p className="text-[12px] text-muted-foreground/70 leading-relaxed whitespace-pre-wrap break-words">
+                                                {activity.action === "think"
+                                                    ? activity.reasoningText
+                                                    : activity.detail}
+                                                {activity.action === "think" && isWorking && isLast && (
+                                                    <span className="inline-block w-0.5 h-3 bg-muted-foreground/40 ml-0.5 animate-pulse align-middle" />
+                                                )}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
         </div>
-      </div>
-    </div>
-  )
+    )
 }
