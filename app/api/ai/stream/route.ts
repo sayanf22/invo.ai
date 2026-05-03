@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
-import { streamGenerateDocument, type AIGenerationRequest } from "@/lib/deepseek"
+import { streamGenerateDocument, buildPrompt, DUAL_MODE_SYSTEM_PROMPT, type AIGenerationRequest } from "@/lib/deepseek"
+import { streamBedrockChat } from "@/lib/bedrock"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 
 import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier } from "@/lib/cost-protection"
@@ -222,12 +223,26 @@ export async function POST(request: NextRequest) {
                         // Continue without — AI will generate its own number
                     }
 
-                    // ── 4. Stream DeepSeek generation (reasoning + content) ──────
-                    for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
-                        sendEvent(chunk)
+                    // ── 4. Route to appropriate model ─────────────────────────────
+                    // Detect if this is a document generation or chat request
+                    const isDocGeneration = /create|generate|make|build|draft|prepare|change|update|add|remove|modify/i.test(body.prompt)
+                        && !(/what|how|why|explain|tell me|can you|is it|does|should/i.test(body.prompt) && !/create|generate|make/i.test(body.prompt))
 
-                        if (chunk.type === "complete" || chunk.type === "error") {
-                            break
+                    if (isDocGeneration) {
+                        // Use DeepSeek for document generation (existing flow)
+                        sendEvent({ type: "activity", action: "generate", label: "Generating document", detail: "DeepSeek V4 Pro" })
+                        for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
+                            sendEvent(chunk)
+                            if (chunk.type === "complete" || chunk.type === "error") break
+                        }
+                    } else {
+                        // Use Kimi K2.5 via Bedrock for chat/conversation
+                        sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "Kimi K2.5" })
+                        const bedrockKey = process.env.amazon_beadrocl_key || ""
+                        const prompt = buildPrompt(body)
+                        for await (const chunk of streamBedrockChat(DUAL_MODE_SYSTEM_PROMPT, prompt, bedrockKey)) {
+                            sendEvent(chunk)
+                            if (chunk.type === "complete" || chunk.type === "error") break
                         }
                     }
 
