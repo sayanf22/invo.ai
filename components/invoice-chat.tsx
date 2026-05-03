@@ -54,6 +54,48 @@ function detectShareIntent(prompt: string): { hasShareIntent: boolean; method: "
     return { hasShareIntent: false, method: "none" }
 }
 
+// ── Document generation progress detection (client-side, zero extra API calls) ─
+const DOC_PROGRESS_FIELDS: Array<{ key: string; pattern: RegExp; label: string; action: ActivityItem["action"] }> = [
+    { key: "doctype", pattern: /"documentType"\s*:/, label: "Setting document type", action: "generate" },
+    { key: "from", pattern: /"fromName"\s*:/, label: "Adding sender details", action: "read" },
+    { key: "to", pattern: /"toName"\s*:/, label: "Setting client details", action: "generate" },
+    { key: "items", pattern: /"items"\s*:\s*\[/, label: "Adding line items", action: "generate" },
+    { key: "tax", pattern: /"taxRate"\s*:/, label: "Applying tax rules", action: "search" },
+    { key: "terms", pattern: /"terms"\s*:/, label: "Writing terms & conditions", action: "generate" },
+    { key: "notes", pattern: /"notes"\s*:/, label: "Adding notes", action: "generate" },
+    { key: "design", pattern: /"design"\s*:\s*\{/, label: "Applying template design", action: "context" },
+    { key: "description", pattern: /"description"\s*:/, label: "Writing description", action: "generate" },
+    { key: "message", pattern: /"message"\s*:\s*"/, label: "Composing message", action: "generate" },
+]
+
+function detectDocumentProgress(content: string, lastKey: string): ActivityItem[] {
+    const newSteps: ActivityItem[] = []
+    let foundLast = lastKey === ""
+
+    for (const field of DOC_PROGRESS_FIELDS) {
+        if (!foundLast) {
+            if (field.key === lastKey) foundLast = true
+            continue
+        }
+        if (field.pattern.test(content)) {
+            const step: ActivityItem = {
+                id: `progress-${field.key}`,
+                action: field.action,
+                label: field.label,
+            }
+            // For items step, try to extract item count from partial content
+            if (field.key === "items") {
+                const itemMatches = content.match(/"description"\s*:\s*"/g)
+                if (itemMatches && itemMatches.length > 0) {
+                    step.detail = `${itemMatches.length} item${itemMatches.length > 1 ? "s" : ""}`
+                }
+            }
+            newSteps.push(step)
+        }
+    }
+    return newSteps
+}
+
 interface InvoiceChatProps {
     data: InvoiceData
     onChange: (updates: Partial<InvoiceData>) => void
@@ -512,6 +554,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             let completeData: string | null = null
             let isStreamingText = false // true once we detect this is a plain-text (non-JSON) response
             let thinkingDone = false // true once first content chunk arrives (reasoning phase over)
+            let isDocumentJSON = false // true once we detect this is a JSON document response
+            let lastDetectedStep = "" // tracks last detected progress step to avoid duplicates
             if (!reader) throw new Error("No response body")
 
             // Phase 1: Read the stream, accumulate content + stream text progressively
@@ -570,8 +614,18 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 return [...updated]
                             })
                         } else if (parsed.type === "chunk") {
-                            // First chunk means reasoning is done — mark thinking complete
-                            if (!thinkingDone) {
+                            fullContent += parsed.data
+
+                            // Detect if this is JSON (document generation) vs text (chat)
+                            if (!isStreamingText && !isDocumentJSON && fullContent.length > 50) {
+                                const trimmed = fullContent.trimStart()
+                                isDocumentJSON = trimmed.startsWith("{") || trimmed.startsWith("[")
+                                    || trimmed.includes("```json") || trimmed.includes('"document"')
+                                    || trimmed.includes('"documentType"')
+                            }
+
+                            // For chat text: close thinking on first chunk (existing behavior)
+                            if (!isDocumentJSON && !thinkingDone) {
                                 thinkingDone = true
                                 setMessages(prev => {
                                     const updated = [...prev]
@@ -582,7 +636,54 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     return [...updated]
                                 })
                             }
-                            fullContent += parsed.data
+
+                            // For document JSON: detect progress and keep thinking open
+                            if (isDocumentJSON) {
+                                const trimmed = fullContent.trimStart()
+                                const progressSteps = detectDocumentProgress(trimmed, lastDetectedStep)
+                                if (progressSteps.length > 0) {
+                                    lastDetectedStep = progressSteps[progressSteps.length - 1].id.replace("progress-", "")
+                                    setMessages(prev => {
+                                        const updated = [...prev]
+                                        const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
+                                        if (thinkingMsg && thinkingMsg.activities) {
+                                            for (const step of progressSteps) {
+                                                // Don't add duplicates
+                                                if (!thinkingMsg.activities.find(a => a.id === step.id)) {
+                                                    thinkingMsg.activities.push(step)
+                                                } else {
+                                                    // Update detail if it changed (e.g. item count)
+                                                    const existing = thinkingMsg.activities.find(a => a.id === step.id)
+                                                    if (existing && step.detail && existing.detail !== step.detail) {
+                                                        existing.detail = step.detail
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        return [...updated]
+                                    })
+                                }
+                                // Also update item count on subsequent chunks (items grow over time)
+                                if (lastDetectedStep === "items" || trimmed.includes('"items"')) {
+                                    const itemMatches = trimmed.match(/"description"\s*:\s*"/g)
+                                    if (itemMatches && itemMatches.length > 0) {
+                                        const newDetail = `${itemMatches.length} item${itemMatches.length > 1 ? "s" : ""}`
+                                        setMessages(prev => {
+                                            const updated = [...prev]
+                                            const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
+                                            if (thinkingMsg && thinkingMsg.activities) {
+                                                const itemStep = thinkingMsg.activities.find(a => a.id === "progress-items")
+                                                if (itemStep && itemStep.detail !== newDetail) {
+                                                    itemStep.detail = newDetail
+                                                    return [...updated]
+                                                }
+                                            }
+                                            return prev // no change needed
+                                        })
+                                    }
+                                }
+                            }
+
                             // Only stream live if we're confident this is NOT a JSON response.
                             if (!isStreamingText && fullContent.length > 200) {
                                 const trimmed = fullContent.trimStart()
