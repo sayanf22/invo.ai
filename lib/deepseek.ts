@@ -2,6 +2,51 @@ import type { InvoiceData } from "@/lib/invoice-types"
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
+/**
+ * Validates and defaults the thinkingMode value.
+ * Only "fast" and "thinking" are valid; anything else defaults to "fast".
+ */
+export function resolveThinkingMode(mode: unknown): "fast" | "thinking" {
+    const validModes: ReadonlyArray<string> = ["fast", "thinking"]
+    return typeof mode === "string" && validModes.includes(mode)
+        ? (mode as "fast" | "thinking")
+        : "fast"
+}
+
+/**
+ * Returns the DeepSeek model ID and request parameters for a given thinking mode.
+ * - "fast"     → deepseek-chat, temperature 0.3, no reasoning
+ * - "thinking" → deepseek-v4-pro, reasoning_effort "low", emits reasoning events
+ */
+export function getModelConfig(thinkingMode: "fast" | "thinking"): {
+    model: string
+    isThinking: boolean
+    extraParams: Record<string, unknown>
+} {
+    const isThinking = thinkingMode === "thinking"
+    return {
+        model: isThinking ? "deepseek-v4-pro" : "deepseek-chat",
+        isThinking,
+        extraParams: isThinking ? { reasoning_effort: "low" } : { temperature: 0.3 },
+    }
+}
+
+/**
+ * Strips markdown code fences from content.
+ * Handles ```json\n...\n``` and ```\n...\n``` patterns.
+ */
+export function stripCodeFences(content: string): string {
+    let cleaned = content.trim()
+
+    if (cleaned.startsWith('```json')) {
+        cleaned = cleaned.replace(/^```json\s*/i, '').replace(/```\s*$/, '')
+    } else if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```\s*/, '').replace(/```\s*$/, '')
+    }
+
+    return cleaned.trim()
+}
+
 export interface AIGenerationRequest {
     prompt: string
     documentType: string
@@ -667,13 +712,7 @@ export async function generateDocument(
 
         let cleanedContent = content.trim()
 
-        if (cleanedContent.startsWith('```json')) {
-            cleanedContent = cleanedContent.replace(/^```json\s*/i, '').replace(/```\s*$/, '')
-        } else if (cleanedContent.startsWith('```')) {
-            cleanedContent = cleanedContent.replace(/^```\s*/, '').replace(/```\s*$/, '')
-        }
-
-        cleanedContent = cleanedContent.trim()
+        cleanedContent = stripCodeFences(cleanedContent)
 
         const parsedData = JSON.parse(cleanedContent)
 
@@ -711,12 +750,9 @@ export async function* streamGenerateDocument(
     try {
         const prompt = buildPrompt(request)
 
-        // Validate and resolve thinkingMode
-        const validModes: Array<"fast" | "thinking"> = ["fast", "thinking"]
-        const mode = request.thinkingMode && validModes.includes(request.thinkingMode) ? request.thinkingMode : "fast"
-        const isThinking = mode === "thinking"
-        // Fast mode: deepseek-chat (no reasoning), Thinking mode: deepseek-v4-pro (returns reasoning_content)
-        const model = isThinking ? "deepseek-v4-pro" : "deepseek-chat"
+        // Validate and resolve thinkingMode using shared helper
+        const mode = resolveThinkingMode(request.thinkingMode)
+        const { model, isThinking, extraParams } = getModelConfig(mode)
 
         const response = await fetch(DEEPSEEK_API_URL, {
             method: "POST",
@@ -731,7 +767,7 @@ export async function* streamGenerateDocument(
                     { role: "user", content: prompt },
                 ],
                 max_tokens: 3000,
-                ...(isThinking ? { reasoning_effort: "low" } : { temperature: 0.3 }),
+                ...extraParams,
                 stream: true,
             }),
         })
@@ -798,15 +834,33 @@ export async function* streamGenerateDocument(
             }
         }
 
-        let cleanedContent = fullContent.trim()
-
-        if (cleanedContent.startsWith('```json')) {
-            cleanedContent = cleanedContent.replace(/^```json\s*/i, '').replace(/```\s*$/, '')
-        } else if (cleanedContent.startsWith('```')) {
-            cleanedContent = cleanedContent.replace(/^```\s*/, '').replace(/```\s*$/, '')
+        // Flush any remaining data in the SSE buffer after the read loop ends
+        if (sseBuffer.trim()) {
+            const line = sseBuffer.trim()
+            if (line.startsWith("data: ")) {
+                const data = line.slice(6)
+                if (data !== "[DONE]") {
+                    try {
+                        const parsed = JSON.parse(data)
+                        const reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || ""
+                        const content = parsed.choices?.[0]?.delta?.content || ""
+                        if (reasoningContent) {
+                            yield { type: "reasoning", data: reasoningContent }
+                        }
+                        if (content) {
+                            fullContent += content
+                            yield { type: "chunk", data: content }
+                        }
+                    } catch {
+                        // Skip invalid JSON in final buffer
+                    }
+                }
+            }
         }
 
-        cleanedContent = cleanedContent.trim()
+        let cleanedContent = fullContent.trim()
+
+        cleanedContent = stripCodeFences(cleanedContent)
 
         yield { type: "complete", data: cleanedContent }
     } catch (error) {

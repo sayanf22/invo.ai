@@ -9,6 +9,12 @@ const BEDROCK_MANTLE_URL =
     "https://bedrock-mantle.us-east-1.api.aws/v1/chat/completions"
 const BEDROCK_MODEL = "moonshotai.kimi-k2.5"
 
+/** HTTP status codes that should trigger a fallback to DeepSeek */
+const FALLBACK_STATUS_CODES = new Set([500, 502, 503])
+
+/** Request timeout in milliseconds */
+const REQUEST_TIMEOUT_MS = 30_000
+
 export async function* streamBedrockChat(
     systemPrompt: string,
     userPrompt: string,
@@ -17,10 +23,13 @@ export async function* streamBedrockChat(
     if (!apiKey || apiKey.trim().length === 0) {
         yield {
             type: "error",
-            data: "Bedrock API key not configured. Set amazon_beadrocl_key in .env",
+            data: "Bedrock API key not configured. Set the Bedrock API key in your environment.",
         }
         return
     }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
     try {
         const response = await fetch(BEDROCK_MANTLE_URL, {
@@ -39,6 +48,7 @@ export async function* streamBedrockChat(
                 temperature: 0.3,
                 stream: true,
             }),
+            signal: controller.signal,
         })
 
         if (!response.ok) {
@@ -53,6 +63,13 @@ export async function* streamBedrockChat(
                 yield {
                     type: "error",
                     data: "Bedrock API rate limit exceeded. Please wait and try again.",
+                }
+                return
+            }
+            if (FALLBACK_STATUS_CODES.has(response.status)) {
+                yield {
+                    type: "error",
+                    data: `Bedrock API server error (${response.status}). Service temporarily unavailable.`,
                 }
                 return
             }
@@ -101,13 +118,42 @@ export async function* streamBedrockChat(
             }
         }
 
+        // Flush any remaining data in the SSE buffer after the read loop ends
+        if (sseBuffer.trim()) {
+            const line = sseBuffer.trim()
+            if (line.startsWith("data: ")) {
+                const data = line.slice(6)
+                if (data !== "[DONE]") {
+                    try {
+                        const parsed = JSON.parse(data)
+                        const content = parsed.choices?.[0]?.delta?.content || ""
+                        if (content) {
+                            fullContent += content
+                            yield { type: "chunk", data: content }
+                        }
+                    } catch {
+                        // Skip invalid JSON in final buffer
+                    }
+                }
+            }
+        }
+
         yield { type: "complete", data: fullContent.trim() }
     } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+            yield {
+                type: "error",
+                data: "Bedrock API request timed out after 30 seconds.",
+            }
+            return
+        }
         yield {
             type: "error",
             data: error instanceof Error
                 ? error.message
                 : "Bedrock streaming failed",
         }
+    } finally {
+        clearTimeout(timeoutId)
     }
 }

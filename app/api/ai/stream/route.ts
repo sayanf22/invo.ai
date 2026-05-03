@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { streamGenerateDocument, buildPrompt, DUAL_MODE_SYSTEM_PROMPT, type AIGenerationRequest } from "@/lib/deepseek"
 import { streamBedrockChat } from "@/lib/bedrock"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
+import { classifyIntent } from "@/lib/intent-router"
 
 import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
@@ -82,9 +83,8 @@ export async function POST(request: NextRequest) {
         body.businessContext = undefined
 
         // Validate and default thinkingMode
-        const validModes = ["fast", "thinking"] as const
-        const rawMode = (body as any).thinkingMode
-        body.thinkingMode = validModes.includes(rawMode) ? rawMode : "fast"
+        const { resolveThinkingMode } = await import("@/lib/deepseek")
+        body.thinkingMode = resolveThinkingMode((body as any).thinkingMode)
 
         // Fetch DeepSeek API key from Vault (before stream — fast, no activity needed)
         const { getSecret } = await import("@/lib/secrets")
@@ -224,16 +224,21 @@ export async function POST(request: NextRequest) {
                     }
 
                     // ── 4. Route to appropriate model ─────────────────────────────
-                    // Detect if this is a document generation or chat request
-                    const isDocGeneration = /create|generate|make|build|draft|prepare|change|update|add|remove|modify/i.test(body.prompt)
-                        && !(/what|how|why|explain|tell me|can you|is it|does|should/i.test(body.prompt) && !/create|generate|make/i.test(body.prompt))
+                    const isDocGeneration = classifyIntent(body.prompt) === "document"
+
+                    // Track whether any model completed successfully (for usage tracking)
+                    let modelCompletedSuccessfully = false
 
                     if (isDocGeneration) {
                         // Use DeepSeek for document generation
                         sendEvent({ type: "activity", action: "generate", label: "Generating document", detail: "DeepSeek" })
                         for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                             sendEvent(chunk)
-                            if (chunk.type === "complete" || chunk.type === "error") break
+                            if (chunk.type === "complete") {
+                                modelCompletedSuccessfully = true
+                                break
+                            }
+                            if (chunk.type === "error") break
                         }
                     } else {
                         // Try Kimi K2.5 via Bedrock for chat, fall back to DeepSeek if unavailable
@@ -245,22 +250,45 @@ export async function POST(request: NextRequest) {
                             sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "Kimi K2.5" })
                             const prompt = buildPrompt(body)
                             let bedrockFailed = false
+                            // Track whether any chunks were forwarded from Bedrock
+                            // so we can discard partial content on fallback
+                            let bedrockChunksForwarded = false
                             for await (const chunk of streamBedrockChat(DUAL_MODE_SYSTEM_PROMPT, prompt, bedrockKey)) {
-                                if (chunk.type === "error" && (chunk.data.includes("invalid") || chunk.data.includes("expired") || chunk.data.includes("not configured"))) {
-                                    // Bedrock auth failed — fall back to DeepSeek
+                                if (chunk.type === "error") {
+                                    // All Bedrock errors trigger fallback: auth (401/403),
+                                    // rate limit (429), server errors (500/502/503),
+                                    // timeouts, and network failures
                                     console.error("Bedrock failed, falling back to DeepSeek:", chunk.data)
                                     bedrockFailed = true
                                     break
                                 }
-                                sendEvent(chunk)
-                                if (chunk.type === "complete" || chunk.type === "error") break
+                                // Only forward chunks if fallback hasn't triggered
+                                if (!bedrockFailed) {
+                                    sendEvent(chunk)
+                                    if (chunk.type === "chunk") {
+                                        bedrockChunksForwarded = true
+                                    }
+                                }
+                                if (chunk.type === "complete") {
+                                    modelCompletedSuccessfully = true
+                                    break
+                                }
                             }
                             // Fallback to DeepSeek if Bedrock failed
                             if (bedrockFailed) {
+                                // If any partial chunks were forwarded, send a reset
+                                // signal so the client knows to discard them
+                                if (bedrockChunksForwarded) {
+                                    sendEvent({ type: "error", data: "__fallback_reset__" })
+                                }
                                 sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "DeepSeek (fallback)" })
                                 for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                                     sendEvent(chunk)
-                                    if (chunk.type === "complete" || chunk.type === "error") break
+                                    if (chunk.type === "complete") {
+                                        modelCompletedSuccessfully = true
+                                        break
+                                    }
+                                    if (chunk.type === "error") break
                                 }
                             }
                         } else {
@@ -268,26 +296,33 @@ export async function POST(request: NextRequest) {
                             sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "DeepSeek" })
                             for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                                 sendEvent(chunk)
-                                if (chunk.type === "complete" || chunk.type === "error") break
+                                if (chunk.type === "complete") {
+                                    modelCompletedSuccessfully = true
+                                    break
+                                }
+                                if (chunk.type === "error") break
                             }
                         }
                     }
 
-                    // Track usage for cost protection (after successful generation)
-                    await trackUsage(auth.supabase, auth.user.id, "generation", 0)
+                    // Usage tracking only runs once after the successful model completes
+                    if (modelCompletedSuccessfully) {
+                        // Track usage for cost protection
+                        await trackUsage(auth.supabase, auth.user.id, "generation", 0)
 
-                    // Increment document count
-                    await incrementDocumentCount(auth.supabase, auth.user.id)
+                        // Increment document count
+                        await incrementDocumentCount(auth.supabase, auth.user.id)
 
-                    // Audit log
-                    await logAIGeneration(
-                        auth.supabase,
-                        auth.user.id,
-                        body.documentType,
-                        0,
-                        0.00094,
-                        request
-                    )
+                        // Audit log
+                        await logAIGeneration(
+                            auth.supabase,
+                            auth.user.id,
+                            body.documentType,
+                            0,
+                            0.00094,
+                            request
+                        )
+                    }
                 } catch (error) {
                     const errorData = `data: ${JSON.stringify({
                         type: "error",
