@@ -45,6 +45,11 @@ export interface SubscriptionRecord {
  */
 export function resolveEffectiveTier(subscription: SubscriptionRecord | null | undefined): UserTier {
     if (!subscription) return "free"
+    // Check subscription status — only active/trialing subscriptions count
+    const validStatuses = ["active", "trialing"]
+    if (subscription.status && !validStatuses.includes(subscription.status)) {
+        return "free"
+    }
     if (!subscription.current_period_end || new Date(subscription.current_period_end) < new Date()) {
         return "free"
     }

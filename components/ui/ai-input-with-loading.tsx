@@ -195,25 +195,31 @@ export function AIInputWithLoading({
               }}
               disabled={isLoading || isUploading}
               className={cn(
-                "absolute right-14 bottom-3 flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200",
+                "absolute right-14 bottom-3 flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-300",
                 isLoading || isUploading
                   ? "opacity-40 cursor-not-allowed text-muted-foreground"
-                  : "text-muted-foreground hover:text-foreground cursor-pointer"
+                  : thinkingMode === "thinking"
+                    ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 cursor-pointer"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer"
               )}
               aria-label={thinkingMode === "fast" ? "Switch to thinking mode" : "Switch to fast mode"}
-              title={thinkingMode === "fast" ? "Fast mode" : "Thinking mode"}
+              title={thinkingMode === "fast" ? "Fast mode (click for thinking)" : "Thinking mode (click for fast)"}
             >
               <div className="relative w-4 h-4">
                 <Zap
                   className={cn(
-                    "w-4 h-4 absolute inset-0 transition-opacity duration-200",
-                    thinkingMode === "fast" ? "opacity-100" : "opacity-0"
+                    "w-4 h-4 absolute inset-0 transition-all duration-300 ease-out",
+                    thinkingMode === "fast"
+                      ? "opacity-100 scale-100 rotate-0"
+                      : "opacity-0 scale-50 -rotate-90"
                   )}
                 />
                 <Brain
                   className={cn(
-                    "w-4 h-4 absolute inset-0 transition-opacity duration-200",
-                    thinkingMode === "thinking" ? "opacity-100" : "opacity-0"
+                    "w-4 h-4 absolute inset-0 transition-all duration-300 ease-out",
+                    thinkingMode === "thinking"
+                      ? "opacity-100 scale-100 rotate-0"
+                      : "opacity-0 scale-50 rotate-90"
                   )}
                 />
               </div>

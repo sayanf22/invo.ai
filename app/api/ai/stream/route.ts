@@ -6,7 +6,7 @@ import { classifyIntent } from "@/lib/intent-router"
 
 import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
-import { sanitizeText } from "@/lib/sanitize"
+import { sanitizeText, stripPromptInjection } from "@/lib/sanitize"
 
 export async function POST(request: NextRequest) {
     try {
@@ -58,6 +58,8 @@ export async function POST(request: NextRequest) {
 
         // SECURITY: Sanitize prompt input
         body.prompt = sanitizeText(body.prompt)
+        // SECURITY: Strip any [SYSTEM:] injection attempts from user input
+        body.prompt = stripPromptInjection(body.prompt)
 
         // SECURITY: Limit prompt length to prevent token abuse
         if (body.prompt.length > 10_000) {
@@ -70,6 +72,8 @@ export async function POST(request: NextRequest) {
         // SECURITY: Sanitize and limit fileContext
         if (body.fileContext) {
             body.fileContext = sanitizeText(body.fileContext)
+            // SECURITY: Strip any [SYSTEM:] injection attempts from file context
+            body.fileContext = stripPromptInjection(body.fileContext)
             if (body.fileContext.length > 5_000) {
                 body.fileContext = body.fileContext.slice(0, 5_000)
             }
@@ -77,6 +81,13 @@ export async function POST(request: NextRequest) {
 
         if (!body.documentType) {
             body.documentType = "invoice"
+        }
+
+        // SECURITY: Validate document type against whitelist
+        const VALID_DOC_TYPES = ["invoice", "contract", "quotation", "proposal"]
+        const normalizedDocType = body.documentType.toLowerCase().trim()
+        if (!VALID_DOC_TYPES.includes(normalizedDocType)) {
+            body.documentType = "invoice" // Default to invoice for invalid types
         }
 
         // SECURITY: Clear any client-sent businessContext (fetched server-side inside stream)

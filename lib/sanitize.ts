@@ -214,6 +214,17 @@ export function sanitizeFileName(input: string): string {
 }
 
 /**
+ * Strip prompt injection patterns from user input.
+ * Removes [SYSTEM: ...] blocks that could override AI instructions.
+ * Only the server should inject [SYSTEM:] blocks.
+ */
+export function stripPromptInjection(input: string): string {
+    if (!input || typeof input !== "string") return ""
+    // Remove [SYSTEM: ...] blocks (case-insensitive)
+    return input.replace(/\[SYSTEM:[^\]]*\]/gi, "").trim()
+}
+
+/**
  * Sanitize SQL-like input (for search queries, etc.)
  * Removes SQL injection patterns
  */
