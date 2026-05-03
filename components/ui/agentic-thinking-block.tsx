@@ -77,8 +77,7 @@ export function AgenticThinkingBlock({
                     const isExpanded = expandedIds.has(activity.id)
                     const hasExpandableContent =
                         activity.reasoningText ||
-                        (activity.action === "think" && activity.reasoningText) ||
-                        activity.detail
+                        (activity.detail && !activity.id.startsWith("progress-"))
 
                     return (
                         <div key={activity.id} className="animate-in fade-in slide-in-from-bottom-1 duration-300">

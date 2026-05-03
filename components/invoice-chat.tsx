@@ -622,11 +622,11 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             fullContent += parsed.data
 
                             // Detect if this is JSON (document generation) vs text (chat)
+                            // Only detect as JSON if it actually starts with JSON syntax
                             if (!isStreamingText && !isDocumentJSON && fullContent.length > 50) {
                                 const trimmed = fullContent.trimStart()
                                 isDocumentJSON = trimmed.startsWith("{") || trimmed.startsWith("[")
-                                    || trimmed.includes("```json") || trimmed.includes('"document"')
-                                    || trimmed.includes('"documentType"')
+                                    || trimmed.startsWith("```json")
                             }
 
                             // For chat text: close thinking on first chunk (existing behavior)
@@ -693,8 +693,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             if (!isStreamingText && fullContent.length > 200) {
                                 const trimmed = fullContent.trimStart()
                                 const looksLikeJSON = trimmed.startsWith("{") || trimmed.startsWith("[") 
-                                    || trimmed.includes("```json") || trimmed.includes('"document"')
-                                    || trimmed.includes('"documentType"')
+                                    || trimmed.startsWith("```json")
                                 if (!looksLikeJSON) {
                                     isStreamingText = true
                                     setIsLoading(false)

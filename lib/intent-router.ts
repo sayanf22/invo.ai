@@ -27,9 +27,12 @@ const STRONG_GENERATION_VERBS = /create|generate|make/i
  * Each message is evaluated independently.
  */
 export function classifyIntent(prompt: string): "document" | "chat" {
-  const hasGenerationVerbs = GENERATION_VERBS.test(prompt)
-  const hasQuestionWords = QUESTION_WORDS.test(prompt)
-  const hasStrongGenerationVerbs = STRONG_GENERATION_VERBS.test(prompt)
+  // Strip system-injected blocks before classification
+  const cleanedPrompt = prompt.replace(/\[SYSTEM:[^\]]*\]/g, '').trim()
+
+  const hasGenerationVerbs = GENERATION_VERBS.test(cleanedPrompt)
+  const hasQuestionWords = QUESTION_WORDS.test(cleanedPrompt)
+  const hasStrongGenerationVerbs = STRONG_GENERATION_VERBS.test(cleanedPrompt)
 
   // Generation verbs present AND not a question-only pattern → "document"
   // If both question words and generation verbs are present,

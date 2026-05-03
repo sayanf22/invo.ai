@@ -324,6 +324,18 @@ export async function POST(request: NextRequest) {
                         }
                     }
 
+                    // ── 2d. If user explicitly asks to add tax, override unregistered status ──
+                    // so the AI uses the RAG rate instead of defaulting to 0
+                    const userWantsTax = /\b(add|apply|include|with|want)\b.*\b(gst|vat|tax|ust|tva|btw|hst)\b/i.test(body.prompt)
+                        || /\b(gst|vat|tax|ust|tva|btw|hst)\b.*\b(add|apply|include)\b/i.test(body.prompt)
+
+                    if (userWantsTax && (body as any)._ragTaxRate !== undefined && body.businessContext) {
+                        // Override: treat as registered for this request so the AI uses the RAG rate
+                        body.businessContext.taxRegistered = true
+                        // Add a note to the prompt so the AI knows this is a user override
+                        body.prompt = `[SYSTEM: The user has explicitly requested tax to be added. Use the RAG-provided tax rate of ${(body as any)._ragTaxRate}% regardless of registration status.]\n\n${body.prompt}`
+                    }
+
                     // ── 3. Generate document number (only for document generation) ──
                     if (intentType === "document") {
                     try {
