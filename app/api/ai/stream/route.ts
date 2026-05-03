@@ -229,20 +229,47 @@ export async function POST(request: NextRequest) {
                         && !(/what|how|why|explain|tell me|can you|is it|does|should/i.test(body.prompt) && !/create|generate|make/i.test(body.prompt))
 
                     if (isDocGeneration) {
-                        // Use DeepSeek for document generation (existing flow)
-                        sendEvent({ type: "activity", action: "generate", label: "Generating document", detail: "DeepSeek V4 Pro" })
+                        // Use DeepSeek for document generation
+                        sendEvent({ type: "activity", action: "generate", label: "Generating document", detail: "DeepSeek" })
                         for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                             sendEvent(chunk)
                             if (chunk.type === "complete" || chunk.type === "error") break
                         }
                     } else {
-                        // Use Kimi K2.5 via Bedrock for chat/conversation
-                        sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "Kimi K2.5" })
-                        const bedrockKey = process.env.amazon_beadrocl_key || ""
-                        const prompt = buildPrompt(body)
-                        for await (const chunk of streamBedrockChat(DUAL_MODE_SYSTEM_PROMPT, prompt, bedrockKey)) {
-                            sendEvent(chunk)
-                            if (chunk.type === "complete" || chunk.type === "error") break
+                        // Try Kimi K2.5 via Bedrock for chat, fall back to DeepSeek if unavailable
+                        const bedrockKey = process.env.amazon_beadrocl_key
+                            || (typeof globalThis !== "undefined" ? (globalThis as any).amazon_beadrocl_key : "")
+                            || ""
+
+                        if (bedrockKey && bedrockKey.length > 10) {
+                            sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "Kimi K2.5" })
+                            const prompt = buildPrompt(body)
+                            let bedrockFailed = false
+                            for await (const chunk of streamBedrockChat(DUAL_MODE_SYSTEM_PROMPT, prompt, bedrockKey)) {
+                                if (chunk.type === "error" && (chunk.data.includes("invalid") || chunk.data.includes("expired") || chunk.data.includes("not configured"))) {
+                                    // Bedrock auth failed — fall back to DeepSeek
+                                    console.error("Bedrock failed, falling back to DeepSeek:", chunk.data)
+                                    bedrockFailed = true
+                                    break
+                                }
+                                sendEvent(chunk)
+                                if (chunk.type === "complete" || chunk.type === "error") break
+                            }
+                            // Fallback to DeepSeek if Bedrock failed
+                            if (bedrockFailed) {
+                                sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "DeepSeek (fallback)" })
+                                for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
+                                    sendEvent(chunk)
+                                    if (chunk.type === "complete" || chunk.type === "error") break
+                                }
+                            }
+                        } else {
+                            // No Bedrock key — use DeepSeek for everything
+                            sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "DeepSeek" })
+                            for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
+                                sendEvent(chunk)
+                                if (chunk.type === "complete" || chunk.type === "error") break
+                            }
                         }
                     }
 
