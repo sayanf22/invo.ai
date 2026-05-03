@@ -122,7 +122,7 @@ async function getDeterministicRules(
   country: string,
   documentType: string
 ): Promise<ComplianceRule[]> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("compliance_knowledge")
     .select("id, country, document_type, category, requirement_key, requirement_value, description, effective_date")
     .eq("country", country)
@@ -136,6 +136,19 @@ async function getDeterministicRules(
       error: error.message,
     })
     return []
+  }
+
+  // If no rules found for this specific document type, fall back to invoice rules
+  // since tax rates and compliance requirements are the same across document types
+  if ((!data || data.length === 0) && documentType !== "invoice") {
+    const fallback = await supabase
+      .from("compliance_knowledge")
+      .select("id, country, document_type, category, requirement_key, requirement_value, description, effective_date")
+      .eq("country", country)
+      .eq("document_type", "invoice")
+    if (!fallback.error && fallback.data && fallback.data.length > 0) {
+      data = fallback.data
+    }
   }
 
   if (!data || data.length === 0) {
