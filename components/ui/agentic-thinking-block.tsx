@@ -63,7 +63,7 @@ export function AgenticThinkingBlock({
                 className,
             )}
         >
-            <div className="relative">
+            <div className="relative overflow-hidden">
                 {/* Vertical dotted connecting line */}
                 {activities.length > 1 && (
                     <div
@@ -104,20 +104,20 @@ export function AgenticThinkingBlock({
 
                                 {/* Label + detail — responsive layout */}
                                 <span className="flex-1 min-w-0 overflow-hidden">
-                                    <span className="flex items-baseline gap-1 sm:gap-1.5 text-[12px] sm:text-[13px] max-w-full">
+                                    <span className="flex items-center gap-1 sm:gap-1.5 text-[12px] sm:text-[13px] w-full overflow-hidden">
                                         <span
                                             className={cn(
-                                                "font-medium text-foreground shrink-0",
+                                                "font-medium text-foreground truncate",
                                                 isLast && isWorking && !activity.detail && "animate-pulse",
+                                                activity.detail ? "shrink-0 max-w-[45%] sm:max-w-[50%]" : "flex-1",
                                             )}
-                                            style={{ maxWidth: activity.detail ? '50%' : '100%' }}
                                         >
-                                            <span className="block truncate">{activity.label}</span>
+                                            {activity.label}
                                         </span>
                                         {activity.detail && (
                                             <>
                                                 <span className="text-muted-foreground/40 shrink-0">|</span>
-                                                <span className="text-muted-foreground truncate min-w-0">
+                                                <span className="text-muted-foreground truncate min-w-0 flex-1">
                                                     {activity.detail}
                                                 </span>
                                             </>

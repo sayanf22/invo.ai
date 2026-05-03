@@ -603,10 +603,11 @@ BUSINESS PROFILE (use for all "from" fields):
     if (request.parentContext) {
         const pd = request.parentContext.data
         const parentType = request.parentContext.documentType
-        prompt += `\nCONTEXT FROM PREVIOUS DOCUMENT:\nThe user previously created a [${parentType}] with the following details:\n`
-        if (pd.toName) prompt += `- Client: ${pd.toName}\n`
+        prompt += `\nCONTEXT FROM PREVIOUS DOCUMENT:\nThe user previously created a [${parentType}] with the following details. This data is available for you to use — if the user asks about any of these fields (e.g. "add email from previous document", "use the same client"), apply them directly:\n`
+        if (pd.toName) prompt += `- Client Name: ${pd.toName}\n`
         if (pd.toEmail) prompt += `- Client Email: ${pd.toEmail}\n`
         if (pd.toAddress) prompt += `- Client Address: ${pd.toAddress}\n`
+        if (pd.toPhone) prompt += `- Client Phone: ${pd.toPhone}\n`
         if (Array.isArray(pd.items) && pd.items.length > 0) {
             prompt += `- Items:\n`
             for (const item of pd.items) {
@@ -617,6 +618,7 @@ BUSINESS PROFILE (use for all "from" fields):
         if (pd.total != null) prompt += `- Total: ${pd.total}\n`
         if (pd.paymentTerms) prompt += `- Payment Terms: ${pd.paymentTerms}\n`
         if (pd.notes) prompt += `- Notes: ${pd.notes}\n`
+        prompt += `\nIMPORTANT: If the user asks to "add email from previous document", "use the same email", or similar — use the Client Email above (${pd.toEmail || "not available"}) and set it as toEmail in the document. Do NOT ask the user for the email if it is already provided above.\n`
         prompt += `\nNow generate a [${request.documentType}] based on this information. Use the same client details, items, and amounts unless the user specifies changes.\n`
     }
 

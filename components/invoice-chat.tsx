@@ -24,8 +24,13 @@ import { SendEmailDialog } from "@/components/send-email-dialog"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
 // ── Send intent detection ─────────────────────────────────────────────────────
+// Only trigger when user explicitly wants to SEND/DELIVER the document to someone.
+// Must NOT trigger on: "add email", "what's the email", "email from previous doc", etc.
+// Requires: a send/deliver verb + (optional) a recipient target OR explicit "send it/this"
 
-const SEND_INTENT_REGEX = /\b(send|email|mail|deliver|dispatch|forward)\b/i
+// Matches: "send to", "send it", "send this", "email to", "mail to", "deliver to", "forward to"
+// Does NOT match: "add email", "email address", "email from", "what email"
+const SEND_INTENT_REGEX = /\b(send\s+(it|this|the\s+\w+|to\b)|email\s+to\b|mail\s+to\b|deliver\s+to\b|forward\s+to\b|dispatch\s+to\b)\b/i
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
 
 // ── Payment intent detection ──────────────────────────────────────────────────
@@ -36,7 +41,13 @@ function detectPaymentIntent(prompt: string): boolean {
 }
 
 function detectSendIntent(prompt: string): { hasSendIntent: boolean; email: string } {
+    const lower = prompt.toLowerCase().trim()
+    // Must have a clear send/deliver verb directed at someone
+    // Exclude: "add email", "email from", "what email", "email address", "get email"
     const hasSendIntent = SEND_INTENT_REGEX.test(prompt)
+        // Extra guard: if the word "email" appears but only in a non-send context, reject
+        && !/\b(add|get|fetch|retrieve|find|what|which|update|fill|include|use|from|previous|linked|document)\s+(the\s+)?email\b/i.test(lower)
+        && !/\bemail\s+(address|from|of|in|on|for)\b/i.test(lower)
     const emailMatch = prompt.match(EMAIL_REGEX)
     return { hasSendIntent, email: emailMatch ? emailMatch[0] : "" }
 }
@@ -146,6 +157,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     // Send dialog state (opened from chat card "Customize" button)
     const [sendDialogOpen, setSendDialogOpen] = useState(false)
     const [sendDialogEmail, setSendDialogEmail] = useState("")
+    // Linked document context — fields extracted from parent document
+    const [linkedDocContext, setLinkedDocContext] = useState<{ parentType: string; fields: Array<{ label: string; value: string }> } | null>(null)
 
     // Payment methods hook — to check if any gateway is connected
     const { hasAnyGateway } = usePaymentMethods()
@@ -226,6 +239,19 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 const { paymentLink: _pl, paymentLinkStatus: _pls, showPaymentLinkInPdf: _spdf, ...cleanCtx } = ctx as any
                 onChange(cleanCtx as Partial<InvoiceData>)
                 const clientName = (ctx as any).toName || "the client"
+
+                // Build linked doc context banner — show what was extracted from parent
+                const parentType = ((ctx as any)._parentDocumentType || "document") as string
+                const extractedFields: Array<{ label: string; value: string }> = []
+                if ((ctx as any).toName) extractedFields.push({ label: "Client", value: (ctx as any).toName })
+                if ((ctx as any).toEmail) extractedFields.push({ label: "Email", value: (ctx as any).toEmail })
+                if ((ctx as any).toAddress) extractedFields.push({ label: "Address", value: (ctx as any).toAddress })
+                if ((ctx as any).toPhone) extractedFields.push({ label: "Phone", value: (ctx as any).toPhone })
+                if ((ctx as any).currency) extractedFields.push({ label: "Currency", value: (ctx as any).currency })
+                if (extractedFields.length > 0) {
+                    setLinkedDocContext({ parentType, fields: extractedFields })
+                }
+
                 const welcomeMsg = `I've loaded the details from your previous document for ${clientName}. Generating your ${docType} now...`
                 setMessages([{ role: "assistant", content: welcomeMsg }])
                 setWelcomeLoaded(true)
@@ -461,18 +487,18 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     ...(fileContext ? { fileContext } : {}),
                     // Pass parent context for linked sessions so AI knows the client details
                     // from the original document (email, address, etc.)
-                    // Only pass the immediate parent's data — strip internal/sensitive fields
-                    // and only include client-relevant fields the AI needs.
+                    // Always pass for linked sessions — even if current doc already has the data,
+                    // the user might ask "what was the email from the previous document"
                     ...(session.chain_id && session.context && typeof session.context === "object" && !Array.isArray(session.context) && Object.keys(session.context).length > 0
                         ? (() => {
                             const ctx = session.context as Record<string, any>
-                            // Extract only the client-facing fields — never send signatures, logos, or internal markers
+                            // Extract client-facing fields — never send signatures, logos, or internal markers
                             const safeParentData: Record<string, any> = {}
                             const clientFields = ["toName", "toEmail", "toAddress", "toPhone", "currency", "paymentTerms", "items", "taxRate", "taxLabel", "total", "subtotal"]
                             for (const field of clientFields) {
-                                if (ctx[field] != null) safeParentData[field] = ctx[field]
+                                if (ctx[field] != null && ctx[field] !== "") safeParentData[field] = ctx[field]
                             }
-                            // Only inject if there's actually useful client data
+                            // Always inject for linked sessions — even if only name is available
                             if (!safeParentData.toName && !safeParentData.toEmail) return {}
                             return {
                                 parentContext: {
@@ -1207,6 +1233,35 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 </div>
             )}
 
+            {/* Linked doc context banner — shows what data was pulled from the parent document */}
+            {linkedDocContext && linkedDocContext.fields.length > 0 && (
+                <div className="shrink-0 px-4 py-2.5 bg-blue-50 dark:bg-blue-950/20 border-b border-blue-200 dark:border-blue-800/40">
+                    <div className="flex items-start gap-2">
+                        <span className="text-blue-500 dark:text-blue-400 text-sm shrink-0 mt-0.5">🔗</span>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                                Data from {linkedDocContext.parentType}
+                            </p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                                {linkedDocContext.fields.map(f => (
+                                    <span key={f.label} className="text-[10px] text-blue-600 dark:text-blue-400">
+                                        <span className="font-medium">{f.label}:</span> {f.value}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setLinkedDocContext(null)}
+                            className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 shrink-0 text-xs leading-none mt-0.5"
+                            aria-label="Dismiss"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Messages */}
             <ScrollArea className="flex-1 bg-background">
                 <div className="px-4 py-5 space-y-4 pb-4 max-w-xl mx-auto">
@@ -1217,7 +1272,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         )}>
                             {msg.role === "thinking" ? (
                                 (msg.activities && msg.activities.length > 0 || msg.isWorking) ? (
-                                <div className="w-full max-w-full">
+                                <div className="w-full max-w-full overflow-hidden">
                                     <AgenticThinkingBlock
                                         activities={msg.activities || []}
                                         isWorking={msg.isWorking ?? false}
@@ -1282,10 +1337,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     </div>
                                 </div>
                             ) : msg.role === "user" ? (
-                                <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300 break-words overflow-hidden"
+                                <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300 overflow-hidden"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)", wordBreak: "break-word", overflowWrap: "anywhere" }}
                                 >
-                                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
                                 </div>
                             ) : (
                                 <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-sm bg-card border border-border/50 text-sm leading-relaxed text-foreground animate-in fade-in slide-in-from-bottom-2 duration-400 break-words overflow-hidden"
