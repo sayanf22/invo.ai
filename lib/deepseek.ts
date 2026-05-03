@@ -695,7 +695,7 @@ export async function generateDocument(
 export async function* streamGenerateDocument(
     request: AIGenerationRequest,
     apiKeyOverride?: string
-): AsyncGenerator<{ type: "chunk" | "complete" | "error"; data: string }> {
+): AsyncGenerator<{ type: "chunk" | "complete" | "error" | "reasoning"; data: string }> {
     const apiKey = apiKeyOverride || process.env.DEEPSEEK_API_KEY
 
     if (!apiKey) {
@@ -715,7 +715,8 @@ export async function* streamGenerateDocument(
         const validModes: Array<"fast" | "thinking"> = ["fast", "thinking"]
         const mode = request.thinkingMode && validModes.includes(request.thinkingMode) ? request.thinkingMode : "fast"
         const isThinking = mode === "thinking"
-        const model = isThinking ? "deepseek-reasoner" : "deepseek-chat"
+        // Fast mode: deepseek-chat (no reasoning), Thinking mode: deepseek-v4-pro (returns reasoning_content)
+        const model = isThinking ? "deepseek-v4-pro" : "deepseek-chat"
 
         const response = await fetch(DEEPSEEK_API_URL, {
             method: "POST",
@@ -780,7 +781,13 @@ export async function* streamGenerateDocument(
 
                 try {
                     const parsed = JSON.parse(data)
+                    // Check for reasoning_content (chain-of-thought from thinking models)
+                    const reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || ""
                     const content = parsed.choices?.[0]?.delta?.content || ""
+
+                    if (reasoningContent) {
+                        yield { type: "reasoning", data: reasoningContent }
+                    }
                     if (content) {
                         fullContent += content
                         yield { type: "chunk", data: content }

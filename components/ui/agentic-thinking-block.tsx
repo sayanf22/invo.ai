@@ -1,69 +1,86 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { ChevronDown, Loader2, Check } from "lucide-react"
+import { useState, useEffect, useRef, useMemo } from "react"
+import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export type StepStatus = "pending" | "active" | "completed"
-
-export interface ThinkingStep {
-  id: string
-  label: string
-  status: StepStatus
-}
-
-interface AgenticThinkingBlockProps {
-  steps: ThinkingStep[]
-  isComplete: boolean
+interface ThinkingBlockProps {
+  reasoningText: string      // The actual reasoning content from DeepSeek
+  isThinking: boolean        // true while reasoning tokens are still streaming
+  durationMs?: number        // How long the thinking took
   className?: string
 }
 
 export function AgenticThinkingBlock({
-  steps,
-  isComplete,
+  reasoningText,
+  isThinking,
+  durationMs,
   className,
-}: AgenticThinkingBlockProps) {
-  const [isExpanded, setIsExpanded] = useState(true)
-  const hasAutoCollapsed = useRef(false)
+}: ThinkingBlockProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const hasAutoExpanded = useRef(false)
 
-  // Auto-collapse 800ms after isComplete becomes true
+  // Auto-expand when first reasoning text arrives
   useEffect(() => {
-    if (isComplete && !hasAutoCollapsed.current) {
+    if (reasoningText && !hasAutoExpanded.current) {
+      setIsExpanded(true)
+      hasAutoExpanded.current = true
+    }
+  }, [reasoningText])
+
+  // Auto-collapse 600ms after thinking completes
+  useEffect(() => {
+    if (!isThinking && reasoningText) {
       const timer = setTimeout(() => {
         setIsExpanded(false)
-        hasAutoCollapsed.current = true
-      }, 800)
+      }, 600)
       return () => clearTimeout(timer)
     }
-  }, [isComplete])
+  }, [isThinking, reasoningText])
 
-  const completedCount = steps.filter((s) => s.status === "completed").length
+  // Format duration
+  const durationLabel = useMemo(() => {
+    if (!durationMs || durationMs < 500) return null
+    const seconds = Math.round(durationMs / 1000)
+    return `${seconds}s`
+  }, [durationMs])
+
+  // Header label
+  const headerLabel = isThinking
+    ? "Thinking..."
+    : durationLabel
+      ? `Thought for ${durationLabel}`
+      : "Think"
 
   return (
     <div className={cn("w-full", className)}>
-      {/* Header */}
+      {/* Header — bullet + label + chevron */}
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center gap-2 py-1.5 text-left group"
+        className="w-full flex items-center gap-2 py-1.5 text-left group cursor-pointer"
       >
-        <ChevronDown
+        {/* Bullet */}
+        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
+
+        {/* Label */}
+        <span className={cn(
+          "flex-1 text-[13px] text-muted-foreground select-none",
+          isThinking && "animate-pulse"
+        )}>
+          {headerLabel}
+        </span>
+
+        {/* Chevron */}
+        <ChevronRight
           className={cn(
-            "w-3.5 h-3.5 text-muted-foreground/50 shrink-0 transition-transform duration-300",
-            isExpanded && "rotate-180"
+            "w-3.5 h-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-200",
+            isExpanded && "rotate-90"
           )}
         />
-
-        <span className="flex-1 text-[13px] text-muted-foreground truncate">
-          Worked on your document
-        </span>
-
-        <span className="text-[11px] text-muted-foreground/50 tabular-nums shrink-0">
-          {steps.length} {steps.length === 1 ? "step" : "steps"}
-        </span>
       </button>
 
-      {/* Expandable content */}
+      {/* Expandable reasoning content */}
       <div
         className="grid transition-all duration-300 ease-out"
         style={{
@@ -71,34 +88,13 @@ export function AgenticThinkingBlock({
         }}
       >
         <div className="overflow-hidden">
-          <div className="pl-6 pb-1.5 space-y-1">
-            {steps.map((step) => (
-              <div key={step.id} className="flex items-center gap-2 py-0.5">
-                {step.status === "active" ? (
-                  <Loader2
-                    className="w-3 h-3 text-foreground/70 animate-spin shrink-0"
-                    style={{ animationDuration: "1.5s" }}
-                  />
-                ) : step.status === "completed" ? (
-                  <Check className="w-3 h-3 text-muted-foreground shrink-0" />
-                ) : (
-                  <div className="w-3 h-3 shrink-0" />
-                )}
-
-                <span
-                  className={cn(
-                    "text-[12px] leading-tight",
-                    step.status === "active"
-                      ? "text-foreground/70"
-                      : step.status === "completed"
-                        ? "text-muted-foreground/60"
-                        : "text-muted-foreground/40"
-                  )}
-                >
-                  {step.label}
-                </span>
-              </div>
-            ))}
+          <div className="pl-5 pr-2 pb-2 max-h-[240px] overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+            <p className="text-[13px] text-muted-foreground/70 leading-relaxed whitespace-pre-wrap break-words">
+              {reasoningText}
+              {isThinking && (
+                <span className="inline-block w-0.5 h-3 bg-muted-foreground/40 ml-0.5 animate-pulse align-middle" />
+              )}
+            </p>
           </div>
         </div>
       </div>

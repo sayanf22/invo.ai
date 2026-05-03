@@ -13,7 +13,7 @@ import { NextStepsBar } from "@/components/next-steps-bar"
 import { ChainNavigator } from "@/components/chain-navigator"
 import { MessageLimitBanner } from "@/components/message-limit-banner"
 import { UpgradeModal } from "@/components/upgrade-modal"
-import { AgenticThinkingBlock, type ThinkingStep } from "@/components/ui/agentic-thinking-block"
+import { AgenticThinkingBlock } from "@/components/ui/agentic-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
 import { createClient } from "@/lib/supabase"
 import { ClientSelector } from "@/components/clients/client-selector"
@@ -90,7 +90,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; thinkingSteps?: ThinkingStep[]; thinkingComplete?: boolean }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [thinkingMode, setThinkingMode] = useState<"fast" | "thinking">("fast")
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
@@ -399,7 +399,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             ? userMessage.split("\n\n[CLIENT DETAILS")[0].trim() || "📎 Generate from attached file"
             : userMessage
         setInputValue("")
-        setMessages(prev => [...prev, { role: "user" as const, content: displayText }, { role: "thinking" as const, content: "", thinkingSteps: [], thinkingComplete: false }])
+        setMessages(prev => [...prev, { role: "user" as const, content: displayText }, { role: "thinking" as const, content: "", reasoningText: "", isThinking: true, thinkingStartTime: Date.now() }])
         // NOTE: User message is NOT saved to DB here — it's saved only after a successful
         // AI response. This prevents error responses from counting against the message limit.
         setIsLoading(true)
@@ -511,6 +511,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             let streamError: string | null = null
             let completeData: string | null = null
             let isStreamingText = false // true once we detect this is a plain-text (non-JSON) response
+            let thinkingDone = false // true once first content chunk arrives (reasoning phase over)
             if (!reader) throw new Error("No response body")
 
             // Phase 1: Read the stream, accumulate content + stream text progressively
@@ -529,26 +530,29 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     if (!line.startsWith("data: ")) continue
                     try {
                         const parsed = JSON.parse(line.slice(6))
-                        if (parsed.type === "progress") {
-                            // Update the thinking message in the messages array
+                        if (parsed.type === "reasoning") {
+                            // Accumulate real reasoning tokens from DeepSeek
                             setMessages(prev => {
                                 const updated = [...prev]
-                                const thinkingMsg = updated.find(m => m.role === "thinking" && !m.thinkingComplete)
-                                if (thinkingMsg && thinkingMsg.thinkingSteps) {
-                                    // Mark previous active steps as completed
-                                    thinkingMsg.thinkingSteps = thinkingMsg.thinkingSteps.map(s =>
-                                        s.status === "active" ? { ...s, status: "completed" as const } : s
-                                    )
-                                    // Add new active step
-                                    thinkingMsg.thinkingSteps.push({
-                                        id: parsed.step,
-                                        label: parsed.label,
-                                        status: "active" as const,
-                                    })
+                                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isThinking)
+                                if (thinkingMsg) {
+                                    thinkingMsg.reasoningText = (thinkingMsg.reasoningText || "") + parsed.data
                                 }
-                                return updated
+                                return [...updated]
                             })
                         } else if (parsed.type === "chunk") {
+                            // First chunk means reasoning is done — mark thinking complete
+                            if (!thinkingDone) {
+                                thinkingDone = true
+                                setMessages(prev => {
+                                    const updated = [...prev]
+                                    const thinkingMsg = updated.find(m => m.role === "thinking" && m.isThinking)
+                                    if (thinkingMsg) {
+                                        thinkingMsg.isThinking = false
+                                    }
+                                    return [...updated]
+                                })
+                            }
                             fullContent += parsed.data
                             // Only stream live if we're confident this is NOT a JSON response.
                             if (!isStreamingText && fullContent.length > 200) {
@@ -566,13 +570,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             }
                         } else if (parsed.type === "complete") {
                             completeData = parsed.data
-                            // Mark all steps as completed and thinking as complete
+                            // Mark thinking as done
                             setMessages(prev => {
                                 const updated = [...prev]
-                                const thinkingMsg = updated.find(m => m.role === "thinking" && !m.thinkingComplete)
-                                if (thinkingMsg && thinkingMsg.thinkingSteps) {
-                                    thinkingMsg.thinkingSteps = thinkingMsg.thinkingSteps.map(s => ({ ...s, status: "completed" as const }))
-                                    thinkingMsg.thinkingComplete = true
+                                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isThinking)
+                                if (thinkingMsg) {
+                                    thinkingMsg.isThinking = false
                                 }
                                 return updated
                             })
@@ -851,12 +854,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             // Mark thinking message as complete on error
             setMessages(prev => {
                 const updated = [...prev]
-                const thinkingMsg = updated.find(m => m.role === "thinking" && !m.thinkingComplete)
+                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isThinking)
                 if (thinkingMsg) {
-                    if (thinkingMsg.thinkingSteps) {
-                        thinkingMsg.thinkingSteps = thinkingMsg.thinkingSteps.map(s => ({ ...s, status: "completed" as const }))
-                    }
-                    thinkingMsg.thinkingComplete = true
+                    thinkingMsg.isThinking = false
                 }
                 return [...updated, { role: "assistant" as const, content: assistantMsg }]
             })
@@ -1059,13 +1059,16 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             "flex w-full animate-in fade-in slide-in-from-bottom-1 duration-300",
                             msg.role === "user" ? "justify-end" : "justify-start"
                         )}>
-                            {msg.role === "thinking" && msg.thinkingSteps ? (
+                            {msg.role === "thinking" ? (
+                                (msg.reasoningText || msg.isThinking) ? (
                                 <div className="w-full max-w-[85%]">
                                     <AgenticThinkingBlock
-                                        steps={msg.thinkingSteps}
-                                        isComplete={msg.thinkingComplete ?? false}
+                                        reasoningText={msg.reasoningText || ""}
+                                        isThinking={msg.isThinking ?? false}
+                                        durationMs={msg.thinkingStartTime ? Date.now() - msg.thinkingStartTime : undefined}
                                     />
                                 </div>
+                                ) : null
                             ) : msg.sendCard ? (
                                 // Inline send card — only shown when send intent detected
                                 <ChatSendCard

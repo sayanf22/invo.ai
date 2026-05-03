@@ -2,55 +2,9 @@ import { NextRequest } from "next/server"
 import { streamGenerateDocument, type AIGenerationRequest } from "@/lib/deepseek"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 
-import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, type UserTier, resolveEffectiveTier } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText } from "@/lib/sanitize"
-
-// Extract contextual info from the prompt and business context for progress labels
-function extractContextFromPrompt(
-    prompt: string,
-    businessContext?: { country?: string; [key: string]: any },
-    documentType?: string
-): { country: string; docType: string; clientName: string } {
-    const country = businessContext?.country || "your country"
-    const docType = documentType || "document"
-
-    // Extract client name from common prompt patterns
-    let clientName = ""
-    // Patterns: "for Acme Corp", "to John Doe", "for John's", etc.
-    const patterns = [
-        /\bfor\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3}(?:\s+(?:Corp|Inc|LLC|Ltd|Co|Company|Group|Services|Solutions|Technologies|Tech|Studio|Agency|Consulting))?)\b/,
-        /\bto\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3})\b/,
-        /\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3})(?:'s)\s+(?:invoice|quotation|contract|proposal|document)\b/i,
-    ]
-
-    for (const pattern of patterns) {
-        const match = prompt.match(pattern)
-        if (match?.[1]) {
-            // Filter out common false positives (verbs, prepositions, document types)
-            const falsePositives = ["Create", "Generate", "Make", "Build", "Draft", "Write", "Send", "Invoice", "Contract", "Quotation", "Proposal", "Document", "Net", "Due", "Payment"]
-            if (!falsePositives.includes(match[1].split(" ")[0])) {
-                clientName = match[1].trim()
-                break
-            }
-        }
-    }
-
-    return { country, docType, clientName }
-}
-
-// Map thinkingMode to DeepSeek model configuration
-function getModelConfig(thinkingMode?: "fast" | "thinking"): {
-    model: string
-    temperature?: number
-    reasoning_effort?: string
-} {
-    if (thinkingMode === "thinking") {
-        return { model: "deepseek-reasoner", reasoning_effort: "low" }
-    }
-    // Default: fast mode
-    return { model: "deepseek-chat", temperature: 0.3 }
-}
 
 export async function POST(request: NextRequest) {
     try {
@@ -248,24 +202,8 @@ export async function POST(request: NextRequest) {
         const stream = new ReadableStream({
             async start(controller) {
                 const encoder = new TextEncoder()
-                const sendEvent = (event: Record<string, any>) => {
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
-                }
-
-                // Extract context for progress labels
-                const { country, docType: ctxDocType, clientName } = extractContextFromPrompt(
-                    body.prompt,
-                    body.businessContext,
-                    body.documentType
-                )
-
-                // Send contextual progress steps to the client
-                sendEvent({ type: "progress", step: "analyze", label: `Analyzing ${ctxDocType} request${clientName ? ` for ${clientName}` : ""}` })
 
                 try {
-                    sendEvent({ type: "progress", step: "compliance", label: `Loading ${country} compliance rules` })
-                    sendEvent({ type: "progress", step: "generate", label: `Generating ${ctxDocType}${clientName ? ` for ${clientName}` : ""}` })
-
                     for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                         const data = `data: ${JSON.stringify(chunk)}\n\n`
                         controller.enqueue(encoder.encode(data))
