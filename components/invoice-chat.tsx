@@ -1195,7 +1195,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         )}>
                             {msg.role === "thinking" ? (
                                 (msg.activities && msg.activities.length > 0 || msg.isWorking) ? (
-                                <div className="w-full max-w-[85%]">
+                                <div className="w-full max-w-full">
                                     <AgenticThinkingBlock
                                         activities={msg.activities || []}
                                         isWorking={msg.isWorking ?? false}

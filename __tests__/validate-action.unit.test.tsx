@@ -117,7 +117,7 @@ describe("Validate action icon rendering", () => {
         )
 
         // The icon container should have an SVG (ShieldCheck renders as SVG)
-        const iconSpan = container.querySelector("span.w-8.h-8")
+        const iconSpan = container.querySelector("span.w-7.h-7") || container.querySelector("span.w-8.h-8")
         expect(iconSpan).not.toBeNull()
         const svg = iconSpan?.querySelector("svg")
         expect(svg).not.toBeNull()

@@ -59,7 +59,7 @@ export function AgenticThinkingBlock({
     return (
         <div
             className={cn(
-                "w-full rounded-xl border border-border/30 bg-card/50 overflow-hidden",
+                "w-full max-w-full rounded-xl border border-border/30 bg-card/50 overflow-hidden",
                 className,
             )}
         >
@@ -67,17 +67,18 @@ export function AgenticThinkingBlock({
                 {/* Vertical dotted connecting line */}
                 {activities.length > 1 && (
                     <div
-                        className="absolute left-[19px] top-[22px] w-px border-l border-dotted border-muted-foreground/20"
-                        style={{ height: `calc(100% - 44px)` }}
+                        className="absolute left-[15px] sm:left-[19px] top-[18px] sm:top-[22px] w-px border-l border-dotted border-muted-foreground/20"
+                        style={{ height: `calc(100% - 36px)` }}
                     />
                 )}
 
                 {activities.map((activity, idx) => {
                     const isLast = idx === activities.length - 1
                     const isExpanded = expandedIds.has(activity.id)
+                    const isProgressStep = activity.id.startsWith("progress-")
                     const hasExpandableContent =
                         activity.reasoningText ||
-                        (activity.detail && !activity.id.startsWith("progress-"))
+                        (activity.detail && !isProgressStep)
 
                     return (
                         <div key={activity.id} className="animate-in fade-in slide-in-from-bottom-1 duration-300">
@@ -85,40 +86,42 @@ export function AgenticThinkingBlock({
                                 type="button"
                                 onClick={() => hasExpandableContent && toggleExpand(activity.id)}
                                 className={cn(
-                                    "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors relative z-10",
+                                    "w-full flex items-center gap-2 sm:gap-3 px-2.5 sm:px-3 py-2 sm:py-2.5 text-left transition-colors relative z-10",
                                     hasExpandableContent && "cursor-pointer hover:bg-muted/30",
                                     !hasExpandableContent && "cursor-default",
                                 )}
                                 disabled={!hasExpandableContent}
                             >
-                                {/* Icon */}
+                                {/* Icon — smaller on mobile */}
                                 <span
                                     className={cn(
-                                        "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-muted-foreground bg-muted/50",
+                                        "w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 text-muted-foreground bg-muted/50",
                                         isLast && isWorking && !activity.detail && "animate-pulse",
                                     )}
                                 >
                                     {ACTION_ICONS[activity.action]}
                                 </span>
 
-                                {/* Label + detail */}
-                                <span className="flex-1 min-w-0 flex items-center gap-1.5 text-[13px] overflow-hidden">
-                                    <span
-                                        className={cn(
-                                            "font-medium text-foreground shrink-0 max-w-[55%] truncate",
-                                            isLast && isWorking && !activity.detail && "animate-pulse",
+                                {/* Label + detail — responsive layout */}
+                                <span className="flex-1 min-w-0 overflow-hidden">
+                                    <span className="flex items-center gap-1 sm:gap-1.5 text-[12px] sm:text-[13px]">
+                                        <span
+                                            className={cn(
+                                                "font-medium text-foreground truncate",
+                                                isLast && isWorking && !activity.detail && "animate-pulse",
+                                            )}
+                                        >
+                                            {activity.label}
+                                        </span>
+                                        {activity.detail && (
+                                            <>
+                                                <span className="text-muted-foreground/40 shrink-0">|</span>
+                                                <span className="text-muted-foreground truncate">
+                                                    {activity.detail}
+                                                </span>
+                                            </>
                                         )}
-                                    >
-                                        {activity.label}
                                     </span>
-                                    {activity.detail && (
-                                        <>
-                                            <span className="text-muted-foreground/40 shrink-0">|</span>
-                                            <span className="text-muted-foreground truncate transition-opacity duration-300">
-                                                {activity.detail}
-                                            </span>
-                                        </>
-                                    )}
                                 </span>
 
                                 {/* Chevron */}
@@ -141,8 +144,8 @@ export function AgenticThinkingBlock({
                                     }}
                                 >
                                     <div className="overflow-hidden">
-                                        <div className="pl-14 pr-4 pb-2.5 max-h-[240px] overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-                                            <p className="text-[12px] text-muted-foreground/70 leading-relaxed whitespace-pre-wrap break-words">
+                                        <div className="pl-10 sm:pl-14 pr-3 sm:pr-4 pb-2 sm:pb-2.5 max-h-[200px] sm:max-h-[240px] overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                                            <p className="text-[11px] sm:text-[12px] text-muted-foreground/70 leading-relaxed whitespace-pre-wrap break-words">
                                                 {activity.reasoningText || activity.detail}
                                                 {activity.action === "think" && isWorking && isLast && (
                                                     <span className="inline-block w-0.5 h-3 bg-muted-foreground/40 ml-0.5 animate-pulse align-middle" />
