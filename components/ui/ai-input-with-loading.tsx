@@ -195,7 +195,7 @@ export function AIInputWithLoading({
               }}
               disabled={isLoading || isUploading}
               className={cn(
-                "absolute right-14 bottom-3 flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-300",
+                "absolute right-[52px] bottom-3 flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-300",
                 isLoading || isUploading
                   ? "opacity-40 cursor-not-allowed text-muted-foreground"
                   : thinkingMode === "thinking"
