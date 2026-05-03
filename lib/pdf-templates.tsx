@@ -618,42 +618,44 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                <View style={s.sigRow} wrap={false}>
-                    <View style={s.sigBlk}>
-                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
-                        {(() => {
-                            // Party A is the document owner (Provider)
-                            // Show their drawn signature if showSenderSignature is true and image is available
-                            if (data.showSenderSignature !== false && data.senderSignatureDataUrl) {
-                                return <Image src={data.senderSignatureDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
-                            }
-                            return <View style={s.sigLine} />
-                        })()}
-                        <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
-                        {data.signatureTitle ? <Text style={{ fontSize: 9, color: c.mut }}>{data.signatureTitle}</Text> : null}
+                {data.showSignatureFields !== false && (
+                    <View style={s.sigRow} wrap={false}>
+                        <View style={s.sigBlk}>
+                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
+                            {(() => {
+                                // Party A is the document owner (Provider)
+                                // Show their drawn signature if showSenderSignature is true and image is available
+                                if (data.showSenderSignature !== false && data.senderSignatureDataUrl) {
+                                    return <Image src={data.senderSignatureDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                                }
+                                return <View style={s.sigLine} />
+                            })()}
+                            <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
+                            {data.signatureTitle ? <Text style={{ fontSize: 9, color: c.mut }}>{data.signatureTitle}</Text> : null}
+                        </View>
+                        <View style={{ ...s.sigBlk, marginRight: 0 }}>
+                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
+                            {(() => {
+                                // Party B is the signer (Client) — show their drawn signature if available
+                                // All signers are stored with party="Client" by default
+                                const clientSig = data.signatureImages?.[0]
+                                if (clientSig?.imageDataUrl) {
+                                    return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                                }
+                                // If document is signed but image unavailable, show a signed indicator
+                                if (data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) {
+                                    return (
+                                        <View style={{ height: 56, marginBottom: 4, justifyContent: "center", alignItems: "flex-start" }}>
+                                            <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                        </View>
+                                    )
+                                }
+                                return <View style={s.sigLine} />
+                            })()}
+                            <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>
+                        </View>
                     </View>
-                    <View style={{ ...s.sigBlk, marginRight: 0 }}>
-                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
-                        {(() => {
-                            // Party B is the signer (Client) — show their drawn signature if available
-                            // All signers are stored with party="Client" by default
-                            const clientSig = data.signatureImages?.[0]
-                            if (clientSig?.imageDataUrl) {
-                                return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
-                            }
-                            // If document is signed but image unavailable, show a signed indicator
-                            if (data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) {
-                                return (
-                                    <View style={{ height: 56, marginBottom: 4, justifyContent: "center", alignItems: "flex-start" }}>
-                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
-                                    </View>
-                                )
-                            }
-                            return <View style={s.sigLine} />
-                        })()}
-                        <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>
-                    </View>
-                </View>
+                )}
 
                 {data.notes ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Notes</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text></View> : null}
                 {data.terms ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Additional Terms</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text></View> : null}
@@ -790,37 +792,39 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                     </View>
                 </View>
 
-                <View style={s.sigRow} wrap={false}>
-                    <View style={s.sigBlk}>
-                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
-                        {(() => {
-                            if (data.showSenderSignature !== false && data.senderSignatureDataUrl) {
-                                return <Image src={data.senderSignatureDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
-                            }
-                            return <View style={s.sigLine} />
-                        })()}
-                        <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
-                        {data.signatureTitle ? <Text style={{ fontSize: 9, color: c.mut }}>{data.signatureTitle}</Text> : null}
+                {data.showSignatureFields !== false && (
+                    <View style={s.sigRow} wrap={false}>
+                        <View style={s.sigBlk}>
+                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
+                            {(() => {
+                                if (data.showSenderSignature !== false && data.senderSignatureDataUrl) {
+                                    return <Image src={data.senderSignatureDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                                }
+                                return <View style={s.sigLine} />
+                            })()}
+                            <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
+                            {data.signatureTitle ? <Text style={{ fontSize: 9, color: c.mut }}>{data.signatureTitle}</Text> : null}
+                        </View>
+                        <View style={{ ...s.sigBlk, marginRight: 0 }}>
+                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
+                            {(() => {
+                                const clientSig = data.signatureImages?.[0]
+                                if (clientSig?.imageDataUrl) {
+                                    return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                                }
+                                if (data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) {
+                                    return (
+                                        <View style={{ height: 56, marginBottom: 4, justifyContent: "center", alignItems: "flex-start" }}>
+                                            <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                        </View>
+                                    )
+                                }
+                                return <View style={s.sigLine} />
+                            })()}
+                            <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>
+                        </View>
                     </View>
-                    <View style={{ ...s.sigBlk, marginRight: 0 }}>
-                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
-                        {(() => {
-                            const clientSig = data.signatureImages?.[0]
-                            if (clientSig?.imageDataUrl) {
-                                return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
-                            }
-                            if (data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) {
-                                return (
-                                    <View style={{ height: 56, marginBottom: 4, justifyContent: "center", alignItems: "flex-start" }}>
-                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
-                                    </View>
-                                )
-                            }
-                            return <View style={s.sigLine} />
-                        })()}
-                        <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>
-                    </View>
-                </View>
+                )}
 
                 {data.notes ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Notes</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text></View> : null}
                 {data.terms ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Terms & Conditions</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text></View> : null}
@@ -1001,37 +1005,39 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.5 }}>{data.paymentInstructions || "To proceed with this proposal, please sign and return this document. We look forward to working with you."}</Text>
                 </View>
 
-                <View style={s.sigRow} wrap={false}>
-                    <View style={s.sigBlk}>
-                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
-                        {(() => {
-                            if (data.showSenderSignature !== false && data.senderSignatureDataUrl) {
-                                return <Image src={data.senderSignatureDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
-                            }
-                            return <View style={s.sigLine} />
-                        })()}
-                        <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
-                        {data.signatureTitle ? <Text style={{ fontSize: 9, color: c.mut }}>{data.signatureTitle}</Text> : null}
+                {data.showSignatureFields !== false && (
+                    <View style={s.sigRow} wrap={false}>
+                        <View style={s.sigBlk}>
+                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
+                            {(() => {
+                                if (data.showSenderSignature !== false && data.senderSignatureDataUrl) {
+                                    return <Image src={data.senderSignatureDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                                }
+                                return <View style={s.sigLine} />
+                            })()}
+                            <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
+                            {data.signatureTitle ? <Text style={{ fontSize: 9, color: c.mut }}>{data.signatureTitle}</Text> : null}
+                        </View>
+                        <View style={{ ...s.sigBlk, marginRight: 0 }}>
+                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
+                            {(() => {
+                                const clientSig = data.signatureImages?.[0]
+                                if (clientSig?.imageDataUrl) {
+                                    return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
+                                }
+                                if (data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) {
+                                    return (
+                                        <View style={{ height: 56, marginBottom: 4, justifyContent: "center", alignItems: "flex-start" }}>
+                                            <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                        </View>
+                                    )
+                                }
+                                return <View style={s.sigLine} />
+                            })()}
+                            <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>
+                        </View>
                     </View>
-                    <View style={{ ...s.sigBlk, marginRight: 0 }}>
-                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
-                        {(() => {
-                            const clientSig = data.signatureImages?.[0]
-                            if (clientSig?.imageDataUrl) {
-                                return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
-                            }
-                            if (data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) {
-                                return (
-                                    <View style={{ height: 56, marginBottom: 4, justifyContent: "center", alignItems: "flex-start" }}>
-                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
-                                    </View>
-                                )
-                            }
-                            return <View style={s.sigLine} />
-                        })()}
-                        <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>
-                    </View>
-                </View>
+                )}
 
                 {data.notes ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Notes</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text></View> : null}
                 {data.terms ? <View style={s.nWrap}><Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Terms & Conditions</Text><Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text></View> : null}

@@ -100,6 +100,7 @@ export interface InvoiceData {
   signatureName: string
   signatureTitle: string
   showSenderSignature: boolean  // whether to show sender's drawn signature on the document
+  showSignatureFields: boolean  // whether to show the entire signature section (name, title, line) on the document
   senderSignatureDataUrl?: string  // sender's drawn signature image (data URL) for this document
   signatureImages?: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }>
   signedAt?: string  // ISO timestamp — set when doc is signed but image unavailable
@@ -211,6 +212,7 @@ export function getInitialInvoiceData(): InvoiceData {
     signatureName: "",
     signatureTitle: "",
     showSenderSignature: true,
+    showSignatureFields: true,
   }
 }
 

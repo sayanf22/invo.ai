@@ -880,13 +880,24 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
                     // ── Merge parent context client fields for linked documents ──
                     // If this is a linked document and the AI didn't include client fields,
-                    // carry them over from the parent document's seed data
+                    // carry them over from the parent document's seed data.
+                    // Also handles cases where AI returned placeholder text like [Client Email].
                     if (session.chain_id && session.context && typeof session.context === "object") {
                         const ctx = session.context as Record<string, any>
-                        if (!docData.toName && ctx.toName) docData.toName = ctx.toName
-                        if (!docData.toEmail && ctx.toEmail) docData.toEmail = ctx.toEmail
-                        if (!docData.toAddress && ctx.toAddress) docData.toAddress = ctx.toAddress
-                        if (!docData.toPhone && ctx.toPhone) docData.toPhone = ctx.toPhone
+                        // Helper: treat empty strings AND placeholder patterns as missing
+                        const isMissing = (v: any) => {
+                            if (!v || typeof v !== "string") return true
+                            const t = v.trim()
+                            if (!t) return true
+                            // Placeholder patterns: [Client Email], [To be provided], N/A, etc.
+                            if (/^\[.*\]$/.test(t)) return true
+                            if (/^(n\/?a|tbd|pending|to be (provided|shared|confirmed|updated|filled|added)|not (provided|available|specified|applicable))$/i.test(t)) return true
+                            return false
+                        }
+                        if (isMissing(docData.toName) && ctx.toName) docData.toName = ctx.toName
+                        if (isMissing(docData.toEmail) && ctx.toEmail) docData.toEmail = ctx.toEmail
+                        if (isMissing(docData.toAddress) && ctx.toAddress) docData.toAddress = ctx.toAddress
+                        if (isMissing(docData.toPhone) && ctx.toPhone) docData.toPhone = ctx.toPhone
                     }
 
                     onChange(docData)

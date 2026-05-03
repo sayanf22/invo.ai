@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   PenLine,
   RotateCcw,
+  FileSignature,
 } from "lucide-react"
 import { toast } from "sonner"
 import type { InvoiceData, LineItem } from "@/lib/invoice-types"
@@ -232,7 +233,8 @@ function SignatureStep({
         if (d.signatureDataUrl) {
           setSavedSigUrl(d.signatureDataUrl)
           // Auto-fill into document if not already set and user hasn't explicitly turned it off
-          if (!data.senderSignatureDataUrl && data.showSenderSignature === undefined) {
+          // Note: showSenderSignature defaults to `true` (not undefined), so we check !== false
+          if (!data.senderSignatureDataUrl && data.showSenderSignature !== false) {
             onChange({ senderSignatureDataUrl: d.signatureDataUrl })
           }
         }
@@ -281,30 +283,57 @@ function SignatureStep({
         </div>
       )}
 
-      {/* Show/hide toggle */}
+      {/* Show/hide entire signature section */}
       <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-border bg-muted/20">
         <div className="flex items-center gap-2">
-          <PenLine className="w-4 h-4 text-muted-foreground shrink-0" />
+          <FileSignature className="w-4 h-4 text-muted-foreground shrink-0" />
           <div>
-            <p className="text-xs font-semibold text-foreground">Show my signature on document</p>
+            <p className="text-xs font-semibold text-foreground">Show signature fields</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              {data.showSenderSignature !== false ? "Your signature will appear in the PDF" : "Signature block will show a blank line"}
+              {data.showSignatureFields !== false ? "Signature section visible in PDF" : "Signature section hidden from PDF"}
             </p>
           </div>
         </div>
         <button
           type="button"
-          onClick={toggleShowSignature}
+          onClick={() => {
+            if (isLocked) return
+            onChange({ showSignatureFields: data.showSignatureFields === false ? true : false })
+          }}
           disabled={isLocked}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 ${isLocked ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${data.showSenderSignature !== false ? "bg-primary" : "bg-muted"}`}
-          aria-label="Toggle signature visibility"
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 ${isLocked ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${data.showSignatureFields !== false ? "bg-primary" : "bg-muted"}`}
+          aria-label="Toggle signature fields visibility"
         >
-          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.showSenderSignature !== false ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.showSignatureFields !== false ? "translate-x-[18px]" : "translate-x-0.5"}`} />
         </button>
       </div>
 
-      {/* Signature preview / pad */}
-      {data.showSenderSignature !== false && (
+      {data.showSignatureFields !== false && (
+        <>
+          {/* Show/hide toggle */}
+          <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-border bg-muted/20">
+            <div className="flex items-center gap-2">
+              <PenLine className="w-4 h-4 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-foreground">Show my signature on document</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {data.showSenderSignature !== false ? "Your signature will appear in the PDF" : "Signature block will show a blank line"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={toggleShowSignature}
+              disabled={isLocked}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 ${isLocked ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${data.showSenderSignature !== false ? "bg-primary" : "bg-muted"}`}
+              aria-label="Toggle signature visibility"
+            >
+              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.showSenderSignature !== false ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+            </button>
+          </div>
+
+          {/* Signature preview / pad */}
+          {data.showSenderSignature !== false && (
         <div className="space-y-2">
           {loadingSaved ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
@@ -362,6 +391,8 @@ function SignatureStep({
             </div>
           ) : null}
         </div>
+      )}
+        </>
       )}
 
       {/* Name and title fields */}
