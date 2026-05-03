@@ -13,7 +13,7 @@ import { NextStepsBar } from "@/components/next-steps-bar"
 import { ChainNavigator } from "@/components/chain-navigator"
 import { MessageLimitBanner } from "@/components/message-limit-banner"
 import { UpgradeModal } from "@/components/upgrade-modal"
-import AIThinkingBlock from "@/components/ui/ai-thinking-block"
+import { AgenticThinkingBlock } from "@/components/ui/agentic-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
 import { createClient } from "@/lib/supabase"
 import { ClientSelector } from "@/components/clients/client-selector"
@@ -92,7 +92,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [stagedFile, setStagedFile] = useState<File | null>(null)
     const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
-    const [thinkingMode, setThinkingMode] = useState(false)
+    const [agenticSteps, setAgenticSteps] = useState<import("@/components/ui/agentic-thinking-block").AgenticStep[]>([])
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
     const [fileContext, setFileContext] = useState<string | null>(null)
@@ -403,6 +403,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         // NOTE: User message is NOT saved to DB here — it's saved only after a successful
         // AI response. This prevents error responses from counting against the message limit.
         setIsLoading(true)
+        setAgenticSteps([])
 
         try {
             const response = await authFetch("/api/ai/stream", {
@@ -412,7 +413,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     prompt: userMessage,
                     documentType: docType,
                     sessionId: session.id,
-                    thinkingMode,
                     // Send currentData if this is a follow-up OR if this is a linked session with seed data
                     currentData: (messages.length > 1 || session.chain_id) ? data : undefined,
                     conversationHistory: messages.length > 1 ? messages.slice(-20) : [],
@@ -529,11 +529,25 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     if (!line.startsWith("data: ")) continue
                     try {
                         const parsed = JSON.parse(line.slice(6))
-                        if (parsed.type === "chunk") {
+                        if (parsed.type === "progress") {
+                            // Agentic progress step from the server
+                            setAgenticSteps(prev => {
+                                // Mark previous active step as completed
+                                const updated = prev.map(s => 
+                                    s.status === "active" ? { ...s, status: "completed" as const } : s
+                                )
+                                // Add new active step
+                                return [...updated, {
+                                    id: parsed.step,
+                                    label: parsed.label,
+                                    status: "active" as const,
+                                    type: (parsed.step === "analyze" ? "thinking" : parsed.step === "generate" ? "generating" : "tool") as any,
+                                    detail: parsed.detail,
+                                }]
+                            })
+                        } else if (parsed.type === "chunk") {
                             fullContent += parsed.data
                             // Only stream live if we're confident this is NOT a JSON response.
-                            // JSON responses from DeepSeek can start with text like "Here's your invoice:"
-                            // followed by ```json or raw {. We wait for 200 chars and check for JSON indicators.
                             if (!isStreamingText && fullContent.length > 200) {
                                 const trimmed = fullContent.trimStart()
                                 const looksLikeJSON = trimmed.startsWith("{") || trimmed.startsWith("[") 
@@ -548,8 +562,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 setStreamingContent(fullContent)
                             }
                         } else if (parsed.type === "complete") {
-                            // Backend sends the full cleaned content — use it as authoritative source
                             completeData = parsed.data
+                            // Mark all steps as completed
+                            setAgenticSteps(prev => prev.map(s => ({ ...s, status: "completed" as const })))
                         } else if (parsed.type === "error") {
                             streamError = parsed.data
                         }
@@ -1105,9 +1120,11 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             </div>
                         </div>
                     )}
-                    {isLoading && !streamingContent && (
+                    {(isLoading || agenticSteps.length > 0) && !streamingContent && (
                         <div className="flex justify-start w-full animate-in fade-in duration-200">
-                            <AIThinkingBlock label={thinkingMode ? "Thinking deeply..." : "Generating..."} />
+                            <div className="w-full max-w-[85%]">
+                                <AgenticThinkingBlock steps={agenticSteps} isGenerating={isLoading} />
+                            </div>
                         </div>
                     )}
                     <div ref={scrollRef} />
@@ -1227,8 +1244,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     stagedFile={stagedFile}
                                     onFileSelect={(file) => setStagedFile(file)}
                                     onFileRemove={() => setStagedFile(null)}
-                                    thinkingMode={thinkingMode}
-                                    onThinkingModeChange={setThinkingMode}
                                 />
                             </>
                         ) : (
@@ -1253,8 +1268,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 stagedFile={stagedFile}
                                 onFileSelect={(file) => setStagedFile(file)}
                                 onFileRemove={() => setStagedFile(null)}
-                                thinkingMode={thinkingMode}
-                                onThinkingModeChange={setThinkingMode}
                             />
                         )
                     )}

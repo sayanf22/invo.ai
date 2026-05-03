@@ -30,7 +30,6 @@ export interface AIGenerationRequest {
     }
     fileContext?: string
     complianceContext?: string
-    thinkingMode?: boolean
 }
 
 export interface AIGenerationResponse {
@@ -630,16 +629,13 @@ export async function generateDocument(
                 Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                model: request.thinkingMode ? "deepseek-v4-pro" : "deepseek-chat",
+                model: "deepseek-chat",
                 messages: [
                     { role: "system", content: DUAL_MODE_SYSTEM_PROMPT },
                     { role: "user", content: prompt },
                 ],
                 max_tokens: 3000,
-                ...(request.thinkingMode
-                    ? { reasoning_effort: "low" }
-                    : { temperature: 0.3 }
-                ),
+                temperature: 0.3,
             }),
         })
 
@@ -721,16 +717,13 @@ export async function* streamGenerateDocument(
                 Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                model: request.thinkingMode ? "deepseek-v4-pro" : "deepseek-chat",
+                model: "deepseek-chat",
                 messages: [
                     { role: "system", content: DUAL_MODE_SYSTEM_PROMPT },
                     { role: "user", content: prompt },
                 ],
                 max_tokens: 3000,
-                ...(request.thinkingMode
-                    ? { reasoning_effort: "low" }
-                    : { temperature: 0.3 }
-                ),
+                temperature: 0.3,
                 stream: true,
             }),
         })

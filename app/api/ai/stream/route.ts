@@ -197,8 +197,17 @@ export async function POST(request: NextRequest) {
         const stream = new ReadableStream({
             async start(controller) {
                 const encoder = new TextEncoder()
+                const sendEvent = (event: Record<string, any>) => {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+                }
+
+                // Send progress steps to the client
+                sendEvent({ type: "progress", step: "analyze", label: "Analyzing your request" })
 
                 try {
+                    sendEvent({ type: "progress", step: "compliance", label: "Loading compliance rules" })
+                    sendEvent({ type: "progress", step: "generate", label: "Generating document" })
+
                     for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                         const data = `data: ${JSON.stringify(chunk)}\n\n`
                         controller.enqueue(encoder.encode(data))

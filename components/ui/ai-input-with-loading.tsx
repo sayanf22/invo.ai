@@ -1,6 +1,6 @@
 "use client"
 
-import { CornerRightUp, Square, Paperclip, X, FileText, ImageIcon, Loader2, Brain, Zap } from "lucide-react"
+import { CornerRightUp, Square, Paperclip, X, FileText, ImageIcon, Loader2 } from "lucide-react"
 import { useState, useRef, useCallback } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -39,15 +39,11 @@ interface AIInputWithLoadingProps {
   statusText?: string
   value?: string
   onValueChange?: (value: string) => void
-  /** File attachment support */
   stagedFile?: File | null
   onFileSelect?: (file: File) => void
   onFileRemove?: () => void
   showAttachButton?: boolean
   isUploading?: boolean
-  /** Thinking mode toggle */
-  thinkingMode?: boolean
-  onThinkingModeChange?: (enabled: boolean) => void
 }
 
 export function AIInputWithLoading({
@@ -68,8 +64,6 @@ export function AIInputWithLoading({
   onFileRemove,
   showAttachButton = false,
   isUploading = false,
-  thinkingMode = false,
-  onThinkingModeChange,
 }: AIInputWithLoadingProps) {
   const [internalValue, setInternalValue] = useState("")
   const inputValue = controlledValue !== undefined ? controlledValue : internalValue
@@ -109,7 +103,6 @@ export function AIInputWithLoading({
               : "border-border shadow-[0_1px_8px_-1px_rgba(0,0,0,0.08)] focus-within:border-primary/40 focus-within:shadow-[0_2px_16px_-2px_hsl(var(--primary)/0.15)]"
           )}
         >
-          {/* Staged file card — inside the input area */}
           {stagedFile && (
             <div className="px-3 pt-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="inline-flex items-center gap-3 px-3 py-2.5 bg-muted/60 rounded-xl border border-border/50 max-w-[220px] group">
@@ -137,7 +130,7 @@ export function AIInputWithLoading({
             placeholder={stagedFile ? "Add a message about this file..." : placeholder}
             className={cn(
               "w-full rounded-2xl border-none bg-transparent pr-14 pt-3 pb-2",
-              (showAttachButton && onThinkingModeChange) ? "pl-[5.25rem]" : (showAttachButton || onThinkingModeChange) ? "pl-12" : "pl-5",
+              showAttachButton ? "pl-12" : "pl-5",
               "text-[15px] text-foreground placeholder:text-muted-foreground/40",
               "resize-none leading-relaxed focus-visible:ring-0 focus-visible:ring-offset-0",
               "overflow-y-auto"
@@ -159,7 +152,6 @@ export function AIInputWithLoading({
             autoFocus
           />
 
-          {/* Attach button — bottom left inside the input */}
           {showAttachButton && (
             <>
               <input
@@ -189,39 +181,6 @@ export function AIInputWithLoading({
             </>
           )}
 
-          {/* Mode toggle — thunder (fast) / brain (thinking) */}
-          {onThinkingModeChange && (
-            <button
-              type="button"
-              onClick={() => onThinkingModeChange(!thinkingMode)}
-              disabled={isLoading || isUploading || disabled}
-              className={cn(
-                "absolute bottom-3 flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 ease-out",
-                showAttachButton ? "left-12" : "left-3",
-                isLoading || isUploading || disabled
-                  ? "opacity-40 cursor-not-allowed"
-                  : "cursor-pointer active:scale-90",
-                thinkingMode
-                  ? "bg-foreground/10 text-foreground"
-                  : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/30"
-              )}
-              aria-label={thinkingMode ? "Deep thinking mode — click for fast mode" : "Fast mode — click for deep thinking"}
-              title={thinkingMode ? "Deep thinking (slower, precise)" : "Fast mode (quick responses)"}
-            >
-              <div className="relative w-4 h-4">
-                <Zap className={cn(
-                  "w-4 h-4 absolute inset-0 transition-all duration-300",
-                  thinkingMode ? "opacity-0 scale-50 rotate-12" : "opacity-100 scale-100 rotate-0"
-                )} />
-                <Brain className={cn(
-                  "w-4 h-4 absolute inset-0 transition-all duration-300",
-                  thinkingMode ? "opacity-100 scale-100 rotate-0" : "opacity-0 scale-50 -rotate-12"
-                )} />
-              </div>
-            </button>
-          )}
-
-          {/* Send / Stop button — bottom right */}
           <button
             onClick={isLoading ? onStop : handleSubmit}
             className={cn(
@@ -249,7 +208,7 @@ export function AIInputWithLoading({
           </button>
         </div>
         <p className="pl-2 pt-1.5 h-5 text-[11px] text-muted-foreground/50 select-none">
-          {statusText || (isUploading ? "Analyzing file..." : isLoading ? (thinkingMode ? "Thinking deeply..." : "Generating...") : "Shift+Enter for new line")}
+          {statusText || (isUploading ? "Analyzing file..." : isLoading ? "Generating..." : "Shift+Enter for new line")}
         </p>
       </div>
     </div>
