@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { streamGenerateDocument, buildPrompt, DUAL_MODE_SYSTEM_PROMPT, type AIGenerationRequest } from "@/lib/deepseek"
-import { streamBedrockChat } from "@/lib/bedrock"
+import { streamBedrockChat, callBedrockBrief, ORCHESTRATOR_SYSTEM_PROMPT, BUSINESS_PROFILE_COMMENTARY_PROMPT, COMPLIANCE_COMMENTARY_PROMPT, RAG_VALIDATION_PROMPT } from "@/lib/bedrock"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 import { classifyIntent } from "@/lib/intent-router"
 
@@ -113,6 +113,14 @@ export async function POST(request: NextRequest) {
                         detail: intentType === "document" ? `${docTypeName} • "${promptSummary}"` : `"${promptSummary}"`,
                     })
 
+                    // ── Resolve Bedrock key early (needed for orchestration gate) ──
+                    const bedrockKey = process.env.amazon_beadrocl_key
+                        || (typeof globalThis !== "undefined" ? (globalThis as any).amazon_beadrocl_key : "")
+                        || ""
+
+                    // Orchestration gate: only in Thinking Mode + document intent + valid Bedrock key
+                    const shouldOrchestrate = body.thinkingMode === "thinking" && intentType === "document" && bedrockKey && bedrockKey.length > 10
+
                     // ── 1. Read business profile ──────────────────────────────────
                     sendEvent({ type: "activity", action: "read", label: "Reading business profile" })
                     try {
@@ -166,6 +174,25 @@ export async function POST(request: NextRequest) {
                     } catch (err) {
                         console.error("Failed to fetch business profile:", err instanceof Error ? err.message : err)
                         sendEvent({ type: "activity", action: "read", label: "Reading business profile", detail: "Not found" })
+                    }
+
+                    // ── 1b. Start Kimi commentary on business profile (non-blocking) ──
+                    let profileCommentaryPromise: Promise<string | null> | null = null
+                    let profileDetailForCommentary = ""
+                    if (shouldOrchestrate && body.businessContext?.name) {
+                        profileDetailForCommentary = [body.businessContext.name, body.businessContext.country, body.businessContext.currency || "USD"].filter(Boolean).join(" • ")
+                        profileCommentaryPromise = callBedrockBrief(
+                            ORCHESTRATOR_SYSTEM_PROMPT,
+                            BUSINESS_PROFILE_COMMENTARY_PROMPT({
+                                name: body.businessContext.name,
+                                country: body.businessContext.country || "",
+                                currency: body.businessContext.currency || "USD",
+                                taxRegistered: !!body.businessContext.taxRegistered,
+                                businessType: body.businessContext.businessType || "",
+                            }),
+                            bedrockKey,
+                            100
+                        )
                     }
 
                     // ── 2. Search compliance rules (only for document generation with a country) ──
@@ -233,6 +260,70 @@ export async function POST(request: NextRequest) {
                         }
                     }
 
+                    // ── 2b. Await business profile commentary (was running in parallel with compliance fetch) ──
+                    if (profileCommentaryPromise) {
+                        const commentary = await profileCommentaryPromise
+                        if (commentary) {
+                            sendEvent({ type: "activity", action: "read", label: "Reading business profile", detail: profileDetailForCommentary || "Loaded", content: commentary })
+                        }
+                    }
+
+                    // ── 2c. Kimi compliance rules commentary ──
+                    let complianceRulesForValidation: any[] = []
+                    if (shouldOrchestrate) {
+                        try {
+                            const { getComplianceContext: getComplianceCtx } = await import("@/lib/compliance-rag")
+                            // We already fetched compliance above; re-use complianceRuleCount and body.complianceContext
+                            // Build rules summary for Kimi from the compliance context already on body
+                            const complianceCategories: string[] = []
+                            const complianceKeyValues: string[] = []
+
+                            // Re-fetch rules for the summary (lightweight — already cached by Supabase)
+                            try {
+                                const compResult = await getComplianceCtx(auth.supabase, country, docType)
+                                complianceRulesForValidation = compResult.rules
+                                for (const r of compResult.rules) {
+                                    if (!complianceCategories.includes(r.category)) {
+                                        complianceCategories.push(r.category)
+                                    }
+                                    const desc = r.description || r.requirement_key
+                                    if (r.category === "tax_rates") {
+                                        const std = (r.requirement_value as any)?.standard
+                                        complianceKeyValues.push(`Tax: ${std !== undefined ? std + "%" : "varies"} — ${desc}`)
+                                    } else {
+                                        complianceKeyValues.push(`${r.category.replace(/_/g, " ")}: ${desc}`)
+                                    }
+                                }
+                            } catch {
+                                // Use what we already have
+                            }
+
+                            const complianceCommentary = await callBedrockBrief(
+                                ORCHESTRATOR_SYSTEM_PROMPT,
+                                COMPLIANCE_COMMENTARY_PROMPT({
+                                    country: country || "Unknown",
+                                    ruleCount: complianceRuleCount,
+                                    categories: complianceCategories,
+                                    keyValues: complianceKeyValues.join("\n") || "None",
+                                }),
+                                bedrockKey,
+                                100
+                            )
+
+                            if (complianceCommentary && country && intentType === "document") {
+                                sendEvent({
+                                    type: "activity",
+                                    action: "search",
+                                    label: `Searching ${country} compliance`,
+                                    detail: `Found ${complianceRuleCount} rules`,
+                                    content: complianceCommentary,
+                                })
+                            }
+                        } catch (err) {
+                            console.error("Kimi compliance commentary failed:", err instanceof Error ? err.message : err)
+                        }
+                    }
+
                     // ── 3. Generate document number (only for document generation) ──
                     if (intentType === "document") {
                     try {
@@ -266,6 +357,7 @@ export async function POST(request: NextRequest) {
 
                     // Track whether any model completed successfully (for usage tracking)
                     let modelCompletedSuccessfully = false
+                    let completeResponseData: string | null = null
 
                     if (isDocGeneration) {
                         // Use DeepSeek for document generation
@@ -281,6 +373,7 @@ export async function POST(request: NextRequest) {
                         for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                             sendEvent(chunk)
                             if (chunk.type === "complete") {
+                                completeResponseData = chunk.data as string || null
                                 modelCompletedSuccessfully = true
                                 break
                             }
@@ -288,10 +381,6 @@ export async function POST(request: NextRequest) {
                         }
                     } else {
                         // Try Kimi K2.5 via Bedrock for chat, fall back to DeepSeek if unavailable
-                        const bedrockKey = process.env.amazon_beadrocl_key
-                            || (typeof globalThis !== "undefined" ? (globalThis as any).amazon_beadrocl_key : "")
-                            || ""
-
                         if (bedrockKey && bedrockKey.length > 10) {
                             sendEvent({ type: "activity", action: "think", label: "Thinking about your question", detail: "Kimi K2.5" })
                             const prompt = buildPrompt(body)
@@ -348,6 +437,69 @@ export async function POST(request: NextRequest) {
                                 }
                                 if (chunk.type === "error") break
                             }
+                        }
+                    }
+
+                    // ── 5. RAG validation (Thinking Mode only, after document generation) ──
+                    if (shouldOrchestrate && modelCompletedSuccessfully && complianceRulesForValidation.length > 0 && completeResponseData) {
+                        try {
+                            sendEvent({ type: "activity", action: "validate", label: "Validating compliance" })
+
+                            // Extract key fields from the generated document for validation
+                            let docFields = completeResponseData
+                            try {
+                                const parsed = JSON.parse(completeResponseData)
+                                // Extract only the fields relevant for compliance validation
+                                const relevant: Record<string, any> = {}
+                                if (parsed.taxRate !== undefined) relevant.taxRate = parsed.taxRate
+                                if (parsed.tax_rate !== undefined) relevant.tax_rate = parsed.tax_rate
+                                if (parsed.currency !== undefined) relevant.currency = parsed.currency
+                                if (parsed.items !== undefined) relevant.items = parsed.items
+                                if (parsed.total !== undefined) relevant.total = parsed.total
+                                if (parsed.subtotal !== undefined) relevant.subtotal = parsed.subtotal
+                                if (parsed.taxAmount !== undefined) relevant.taxAmount = parsed.taxAmount
+                                if (parsed.tax_amount !== undefined) relevant.tax_amount = parsed.tax_amount
+                                if (parsed.invoiceNumber !== undefined) relevant.invoiceNumber = parsed.invoiceNumber
+                                if (parsed.invoice_number !== undefined) relevant.invoice_number = parsed.invoice_number
+                                if (parsed.date !== undefined) relevant.date = parsed.date
+                                if (parsed.dueDate !== undefined) relevant.dueDate = parsed.dueDate
+                                if (parsed.due_date !== undefined) relevant.due_date = parsed.due_date
+                                if (parsed.billTo !== undefined) relevant.billTo = parsed.billTo
+                                if (parsed.bill_to !== undefined) relevant.bill_to = parsed.bill_to
+                                docFields = JSON.stringify(relevant, null, 2)
+                            } catch {
+                                // If not valid JSON, use first 2000 chars of raw response
+                                docFields = completeResponseData.slice(0, 2000)
+                            }
+
+                            // Build RAG rules summary for validation
+                            const ragSummary = complianceRulesForValidation.map(r => {
+                                const desc = r.description || r.requirement_key
+                                if (r.category === "tax_rates") {
+                                    const std = (r.requirement_value as any)?.standard
+                                    return `Tax Rate: ${std !== undefined ? std + "%" : "varies"} — ${desc}`
+                                }
+                                return `${r.category.replace(/_/g, " ")}: ${desc} (${JSON.stringify(r.requirement_value)})`
+                            }).join("\n")
+
+                            const validation = await callBedrockBrief(
+                                ORCHESTRATOR_SYSTEM_PROMPT,
+                                RAG_VALIDATION_PROMPT({ documentJson: docFields, ragRules: ragSummary }),
+                                bedrockKey,
+                                200
+                            )
+
+                            if (validation) {
+                                sendEvent({
+                                    type: "activity",
+                                    action: "validate",
+                                    label: "Validating compliance",
+                                    detail: validation.includes("⚠️") ? "Issues found" : "Compliant",
+                                    content: validation,
+                                })
+                            }
+                        } catch (err) {
+                            console.error("Kimi RAG validation failed:", err instanceof Error ? err.message : err)
                         }
                     }
 

@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { ChevronRight, Database, Search, PenLine, Brain, ScanText, GitBranch, Layers } from "lucide-react"
+import { ChevronRight, Database, Search, PenLine, Brain, ScanText, GitBranch, Layers, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ActivityItem {
     id: string
-    action: "read" | "think" | "search" | "generate" | "analyze" | "route" | "context"
+    action: "read" | "think" | "search" | "generate" | "analyze" | "route" | "context" | "validate"
     label: string
     detail?: string
     reasoningText?: string // Expandable content for any action type
@@ -30,6 +30,7 @@ const ACTION_ICONS: Record<ActivityItem["action"], React.ReactNode> = {
     think: <Brain className="w-3.5 h-3.5" />,
     route: <GitBranch className="w-3.5 h-3.5" />,
     context: <Layers className="w-3.5 h-3.5" />,
+    validate: <ShieldCheck className="w-3.5 h-3.5" />,
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────

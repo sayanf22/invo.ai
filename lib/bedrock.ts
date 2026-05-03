@@ -157,3 +157,159 @@ export async function* streamBedrockChat(
         clearTimeout(timeoutId)
     }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Non-streaming Bedrock call for brief orchestrator commentary.
+ *
+ * Used by the Kimi RAG Orchestrator to produce short commentary (≤200 tokens)
+ * during Thinking Mode document generation. Returns the full response text
+ * (not a generator). Returns null on any error — never throws.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Non-streaming Bedrock call for brief orchestrator commentary.
+ *
+ * @param systemPrompt - System instructions for the orchestrator role
+ * @param userPrompt   - The content to analyze/summarize
+ * @param apiKey       - Bedrock Mantle API key
+ * @param maxTokens    - Maximum response tokens (default: 100)
+ * @returns The response text, or null if the call fails/times out
+ */
+export async function callBedrockBrief(
+    systemPrompt: string,
+    userPrompt: string,
+    apiKey: string,
+    maxTokens: number = 100
+): Promise<string | null> {
+    if (!apiKey || apiKey.trim().length === 0) {
+        console.error("[callBedrockBrief] Missing or empty API key")
+        return null
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+    try {
+        const response = await fetch(BEDROCK_MANTLE_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: BEDROCK_MODEL,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userPrompt },
+                ],
+                max_tokens: maxTokens,
+                temperature: 0.2,
+                stream: false,
+            }),
+            signal: controller.signal,
+        })
+
+        if (!response.ok) {
+            console.error("[callBedrockBrief] HTTP error", {
+                status: response.status,
+                statusText: response.statusText,
+            })
+            return null
+        }
+
+        const json = await response.json()
+        const text = json.choices?.[0]?.message?.content
+
+        if (typeof text !== "string" || text.trim().length === 0) {
+            console.error("[callBedrockBrief] Empty or invalid response body", {
+                choices: json.choices,
+            })
+            return null
+        }
+
+        return text.trim()
+    } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+            console.error(
+                "[callBedrockBrief] Request timed out after 30 seconds"
+            )
+        } else {
+            console.error("[callBedrockBrief] Unexpected error", {
+                message:
+                    error instanceof Error ? error.message : String(error),
+            })
+        }
+        return null
+    } finally {
+        clearTimeout(timeoutId)
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Orchestrator Prompt Templates
+ *
+ * Template functions that accept data and return the interpolated prompt
+ * string. Used by the Kimi RAG Orchestrator in Thinking Mode.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/** System prompt for all Kimi orchestrator calls. */
+export const ORCHESTRATOR_SYSTEM_PROMPT =
+    "You are Kimi, a brief and factual document reviewer. " +
+    "You review business context, compliance rules, and generated documents. " +
+    "Respond in 3 sentences or fewer. Be precise and avoid filler. " +
+    "Never greet the user or act as a chatbot."
+
+/** Build the user prompt for business profile commentary. */
+export function BUSINESS_PROFILE_COMMENTARY_PROMPT(profile: {
+    name: string
+    country: string
+    currency: string
+    taxRegistered: boolean
+    businessType: string
+}): string {
+    return (
+        `Summarize what you understand about this business context in ≤3 sentences.\n\n` +
+        `Business Name: ${profile.name}\n` +
+        `Country: ${profile.country}\n` +
+        `Currency: ${profile.currency}\n` +
+        `Tax Registered: ${profile.taxRegistered ? "Yes" : "No"}\n` +
+        `Business Type: ${profile.businessType}`
+    )
+}
+
+/** Build the user prompt for compliance rules commentary. */
+export function COMPLIANCE_COMMENTARY_PROMPT(rules: {
+    country: string
+    ruleCount: number
+    categories: string[]
+    keyValues: string
+}): string {
+    if (rules.ruleCount === 0) {
+        return (
+            `No compliance data was found for ${rules.country}. ` +
+            `Note that the user should manually verify tax rates and regulatory requirements.`
+        )
+    }
+
+    return (
+        `Summarize the key compliance regulations being applied in ≤3 sentences.\n\n` +
+        `Country: ${rules.country}\n` +
+        `Rules Found: ${rules.ruleCount}\n` +
+        `Categories: ${rules.categories.join(", ")}\n` +
+        `Key Requirements:\n${rules.keyValues}`
+    )
+}
+
+/** Build the user prompt for RAG validation after document generation. */
+export function RAG_VALIDATION_PROMPT(data: {
+    documentJson: string
+    ragRules: string
+}): string {
+    return (
+        `Compare the generated document against the compliance rules below. ` +
+        `Report mismatches for tax rate, mandatory fields, and currency using ✅ for compliant items and ⚠️ for mismatches. ` +
+        `Respond in ≤5 sentences.\n\n` +
+        `--- Generated Document ---\n${data.documentJson}\n\n` +
+        `--- RAG Compliance Rules ---\n${data.ragRules}`
+    )
+}
