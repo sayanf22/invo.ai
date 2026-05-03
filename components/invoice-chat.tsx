@@ -586,12 +586,17 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     )
                                     if (existing && parsed.detail) {
                                         existing.detail = parsed.detail
+                                        // Store content as reasoningText for expandable display
+                                        if (parsed.content) {
+                                            existing.reasoningText = parsed.content
+                                        }
                                     } else if (!existing) {
                                         thinkingMsg.activities.push({
                                             id: `activity-${Date.now()}-${thinkingMsg.activities.length}`,
                                             action: parsed.action,
                                             label: parsed.label,
                                             detail: parsed.detail,
+                                            reasoningText: parsed.content,
                                         })
                                     }
                                 }

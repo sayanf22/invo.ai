@@ -11,7 +11,7 @@ export interface ActivityItem {
     action: "read" | "think" | "search" | "generate" | "analyze" | "route" | "context"
     label: string
     detail?: string
-    reasoningText?: string // Only for "think" items
+    reasoningText?: string // Expandable content for any action type
 }
 
 export interface AgenticThinkingBlockProps {
@@ -75,6 +75,7 @@ export function AgenticThinkingBlock({
                     const isLast = idx === activities.length - 1
                     const isExpanded = expandedIds.has(activity.id)
                     const hasExpandableContent =
+                        activity.reasoningText ||
                         (activity.action === "think" && activity.reasoningText) ||
                         activity.detail
 
@@ -142,9 +143,7 @@ export function AgenticThinkingBlock({
                                     <div className="overflow-hidden">
                                         <div className="pl-14 pr-4 pb-2.5 max-h-[240px] overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
                                             <p className="text-[12px] text-muted-foreground/70 leading-relaxed whitespace-pre-wrap break-words">
-                                                {activity.action === "think"
-                                                    ? activity.reasoningText
-                                                    : activity.detail}
+                                                {activity.reasoningText || activity.detail}
                                                 {activity.action === "think" && isWorking && isLast && (
                                                     <span className="inline-block w-0.5 h-3 bg-muted-foreground/40 ml-0.5 animate-pulse align-middle" />
                                                 )}

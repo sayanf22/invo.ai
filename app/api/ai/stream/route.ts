@@ -151,7 +151,15 @@ export async function POST(request: NextRequest) {
                                 additionalNotes: b.additional_notes || "",
                             }
                             const profileDetail = [b.name, b.country, b.default_currency || "USD"].filter(Boolean).join(" • ")
-                            sendEvent({ type: "activity", action: "read", label: "Reading business profile", detail: profileDetail || "Loaded" })
+                            const profileSummary = [
+                                b.name && `Company: ${b.name}`,
+                                b.country && `Country: ${b.country}`,
+                                `Currency: ${b.default_currency || "USD"}`,
+                                b.business_type && `Type: ${b.business_type}`,
+                                hasTaxRegistration ? `Tax: Registered` : `Tax: Not registered`,
+                                b.default_payment_terms && `Terms: ${b.default_payment_terms}`,
+                            ].filter(Boolean).join("\n")
+                            sendEvent({ type: "activity", action: "read", label: "Reading business profile", detail: profileDetail || "Loaded", content: profileSummary })
                         } else {
                             sendEvent({ type: "activity", action: "read", label: "Reading business profile", detail: "Not found" })
                         }
@@ -163,6 +171,7 @@ export async function POST(request: NextRequest) {
                     // ── 2. Search compliance rules (only for document generation with a country) ──
                     const country = body.businessContext?.country || ""
                     const docType = body.documentType || "invoice"
+                    let complianceRuleCount = 0
                     if (country && intentType === "document") {
                         sendEvent({ type: "activity", action: "search", label: `Searching ${country} compliance` })
                     }
@@ -180,6 +189,7 @@ export async function POST(request: NextRequest) {
                         )
 
                         body.complianceContext = complianceResult.formattedContext
+                        complianceRuleCount = complianceResult.rules.length
 
                         // Extract the standard tax rate from RAG rules
                         let taxRateDetail = ""
@@ -199,11 +209,21 @@ export async function POST(request: NextRequest) {
                         }
 
                         if (country && intentType === "document") {
+                            const rulesSummary = complianceResult.rules.map(r => {
+                                const desc = r.description || r.requirement_key
+                                if (r.category === "tax_rates") {
+                                    const std = (r.requirement_value as any)?.standard
+                                    return `Tax: ${std !== undefined ? std + "%" : "varies"} — ${desc}`
+                                }
+                                return `${r.category.replace(/_/g, " ")}: ${desc}`
+                            }).join("\n")
+
                             sendEvent({
                                 type: "activity",
                                 action: "search",
                                 label: `Searching ${country} compliance`,
                                 detail: `Found ${complianceResult.rules.length} rules${taxRateDetail}`,
+                                content: rulesSummary || "No specific rules found",
                             })
                         }
                     } catch (err) {
@@ -249,7 +269,15 @@ export async function POST(request: NextRequest) {
 
                     if (isDocGeneration) {
                         // Use DeepSeek for document generation
-                        sendEvent({ type: "activity", action: "generate", label: `Writing ${docTypeLower}`, detail: "DeepSeek" })
+                        const contextParts = [
+                            body.businessContext?.name && `Business: ${body.businessContext.name}`,
+                            body.businessContext?.country && `Country: ${body.businessContext.country}`,
+                            body.complianceContext ? `Compliance: ${complianceRuleCount} rules loaded` : null,
+                            body.conversationHistory?.length ? `History: ${body.conversationHistory.length} messages` : null,
+                            body.fileContext ? `File context: included` : null,
+                            body.currentData ? `Editing existing document` : `Creating new document`,
+                        ].filter(Boolean).join("\n")
+                        sendEvent({ type: "activity", action: "generate", label: `Writing ${docTypeLower}`, detail: "DeepSeek", content: contextParts })
                         for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                             sendEvent(chunk)
                             if (chunk.type === "complete") {
