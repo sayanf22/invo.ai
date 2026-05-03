@@ -107,13 +107,41 @@ export function AppShell() {
   const handlePromptSubmit = useCallback(async (prompt: string, file?: File) => {
     setSelectedSessionId(undefined)
 
-    // If category is already selected, switch to prompt screen IMMEDIATELY
+    // If category is already selected, check if the prompt mentions a DIFFERENT document type
+    // e.g., user selected "Invoice" pill but typed "create a quotation for Airdrop"
     if (selectedCategory) {
+      const promptLower = prompt.toLowerCase()
+      const mentionsQuotation = /\b(quotation|quote|price quote|estimate)\b/.test(promptLower)
+      const mentionsContract = /\b(contract|agreement|service agreement|work agreement)\b/.test(promptLower)
+      const mentionsProposal = /\b(proposal|business proposal|project proposal|pitch)\b/.test(promptLower)
+      const mentionsInvoice = /\b(invoice|bill|receipt)\b/.test(promptLower)
+
+      // Override category if prompt explicitly mentions a different document type
+      let effectiveCategory = selectedCategory
+      if (mentionsQuotation && selectedCategory !== "Quotation") effectiveCategory = "Quotation"
+      else if (mentionsContract && selectedCategory !== "Contract") effectiveCategory = "Contract"
+      else if (mentionsProposal && selectedCategory !== "Proposal") effectiveCategory = "Proposal"
+      else if (mentionsInvoice && selectedCategory !== "Invoice") effectiveCategory = "Invoice"
+
+      if (effectiveCategory !== selectedCategory) {
+        // Check tier gate for the new type
+        const effectiveLower = effectiveCategory.toLowerCase()
+        if (!tierLoading && !allowedDocTypes.includes(effectiveLower)) {
+          toast.error(`${effectiveCategory}s are available on paid plans`, {
+            description: "Upgrade to Starter to unlock Quotations and Proposals.",
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+            duration: 6000,
+          })
+          return
+        }
+        setSelectedCategory(effectiveCategory)
+      }
+
       setInitialPrompt(prompt)
       setPromptKey(prev => prev + 1)
       setView("prompt")
 
-      // Handle file in background if attached (enriched prompt will be sent via initialPrompt update)
+      // Handle file in background if attached
       if (file) {
         handleFileEnrichment(file, prompt).then(enriched => {
           if (enriched !== prompt) {
