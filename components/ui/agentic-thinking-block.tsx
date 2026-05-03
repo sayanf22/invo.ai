@@ -104,19 +104,20 @@ export function AgenticThinkingBlock({
 
                                 {/* Label + detail — responsive layout */}
                                 <span className="flex-1 min-w-0 overflow-hidden">
-                                    <span className="flex items-center gap-1 sm:gap-1.5 text-[12px] sm:text-[13px]">
+                                    <span className="flex items-baseline gap-1 sm:gap-1.5 text-[12px] sm:text-[13px] max-w-full">
                                         <span
                                             className={cn(
-                                                "font-medium text-foreground truncate",
+                                                "font-medium text-foreground shrink-0",
                                                 isLast && isWorking && !activity.detail && "animate-pulse",
                                             )}
+                                            style={{ maxWidth: activity.detail ? '50%' : '100%' }}
                                         >
-                                            {activity.label}
+                                            <span className="block truncate">{activity.label}</span>
                                         </span>
                                         {activity.detail && (
                                             <>
                                                 <span className="text-muted-foreground/40 shrink-0">|</span>
-                                                <span className="text-muted-foreground truncate">
+                                                <span className="text-muted-foreground truncate min-w-0">
                                                     {activity.detail}
                                                 </span>
                                             </>

@@ -497,6 +497,13 @@ export function buildPrompt(request: AIGenerationRequest): string {
 
     let prompt = `CURRENT DATE: ${dateStr} (${isoStr})\nDOCUMENT TYPE: ${request.documentType}\n`
 
+    // Tell the AI about its current mode
+    if (request.thinkingMode === "thinking") {
+        prompt += `\nMODE: THINKING — You are in deep thinking mode. Take extra care with compliance, tax calculations, and accuracy. The system is running additional validation checks on your output.\n`
+    } else {
+        prompt += `\nMODE: FAST — Respond quickly and efficiently. Generate the document immediately from the user's request.\n`
+    }
+
     // CRITICAL: Lock the document type — the AI must NEVER generate a different type
     // even if the user asks for one. The session is locked to this document type.
     prompt += `\nSESSION LOCK: This session is locked to document type "${request.documentType}". You MUST ONLY generate a "${request.documentType}". If the user asks for a different document type (e.g., they ask for an "invoice" but this session is "contract"), do NOT generate that document. Instead, respond in CONVERSATION mode (plain text) explaining that this session is for "${request.documentType}" only and they should start a new session for the other document type.\n`
@@ -577,6 +584,17 @@ BUSINESS PROFILE (use for all "from" fields):
             ...safeData 
         } = request.currentData as any
         if (Object.keys(safeData).length > 0) {
+            // Build a human-readable summary of the current document state
+            const docSummary = [
+                safeData.documentType && `Type: ${safeData.documentType}`,
+                safeData.toName && `Client: ${safeData.toName}`,
+                safeData.currency && `Currency: ${safeData.currency}`,
+                safeData.taxRate !== undefined && `Tax Rate: ${safeData.taxRate}%`,
+                safeData.taxLabel && `Tax Label: ${safeData.taxLabel}`,
+                Array.isArray(safeData.items) && `Items: ${safeData.items.length}`,
+                safeData.paymentTerms && `Payment Terms: ${safeData.paymentTerms}`,
+            ].filter(Boolean).join(", ")
+            prompt += `\nCURRENT DOCUMENT STATE: ${docSummary}\nYou are editing an existing document. The user may ask to modify specific fields. When they ask a question about the document, refer to this data.\n`
             prompt += `\nEXISTING DOCUMENT DATA:\n${JSON.stringify(safeData, null, 2)}\n`
         }
     }
