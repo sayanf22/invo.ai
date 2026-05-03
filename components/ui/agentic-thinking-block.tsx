@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { ChevronRight, FileText, Search, Sparkles } from "lucide-react"
+import { ChevronRight, Database, Search, PenLine, Brain, ScanText, GitBranch, Layers } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ActivityItem {
     id: string
-    action: "read" | "think" | "search" | "generate"
+    action: "read" | "think" | "search" | "generate" | "analyze" | "route" | "context"
     label: string
     detail?: string
     reasoningText?: string // Only for "think" items
@@ -23,10 +23,13 @@ export interface AgenticThinkingBlockProps {
 // ── Icon map ──────────────────────────────────────────────────────────────────
 
 const ACTION_ICONS: Record<ActivityItem["action"], React.ReactNode> = {
-    read: <FileText className="w-3.5 h-3.5" />,
+    analyze: <ScanText className="w-3.5 h-3.5" />,
+    read: <Database className="w-3.5 h-3.5" />,
     search: <Search className="w-3.5 h-3.5" />,
-    generate: <Sparkles className="w-3.5 h-3.5" />,
-    think: <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />,
+    generate: <PenLine className="w-3.5 h-3.5" />,
+    think: <Brain className="w-3.5 h-3.5" />,
+    route: <GitBranch className="w-3.5 h-3.5" />,
+    context: <Layers className="w-3.5 h-3.5" />,
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -76,7 +79,7 @@ export function AgenticThinkingBlock({
                         activity.detail
 
                     return (
-                        <div key={activity.id}>
+                        <div key={activity.id} className="animate-in fade-in slide-in-from-bottom-1 duration-300">
                             <button
                                 type="button"
                                 onClick={() => hasExpandableContent && toggleExpand(activity.id)}
@@ -110,7 +113,7 @@ export function AgenticThinkingBlock({
                                     {activity.detail && (
                                         <>
                                             <span className="text-muted-foreground/40 shrink-0">|</span>
-                                            <span className="text-muted-foreground truncate">
+                                            <span className="text-muted-foreground truncate transition-opacity duration-300">
                                                 {activity.detail}
                                             </span>
                                         </>

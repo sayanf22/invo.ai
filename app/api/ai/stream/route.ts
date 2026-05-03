@@ -99,8 +99,22 @@ export async function POST(request: NextRequest) {
                 }
 
                 try {
+                    // ── 0. Classify intent & emit "Analyzing request" ─────────────
+                    const docTypeName = (body.documentType || "invoice").charAt(0).toUpperCase() + (body.documentType || "invoice").slice(1)
+                    const cleanedPrompt = body.prompt.replace(/\[SYSTEM:[^\]]*\]\s*/g, '').trim()
+                    const promptSummary = cleanedPrompt.slice(0, 60) + (cleanedPrompt.length > 60 ? "..." : "")
+                    // Pre-classify intent early so we can tailor steps
+                    const intentType = classifyIntent(body.prompt) === "document" ? "document" : "chat"
+
+                    sendEvent({
+                        type: "activity",
+                        action: "analyze",
+                        label: intentType === "document" ? "Analyzing request" : "Analyzing question",
+                        detail: intentType === "document" ? `${docTypeName} • "${promptSummary}"` : `"${promptSummary}"`,
+                    })
+
                     // ── 1. Read business profile ──────────────────────────────────
-                    sendEvent({ type: "activity", action: "read", label: "Business profile" })
+                    sendEvent({ type: "activity", action: "read", label: "Reading business profile" })
                     try {
                         const { data: business } = await auth.supabase
                             .from("businesses")
@@ -136,20 +150,21 @@ export async function POST(request: NextRequest) {
                                 businessType: b.business_type || "",
                                 additionalNotes: b.additional_notes || "",
                             }
-                            sendEvent({ type: "activity", action: "read", label: "Business profile", detail: b.name || "Loaded" })
+                            const profileDetail = [b.name, b.country, b.default_currency || "USD"].filter(Boolean).join(" • ")
+                            sendEvent({ type: "activity", action: "read", label: "Reading business profile", detail: profileDetail || "Loaded" })
                         } else {
-                            sendEvent({ type: "activity", action: "read", label: "Business profile", detail: "Not found" })
+                            sendEvent({ type: "activity", action: "read", label: "Reading business profile", detail: "Not found" })
                         }
                     } catch (err) {
                         console.error("Failed to fetch business profile:", err instanceof Error ? err.message : err)
-                        sendEvent({ type: "activity", action: "read", label: "Business profile", detail: "Not found" })
+                        sendEvent({ type: "activity", action: "read", label: "Reading business profile", detail: "Not found" })
                     }
 
-                    // ── 2. Search compliance rules ────────────────────────────────
+                    // ── 2. Search compliance rules (only for document generation with a country) ──
                     const country = body.businessContext?.country || ""
                     const docType = body.documentType || "invoice"
-                    if (country) {
-                        sendEvent({ type: "activity", action: "search", label: `${country} compliance rules` })
+                    if (country && intentType === "document") {
+                        sendEvent({ type: "activity", action: "search", label: `Searching ${country} compliance` })
                     }
                     try {
                         const { getComplianceContext } = await import("@/lib/compliance-rag")
@@ -183,22 +198,23 @@ export async function POST(request: NextRequest) {
                             await trackUsage(auth.supabase, auth.user.id, "embedding", 100)
                         }
 
-                        if (country) {
+                        if (country && intentType === "document") {
                             sendEvent({
                                 type: "activity",
                                 action: "search",
-                                label: `${country} compliance rules`,
-                                detail: `${complianceResult.rules.length} rules found${taxRateDetail}`,
+                                label: `Searching ${country} compliance`,
+                                detail: `Found ${complianceResult.rules.length} rules${taxRateDetail}`,
                             })
                         }
                     } catch (err) {
                         console.error("RAG compliance context failed:", err instanceof Error ? err.message : err)
-                        if (country) {
-                            sendEvent({ type: "activity", action: "search", label: `${country} compliance rules`, detail: "Unavailable" })
+                        if (country && intentType === "document") {
+                            sendEvent({ type: "activity", action: "search", label: `Searching ${country} compliance`, detail: "Unavailable" })
                         }
                     }
 
-                    // ── 3. Generate document number ───────────────────────────────
+                    // ── 3. Generate document number (only for document generation) ──
+                    if (intentType === "document") {
                     try {
                         const docTypeLower = (body.documentType || "invoice").toLowerCase()
                         const prefix = docTypeLower === "quotation" ? "QUO" : docTypeLower === "contract" ? "CTR" : docTypeLower === "proposal" ? "PROP" : "INV"
@@ -217,21 +233,23 @@ export async function POST(request: NextRequest) {
 
                         body.prompt = `[SYSTEM: Use document number "${nextDocNumber}" for this ${docTypeLower}. Today's date is ${new Date().toISOString().split('T')[0]}. The invoice date should be today and the due date should be calculated from today based on payment terms.]\n\n${body.prompt}`
 
-                        sendEvent({ type: "activity", action: "generate", label: "Document number", detail: nextDocNumber })
+                        sendEvent({ type: "activity", action: "generate", label: "Assigning document number", detail: nextDocNumber })
                     } catch (err) {
                         console.error("Failed to generate next document number:", err)
                         // Continue without — AI will generate its own number
                     }
+                    }
 
                     // ── 4. Route to appropriate model ─────────────────────────────
                     const isDocGeneration = classifyIntent(body.prompt) === "document"
+                    const docTypeLower = (body.documentType || "invoice").toLowerCase()
 
                     // Track whether any model completed successfully (for usage tracking)
                     let modelCompletedSuccessfully = false
 
                     if (isDocGeneration) {
                         // Use DeepSeek for document generation
-                        sendEvent({ type: "activity", action: "generate", label: "Generating document", detail: "DeepSeek" })
+                        sendEvent({ type: "activity", action: "generate", label: `Writing ${docTypeLower}`, detail: "DeepSeek" })
                         for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                             sendEvent(chunk)
                             if (chunk.type === "complete") {
@@ -247,7 +265,7 @@ export async function POST(request: NextRequest) {
                             || ""
 
                         if (bedrockKey && bedrockKey.length > 10) {
-                            sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "Kimi K2.5" })
+                            sendEvent({ type: "activity", action: "think", label: "Thinking about your question", detail: "Kimi K2.5" })
                             const prompt = buildPrompt(body)
                             let bedrockFailed = false
                             // Track whether any chunks were forwarded from Bedrock
@@ -281,7 +299,7 @@ export async function POST(request: NextRequest) {
                                 if (bedrockChunksForwarded) {
                                     sendEvent({ type: "error", data: "__fallback_reset__" })
                                 }
-                                sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "DeepSeek (fallback)" })
+                                sendEvent({ type: "activity", action: "think", label: "Thinking about your question", detail: "DeepSeek (fallback)" })
                                 for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                                     sendEvent(chunk)
                                     if (chunk.type === "complete") {
@@ -293,7 +311,7 @@ export async function POST(request: NextRequest) {
                             }
                         } else {
                             // No Bedrock key — use DeepSeek for everything
-                            sendEvent({ type: "activity", action: "generate", label: "Responding", detail: "DeepSeek" })
+                            sendEvent({ type: "activity", action: "think", label: "Thinking about your question", detail: "DeepSeek" })
                             for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
                                 sendEvent(chunk)
                                 if (chunk.type === "complete") {

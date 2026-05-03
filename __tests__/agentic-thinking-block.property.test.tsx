@@ -24,7 +24,7 @@ import {
 const activityItemArb = (index: number) =>
   fc.record({
     id: fc.constant(`activity-${index}`),
-    action: fc.constantFrom("read" as const, "think" as const, "search" as const, "generate" as const),
+    action: fc.constantFrom("read" as const, "think" as const, "search" as const, "generate" as const, "analyze" as const, "route" as const, "context" as const),
     label: fc.string({ minLength: 1, maxLength: 60 }).filter(
       (s) => s.trim().length > 0
     ),
