@@ -1359,7 +1359,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
             {/* Messages */}
             <ScrollArea className="flex-1 bg-background">
-                <div className="px-4 py-5 space-y-4 pb-4 max-w-xl mx-auto overflow-hidden">
+                <div className="px-4 py-5 space-y-4 pb-4 max-w-xl mx-auto">
                     {messages.map((msg, idx) => (
                         <div key={`${session?.id}-${idx}`} className={cn(
                             "flex w-full min-w-0 animate-in fade-in slide-in-from-bottom-1 duration-300",
