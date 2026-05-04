@@ -1076,71 +1076,225 @@ function FooterBar({ tpl, c, config }: FooterBarProps) {
 }
 
 // ═══════════════════════════════════════════════════════
-// INVOICE PDF
+// INVOICE PDF — Modern payment-focused layout
+// Full-bleed header · prominent amount-due callout · clean table
 // ═══════════════════════════════════════════════════════
 
 export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
-    const config = getDocumentConfig("invoice")
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
-    
-    const s = StyleSheet.create({
-        page: { paddingTop: tpl === "bold" ? 0 : 48, paddingBottom: 60, paddingHorizontal: tpl === "bold" ? 0 : 48, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff" },
-        tHead: { flexDirection: "row", backgroundColor: tpl === "classic" ? "transparent" : c.pri, ...r(tpl === "classic" ? 0 : 6), paddingVertical: 9, paddingHorizontal: 10, ...bBottom(tpl === "classic" ? 2 : 0, c.pri) },
-        tRow: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.bg) },
-        tRowAlt: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.bg), backgroundColor: tpl === "classic" ? "#fafafa" : c.bg },
-        cD: { flex: 1 }, cQ: { width: 50, textAlign: "center" }, cR: { width: 80, textAlign: "right" }, cA: { width: 80, textAlign: "right" },
-        totBox: { width: 220, backgroundColor: tpl === "bold" ? c.bg : "transparent", ...r(8), padding: tpl === "bold" ? 14 : 0, ...(tpl === "classic" ? bAll(1, c.bdr) : bAll(0, "transparent")) },
-        totRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
-        gRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 10, marginTop: 6, ...bTop(2, c.pri) },
-        nWrap: { marginHorizontal: tpl === "bold" ? 48 : 0, marginBottom: 16 },
-        bBar: { position: "absolute", bottom: 40, left: 0, right: 0, height: 3, backgroundColor: c.pri },
-    })
+    const { sub, disc, tax, total } = calc(data)
+    const isPaid = data.status === "paid"
+    const isOverdue = data.status === "overdue"
+
+    // Status badge color
+    const badgeColor = isPaid ? "#16a34a" : isOverdue ? "#dc2626" : data.status === "sent" ? "#2563eb" : c.mut
+    const badgeBg = isPaid ? "#dcfce7" : isOverdue ? "#fee2e2" : data.status === "sent" ? "#dbeafe" : c.bg
+    const statusLabel = isPaid ? "PAID" : isOverdue ? "OVERDUE" : data.status === "sent" ? "SENT" : "DRAFT"
+
+    // Classic theme uses a different header style
+    const isClassic = tpl === "classic"
+    const isMinimal = tpl === "minimal"
 
     return (
         <Document>
-            <Page size="A4" style={s.page} wrap>
-                {/* Header — shared component with invoice config */}
-                <HeaderSection data={data} logoUrl={logoUrl} tpl={tpl} c={c} config={config} />
+            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* Date strip — shared component */}
-                <DateStrip data={data} tpl={tpl} c={c} config={config} />
+                {/* ── HEADER BAND ── */}
+                {isClassic ? (
+                    // Classic: white header with thick left border accent + double rule
+                    <View style={{ paddingHorizontal: 48, paddingTop: 40, paddingBottom: 24, ...bNone() }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bLeft(5, c.pri), paddingLeft: 16, ...bNone(), borderLeftWidth: 5, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 34, color: c.txt, letterSpacing: -0.5, fontWeight: 700 }}>INVOICE</Text>
+                                <Text style={{ fontSize: 11, color: c.mut, marginTop: 3 }}>{data.invoiceNumber || "INV-0000"}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>
+                                <View style={{ backgroundColor: badgeBg, paddingHorizontal: 14, paddingVertical: 6, ...r(4), marginBottom: 12, ...bAll(1, badgeColor) }}>
+                                    <Text style={{ fontSize: 9, color: badgeColor, fontWeight: 700, letterSpacing: 1 }}>{statusLabel}</Text>
+                                </View>
+                                <Text style={{ fontSize: 22, color: c.pri, fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+                                <Text style={{ fontSize: 8, color: c.mut, marginTop: 2 }}>Due {fmtDate(data.dueDate)}</Text>
+                            </View>
+                        </View>
+                        <View style={{ height: 2, backgroundColor: c.pri, marginTop: 20, ...bNone() }} />
+                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 3, ...bNone() }} />
+                    </View>
+                ) : isMinimal ? (
+                    // Minimal: ultra-clean, no color, just typography
+                    <View style={{ paddingHorizontal: 48, paddingTop: 44, paddingBottom: 28, ...bNone() }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 11, color: c.mut, letterSpacing: 3, textTransform: "uppercase", fontWeight: 700 }}>Invoice</Text>
+                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.invoiceNumber || "INV-0000"}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>
+                                <Text style={{ fontSize: 28, color: c.txt, fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+                                <Text style={{ fontSize: 9, color: c.mut, marginTop: 3 }}>Due {fmtDate(data.dueDate)}</Text>
+                                <View style={{ backgroundColor: badgeBg, paddingHorizontal: 10, paddingVertical: 4, ...r(3), marginTop: 8, ...bNone() }}>
+                                    <Text style={{ fontSize: 8, color: badgeColor, fontWeight: 700, letterSpacing: 0.8 }}>{statusLabel}</Text>
+                                </View>
+                            </View>
+                        </View>
+                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 24, ...bNone() }} />
+                    </View>
+                ) : (
+                    // Modern/Bold/Others: full-bleed colored header
+                    <View style={{ backgroundColor: c.pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 32, ...bNone() }}>
+                        {/* Decorative circle top-right */}
+                        <View style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, ...r(60), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
+                        <View style={{ position: "absolute", bottom: -10, right: 60, width: 60, height: 60, ...r(30), backgroundColor: "rgba(255,255,255,0.05)", ...bNone() }} />
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 36, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>INVOICE</Text>
+                                <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>{data.invoiceNumber || "INV-0000"}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>
+                                <View style={{ backgroundColor: "rgba(255,255,255,0.15)", paddingHorizontal: 14, paddingVertical: 6, ...r(20), marginBottom: 10, ...bNone() }}>
+                                    <Text style={{ fontSize: 9, color: "#fff", fontWeight: 700, letterSpacing: 1.2 }}>{statusLabel}</Text>
+                                </View>
+                                <Text style={{ fontSize: 26, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+                                <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>Due {fmtDate(data.dueDate)}</Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
 
-                {/* Party blocks — shared component */}
-                <PartyBlocks data={data} tpl={tpl} c={c} config={config} />
+                {/* ── DATE STRIP ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: isClassic || isMinimal ? "transparent" : c.bg, ...bBottom(isClassic || isMinimal ? 0 : 0, c.bdr), marginBottom: 4, ...bNone() }}>
+                    {[
+                        { label: "Issue Date", value: fmtDate(data.invoiceDate) },
+                        { label: "Due Date", value: fmtDate(data.dueDate) },
+                        { label: "Payment Terms", value: data.paymentTerms || "Net 30" },
+                    ].map((item, i) => (
+                        <View key={i} style={{ flex: 1, paddingLeft: i > 0 ? 16 : 0, ...bLeft(i > 0 ? 1 : 0, c.bdr), ...bNone(), ...(i > 0 ? { borderLeftWidth: 1, borderLeftColor: c.bdr, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any } : {}) }}>
+                            <Text style={{ fontSize: 7.5, color: c.mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>{item.label}</Text>
+                            <Text style={{ fontSize: 11, color: c.txt, fontWeight: 700 }}>{item.value}</Text>
+                        </View>
+                    ))}
+                </View>
 
-                {/* Item table — shared component */}
-                <ItemTable data={data} tpl={tpl} c={c} config={config} styles={{ tHead: s.tHead, tRow: s.tRow, tRowAlt: s.tRowAlt, cD: s.cD, cQ: s.cQ, cR: s.cR, cA: s.cA }} />
+                {/* ── DIVIDER ── */}
+                <View style={{ height: 1, backgroundColor: c.bdr, marginHorizontal: 48, marginBottom: 20, ...bNone() }} />
 
-                {/* Totals box — shared component */}
-                <TotalsBox data={data} c={c} config={config} styles={{ totBox: s.totBox, totRow: s.totRow, gRow: s.gRow }} />
+                {/* ── PARTY BLOCKS ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 24, ...bNone() }} wrap={false}>
+                    <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>From</Text>
+                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                        {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                        {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
+                        {data.fromPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromPhone}</Text> : null}
+                        {data.fromTaxId ? <Text style={{ fontSize: 9, color: c.mut, marginTop: 2 }}>{data.fromTaxId}</Text> : null}
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: isClassic || isMinimal ? "transparent" : c.bg, ...r(isClassic || isMinimal ? 0 : 8), padding: isClassic || isMinimal ? 0 : 14, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Bill To</Text>
+                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                        {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                        {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
+                        {data.toPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toPhone}</Text> : null}
+                        {data.toTaxId ? <Text style={{ fontSize: 9, color: c.mut, marginTop: 2 }}>{data.toTaxId}</Text> : null}
+                    </View>
+                </View>
 
-                {/* Payment Information — invoice-only inline section */}
+                {/* ── ITEMS TABLE ── */}
+                <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
+                    {/* Table header */}
+                    <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
+                        <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
+                        <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
+                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Rate</Text></View>
+                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
+                    </View>
+                    {/* Rows */}
+                    {data.items.map((item, i) => {
+                        const gross = item.quantity * item.rate
+                        const hasDisc = item.discount && item.discount > 0
+                        const discAmt = hasDisc ? gross * (item.discount! / 100) : 0
+                        const lineTotal = gross - discAmt
+                        return (
+                            <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, backgroundColor: i % 2 === 1 ? c.bg : "#fff", ...bBottom(1, c.bdr), ...bNone(), ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} wrap={false}>
+                                <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
+                                <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
+                                <View style={{ width: 80, ...bNone() }}>
+                                    {hasDisc ? (
+                                        <>
+                                            <Text style={{ fontSize: 8, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
+                                            <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                        </>
+                                    ) : (
+                                        <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(gross, data.currency)}</Text>
+                                    )}
+                                </View>
+                            </View>
+                        )
+                    })}
+                </View>
+
+                {/* ── TOTALS ── */}
+                <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                    <View style={{ width: 240, ...bNone() }}>
+                        {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text>
+                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(sub, data.currency)}</Text>
+                        </View>}
+                        {getItemDiscountTotal(data) > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Item Discounts</Text>
+                            <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(getItemDiscountTotal(data), data.currency)}</Text>
+                        </View>}
+                        {!!data.discountValue && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Discount{data.discountType === "percent" ? ` (${data.discountValue}%)` : ""}</Text>
+                            <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(disc, data.currency)}</Text>
+                        </View>}
+                        {!!data.taxRate && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text>
+                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(tax, data.currency)}</Text>
+                        </View>}
+                        {!!data.shippingFee && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Shipping</Text>
+                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(data.shippingFee, data.currency)}</Text>
+                        </View>}
+                        {/* Grand total callout */}
+                        <View style={{ backgroundColor: c.pri, ...r(8), padding: 14, marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
+                            <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>Total Due</Text>
+                            <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* ── PAYMENT INFO ── */}
                 {(data.paymentInstructions || data.paymentMethod) && (
-                    <View style={s.nWrap} wrap={false}>
-                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Payment Information</Text>
+                    <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: c.bg, ...r(8), ...bNone() }} wrap={false}>
+                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>Payment Information</Text>
                         {data.paymentMethod ? <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>Method: {data.paymentMethod}</Text> : null}
                         {data.paymentInstructions ? <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.paymentInstructions}</Text> : null}
                     </View>
                 )}
 
-                {/* Payment Link Section — invoice-only inline component */}
-                <PaymentSection
-                    data={data}
-                    paymentQrCode={paymentQrCode}
-                    c={c}
-                    bold={bold}
-                    bNoneFn={bNone}
-                    bAllFn={bAll}
-                    bTopFn={bTop}
-                />
+                {/* ── PAYMENT LINK ── */}
+                <View style={{ marginHorizontal: 48, ...bNone() }}>
+                    <PaymentSection data={data} paymentQrCode={paymentQrCode} c={c} bold={bold} bNoneFn={bNone} bAllFn={bAll} bTopFn={bTop} />
+                </View>
 
-                {/* Notes & Terms — shared component */}
-                <NotesSection data={data} c={c} tpl={tpl} config={config} />
+                {/* ── NOTES & TERMS ── */}
+                {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                </View> : null}
+                {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                </View> : null}
 
-                {/* Footer — shared component */}
-                {tpl === "modern" && <View style={s.bBar} fixed />}
-                <FooterBar tpl={tpl} c={c} config={config} />
+                {/* ── FOOTER ── */}
+                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bTop(1, c.bdr), ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
+                    <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
+                    <Text style={{ fontSize: 8, color: c.mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+                </View>
             </Page>
         </Document>
     )
@@ -1148,63 +1302,222 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
 
 
 // ═══════════════════════════════════════════════════════
-// CONTRACT PDF
+// CONTRACT PDF — Formal legal-document layout
+// Split two-tone header · sidebar accent · dual signatures
 // ═══════════════════════════════════════════════════════
 
 export function ContractPDF({ data, logoUrl }: Props) {
-    const config = getDocumentConfig("contract")
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
-    
-    const s = StyleSheet.create({
-        page: { paddingTop: tpl === "bold" ? 0 : 48, paddingBottom: 60, paddingHorizontal: 0, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff" },
-        secWrap: { paddingHorizontal: 48, marginBottom: 16 },
-        tHead: { flexDirection: "row", backgroundColor: tpl === "classic" ? "transparent" : c.pri, ...r(tpl === "classic" ? 0 : 6), paddingVertical: 9, paddingHorizontal: 10, ...bBottom(tpl === "classic" ? 2 : 0, c.pri) },
-        tRow: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.bg) },
-        tRowAlt: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.bg), backgroundColor: c.bg },
-        cD: { flex: 1 }, cQ: { width: 50, textAlign: "center" }, cR: { width: 80, textAlign: "right" }, cA: { width: 80, textAlign: "right" },
-        totBox: { width: 220, backgroundColor: tpl === "bold" ? c.bg : "transparent", ...r(8), padding: tpl === "bold" ? 14 : 0, ...(tpl === "classic" ? bAll(1, c.bdr) : bAll(0, "transparent")) },
-        totRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
-        gRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 10, marginTop: 6, ...bTop(2, c.pri) },
-        sigRow: { flexDirection: "row", paddingHorizontal: 48, marginTop: 24 },
-        sigBlk: { flex: 1, marginRight: 24 },
-        sigLine: { ...bBottom(1, c.mut), marginTop: 36, marginBottom: 8, width: 180 },
-    })
+    const { sub, disc, tax, total } = calc(data)
+    const hasItems = data.items.some(i => i.description.trim().length > 0 || i.rate > 0)
+    const isClassic = tpl === "classic"
+    const isMinimal = tpl === "minimal"
 
     return (
         <Document>
-            <Page size="A4" style={s.page} wrap>
-                {/* Header — shared component with contract config */}
-                <HeaderSection data={data} logoUrl={logoUrl} tpl={tpl} c={c} config={config} />
+            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* Date strip — shared component */}
-                <DateStrip data={data} tpl={tpl} c={c} config={config} />
+                {/* ── HEADER: Split two-tone layout ── */}
+                {isClassic ? (
+                    // Classic: formal double-rule header
+                    <View style={{ paddingHorizontal: 48, paddingTop: 40, paddingBottom: 20, ...bNone() }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 30, color: c.txt, fontWeight: 700, letterSpacing: 1 }}>CONTRACT</Text>
+                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "CTR-0000"}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>
+                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective Date</Text>
+                                <Text style={{ fontSize: 14, color: c.txt, fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
+                            </View>
+                        </View>
+                        <View style={{ height: 3, backgroundColor: c.pri, marginTop: 18, ...bNone() }} />
+                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 4, ...bNone() }} />
+                    </View>
+                ) : isMinimal ? (
+                    // Minimal: clean centered header
+                    <View style={{ paddingHorizontal: 48, paddingTop: 44, paddingBottom: 24, ...bNone() }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 11, color: c.mut, letterSpacing: 3, textTransform: "uppercase", fontWeight: 700 }}>Contract</Text>
+                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "CTR-0000"}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>
+                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective</Text>
+                                <Text style={{ fontSize: 16, color: c.txt, fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
+                            </View>
+                        </View>
+                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 24, ...bNone() }} />
+                    </View>
+                ) : (
+                    // Modern: split two-tone — dark left panel + white right
+                    <View style={{ flexDirection: "row", ...bNone() }}>
+                        {/* Left dark panel */}
+                        <View style={{ width: 200, backgroundColor: c.pri, paddingHorizontal: 28, paddingTop: 36, paddingBottom: 32, ...bNone() }}>
+                            <View style={{ position: "absolute", bottom: 0, right: 0, width: 60, height: 60, ...r(30), backgroundColor: "rgba(255,255,255,0.06)", ...bNone() }} />
+                            <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                            <Text style={{ fontSize: 24, color: "#fff", fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>CONTRACT</Text>
+                            <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginBottom: 20 }}>{data.referenceNumber || data.invoiceNumber || "CTR-0000"}</Text>
+                            <View style={{ ...bNone() }}>
+                                <Text style={{ fontSize: 7, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Effective Date</Text>
+                                <Text style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
+                            </View>
+                            {data.dueDate && <View style={{ marginTop: 12, ...bNone() }}>
+                                <Text style={{ fontSize: 7, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>End Date</Text>
+                                <Text style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
+                            </View>}
+                        </View>
+                        {/* Right white panel */}
+                        <View style={{ flex: 1, paddingHorizontal: 28, paddingTop: 36, paddingBottom: 32, ...bNone() }}>
+                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Between</Text>
+                            <View style={{ marginBottom: 16, ...bNone() }}>
+                                <Text style={{ fontSize: 7.5, color: c.mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>Party A — Provider</Text>
+                                <Text style={{ fontSize: 13, color: c.txt, fontWeight: 700 }}>{data.fromName || "Your Business"}</Text>
+                                {data.fromAddress ? <Text style={{ fontSize: 8.5, color: c.mut, lineHeight: 1.5, marginTop: 2 }}>{data.fromAddress}</Text> : null}
+                                {data.fromEmail ? <Text style={{ fontSize: 8.5, color: c.mut }}>{data.fromEmail}</Text> : null}
+                            </View>
+                            <View style={{ height: 1, backgroundColor: c.bdr, marginBottom: 16, ...bNone() }} />
+                            <View style={{ ...bNone() }}>
+                                <Text style={{ fontSize: 7.5, color: c.mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>Party B — Client</Text>
+                                <Text style={{ fontSize: 13, color: c.txt, fontWeight: 700 }}>{data.toName || "[Client Name]"}</Text>
+                                {data.toAddress ? <Text style={{ fontSize: 8.5, color: c.mut, lineHeight: 1.5, marginTop: 2 }}>{data.toAddress}</Text> : null}
+                                {data.toEmail ? <Text style={{ fontSize: 8.5, color: c.mut }}>{data.toEmail}</Text> : null}
+                            </View>
+                        </View>
+                    </View>
+                )}
 
-                {/* Party blocks — shared component */}
-                <PartyBlocks data={data} tpl={tpl} c={c} config={config} />
+                {/* ── PARTY BLOCKS (classic/minimal only — modern shows in header) ── */}
+                {(isClassic || isMinimal) && (
+                    <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 24, ...bNone() }} wrap={false}>
+                        <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party A — Provider</Text>
+                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                            {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                            {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
+                        </View>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party B — Client</Text>
+                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                            {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                            {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
+                        </View>
+                    </View>
+                )}
 
-                {/* Scope & Terms — contract-only inline section */}
-                {data.description && config.hasScopeSection && (
-                    <View style={s.secWrap}>
-                        <Text style={{ fontSize: 11, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, ...bBottom(1, c.acc), paddingBottom: 4, ...bold(c) }}>Scope & Terms</Text>
+                {/* ── DATE STRIP (classic/minimal only) ── */}
+                {(isClassic || isMinimal) && (
+                    <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        {[
+                            { label: "Effective Date", value: fmtDate(data.invoiceDate) },
+                            ...(data.dueDate ? [{ label: "End Date", value: fmtDate(data.dueDate) }] : []),
+                        ].map((item, i) => (
+                            <View key={i} style={{ flex: 1, paddingLeft: i > 0 ? 16 : 0, ...bNone(), ...(i > 0 ? { borderLeftWidth: 1, borderLeftColor: c.bdr, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any } : {}) }}>
+                                <Text style={{ fontSize: 7.5, color: c.mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>{item.label}</Text>
+                                <Text style={{ fontSize: 11, color: c.txt, fontWeight: 700 }}>{item.value}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── SCOPE & TERMS ── */}
+                {data.description && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 16, backgroundColor: c.bg, ...r(8), ...bNone(), borderLeftWidth: 4, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }}>
+                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Scope & Terms</Text>
                         <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.7 }}>{data.description}</Text>
                     </View>
                 )}
 
-                {/* Item table — shared component (handles skipEmptyItems) */}
-                <ItemTable data={data} tpl={tpl} c={c} config={config} styles={{ tHead: s.tHead, tRow: s.tRow, tRowAlt: s.tRowAlt, cD: s.cD, cQ: s.cQ, cR: s.cR, cA: s.cA }} />
+                {/* ── DELIVERABLES TABLE ── */}
+                {hasItems && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Deliverables & Pricing</Text>
+                        <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
+                            <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Deliverable</Text></View>
+                            <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
+                            <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Rate</Text></View>
+                            <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
+                        </View>
+                        {data.items.filter(i => i.description.trim().length > 0 || i.rate > 0).map((item, i) => {
+                            const gross = item.quantity * item.rate
+                            const hasDisc = item.discount && item.discount > 0
+                            const discAmt = hasDisc ? gross * (item.discount! / 100) : 0
+                            const lineTotal = gross - discAmt
+                            return (
+                                <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}) }} wrap={false}>
+                                    <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
+                                    <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+                                    <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
+                                    <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text></View>
+                                </View>
+                            )
+                        })}
+                    </View>
+                )}
 
-                {/* Totals box — shared component */}
-                <TotalsBox data={data} c={c} config={config} styles={{ totBox: s.totBox, totRow: s.totRow, gRow: s.gRow }} />
+                {/* ── TOTAL VALUE ── */}
+                {total > 0 && (
+                    <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 24, ...bNone() }} wrap={false}>
+                        <View style={{ width: 240, ...bNone() }}>
+                            {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                                <Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text>
+                                <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(sub, data.currency)}</Text>
+                            </View>}
+                            {!!data.taxRate && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                                <Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text>
+                                <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(tax, data.currency)}</Text>
+                            </View>}
+                            <View style={{ backgroundColor: c.pri, ...r(8), padding: 14, marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
+                                <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>Total Value</Text>
+                                <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
 
-                {/* Signature row — shared component */}
-                <SignatureRow data={data} c={c} styles={{ sigRow: s.sigRow, sigBlk: s.sigBlk, sigLine: s.sigLine }} />
+                {/* ── SIGNATURE BLOCKS ── */}
+                {data.showSignatureFields !== false && (
+                    <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
+                        {[
+                            { label: "Party A Signature", name: data.signatureName || data.fromName, title: data.signatureTitle, sig: data.showSenderSignature !== false ? data.senderSignatureDataUrl : null },
+                            { label: "Party B Signature", name: data.toName, title: null, sig: data.signatureImages?.[0]?.imageDataUrl || null, electronic: !data.signatureImages?.[0]?.imageDataUrl && (!!data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) },
+                        ].map((party, i) => (
+                            <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
+                                <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
+                                {party.sig ? (
+                                    <Image src={party.sig} style={{ width: 160, height: 52, marginBottom: 4, ...bNone() }} />
+                                ) : (party as any).electronic ? (
+                                    <View style={{ height: 52, marginBottom: 4, justifyContent: "center", ...bNone() }}>
+                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                    </View>
+                                ) : (
+                                    <View style={{ height: 52, marginBottom: 4, ...bBottom(1, c.mut), ...bNone(), borderBottomWidth: 1, borderBottomColor: c.mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
+                                )}
+                                <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
+                                {party.title ? <Text style={{ fontSize: 9, color: c.mut }}>{party.title}</Text> : null}
+                            </View>
+                        ))}
+                    </View>
+                )}
 
-                {/* Notes & Terms — shared component */}
-                <NotesSection data={data} c={c} tpl={tpl} config={config} />
+                {/* ── NOTES ── */}
+                {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                </View> : null}
+                {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Additional Terms</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                </View> : null}
 
-                {/* Footer — shared component */}
-                <FooterBar tpl={tpl} c={c} config={config} />
+                {/* ── FOOTER ── */}
+                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
+                    <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
+                    <Text style={{ fontSize: 8, color: c.mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+                </View>
             </Page>
         </Document>
     )
@@ -1212,60 +1525,223 @@ export function ContractPDF({ data, logoUrl }: Props) {
 
 
 // ═══════════════════════════════════════════════════════
-// QUOTATION PDF
+// QUOTATION PDF — Clean estimate-focused layout
+// Accent banner header · validity callout · pricing table
 // ═══════════════════════════════════════════════════════
 
 export function QuotationPDF({ data, logoUrl }: Props) {
-    const config = getDocumentConfig("quotation")
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
-    
-    const s = StyleSheet.create({
-        page: { paddingTop: tpl === "bold" ? 0 : 48, paddingBottom: 60, paddingHorizontal: 0, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff" },
-        descBox: { marginHorizontal: 48, backgroundColor: c.bg, ...r(8), padding: 14, marginBottom: 16 },
-        tHead: { flexDirection: "row", backgroundColor: tpl === "classic" ? "transparent" : c.pri, ...r(tpl === "classic" ? 0 : 6), paddingVertical: 9, paddingHorizontal: 10, ...bBottom(tpl === "classic" ? 3 : 0, c.pri) },
-        tRow: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.acc) },
-        tRowAlt: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.acc), backgroundColor: c.bg },
-        cD: { flex: 1 }, cQ: { width: 50, textAlign: "center" }, cR: { width: 80, textAlign: "right" }, cA: { width: 80, textAlign: "right" },
-        totBox: { width: 220, ...(tpl === "classic" ? bAll(1, c.bdr) : bAll(0, "transparent")), backgroundColor: tpl === "bold" ? c.bg : "transparent", ...r(8), padding: 14 },
-        totRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
-        gRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 10, marginTop: 6, ...bTop(2, c.pri) },
-        sigRow: { flexDirection: "row", paddingHorizontal: 48, marginTop: 24, marginBottom: 16 },
-        sigBlk: { flex: 1, marginRight: 24 },
-        sigLine: { ...bBottom(1, c.mut), marginTop: 36, marginBottom: 8, width: 180 },
-    })
+    const { sub, disc, tax, total } = calc(data)
+    const isClassic = tpl === "classic"
+    const isMinimal = tpl === "minimal"
 
     return (
         <Document>
-            <Page size="A4" style={s.page} wrap>
-                {/* Header — shared component with quotation config */}
-                <HeaderSection data={data} logoUrl={logoUrl} tpl={tpl} c={c} config={config} />
+            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* Date strip — shared component */}
-                <DateStrip data={data} tpl={tpl} c={c} config={config} />
-
-                {/* Party blocks — shared component */}
-                <PartyBlocks data={data} tpl={tpl} c={c} config={config} />
-
-                {/* Description box — quotation-only inline section */}
-                {data.description && config.hasDescriptionBox && (
-                    <View style={s.descBox}><Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.6 }}>{data.description}</Text></View>
+                {/* ── HEADER ── */}
+                {isClassic ? (
+                    // Classic: bordered frame header
+                    <View style={{ paddingHorizontal: 48, paddingTop: 40, paddingBottom: 20, ...bNone() }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 30, color: c.txt, fontWeight: 700, letterSpacing: 1 }}>QUOTATION</Text>
+                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "QUO-0000"}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", padding: 14, backgroundColor: c.bg, ...r(8), ...bNone() }}>
+                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Valid Until</Text>
+                                <Text style={{ fontSize: 16, color: c.pri, fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
+                            </View>
+                        </View>
+                        <View style={{ height: 2, backgroundColor: c.pri, marginTop: 18, ...bNone() }} />
+                    </View>
+                ) : isMinimal ? (
+                    // Minimal: ultra-clean
+                    <View style={{ paddingHorizontal: 48, paddingTop: 44, paddingBottom: 24, ...bNone() }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 11, color: c.mut, letterSpacing: 3, textTransform: "uppercase", fontWeight: 700 }}>Quotation</Text>
+                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "QUO-0000"}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>
+                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Valid Until</Text>
+                                <Text style={{ fontSize: 16, color: c.txt, fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
+                            </View>
+                        </View>
+                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 24, ...bNone() }} />
+                    </View>
+                ) : (
+                    // Modern: accent-color top band + white header area
+                    <View style={{ ...bNone() }}>
+                        {/* Thin accent top bar */}
+                        <View style={{ height: 6, backgroundColor: c.pri, ...bNone() }} />
+                        {/* Header content */}
+                        <View style={{ paddingHorizontal: 48, paddingTop: 28, paddingBottom: 24, ...bNone() }}>
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                                <View style={{ ...bNone() }}>
+                                    <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                    <Text style={{ fontSize: 34, color: c.pri, fontWeight: 700, letterSpacing: -0.5 }}>QUOTATION</Text>
+                                    <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "QUO-0000"}</Text>
+                                </View>
+                                {/* Validity callout box */}
+                                <View style={{ backgroundColor: c.pri, ...r(10), padding: 16, alignItems: "center", minWidth: 120, ...bNone() }}>
+                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Valid Until</Text>
+                                    <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
+                                    <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.2)", width: "100%", marginVertical: 8, ...bNone() }} />
+                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Total</Text>
+                                    <Text style={{ fontSize: 16, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+                                </View>
+                            </View>
+                        </View>
+                        {/* Accent divider */}
+                        <View style={{ height: 2, backgroundColor: c.acc, ...bNone() }} />
+                    </View>
                 )}
 
-                {/* Item table — shared component */}
-                <ItemTable data={data} tpl={tpl} c={c} config={config} styles={{ tHead: s.tHead, tRow: s.tRow, tRowAlt: s.tRowAlt, cD: s.cD, cQ: s.cQ, cR: s.cR, cA: s.cA }} />
+                {/* ── DATE STRIP ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: isClassic || isMinimal ? "transparent" : c.bg, marginBottom: 4, ...bNone() }}>
+                    {[
+                        { label: "Quote Date", value: fmtDate(data.invoiceDate) },
+                        { label: "Valid Until", value: fmtDate(data.dueDate) },
+                        { label: "Payment Terms", value: data.paymentTerms || "Net 30" },
+                    ].map((item, i) => (
+                        <View key={i} style={{ flex: 1, paddingLeft: i > 0 ? 16 : 0, ...bNone(), ...(i > 0 ? { borderLeftWidth: 1, borderLeftColor: c.bdr, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any } : {}) }}>
+                            <Text style={{ fontSize: 7.5, color: c.mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>{item.label}</Text>
+                            <Text style={{ fontSize: 11, color: c.txt, fontWeight: 700 }}>{item.value}</Text>
+                        </View>
+                    ))}
+                </View>
 
-                {/* Totals box — shared component */}
-                <TotalsBox data={data} c={c} config={config} styles={{ totBox: s.totBox, totRow: s.totRow, gRow: s.gRow }} />
+                {/* ── DIVIDER ── */}
+                <View style={{ height: 1, backgroundColor: c.bdr, marginHorizontal: 48, marginBottom: 20, ...bNone() }} />
 
-                {/* Signature row — shared component */}
-                <SignatureRow data={data} c={c} styles={{ sigRow: s.sigRow, sigBlk: s.sigBlk, sigLine: s.sigLine }} />
+                {/* ── PARTY BLOCKS ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                    <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>From</Text>
+                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                        {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                        {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
+                        {data.fromPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromPhone}</Text> : null}
+                    </View>
+                    <View style={{ flex: 1, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Quote For</Text>
+                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                        {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                        {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
+                        {data.toPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toPhone}</Text> : null}
+                    </View>
+                </View>
 
-                {/* Notes & Terms — shared component */}
-                <NotesSection data={data} c={c} tpl={tpl} config={config} />
+                {/* ── DESCRIPTION BOX ── */}
+                {data.description && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: c.bg, ...r(8), ...bNone() }}>
+                        <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.6 }}>{data.description}</Text>
+                    </View>
+                )}
 
-                {/* Footer — shared component */}
-                <FooterBar tpl={tpl} c={c} config={config} />
+                {/* ── ITEMS TABLE ── */}
+                <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
+                    <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
+                        <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Item / Service</Text></View>
+                        <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
+                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Unit Price</Text></View>
+                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
+                    </View>
+                    {data.items.map((item, i) => {
+                        const gross = item.quantity * item.rate
+                        const hasDisc = item.discount && item.discount > 0
+                        const discAmt = hasDisc ? gross * (item.discount! / 100) : 0
+                        const lineTotal = gross - discAmt
+                        return (
+                            <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}) }} wrap={false}>
+                                <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
+                                <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
+                                <View style={{ width: 80, ...bNone() }}>
+                                    {hasDisc ? (
+                                        <>
+                                            <Text style={{ fontSize: 8, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
+                                            <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                        </>
+                                    ) : (
+                                        <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                    )}
+                                </View>
+                            </View>
+                        )
+                    })}
+                </View>
+
+                {/* ── TOTALS ── */}
+                <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                    <View style={{ width: 240, ...bNone() }}>
+                        {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text>
+                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(sub, data.currency)}</Text>
+                        </View>}
+                        {getItemDiscountTotal(data) > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Discounts</Text>
+                            <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(getItemDiscountTotal(data), data.currency)}</Text>
+                        </View>}
+                        {!!data.discountValue && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Discount{data.discountType === "percent" ? ` (${data.discountValue}%)` : ""}</Text>
+                            <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(disc, data.currency)}</Text>
+                        </View>}
+                        {!!data.taxRate && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text>
+                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(tax, data.currency)}</Text>
+                        </View>}
+                        <View style={{ backgroundColor: c.pri, ...r(8), padding: 14, marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
+                            <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>Total</Text>
+                            <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* ── SIGNATURE BLOCKS ── */}
+                {data.showSignatureFields !== false && (
+                    <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 8, marginBottom: 20, ...bNone() }} wrap={false}>
+                        {[
+                            { label: "Authorized By", name: data.signatureName || data.fromName, title: data.signatureTitle, sig: data.showSenderSignature !== false ? data.senderSignatureDataUrl : null },
+                            { label: "Accepted By", name: data.toName, title: null, sig: data.signatureImages?.[0]?.imageDataUrl || null, electronic: !data.signatureImages?.[0]?.imageDataUrl && (!!data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) },
+                        ].map((party, i) => (
+                            <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
+                                <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
+                                {party.sig ? (
+                                    <Image src={party.sig} style={{ width: 160, height: 52, marginBottom: 4, ...bNone() }} />
+                                ) : (party as any).electronic ? (
+                                    <View style={{ height: 52, marginBottom: 4, justifyContent: "center", ...bNone() }}>
+                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                    </View>
+                                ) : (
+                                    <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
+                                )}
+                                <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
+                                {party.title ? <Text style={{ fontSize: 9, color: c.mut }}>{party.title}</Text> : null}
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── NOTES ── */}
+                {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                </View> : null}
+                {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                </View> : null}
+
+                {/* ── FOOTER ── */}
+                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
+                    <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
+                    <Text style={{ fontSize: 8, color: c.mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+                </View>
             </Page>
         </Document>
     )
@@ -1273,72 +1749,235 @@ export function QuotationPDF({ data, logoUrl }: Props) {
 
 
 // ═══════════════════════════════════════════════════════
-// PROPOSAL PDF
+// PROPOSAL PDF — Persuasive presentation-style layout
+// Bold cover header · executive summary card · CTA box
 // ═══════════════════════════════════════════════════════
 
 export function ProposalPDF({ data, logoUrl }: Props) {
-    const config = getDocumentConfig("proposal")
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
-    
-    const s = StyleSheet.create({
-        page: { paddingTop: tpl === "bold" ? 0 : 48, paddingBottom: 60, paddingHorizontal: 0, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff" },
-        secWrap: { paddingHorizontal: 48, marginBottom: 16 },
-        tHead: { flexDirection: "row", backgroundColor: tpl === "classic" ? "transparent" : c.acc, ...r(tpl === "classic" ? 0 : 6), paddingVertical: 9, paddingHorizontal: 10, ...bBottom(2, c.pri) },
-        tRow: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.acc) },
-        tRowAlt: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 10, ...bBottom(1, c.acc), backgroundColor: c.bg },
-        cD: { flex: 1 }, cQ: { width: 50, textAlign: "center" }, cR: { width: 80, textAlign: "right" }, cA: { width: 80, textAlign: "right" },
-        totBox: { width: 240, backgroundColor: tpl === "bold" ? c.bg : "transparent", ...r(10), padding: tpl === "bold" ? 16 : 0, ...(tpl === "classic" ? bAll(1, c.bdr) : bAll(0, "transparent")) },
-        totRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
-        gRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 10, marginTop: 6, ...bTop(2, c.pri) },
-        ctaBox: { marginHorizontal: 48, backgroundColor: c.acc, ...r(8), padding: 18, ...bLeft(4, c.pri), marginBottom: 16 },
-        sigRow: { flexDirection: "row", paddingHorizontal: 48, marginTop: 24, marginBottom: 16 },
-        sigBlk: { flex: 1, marginRight: 24 },
-        sigLine: { ...bBottom(1, c.mut), marginTop: 36, marginBottom: 8, width: 180 },
-    })
+    const { sub, disc, tax, total } = calc(data)
+    const hasItems = data.items.some(i => i.description.trim().length > 0 || i.rate > 0)
+    const isClassic = tpl === "classic"
+    const isMinimal = tpl === "minimal"
 
     return (
         <Document>
-            <Page size="A4" style={s.page} wrap>
-                {/* Header — shared component with proposal config */}
-                <HeaderSection data={data} logoUrl={logoUrl} tpl={tpl} c={c} config={config} />
+            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* Date strip — shared component */}
-                <DateStrip data={data} tpl={tpl} c={c} config={config} />
-
-                {/* Party blocks — shared component */}
-                <PartyBlocks data={data} tpl={tpl} c={c} config={config} />
-
-                {/* Executive Summary — proposal-only inline section */}
-                {data.description && config.hasExecutiveSummary && (
-                    <View style={s.secWrap}>
-                        <Text style={{ fontSize: 11, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, ...bold(c) }}>Executive Summary</Text>
-                        <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.7 }}>{data.description}</Text>
+                {/* ── HEADER: Bold cover-style ── */}
+                {isClassic ? (
+                    // Classic: formal header with single rule
+                    <View style={{ paddingHorizontal: 48, paddingTop: 40, paddingBottom: 20, ...bNone() }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 30, color: c.txt, fontWeight: 700, letterSpacing: 1 }}>PROPOSAL</Text>
+                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "PROP-0000"}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>
+                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Date</Text>
+                                <Text style={{ fontSize: 13, color: c.txt, fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
+                                {data.dueDate && <>
+                                    <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginTop: 8, marginBottom: 4 }}>Valid Until</Text>
+                                    <Text style={{ fontSize: 13, color: c.pri, fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
+                                </>}
+                            </View>
+                        </View>
+                        <View style={{ height: 2, backgroundColor: c.pri, marginTop: 18, ...bNone() }} />
+                    </View>
+                ) : isMinimal ? (
+                    // Minimal: clean
+                    <View style={{ paddingHorizontal: 48, paddingTop: 44, paddingBottom: 24, ...bNone() }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 11, color: c.mut, letterSpacing: 3, textTransform: "uppercase", fontWeight: 700 }}>Proposal</Text>
+                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "PROP-0000"}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>
+                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Date</Text>
+                                <Text style={{ fontSize: 13, color: c.txt, fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
+                            </View>
+                        </View>
+                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 24, ...bNone() }} />
+                    </View>
+                ) : (
+                    // Modern: full-bleed bold cover header
+                    <View style={{ backgroundColor: c.pri, paddingHorizontal: 48, paddingTop: 40, paddingBottom: 36, ...bNone() }}>
+                        {/* Decorative shapes */}
+                        <View style={{ position: "absolute", top: 0, right: 0, width: 180, height: 120, ...r(0), borderBottomLeftRadius: 80, backgroundColor: "rgba(255,255,255,0.06)", ...bNone() }} />
+                        <View style={{ position: "absolute", bottom: -20, right: 80, width: 80, height: 80, ...r(40), backgroundColor: "rgba(255,255,255,0.04)", ...bNone() }} />
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 38, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>PROPOSAL</Text>
+                                <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "PROP-0000"}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>
+                                <View style={{ backgroundColor: "rgba(255,255,255,0.12)", ...r(8), padding: 14, alignItems: "flex-end", ...bNone() }}>
+                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Prepared For</Text>
+                                    <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>{data.toName || "[Client Name]"}</Text>
+                                    <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.15)", width: "100%", marginVertical: 8, ...bNone() }} />
+                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Date</Text>
+                                    <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
+                                    {data.dueDate && <>
+                                        <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.15)", width: "100%", marginVertical: 8, ...bNone() }} />
+                                        <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Valid Until</Text>
+                                        <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
+                                    </>}
+                                </View>
+                            </View>
+                        </View>
                     </View>
                 )}
 
-                {/* Item table — shared component (handles skipEmptyItems) */}
-                <ItemTable data={data} tpl={tpl} c={c} config={config} styles={{ tHead: s.tHead, tRow: s.tRow, tRowAlt: s.tRowAlt, cD: s.cD, cQ: s.cQ, cR: s.cR, cA: s.cA }} />
-
-                {/* Totals box — shared component */}
-                <TotalsBox data={data} c={c} config={config} styles={{ totBox: s.totBox, totRow: s.totRow, gRow: s.gRow }} />
-
-                {/* Next Steps CTA — proposal-only inline section */}
-                {config.hasNextStepsCTA && (
-                    <View style={s.ctaBox} wrap={false}>
-                        <Text style={{ fontSize: 11, color: c.pri, marginBottom: 4, ...bold(c) }}>Next Steps</Text>
-                        <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.5 }}>{data.paymentInstructions || "To proceed with this proposal, please sign and return this document. We look forward to working with you."}</Text>
+                {/* ── PREPARED BY / FOR (classic/minimal) ── */}
+                {(isClassic || isMinimal) && (
+                    <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
+                        <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared By</Text>
+                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                            {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                            {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
+                        </View>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared For</Text>
+                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                            {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                            {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
+                        </View>
                     </View>
                 )}
 
-                {/* Signature row — shared component */}
-                <SignatureRow data={data} c={c} styles={{ sigRow: s.sigRow, sigBlk: s.sigBlk, sigLine: s.sigLine }} />
+                {/* ── PREPARED BY / FOR (modern) ── */}
+                {!isClassic && !isMinimal && (
+                    <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
+                        <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared By</Text>
+                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                            {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                            {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
+                            {data.fromPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromPhone}</Text> : null}
+                        </View>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared For</Text>
+                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                            {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                            {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
+                            {data.toPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toPhone}</Text> : null}
+                        </View>
+                    </View>
+                )}
 
-                {/* Notes & Terms — shared component */}
-                <NotesSection data={data} c={c} tpl={tpl} config={config} />
+                {/* ── EXECUTIVE SUMMARY ── */}
+                {data.description && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Executive Summary</Text>
+                        <View style={{ padding: 16, backgroundColor: c.bg, ...r(8), ...bNone(), borderLeftWidth: 4, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }}>
+                            <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.7 }}>{data.description}</Text>
+                        </View>
+                    </View>
+                )}
 
-                {/* Footer — shared component */}
-                <FooterBar tpl={tpl} c={c} config={config} />
+                {/* ── BUDGET BREAKDOWN TABLE ── */}
+                {hasItems && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Budget Breakdown</Text>
+                        {/* Accent-colored header (Proposal uses accent, not primary) */}
+                        <View style={{ flexDirection: "row", backgroundColor: c.acc, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 2, borderBottomColor: c.pri, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} wrap={false}>
+                            <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Deliverable / Phase</Text></View>
+                            <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
+                            <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Rate</Text></View>
+                            <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
+                        </View>
+                        {data.items.filter(i => i.description.trim().length > 0 || i.rate > 0).map((item, i) => {
+                            const gross = item.quantity * item.rate
+                            const hasDisc = item.discount && item.discount > 0
+                            const discAmt = hasDisc ? gross * (item.discount! / 100) : 0
+                            const lineTotal = gross - discAmt
+                            return (
+                                <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}) }} wrap={false}>
+                                    <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
+                                    <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+                                    <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
+                                    <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text></View>
+                                </View>
+                            )
+                        })}
+                    </View>
+                )}
+
+                {/* ── TOTAL INVESTMENT ── */}
+                {total > 0 && (
+                    <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                        <View style={{ width: 260, ...bNone() }}>
+                            {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                                <Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text>
+                                <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(sub, data.currency)}</Text>
+                            </View>}
+                            {!!data.discountValue && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                                <Text style={{ fontSize: 10, color: c.mut }}>Discount</Text>
+                                <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(disc, data.currency)}</Text>
+                            </View>}
+                            {!!data.taxRate && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                                <Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text>
+                                <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(tax, data.currency)}</Text>
+                            </View>}
+                            <View style={{ backgroundColor: c.pri, ...r(8), padding: 14, marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
+                                <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>Total Investment</Text>
+                                <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
+
+                {/* ── NEXT STEPS CTA ── */}
+                <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 18, backgroundColor: c.acc, ...r(8), ...bNone(), borderLeftWidth: 5, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }} wrap={false}>
+                    <Text style={{ fontSize: 11, color: c.pri, fontWeight: 700, marginBottom: 6 }}>Next Steps</Text>
+                    <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.5 }}>{data.paymentInstructions || "To proceed with this proposal, please sign and return this document. We look forward to working with you."}</Text>
+                </View>
+
+                {/* ── SIGNATURE BLOCKS ── */}
+                {data.showSignatureFields !== false && (
+                    <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                        {[
+                            { label: "Prepared By", name: data.signatureName || data.fromName, title: data.signatureTitle, sig: data.showSenderSignature !== false ? data.senderSignatureDataUrl : null },
+                            { label: "Accepted By", name: data.toName, title: null, sig: data.signatureImages?.[0]?.imageDataUrl || null, electronic: !data.signatureImages?.[0]?.imageDataUrl && (!!data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) },
+                        ].map((party, i) => (
+                            <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
+                                <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
+                                {party.sig ? (
+                                    <Image src={party.sig} style={{ width: 160, height: 52, marginBottom: 4, ...bNone() }} />
+                                ) : (party as any).electronic ? (
+                                    <View style={{ height: 52, marginBottom: 4, justifyContent: "center", ...bNone() }}>
+                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                    </View>
+                                ) : (
+                                    <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
+                                )}
+                                <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
+                                {party.title ? <Text style={{ fontSize: 9, color: c.mut }}>{party.title}</Text> : null}
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── NOTES ── */}
+                {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                </View> : null}
+                {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                </View> : null}
+
+                {/* ── FOOTER ── */}
+                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
+                    <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
+                    <Text style={{ fontSize: 8, color: c.mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+                </View>
             </Page>
         </Document>
     )
