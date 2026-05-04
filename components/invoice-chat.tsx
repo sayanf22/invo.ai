@@ -167,6 +167,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const initialPromptSentRef = useRef(false)
     const lastSyncedSessionRef = useRef<string | null>(null)
     const pendingAutoGenerateRef = useRef<string | null>(null)
+    // Track activities accumulated during the current streaming response.
+    // This ref is the source of truth for saving to DB — the setMessages
+    // callback pattern is async and unreliable for synchronous reads.
+    const currentActivitiesRef = useRef<ActivityItem[]>([])
 
     // Expose updateSessionContext to parent once session is ready
     useEffect(() => {
@@ -489,6 +493,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             : userMessage
         setInputValue("")
         setMessages(prev => [...prev, { role: "user" as const, content: displayText }, { role: "thinking" as const, content: "", activities: [], isWorking: true, thinkingStartTime: Date.now() }])
+        // Reset activities ref for this new streaming response
+        currentActivitiesRef.current = []
         // NOTE: User message is NOT saved to DB here — it's saved only after a successful
         // AI response. This prevents error responses from counting against the message limit.
         setIsLoading(true)
@@ -632,7 +638,25 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     try {
                         const parsed = JSON.parse(line.slice(6))
                         if (parsed.type === "activity") {
-                            // Append/update activity in the thinking message
+                            // Append/update activity in the thinking message AND the ref
+                            const newActivity: ActivityItem = {
+                                id: `activity-${Date.now()}-${currentActivitiesRef.current.length}`,
+                                action: parsed.action,
+                                label: parsed.label,
+                                detail: parsed.detail,
+                                reasoningText: parsed.content,
+                            }
+                            // Update ref (synchronous, always available for saving)
+                            const existingRef = currentActivitiesRef.current.find(
+                                a => a.action === parsed.action && a.label === parsed.label && !a.detail
+                            )
+                            if (existingRef && parsed.detail) {
+                                existingRef.detail = parsed.detail
+                                if (parsed.content) existingRef.reasoningText = parsed.content
+                            } else if (!existingRef) {
+                                currentActivitiesRef.current.push(newActivity)
+                            }
+                            // Update UI state
                             setMessages(prev => {
                                 const updated = [...prev]
                                 const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
@@ -643,18 +667,11 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     )
                                     if (existing && parsed.detail) {
                                         existing.detail = parsed.detail
-                                        // Store content as reasoningText for expandable display
                                         if (parsed.content) {
                                             existing.reasoningText = parsed.content
                                         }
                                     } else if (!existing) {
-                                        thinkingMsg.activities.push({
-                                            id: `activity-${Date.now()}-${thinkingMsg.activities.length}`,
-                                            action: parsed.action,
-                                            label: parsed.label,
-                                            detail: parsed.detail,
-                                            reasoningText: parsed.content,
-                                        })
+                                        thinkingMsg.activities.push({ ...newActivity })
                                     }
                                 }
                                 return [...updated]
@@ -969,19 +986,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     const displayMsg = aiMessage || "✅ Document generated! Check the preview. Need changes? Just tell me."
                     setMessages(prev => [...prev, { role: "assistant", content: displayMsg }])
                     await saveMessage("user", displayText)
-                    // Save activities from the thinking block to metadata so they persist on refresh
-                    const thinkingActivities = (() => {
-                        // We need to read the current messages state — use a ref-like approach
-                        // by capturing from the setMessages callback
-                        return null // will be captured below
-                    })()
-                    // Capture activities from the thinking message before it gets replaced
-                    let savedActivities: ActivityItem[] = []
-                    setMessages(prev => {
-                        const thinkMsg = prev.find(m => m.role === "thinking")
-                        if (thinkMsg?.activities) savedActivities = [...thinkMsg.activities]
-                        return prev
-                    })
+                    // Save activities from the ref (synchronous, reliable)
+                    const savedActivities = [...currentActivitiesRef.current]
                     await saveMessage("assistant", displayMsg, savedActivities.length > 0 ? { activities: savedActivities } : undefined)
                     toast.success("Document updated!")
 
@@ -1069,13 +1075,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 // ── End send intent detection ──────────────────────────────────────
                 setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
                 await saveMessage("user", displayText)
-                // Save activities from thinking block to metadata for persistence
-                let chatActivities: ActivityItem[] = []
-                setMessages(prev => {
-                    const thinkMsg = prev.find(m => m.role === "thinking")
-                    if (thinkMsg?.activities) chatActivities = [...thinkMsg.activities]
-                    return prev
-                })
+                // Save activities from ref (synchronous, reliable)
+                const chatActivities = [...currentActivitiesRef.current]
                 await saveMessage("assistant", cleaned, chatActivities.length > 0 ? { activities: chatActivities } : undefined)
             }
         } catch (err: any) {

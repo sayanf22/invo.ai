@@ -160,12 +160,14 @@ When responding in DOCUMENT GENERATION mode, follow ALL rules below.
 - The "message" field is where you talk to the user — explain calculations, acknowledge corrections, ask follow-ups there.
 
 ## CORE RULES
-1. ALWAYS respond with valid JSON: { "document": {...}, "message": "..." }
-2. Generate the document IMMEDIATELY from whatever info the user provides. Don't refuse or ask too many questions.
+1. ALWAYS respond with valid JSON: { "document": {...}, "message": "..." } — UNLESS the PROFILE_DATA_SUFFICIENCY block says SPARSE, in which case respond with plain conversational text (see rule 7).
+2. Generate the document IMMEDIATELY from whatever info the user provides — BUT only when PROFILE_DATA_SUFFICIENCY is ADEQUATE or the user's prompt itself contains all needed details.
 3. Use the business profile data for all "from" fields — NEVER ask the user for their own business info.
 4. Only ask about CLIENT/recipient info and document-specific details the user hasn't provided.
 5. Your "message" should be 1-2 sentences: acknowledge what you created + ask ONE follow-up about missing info (only essential info like client name, email, or address — NEVER ask for phone numbers, they are optional and should not be requested).
 6. Every item in the "items" array MUST have: { "id": "unique-string", "description": "...", "quantity": number, "rate": number }. Optionally include "discount": number (percentage 0-100) for per-item discounts.
+7. SPARSE PROFILE RULE: When PROFILE_DATA_SUFFICIENCY is SPARSE, respond in plain text (NOT JSON). Let the user know you don't have enough business info yet and offer them options: (a) share the missing details in chat, (b) upload a reference document, or (c) proceed with what's available and leave unknown fields blank. Keep it brief and friendly. Do NOT generate a document until they respond — UNLESS their message already contains all needed details (client, service, price), in which case you MAY generate using only those prompt-provided details plus whatever profile fields are populated.
+8. NEVER fabricate, invent, or guess any business detail that is not explicitly present in the BUSINESS PROFILE or the user's message. This includes: addresses, phone numbers, services, pricing, tax IDs, contact names, and any other business-specific information. If a field is unknown, set it to "" (empty string).
 
 ## CRITICAL: DOCUMENT TYPE ENFORCEMENT
 - If DOCUMENT TYPE says "quotation", set documentType to "Quotation" — NEVER "Invoice".
@@ -489,6 +491,88 @@ function getTaxApplyRule(country: string, registered: boolean, hasTaxIds: boolea
     return "UNREGISTERED — set taxRate=0"
 }
 
+/**
+ * Computes a profile completeness score (0–1) based on how many key fields are populated.
+ * Returns an object with the score and a list of which critical fields are missing.
+ *
+ * Scoring weights:
+ *   - name (required for any document): 0.25
+ *   - address: 0.20
+ *   - country: 0.15
+ *   - currency: 0.10
+ *   - businessType: 0.10
+ *   - signatory name or email: 0.10
+ *   - additionalNotes (services/pricing): 0.10
+ *
+ * A score < 0.35 is "very sparse" — the AI should not fabricate missing details.
+ * A score >= 0.35 is "adequate" — generate normally with what's available.
+ *
+ * Additionally, if the user's prompt itself supplies a price/amount AND a service/item,
+ * we treat the profile as adequate regardless of score (prompt compensates for sparse profile).
+ */
+function computeProfileCompleteness(
+    ctx: AIGenerationRequest["businessContext"],
+    userPrompt: string
+): { score: number; isSparse: boolean; missingFields: string[] } {
+    if (!ctx) return { score: 0, isSparse: true, missingFields: ["business profile (not set up)"] }
+
+    const missing: string[] = []
+    let score = 0
+
+    if (ctx.name && ctx.name.trim().length > 0) {
+        score += 0.25
+    } else {
+        missing.push("business name")
+    }
+
+    const addr = typeof ctx.address === "string" ? ctx.address : Object.values(ctx.address || {}).filter(Boolean).join("")
+    if (addr && addr.trim().length > 2) {
+        score += 0.20
+    } else {
+        missing.push("business address")
+    }
+
+    if (ctx.country && ctx.country.trim().length > 0) {
+        score += 0.15
+    } else {
+        missing.push("country")
+    }
+
+    if (ctx.currency && ctx.currency.trim().length > 0) {
+        score += 0.10
+    }
+
+    if (ctx.businessType && ctx.businessType.trim().length > 0) {
+        score += 0.10
+    } else {
+        missing.push("business type")
+    }
+
+    const signatoryName = ctx.signatory?.name?.trim() || ""
+    const signatoryEmail = ctx.signatory?.email?.trim() || ""
+    if (signatoryName.length > 0 || signatoryEmail.length > 0) {
+        score += 0.10
+    } else {
+        missing.push("contact name / email")
+    }
+
+    if (ctx.additionalNotes && ctx.additionalNotes.trim().length > 10) {
+        score += 0.10
+    } else {
+        missing.push("services / pricing info")
+    }
+
+    // If the user's prompt itself provides a price/amount AND a service description,
+    // the prompt compensates for a sparse profile — treat as adequate.
+    const promptHasPrice = /\b(\d[\d,]*(\.\d+)?\s*(k|usd|inr|eur|gbp|aud|cad|sgd|aed|php|rs\.?|₹|\$|€|£)?|\$\s*\d[\d,]*)\b/i.test(userPrompt)
+    const promptHasService = /\b(for|invoice|quotation|contract|proposal|service|design|development|consulting|hours?|project|work|plan|package)\b/i.test(userPrompt)
+    const promptCompensates = promptHasPrice && promptHasService
+
+    const isSparse = score < 0.35 && !promptCompensates
+
+    return { score, isSparse, missingFields: missing }
+}
+
 // Build the full user-context prompt (system prompt is sent separately)
 export function buildPrompt(request: AIGenerationRequest): string {
     const now = new Date()
@@ -552,6 +636,43 @@ BUSINESS PROFILE (use for all "from" fields):
             const ragTaxRate = (request as any)._ragTaxRate as number | undefined
             const applyRule = getTaxApplyRule(country, registered, hasTaxIds, ragTaxRate)
             prompt += `\nTAX_REGISTRATION_STATUS:\n- Country: ${country}\n- Registered: ${registered ? "YES" : "NO"}\n- Tax IDs: ${taxIdsStr}\n- Apply Rule: ${applyRule}\n`
+        }
+
+        // ── Profile completeness signal ──────────────────────────────────────
+        // This tells the AI how much it actually knows about the business so it
+        // doesn't fabricate details it has no data for.
+        const { score, isSparse, missingFields } = computeProfileCompleteness(
+            request.businessContext,
+            request.prompt
+        )
+        const scorePercent = Math.round(score * 100)
+
+        if (isSparse) {
+            prompt += `\nPROFILE_DATA_SUFFICIENCY: SPARSE (${scorePercent}% complete)\n`
+            prompt += `Missing fields: ${missingFields.join(", ")}\n`
+            prompt += `INSTRUCTION: The business profile is very incomplete. You MUST NOT fabricate or invent any missing business details (address, services, pricing, contact info, etc.).\n`
+            prompt += `Instead, respond conversationally (plain text, NOT JSON) and let the user know you don't have enough information yet. Offer them these options:\n`
+            prompt += `1. Tell you the missing details in chat right now\n`
+            prompt += `2. Upload a reference document (letterhead, old invoice, etc.) you can extract info from\n`
+            prompt += `3. Proceed anyway — you'll generate with what's available and leave unknown fields blank\n`
+            prompt += `Keep the message friendly and brief. Do NOT generate a document JSON until the user responds.\n`
+            prompt += `EXCEPTION: If the user's message already contains all the details needed (client name, service description, price/amount), you MAY generate the document using only those prompt-provided details plus whatever profile fields ARE populated. Leave all other unknown fields as empty strings.\n`
+        } else {
+            prompt += `\nPROFILE_DATA_SUFFICIENCY: ADEQUATE (${scorePercent}% complete)\n`
+            prompt += `INSTRUCTION: Generate the document normally. Use only the data that IS present in the profile. For any field that is empty or "Not provided", leave it as an empty string — do NOT invent or guess values.\n`
+        }
+    }
+
+    // No business profile at all — inject sparse signal so AI doesn't fabricate
+    if (!request.businessContext) {
+        const promptHasPrice = /\b(\d[\d,]*(\.\d+)?\s*(k|usd|inr|eur|gbp|aud|cad|sgd|aed|php|rs\.?|₹|\$|€|£)?|\$\s*\d[\d,]*)\b/i.test(request.prompt)
+        const promptHasService = /\b(for|invoice|quotation|contract|proposal|service|design|development|consulting|hours?|project|work|plan|package)\b/i.test(request.prompt)
+        if (promptHasPrice && promptHasService) {
+            prompt += `\nPROFILE_DATA_SUFFICIENCY: SPARSE (0% complete — no profile set up)\n`
+            prompt += `INSTRUCTION: No business profile is set up. The user's prompt provides enough detail to generate a basic document. Generate it using ONLY the details from the user's message. Leave all "from" fields (fromName, fromAddress, fromEmail, etc.) as empty strings. Do NOT invent any business details.\n`
+        } else {
+            prompt += `\nPROFILE_DATA_SUFFICIENCY: SPARSE (0% complete — no profile set up)\n`
+            prompt += `INSTRUCTION: No business profile is set up. Respond conversationally (plain text, NOT JSON). Let the user know you need some basic business info to generate a document. Offer: (a) share details in chat, (b) upload a reference document, or (c) proceed with blank sender fields.\n`
         }
     }
 

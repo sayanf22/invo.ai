@@ -170,7 +170,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                     session_id: session.id,
                     role,
                     content,
-                    ...(metadata ? { metadata } : {}),
+                    ...(metadata ? { metadata: metadata as unknown as Json } : {}),
                 })
 
             if (error) {

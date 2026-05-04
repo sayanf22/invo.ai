@@ -211,6 +211,10 @@ export async function getSessionMessageCount(
 /**
  * Check if user can send another message in the current session.
  * Returns null if allowed, or a 429 NextResponse if limit exceeded.
+ *
+ * NOTE: The current user message hasn't been saved to DB yet when this
+ * check runs (it's saved AFTER the AI response in the frontend).
+ * So we add +1 to the DB count to account for the in-flight message.
  */
 export async function checkMessageLimit(
     supabase: SupabaseClient<Database>,
@@ -236,13 +240,15 @@ export async function checkMessageLimit(
             return null // fail open
         }
 
-        const messageCount = count || 0
+        // +1 because the current message hasn't been saved to DB yet
+        // (frontend saves it AFTER the AI response succeeds)
+        const messageCount = (count || 0) + 1
 
-        if (messageCount >= limits.messagesPerSession) {
+        if (messageCount > limits.messagesPerSession) {
             return NextResponse.json(
                 {
                     error: "Session message limit reached",
-                    currentMessages: messageCount,
+                    currentMessages: messageCount - 1, // show actual saved count to user
                     limit: limits.messagesPerSession,
                     tier: userTier,
                     message: "Start a new session to continue. This counts as a new document.",

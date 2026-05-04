@@ -536,8 +536,14 @@ export async function POST(request: NextRequest) {
                         // Track usage for cost protection
                         await trackUsage(auth.supabase, auth.user.id, "generation", 0)
 
-                        // Increment document count
-                        await incrementDocumentCount(auth.supabase, auth.user.id)
+                        // Increment document count ONLY on the first generation in this session.
+                        // Follow-up edits ("change the rate", "add an item") should NOT count
+                        // as new documents. We check if the session already has messages —
+                        // if conversationHistory is empty, this is the first generation.
+                        const isFirstGeneration = !body.conversationHistory || body.conversationHistory.length === 0
+                        if (isFirstGeneration) {
+                            await incrementDocumentCount(auth.supabase, auth.user.id)
+                        }
 
                         // Audit log
                         await logAIGeneration(
