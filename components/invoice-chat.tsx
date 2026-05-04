@@ -1358,7 +1358,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             )}
 
             {/* Messages */}
-            <ScrollArea className="flex-1 bg-background">
+            <div className="flex-1 bg-background overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(var(--border)) transparent" }}>
                 <div className="px-4 py-5 space-y-4 pb-4 max-w-xl mx-auto">
                     {messages.map((msg, idx) => (
                         <div key={`${session?.id}-${idx}`} className={cn(
@@ -1484,7 +1484,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     )}
                     <div ref={scrollRef} />
                 </div>
-            </ScrollArea>
+            </div>
 
             {/* Input area */}
             <div className="border-t border-border/40 shrink-0 bg-card/95 backdrop-blur-sm"
