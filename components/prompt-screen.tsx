@@ -94,6 +94,7 @@ export function PromptScreen({
       handleChange({ paymentLink: "", paymentLinkStatus: undefined, showPaymentLinkInPdf: false })
       if (status === "cancelled") {
         setPaymentLinkCancelledAt(Date.now())
+        setInvoiceLocked(false) // Unlock the document when payment link is cancelled
       }
     } else {
       handleChange({ paymentLink: url, paymentLinkStatus: status as any, showPaymentLinkInPdf: true })
