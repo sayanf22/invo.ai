@@ -685,6 +685,33 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         }
         // ── End cancel payment link intent guard ──────────────────────────────
 
+        // ── Cancel send / unlock intent guard (pre-API) ───────────────────────
+        // Catch "cancel the send", "undo send", "unlock", "make it editable" etc.
+        // directly before the API call so the unlock card shows immediately.
+        if (documentGenerated && session && (session.status === "finalized" || session.status === "signed")) {
+            const CANCEL_SEND_REGEX = /\b(cancel|undo|revert|revoke|unsend)\s*(the\s*)?(send|sent|delivery|email|sharing)|unlock\s*(the\s*)?(document|invoice|contract|quotation|proposal|this)|make\s*(it\s*)?(editable|edit\s*again)|edit\s*again|can\s*(i|we)\s*edit/i
+            if (CANCEL_SEND_REGEX.test(userMessage)) {
+                setInputValue("")
+                if (session.status === "signed") {
+                    const signedMsg = "This document has been signed and can't be unlocked. Signed documents are legally binding."
+                    setMessages(prev => [...prev,
+                        { role: "user" as const, content: userMessage },
+                        { role: "assistant" as const, content: signedMsg },
+                    ])
+                    await saveMessage("user", userMessage)
+                    await saveMessage("assistant", signedMsg)
+                    return
+                }
+                setMessages(prev => [...prev,
+                    { role: "user" as const, content: userMessage },
+                    { role: "assistant" as const, content: "", unlockCard: true },
+                ])
+                await saveMessage("user", userMessage)
+                return
+            }
+        }
+        // ── End cancel send intent guard ──────────────────────────────────────
+
         // ── Pre-API send/share intent guard ───────────────────────────────────
         // If a document is already generated and the user ONLY wants to send/share
         // (no document modification mixed in), handle it immediately without an API call.

@@ -730,17 +730,20 @@ BUSINESS PROFILE (use for all "from" fields):
                 safeData.paymentTerms && `Payment Terms: ${safeData.paymentTerms}`,
             ].filter(Boolean).join(", ")
             prompt += `\nCURRENT DOCUMENT STATE: ${docSummary}\nYou are editing an existing document. The user may ask to modify specific fields. When they ask a question about the document, refer to this data.\n`
-            if (request.sessionStatus && request.sessionStatus !== "active") {
-                prompt += `\nDOCUMENT STATUS: ${request.sessionStatus.toUpperCase()}\n`
-                if (request.sessionStatus === "finalized") {
-                    prompt += `This document has been SENT/FINALIZED. It is currently locked. If the user asks to cancel the send, undo sending, unlock it, or make it editable again, respond with [ACTION:UNLOCK_DOCUMENT] at the start of your message.\n`
-                } else if (request.sessionStatus === "signed") {
-                    prompt += `This document has been SIGNED. It CANNOT be unlocked or edited. Signed documents are legally binding. If the user asks to unlock or edit it, explain this clearly.\n`
-                } else if (request.sessionStatus === "paid") {
-                    prompt += `This document has been PAID. It CANNOT be unlocked or edited.\n`
-                }
-            }
             prompt += `\nEXISTING DOCUMENT DATA:\n${JSON.stringify(safeData, null, 2)}\n`
+        }
+    }
+
+    // Session status — always inject when non-active so the AI knows the document state
+    // This MUST be outside the currentData block so it works even on first messages
+    if (request.sessionStatus && request.sessionStatus !== "active") {
+        prompt += `\nDOCUMENT STATUS: ${request.sessionStatus.toUpperCase()}\n`
+        if (request.sessionStatus === "finalized") {
+            prompt += `This document has been SENT/FINALIZED. It is currently locked. If the user asks to cancel the send, undo sending, unlock it, or make it editable again, respond with [ACTION:UNLOCK_DOCUMENT] at the start of your message.\n`
+        } else if (request.sessionStatus === "signed") {
+            prompt += `This document has been SIGNED. It CANNOT be unlocked or edited. Signed documents are legally binding. If the user asks to unlock or edit it, explain this clearly.\n`
+        } else if (request.sessionStatus === "paid") {
+            prompt += `This document has been PAID. It CANNOT be unlocked or edited.\n`
         }
     }
 
