@@ -666,40 +666,46 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             }
                             // Update UI state
                             setMessages(prev => {
-                                const updated = [...prev]
-                                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
-                                if (thinkingMsg && thinkingMsg.activities) {
-                                    // Check if this is an update to an existing activity (same action + label, now has detail)
-                                    const existing = thinkingMsg.activities.find(
+                                const updated = prev.map(m => {
+                                    if (m.role !== "thinking" || !m.isWorking || !m.activities) return m
+                                    // Check if this is an update to an existing activity (same action + label, no detail yet)
+                                    const existingIdx = m.activities.findIndex(
                                         a => a.action === parsed.action && a.label === parsed.label && !a.detail
                                     )
-                                    if (existing && parsed.detail) {
-                                        existing.detail = parsed.detail
-                                        if (parsed.content) {
-                                            existing.reasoningText = parsed.content
-                                        }
-                                    } else if (!existing) {
-                                        thinkingMsg.activities.push({ ...newActivity })
+                                    if (existingIdx !== -1 && parsed.detail) {
+                                        // Update existing activity immutably
+                                        const updatedActivities = m.activities.map((a, i) =>
+                                            i === existingIdx
+                                                ? { ...a, detail: parsed.detail, ...(parsed.content ? { reasoningText: parsed.content } : {}) }
+                                                : a
+                                        )
+                                        return { ...m, activities: updatedActivities }
+                                    } else if (existingIdx === -1) {
+                                        // Only add if not already present (guard against double-render in React 18 strict mode)
+                                        const alreadyAdded = m.activities.some(a => a.id === newActivity.id)
+                                        if (alreadyAdded) return m
+                                        return { ...m, activities: [...m.activities, { ...newActivity }] }
                                     }
-                                }
-                                return [...updated]
+                                    return m
+                                })
+                                return updated
                             })
                         } else if (parsed.type === "reasoning") {
                             // Accumulate real reasoning tokens from DeepSeek into a "think" activity
-                            setMessages(prev => {
-                                const updated = [...prev]
-                                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
-                                if (thinkingMsg && thinkingMsg.activities) {
-                                    // Find or create the last "think" activity
-                                    let thinkActivity = [...thinkingMsg.activities].reverse().find(a => a.action === "think")
-                                    if (!thinkActivity) {
-                                        thinkActivity = { id: `think-${Date.now()}`, action: "think", label: "Clorefy is reasoning", reasoningText: "" }
-                                        thinkingMsg.activities.push(thinkActivity)
-                                    }
-                                    thinkActivity.reasoningText = (thinkActivity.reasoningText || "") + parsed.data
+                            setMessages(prev => prev.map(m => {
+                                if (m.role !== "thinking" || !m.isWorking || !m.activities) return m
+                                const thinkIdx = [...m.activities].reverse().findIndex(a => a.action === "think")
+                                const realIdx = thinkIdx === -1 ? -1 : m.activities.length - 1 - thinkIdx
+                                if (realIdx === -1) {
+                                    // Create new think activity
+                                    return { ...m, activities: [...m.activities, { id: `think-${Date.now()}`, action: "think" as const, label: "Clorefy is reasoning", reasoningText: parsed.data }] }
                                 }
-                                return [...updated]
-                            })
+                                // Update existing think activity immutably
+                                const updatedActivities = m.activities.map((a, i) =>
+                                    i === realIdx ? { ...a, reasoningText: (a.reasoningText || "") + parsed.data } : a
+                                )
+                                return { ...m, activities: updatedActivities }
+                            }))
                         } else if (parsed.type === "chunk") {
                             fullContent += parsed.data
 
@@ -714,14 +720,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             // For chat text: close thinking on first chunk (existing behavior)
                             if (!isDocumentJSON && !thinkingDone) {
                                 thinkingDone = true
-                                setMessages(prev => {
-                                    const updated = [...prev]
-                                    const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
-                                    if (thinkingMsg) {
-                                        thinkingMsg.isWorking = false
-                                    }
-                                    return [...updated]
-                                })
+                                setMessages(prev => prev.map(m =>
+                                    m.role === "thinking" && m.isWorking ? { ...m, isWorking: false } : m
+                                ))
                             }
 
                             // For document JSON: detect progress and keep thinking open
@@ -730,43 +731,31 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 const progressSteps = detectDocumentProgress(trimmed, lastDetectedStep)
                                 if (progressSteps.length > 0) {
                                     lastDetectedStep = progressSteps[progressSteps.length - 1].id.replace("progress-", "")
-                                    setMessages(prev => {
-                                        const updated = [...prev]
-                                        const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
-                                        if (thinkingMsg && thinkingMsg.activities) {
-                                            for (const step of progressSteps) {
-                                                // Don't add duplicates
-                                                if (!thinkingMsg.activities.find(a => a.id === step.id)) {
-                                                    thinkingMsg.activities.push(step)
-                                                } else {
-                                                    // Update detail if it changed (e.g. item count)
-                                                    const existing = thinkingMsg.activities.find(a => a.id === step.id)
-                                                    if (existing && step.detail && existing.detail !== step.detail) {
-                                                        existing.detail = step.detail
-                                                    }
-                                                }
+                                    setMessages(prev => prev.map(m => {
+                                        if (m.role !== "thinking" || !m.isWorking || !m.activities) return m
+                                        let activities = [...m.activities]
+                                        for (const step of progressSteps) {
+                                            const existingIdx = activities.findIndex(a => a.id === step.id)
+                                            if (existingIdx === -1) {
+                                                activities = [...activities, step]
+                                            } else if (step.detail && activities[existingIdx].detail !== step.detail) {
+                                                activities = activities.map((a, i) => i === existingIdx ? { ...a, detail: step.detail } : a)
                                             }
                                         }
-                                        return [...updated]
-                                    })
+                                        return { ...m, activities }
+                                    }))
                                 }
                                 // Also update item count on subsequent chunks (items grow over time)
                                 if (lastDetectedStep === "items" || trimmed.includes('"items"')) {
                                     const itemMatches = trimmed.match(/"description"\s*:\s*"/g)
                                     if (itemMatches && itemMatches.length > 0) {
                                         const newDetail = `${itemMatches.length} item${itemMatches.length > 1 ? "s" : ""}`
-                                        setMessages(prev => {
-                                            const updated = [...prev]
-                                            const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
-                                            if (thinkingMsg && thinkingMsg.activities) {
-                                                const itemStep = thinkingMsg.activities.find(a => a.id === "progress-items")
-                                                if (itemStep && itemStep.detail !== newDetail) {
-                                                    itemStep.detail = newDetail
-                                                    return [...updated]
-                                                }
-                                            }
-                                            return prev // no change needed
-                                        })
+                                        setMessages(prev => prev.map(m => {
+                                            if (m.role !== "thinking" || !m.isWorking || !m.activities) return m
+                                            const itemIdx = m.activities.findIndex(a => a.id === "progress-items")
+                                            if (itemIdx === -1 || m.activities[itemIdx].detail === newDetail) return m
+                                            return { ...m, activities: m.activities.map((a, i) => i === itemIdx ? { ...a, detail: newDetail } : a) }
+                                        }))
                                     }
                                 }
                             }
@@ -787,14 +776,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         } else if (parsed.type === "complete") {
                             completeData = parsed.data
                             // Mark thinking as done
-                            setMessages(prev => {
-                                const updated = [...prev]
-                                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
-                                if (thinkingMsg) {
-                                    thinkingMsg.isWorking = false
-                                }
-                                return updated
-                            })
+                            setMessages(prev => prev.map(m =>
+                                m.role === "thinking" && m.isWorking ? { ...m, isWorking: false } : m
+                            ))
                         } else if (parsed.type === "error") {
                             streamError = parsed.data
                         }
@@ -1094,14 +1078,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 : "Something went wrong. Please try again."
             setStreamingContent(null)
             // Mark thinking message as complete on error
-            setMessages(prev => {
-                const updated = [...prev]
-                const thinkingMsg = updated.find(m => m.role === "thinking" && m.isWorking)
-                if (thinkingMsg) {
-                    thinkingMsg.isWorking = false
-                }
-                return [...updated, { role: "assistant" as const, content: assistantMsg }]
-            })
+            setMessages(prev => [
+                ...prev.map(m => m.role === "thinking" && m.isWorking ? { ...m, isWorking: false } : m),
+                { role: "assistant" as const, content: assistantMsg }
+            ])
             // NOTE: Do NOT save user or error messages to DB on failure —
             // this prevents errors from counting against the message limit.
             // The error message is shown in the UI only.
@@ -1400,7 +1380,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     </div>
                                 </div>
                             ) : msg.role === "user" ? (
-                                <div className="max-w-[78%] min-w-0 px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300 overflow-hidden"
+                                <div className="max-w-[78%] min-w-0 px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)", wordBreak: "break-word", overflowWrap: "anywhere" }}
                                 >
                                     <div className="whitespace-pre-wrap break-words">{msg.content}</div>
