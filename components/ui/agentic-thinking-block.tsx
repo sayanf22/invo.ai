@@ -64,7 +64,7 @@ export function AgenticThinkingBlock({
     return (
         <div
             className={cn(
-                "w-full max-w-full rounded-xl border border-border/30 bg-card/50 overflow-hidden",
+                "w-full max-w-full rounded-xl border border-border/30 bg-card/50 overflow-hidden box-border",
                 className,
             )}
         >
@@ -114,7 +114,7 @@ export function AgenticThinkingBlock({
                                             className={cn(
                                                 "font-medium text-foreground truncate",
                                                 isLast && isWorking && !activity.detail && "animate-pulse",
-                                                activity.detail ? "shrink-0 max-w-[45%] sm:max-w-[50%]" : "flex-1",
+                                                activity.detail ? "shrink-0 max-w-[40%] sm:max-w-[50%]" : "flex-1",
                                             )}
                                         >
                                             {activity.label}
@@ -122,7 +122,7 @@ export function AgenticThinkingBlock({
                                         {activity.detail && (
                                             <>
                                                 <span className="text-muted-foreground/40 shrink-0">|</span>
-                                                <span className="text-muted-foreground truncate min-w-0 flex-1">
+                                                <span className="text-muted-foreground truncate min-w-0 flex-1 break-all">
                                                     {activity.detail}
                                                 </span>
                                             </>
