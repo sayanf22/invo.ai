@@ -187,24 +187,28 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     }, [session?.id, onSaveContext, updateSessionContext]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Inject "payment link cancelled" card when parent signals cancellation
-    const prevCancelledRef = useRef(false)
+    // Uses a timestamp-based approach: parent sets a timestamp, we detect when it changes
+    const lastCancelledAtRef = useRef(0)
     useEffect(() => {
-        if (!onPaymentLinkCancelled) return
-        // Register a trigger: when parent calls onPaymentLinkCancelled, inject the card
-        // We do this by watching the function reference change (parent passes new fn each time)
-        // This is a fire-once pattern — inject card on first call
-        const originalFn = onPaymentLinkCancelled
-        return () => {
-            // When the effect re-runs (fn changed), it means parent triggered it
-            if (prevCancelledRef.current) {
-                setMessages(prev => [...prev, {
-                    role: "assistant" as const,
-                    content: "",
-                    cancelledCard: true,
-                }])
-            }
-            prevCancelledRef.current = true
+        // onPaymentLinkCancelled is truthy only when a cancellation happened
+        // We detect the transition from undefined → defined (first time only)
+        if (!onPaymentLinkCancelled) {
+            lastCancelledAtRef.current = 0
+            return
         }
+        // Only inject the card once per cancellation event
+        if (lastCancelledAtRef.current === 1) return
+        lastCancelledAtRef.current = 1
+        setMessages(prev => {
+            // Don't add if already has a cancelled card as the last message
+            const lastMsg = prev[prev.length - 1]
+            if (lastMsg?.cancelledCard) return prev
+            return [...prev, {
+                role: "assistant" as const,
+                content: "",
+                cancelledCard: true,
+            }]
+        })
     }, [onPaymentLinkCancelled]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Sync messages from hook when session changes (new session loaded or switched)

@@ -85,6 +85,8 @@ export function PromptScreen({
   }, [onSessionChange])
 
   const [paymentLinkCancelledAt, setPaymentLinkCancelledAt] = useState<number>(0)
+  // Stable no-op function for signaling cancellation to InvoiceChat
+  const cancelledSignal = useCallback(() => {}, [])
 
   const handlePaymentLinkChange = useCallback((url: string, status: string) => {
     if (!url || status === "cancelled" || status === "expired") {
@@ -127,7 +129,7 @@ export function PromptScreen({
     onChainSessionSelect: handleSessionSelect,
     onMessageCountChange: setMessageCount,
     onLockDocument: () => setInvoiceLocked(true),
-    onPaymentLinkCancelled: paymentLinkCancelledAt > 0 ? () => {} : undefined,
+    onPaymentLinkCancelled: paymentLinkCancelledAt > 0 ? cancelledSignal : undefined,
     onSaveContext: handleSaveContextReady,
     initialPrompt,
   } as const

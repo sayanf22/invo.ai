@@ -1178,16 +1178,16 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
         // ── 5. ELEGANT: Centered logo above title, decorative divider ──
         case "elegant":
             return (
-                <View style={{ paddingHorizontal: 48, paddingTop: 36, paddingBottom: 20, ...bNone() }}>
+                <View style={{ paddingHorizontal: 48, paddingTop: 28, paddingBottom: 16, ...bNone() }}>
                     {/* Centered logo + title block */}
-                    <View style={{ alignItems: "center", marginBottom: 20, ...bNone() }}>
+                    <View style={{ alignItems: "center", marginBottom: 12, ...bNone() }}>
                         <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                        <Text style={{ fontSize: 28, color: c.pri, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", marginBottom: 4 }}>{title}</Text>
+                        <Text style={{ fontSize: 26, color: c.pri, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", marginBottom: 3 }}>{title}</Text>
                         <Text style={{ fontSize: 9, color: c.mut, letterSpacing: 1 }}>{refNum}</Text>
                         {/* Decorative divider: line · dot · line */}
-                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 12, ...bNone() }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, width: 200, ...bNone() }}>
                             <View style={{ flex: 1, height: 1, backgroundColor: c.pri, ...bNone() }} />
-                            <View style={{ width: 6, height: 6, ...r(3), backgroundColor: c.pri, marginHorizontal: 8, ...bNone() }} />
+                            <View style={{ width: 5, height: 5, ...r(3), backgroundColor: c.pri, marginHorizontal: 6, ...bNone() }} />
                             <View style={{ flex: 1, height: 1, backgroundColor: c.pri, ...bNone() }} />
                         </View>
                     </View>
