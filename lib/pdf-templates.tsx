@@ -1076,6 +1076,227 @@ function FooterBar({ tpl, c, config }: FooterBarProps) {
 }
 
 // ═══════════════════════════════════════════════════════
+// THEME-SPECIFIC HEADER RENDERER
+// Each of the 9 themes gets a genuinely different structural layout.
+// Called by all 4 document templates with their own title/content.
+// ═══════════════════════════════════════════════════════
+
+interface DocHeaderProps {
+    tpl: Tpl
+    c: ReturnType<typeof getTheme>
+    title: string          // "INVOICE", "CONTRACT", etc.
+    refNum: string         // reference / invoice number
+    logoUrl?: string | null
+    data: InvoiceData
+    // Right-side content varies per doc type
+    rightContent: React.ReactNode
+    // Optional: extra content shown below the header band (for corporate sidebar)
+    belowHeader?: React.ReactNode
+}
+
+function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHeader }: DocHeaderProps) {
+    switch (tpl) {
+        // ── 1. MODERN: Full-bleed colored header, decorative circles ──
+        case "modern":
+            return (
+                <View style={{ ...bNone() }}>
+                    <View style={{ backgroundColor: c.pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 32, ...bNone() }}>
+                        <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
+                        <View style={{ position: "absolute", bottom: -15, right: 70, width: 70, height: 70, ...r(35), backgroundColor: "rgba(255,255,255,0.05)", ...bNone() }} />
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 36, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>{title}</Text>
+                                <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>{refNum}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                        </View>
+                    </View>
+                    {belowHeader}
+                </View>
+            )
+
+        // ── 2. CLASSIC: White header, thick left border, double rule ──
+        case "classic":
+            return (
+                <View style={{ paddingHorizontal: 48, paddingTop: 40, paddingBottom: 20, ...bNone() }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                        <View style={{ paddingLeft: 16, ...bNone(), borderLeftWidth: 5, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }}>
+                            <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                            <Text style={{ fontSize: 32, color: c.txt, fontWeight: 700 }}>{title}</Text>
+                            <Text style={{ fontSize: 10, color: c.mut, marginTop: 3 }}>{refNum}</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                    </View>
+                    <View style={{ height: 3, backgroundColor: c.pri, marginTop: 18, ...bNone() }} />
+                    <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 4, ...bNone() }} />
+                    {belowHeader}
+                </View>
+            )
+
+        // ── 3. BOLD: Dark full-width header, large typography, angled bottom ──
+        case "bold":
+            return (
+                <View style={{ ...bNone() }}>
+                    <View style={{ backgroundColor: c.pri, paddingHorizontal: 48, paddingTop: 40, paddingBottom: 36, ...bNone() }}>
+                        {/* Angled shape bottom-right */}
+                        <View style={{ position: "absolute", top: 0, right: 0, width: 160, height: "100%" as any, backgroundColor: c.priDk, ...r(0), borderBottomLeftRadius: 80, opacity: 0.4, ...bNone() }} />
+                        <View style={{ position: "absolute", top: 50, right: 80, width: 50, height: 50, ...r(25), backgroundColor: "rgba(255,255,255,0.08)", ...bNone() }} />
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 42, color: "#fff", fontWeight: 700, letterSpacing: 2 }}>{title}</Text>
+                                <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 4, letterSpacing: 1 }}>{refNum}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                        </View>
+                    </View>
+                    {/* Bold accent bar below header */}
+                    <View style={{ height: 4, backgroundColor: c.priDk, ...bNone() }} />
+                    {belowHeader}
+                </View>
+            )
+
+        // ── 4. MINIMAL: Ultra-clean, no color, pure typography ──
+        case "minimal":
+            return (
+                <View style={{ paddingHorizontal: 48, paddingTop: 48, paddingBottom: 28, ...bNone() }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                        <View style={{ ...bNone() }}>
+                            <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                            <Text style={{ fontSize: 10, color: c.mut, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>{title}</Text>
+                            <Text style={{ fontSize: 9, color: c.mut }}>{refNum}</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                    </View>
+                    {/* Single hairline rule */}
+                    <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 24, ...bNone() }} />
+                    {belowHeader}
+                </View>
+            )
+
+        // ── 5. ELEGANT: Centered logo above title, decorative divider ──
+        case "elegant":
+            return (
+                <View style={{ paddingHorizontal: 48, paddingTop: 36, paddingBottom: 20, ...bNone() }}>
+                    {/* Centered logo + title block */}
+                    <View style={{ alignItems: "center", marginBottom: 20, ...bNone() }}>
+                        <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                        <Text style={{ fontSize: 28, color: c.pri, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", marginBottom: 4 }}>{title}</Text>
+                        <Text style={{ fontSize: 9, color: c.mut, letterSpacing: 1 }}>{refNum}</Text>
+                        {/* Decorative divider: line · dot · line */}
+                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 12, ...bNone() }}>
+                            <View style={{ flex: 1, height: 1, backgroundColor: c.pri, ...bNone() }} />
+                            <View style={{ width: 6, height: 6, ...r(3), backgroundColor: c.pri, marginHorizontal: 8, ...bNone() }} />
+                            <View style={{ flex: 1, height: 1, backgroundColor: c.pri, ...bNone() }} />
+                        </View>
+                    </View>
+                    {/* Right-side content below center block */}
+                    <View style={{ flexDirection: "row", justifyContent: "flex-end", ...bNone() }}>
+                        <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                    </View>
+                    {belowHeader}
+                </View>
+            )
+
+        // ── 6. CORPORATE: Dark navy left sidebar + white right panel ──
+        case "corporate":
+            return (
+                <View style={{ flexDirection: "row", ...bNone() }}>
+                    {/* Left dark panel */}
+                    <View style={{ width: 190, backgroundColor: c.pri, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 28, ...bNone() }}>
+                        <View style={{ position: "absolute", bottom: 0, right: 0, width: 50, height: 50, ...r(25), backgroundColor: "rgba(255,255,255,0.05)", ...bNone() }} />
+                        <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                        <Text style={{ fontSize: 22, color: "#fff", fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>{title}</Text>
+                        <Text style={{ fontSize: 8.5, color: "rgba(255,255,255,0.55)", letterSpacing: 0.5 }}>{refNum}</Text>
+                    </View>
+                    {/* Right white panel */}
+                    <View style={{ flex: 1, paddingHorizontal: 28, paddingTop: 32, paddingBottom: 28, ...bNone() }}>
+                        <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                    </View>
+                </View>
+            )
+
+        // ── 7. CREATIVE: Diagonal accent band, asymmetric layout ──
+        case "creative":
+            return (
+                <View style={{ ...bNone() }}>
+                    {/* Top accent bar */}
+                    <View style={{ height: 8, backgroundColor: c.pri, ...bNone() }} />
+                    <View style={{ paddingHorizontal: 48, paddingTop: 28, paddingBottom: 24, ...bNone() }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 34, color: c.pri, fontWeight: 700, letterSpacing: -0.5 }}>{title}</Text>
+                                <Text style={{ fontSize: 9, color: c.mut, marginTop: 3 }}>{refNum}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                        </View>
+                        {/* Diagonal accent: two overlapping rectangles */}
+                        <View style={{ flexDirection: "row", marginTop: 16, ...bNone() }}>
+                            <View style={{ height: 4, flex: 3, backgroundColor: c.pri, ...bNone() }} />
+                            <View style={{ height: 4, flex: 1, backgroundColor: c.acc, ...bNone() }} />
+                        </View>
+                    </View>
+                    {belowHeader}
+                </View>
+            )
+
+        // ── 8. WARM: Warm-toned header with rounded card sections ──
+        case "warm":
+            return (
+                <View style={{ ...bNone() }}>
+                    {/* Warm background header */}
+                    <View style={{ backgroundColor: c.bg, paddingHorizontal: 48, paddingTop: 32, paddingBottom: 24, ...bNone() }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 32, color: c.pri, fontWeight: 700 }}>{title}</Text>
+                                <Text style={{ fontSize: 9, color: c.mut, marginTop: 3 }}>{refNum}</Text>
+                            </View>
+                            <View style={{ backgroundColor: "#fff", ...r(12), padding: 14, alignItems: "flex-end", ...bAll(1, c.bdr), ...bNone(), borderWidth: 1, borderColor: c.bdr, borderStyle: "solid" as any }}>
+                                {rightContent}
+                            </View>
+                        </View>
+                    </View>
+                    {/* Warm accent bottom border */}
+                    <View style={{ height: 3, backgroundColor: c.pri, ...bNone() }} />
+                    {belowHeader}
+                </View>
+            )
+
+        // ── 9. GEOMETRIC: Teal color blocks, geometric accent ──
+        case "geometric":
+            return (
+                <View style={{ ...bNone() }}>
+                    <View style={{ backgroundColor: c.pri, paddingHorizontal: 48, paddingTop: 32, paddingBottom: 28, ...bNone() }}>
+                        {/* Geometric squares top-right */}
+                        <View style={{ position: "absolute", top: 0, right: 0, width: 80, height: 80, backgroundColor: c.priDk, opacity: 0.5, ...bNone() }} />
+                        <View style={{ position: "absolute", top: 20, right: 20, width: 40, height: 40, backgroundColor: "rgba(255,255,255,0.1)", ...bNone() }} />
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                            <View style={{ ...bNone() }}>
+                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
+                                <Text style={{ fontSize: 34, color: "#fff", fontWeight: 700, letterSpacing: 1 }}>{title}</Text>
+                                <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 3, letterSpacing: 0.5 }}>{refNum}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                        </View>
+                    </View>
+                    {/* Geometric accent: teal + lighter teal bars */}
+                    <View style={{ flexDirection: "row", ...bNone() }}>
+                        <View style={{ flex: 2, height: 5, backgroundColor: c.priDk, ...bNone() }} />
+                        <View style={{ flex: 1, height: 5, backgroundColor: c.acc, ...bNone() }} />
+                    </View>
+                    {belowHeader}
+                </View>
+            )
+
+        default:
+            return null
+    }
+}
+
+// ═══════════════════════════════════════════════════════
 // INVOICE PDF — Modern payment-focused layout
 // Full-bleed header · prominent amount-due callout · clean table
 // ═══════════════════════════════════════════════════════
@@ -1087,84 +1308,31 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
     const isPaid = data.status === "paid"
     const isOverdue = data.status === "overdue"
 
-    // Status badge color
     const badgeColor = isPaid ? "#16a34a" : isOverdue ? "#dc2626" : data.status === "sent" ? "#2563eb" : c.mut
     const badgeBg = isPaid ? "#dcfce7" : isOverdue ? "#fee2e2" : data.status === "sent" ? "#dbeafe" : c.bg
     const statusLabel = isPaid ? "PAID" : isOverdue ? "OVERDUE" : data.status === "sent" ? "SENT" : "DRAFT"
+    const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
 
-    // Classic theme uses a different header style
-    const isClassic = tpl === "classic"
-    const isMinimal = tpl === "minimal"
+    // Right-side content for the header (status badge + amount)
+    const headerRight = (
+        <>
+            <View style={{ backgroundColor: onDark ? "rgba(255,255,255,0.15)" : badgeBg, paddingHorizontal: 12, paddingVertical: 5, ...r(20), marginBottom: 10, ...bNone(), ...(onDark ? {} : { borderWidth: 1, borderColor: badgeColor, borderStyle: "solid" as any }) }}>
+                <Text style={{ fontSize: 9, color: onDark ? "#fff" : badgeColor, fontWeight: 700, letterSpacing: 1 }}>{statusLabel}</Text>
+            </View>
+            <Text style={{ fontSize: tpl === "minimal" ? 26 : 22, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>Due {fmtDate(data.dueDate)}</Text>
+        </>
+    )
 
     return (
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER BAND ── */}
-                {isClassic ? (
-                    // Classic: white header with thick left border accent + double rule
-                    <View style={{ paddingHorizontal: 48, paddingTop: 40, paddingBottom: 24, ...bNone() }}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                            <View style={{ ...bLeft(5, c.pri), paddingLeft: 16, ...bNone(), borderLeftWidth: 5, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }}>
-                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                <Text style={{ fontSize: 34, color: c.txt, letterSpacing: -0.5, fontWeight: 700 }}>INVOICE</Text>
-                                <Text style={{ fontSize: 11, color: c.mut, marginTop: 3 }}>{data.invoiceNumber || "INV-0000"}</Text>
-                            </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>
-                                <View style={{ backgroundColor: badgeBg, paddingHorizontal: 14, paddingVertical: 6, ...r(4), marginBottom: 12, ...bAll(1, badgeColor) }}>
-                                    <Text style={{ fontSize: 9, color: badgeColor, fontWeight: 700, letterSpacing: 1 }}>{statusLabel}</Text>
-                                </View>
-                                <Text style={{ fontSize: 22, color: c.pri, fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
-                                <Text style={{ fontSize: 8, color: c.mut, marginTop: 2 }}>Due {fmtDate(data.dueDate)}</Text>
-                            </View>
-                        </View>
-                        <View style={{ height: 2, backgroundColor: c.pri, marginTop: 20, ...bNone() }} />
-                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 3, ...bNone() }} />
-                    </View>
-                ) : isMinimal ? (
-                    // Minimal: ultra-clean, no color, just typography
-                    <View style={{ paddingHorizontal: 48, paddingTop: 44, paddingBottom: 28, ...bNone() }}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                            <View style={{ ...bNone() }}>
-                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                <Text style={{ fontSize: 11, color: c.mut, letterSpacing: 3, textTransform: "uppercase", fontWeight: 700 }}>Invoice</Text>
-                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.invoiceNumber || "INV-0000"}</Text>
-                            </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>
-                                <Text style={{ fontSize: 28, color: c.txt, fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
-                                <Text style={{ fontSize: 9, color: c.mut, marginTop: 3 }}>Due {fmtDate(data.dueDate)}</Text>
-                                <View style={{ backgroundColor: badgeBg, paddingHorizontal: 10, paddingVertical: 4, ...r(3), marginTop: 8, ...bNone() }}>
-                                    <Text style={{ fontSize: 8, color: badgeColor, fontWeight: 700, letterSpacing: 0.8 }}>{statusLabel}</Text>
-                                </View>
-                            </View>
-                        </View>
-                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 24, ...bNone() }} />
-                    </View>
-                ) : (
-                    // Modern/Bold/Others: full-bleed colored header
-                    <View style={{ backgroundColor: c.pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 32, ...bNone() }}>
-                        {/* Decorative circle top-right */}
-                        <View style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, ...r(60), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
-                        <View style={{ position: "absolute", bottom: -10, right: 60, width: 60, height: 60, ...r(30), backgroundColor: "rgba(255,255,255,0.05)", ...bNone() }} />
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                            <View style={{ ...bNone() }}>
-                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                <Text style={{ fontSize: 36, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>INVOICE</Text>
-                                <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>{data.invoiceNumber || "INV-0000"}</Text>
-                            </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>
-                                <View style={{ backgroundColor: "rgba(255,255,255,0.15)", paddingHorizontal: 14, paddingVertical: 6, ...r(20), marginBottom: 10, ...bNone() }}>
-                                    <Text style={{ fontSize: 9, color: "#fff", fontWeight: 700, letterSpacing: 1.2 }}>{statusLabel}</Text>
-                                </View>
-                                <Text style={{ fontSize: 26, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
-                                <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>Due {fmtDate(data.dueDate)}</Text>
-                            </View>
-                        </View>
-                    </View>
-                )}
+                {/* ── HEADER (theme-specific layout) ── */}
+                <DocHeader tpl={tpl} c={c} title="INVOICE" refNum={data.invoiceNumber || "INV-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
 
                 {/* ── DATE STRIP ── */}
-                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: isClassic || isMinimal ? "transparent" : c.bg, ...bBottom(isClassic || isMinimal ? 0 : 0, c.bdr), marginBottom: 4, ...bNone() }}>
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: tpl === "classic" || tpl === "minimal" ? "transparent" : c.bg, marginBottom: 4, ...bNone() }}>
                     {[
                         { label: "Issue Date", value: fmtDate(data.invoiceDate) },
                         { label: "Due Date", value: fmtDate(data.dueDate) },
@@ -1190,7 +1358,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                         {data.fromPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromPhone}</Text> : null}
                         {data.fromTaxId ? <Text style={{ fontSize: 9, color: c.mut, marginTop: 2 }}>{data.fromTaxId}</Text> : null}
                     </View>
-                    <View style={{ flex: 1, backgroundColor: isClassic || isMinimal ? "transparent" : c.bg, ...r(isClassic || isMinimal ? 0 : 8), padding: isClassic || isMinimal ? 0 : 14, ...bNone() }}>
+                    <View style={{ flex: 1, backgroundColor: tpl === "classic" || tpl === "minimal" ? "transparent" : c.bg, ...r(tpl === "classic" || tpl === "minimal" ? 0 : 8), padding: tpl === "classic" || tpl === "minimal" ? 0 : 14, ...bNone() }}>
                         <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Bill To</Text>
                         <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
                         {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
@@ -1311,117 +1479,42 @@ export function ContractPDF({ data, logoUrl }: Props) {
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
     const hasItems = data.items.some(i => i.description.trim().length > 0 || i.rate > 0)
-    const isClassic = tpl === "classic"
-    const isMinimal = tpl === "minimal"
+    const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+
+    // Right-side content: effective date + end date
+    const headerRight = (
+        <>
+            <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective Date</Text>
+            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.txt, fontWeight: 700, marginBottom: 10 }}>{fmtDate(data.invoiceDate)}</Text>
+            {data.dueDate && <>
+                <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>End Date</Text>
+                <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
+            </>}
+        </>
+    )
 
     return (
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER: Split two-tone layout ── */}
-                {isClassic ? (
-                    // Classic: formal double-rule header
-                    <View style={{ paddingHorizontal: 48, paddingTop: 40, paddingBottom: 20, ...bNone() }}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                            <View style={{ ...bNone() }}>
-                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                <Text style={{ fontSize: 30, color: c.txt, fontWeight: 700, letterSpacing: 1 }}>CONTRACT</Text>
-                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "CTR-0000"}</Text>
-                            </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>
-                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective Date</Text>
-                                <Text style={{ fontSize: 14, color: c.txt, fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
-                            </View>
-                        </View>
-                        <View style={{ height: 3, backgroundColor: c.pri, marginTop: 18, ...bNone() }} />
-                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 4, ...bNone() }} />
-                    </View>
-                ) : isMinimal ? (
-                    // Minimal: clean centered header
-                    <View style={{ paddingHorizontal: 48, paddingTop: 44, paddingBottom: 24, ...bNone() }}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                            <View style={{ ...bNone() }}>
-                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                <Text style={{ fontSize: 11, color: c.mut, letterSpacing: 3, textTransform: "uppercase", fontWeight: 700 }}>Contract</Text>
-                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "CTR-0000"}</Text>
-                            </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>
-                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective</Text>
-                                <Text style={{ fontSize: 16, color: c.txt, fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
-                            </View>
-                        </View>
-                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 24, ...bNone() }} />
-                    </View>
-                ) : (
-                    // Modern: split two-tone — dark left panel + white right
-                    <View style={{ flexDirection: "row", ...bNone() }}>
-                        {/* Left dark panel */}
-                        <View style={{ width: 200, backgroundColor: c.pri, paddingHorizontal: 28, paddingTop: 36, paddingBottom: 32, ...bNone() }}>
-                            <View style={{ position: "absolute", bottom: 0, right: 0, width: 60, height: 60, ...r(30), backgroundColor: "rgba(255,255,255,0.06)", ...bNone() }} />
-                            <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                            <Text style={{ fontSize: 24, color: "#fff", fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>CONTRACT</Text>
-                            <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginBottom: 20 }}>{data.referenceNumber || data.invoiceNumber || "CTR-0000"}</Text>
-                            <View style={{ ...bNone() }}>
-                                <Text style={{ fontSize: 7, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Effective Date</Text>
-                                <Text style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
-                            </View>
-                            {data.dueDate && <View style={{ marginTop: 12, ...bNone() }}>
-                                <Text style={{ fontSize: 7, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>End Date</Text>
-                                <Text style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
-                            </View>}
-                        </View>
-                        {/* Right white panel */}
-                        <View style={{ flex: 1, paddingHorizontal: 28, paddingTop: 36, paddingBottom: 32, ...bNone() }}>
-                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Between</Text>
-                            <View style={{ marginBottom: 16, ...bNone() }}>
-                                <Text style={{ fontSize: 7.5, color: c.mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>Party A — Provider</Text>
-                                <Text style={{ fontSize: 13, color: c.txt, fontWeight: 700 }}>{data.fromName || "Your Business"}</Text>
-                                {data.fromAddress ? <Text style={{ fontSize: 8.5, color: c.mut, lineHeight: 1.5, marginTop: 2 }}>{data.fromAddress}</Text> : null}
-                                {data.fromEmail ? <Text style={{ fontSize: 8.5, color: c.mut }}>{data.fromEmail}</Text> : null}
-                            </View>
-                            <View style={{ height: 1, backgroundColor: c.bdr, marginBottom: 16, ...bNone() }} />
-                            <View style={{ ...bNone() }}>
-                                <Text style={{ fontSize: 7.5, color: c.mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>Party B — Client</Text>
-                                <Text style={{ fontSize: 13, color: c.txt, fontWeight: 700 }}>{data.toName || "[Client Name]"}</Text>
-                                {data.toAddress ? <Text style={{ fontSize: 8.5, color: c.mut, lineHeight: 1.5, marginTop: 2 }}>{data.toAddress}</Text> : null}
-                                {data.toEmail ? <Text style={{ fontSize: 8.5, color: c.mut }}>{data.toEmail}</Text> : null}
-                            </View>
-                        </View>
-                    </View>
-                )}
+                {/* ── HEADER (theme-specific layout) ── */}
+                <DocHeader tpl={tpl} c={c} title="CONTRACT" refNum={data.referenceNumber || data.invoiceNumber || "CTR-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
 
-                {/* ── PARTY BLOCKS (classic/minimal only — modern shows in header) ── */}
-                {(isClassic || isMinimal) && (
-                    <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 24, ...bNone() }} wrap={false}>
-                        <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party A — Provider</Text>
-                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
-                            {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
-                            {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
-                        </View>
-                        <View style={{ flex: 1, ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party B — Client</Text>
-                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
-                            {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
-                            {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
-                        </View>
+                {/* ── PARTY BLOCKS ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 24, ...bNone() }} wrap={false}>
+                    <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party A — Provider</Text>
+                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                        {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                        {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
                     </View>
-                )}
-
-                {/* ── DATE STRIP (classic/minimal only) ── */}
-                {(isClassic || isMinimal) && (
-                    <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        {[
-                            { label: "Effective Date", value: fmtDate(data.invoiceDate) },
-                            ...(data.dueDate ? [{ label: "End Date", value: fmtDate(data.dueDate) }] : []),
-                        ].map((item, i) => (
-                            <View key={i} style={{ flex: 1, paddingLeft: i > 0 ? 16 : 0, ...bNone(), ...(i > 0 ? { borderLeftWidth: 1, borderLeftColor: c.bdr, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any } : {}) }}>
-                                <Text style={{ fontSize: 7.5, color: c.mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>{item.label}</Text>
-                                <Text style={{ fontSize: 11, color: c.txt, fontWeight: 700 }}>{item.value}</Text>
-                            </View>
-                        ))}
+                    <View style={{ flex: 1, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party B — Client</Text>
+                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                        {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                        {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
                     </View>
-                )}
+                </View>
 
                 {/* ── SCOPE & TERMS ── */}
                 {data.description && (
@@ -1533,76 +1626,27 @@ export function QuotationPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
-    const isClassic = tpl === "classic"
-    const isMinimal = tpl === "minimal"
+    const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+
+    // Right-side content: validity callout
+    const headerRight = (
+        <>
+            <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Valid Until</Text>
+            <Text style={{ fontSize: 16, color: onDark ? "#fff" : c.pri, fontWeight: 700, marginBottom: 10 }}>{fmtDate(data.dueDate)}</Text>
+            <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Total</Text>
+            <Text style={{ fontSize: 18, color: onDark ? "#fff" : c.txt, fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+        </>
+    )
 
     return (
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER ── */}
-                {isClassic ? (
-                    // Classic: bordered frame header
-                    <View style={{ paddingHorizontal: 48, paddingTop: 40, paddingBottom: 20, ...bNone() }}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                            <View style={{ ...bNone() }}>
-                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                <Text style={{ fontSize: 30, color: c.txt, fontWeight: 700, letterSpacing: 1 }}>QUOTATION</Text>
-                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "QUO-0000"}</Text>
-                            </View>
-                            <View style={{ alignItems: "flex-end", padding: 14, backgroundColor: c.bg, ...r(8), ...bNone() }}>
-                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Valid Until</Text>
-                                <Text style={{ fontSize: 16, color: c.pri, fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
-                            </View>
-                        </View>
-                        <View style={{ height: 2, backgroundColor: c.pri, marginTop: 18, ...bNone() }} />
-                    </View>
-                ) : isMinimal ? (
-                    // Minimal: ultra-clean
-                    <View style={{ paddingHorizontal: 48, paddingTop: 44, paddingBottom: 24, ...bNone() }}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                            <View style={{ ...bNone() }}>
-                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                <Text style={{ fontSize: 11, color: c.mut, letterSpacing: 3, textTransform: "uppercase", fontWeight: 700 }}>Quotation</Text>
-                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "QUO-0000"}</Text>
-                            </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>
-                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Valid Until</Text>
-                                <Text style={{ fontSize: 16, color: c.txt, fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
-                            </View>
-                        </View>
-                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 24, ...bNone() }} />
-                    </View>
-                ) : (
-                    // Modern: accent-color top band + white header area
-                    <View style={{ ...bNone() }}>
-                        {/* Thin accent top bar */}
-                        <View style={{ height: 6, backgroundColor: c.pri, ...bNone() }} />
-                        {/* Header content */}
-                        <View style={{ paddingHorizontal: 48, paddingTop: 28, paddingBottom: 24, ...bNone() }}>
-                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                                <View style={{ ...bNone() }}>
-                                    <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                    <Text style={{ fontSize: 34, color: c.pri, fontWeight: 700, letterSpacing: -0.5 }}>QUOTATION</Text>
-                                    <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "QUO-0000"}</Text>
-                                </View>
-                                {/* Validity callout box */}
-                                <View style={{ backgroundColor: c.pri, ...r(10), padding: 16, alignItems: "center", minWidth: 120, ...bNone() }}>
-                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Valid Until</Text>
-                                    <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
-                                    <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.2)", width: "100%", marginVertical: 8, ...bNone() }} />
-                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Total</Text>
-                                    <Text style={{ fontSize: 16, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
-                                </View>
-                            </View>
-                        </View>
-                        {/* Accent divider */}
-                        <View style={{ height: 2, backgroundColor: c.acc, ...bNone() }} />
-                    </View>
-                )}
+                {/* ── HEADER (theme-specific layout) ── */}
+                <DocHeader tpl={tpl} c={c} title="QUOTATION" refNum={data.referenceNumber || data.invoiceNumber || "QUO-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
 
                 {/* ── DATE STRIP ── */}
-                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: isClassic || isMinimal ? "transparent" : c.bg, marginBottom: 4, ...bNone() }}>
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: tpl === "classic" || tpl === "minimal" ? "transparent" : c.bg, marginBottom: 4, ...bNone() }}>
                     {[
                         { label: "Quote Date", value: fmtDate(data.invoiceDate) },
                         { label: "Valid Until", value: fmtDate(data.dueDate) },
@@ -1758,117 +1802,46 @@ export function ProposalPDF({ data, logoUrl }: Props) {
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
     const hasItems = data.items.some(i => i.description.trim().length > 0 || i.rate > 0)
-    const isClassic = tpl === "classic"
-    const isMinimal = tpl === "minimal"
+    const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+
+    // Right-side content: prepared for + dates
+    const headerRight = (
+        <>
+            <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Prepared For</Text>
+            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.txt, fontWeight: 700, marginBottom: 10 }}>{data.toName || "[Client Name]"}</Text>
+            <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Date</Text>
+            <Text style={{ fontSize: 11, color: onDark ? "#fff" : c.txt, fontWeight: 700, marginBottom: data.dueDate ? 8 : 0 }}>{fmtDate(data.invoiceDate)}</Text>
+            {data.dueDate && <>
+                <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Valid Until</Text>
+                <Text style={{ fontSize: 11, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
+            </>}
+        </>
+    )
 
     return (
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER: Bold cover-style ── */}
-                {isClassic ? (
-                    // Classic: formal header with single rule
-                    <View style={{ paddingHorizontal: 48, paddingTop: 40, paddingBottom: 20, ...bNone() }}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                            <View style={{ ...bNone() }}>
-                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                <Text style={{ fontSize: 30, color: c.txt, fontWeight: 700, letterSpacing: 1 }}>PROPOSAL</Text>
-                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "PROP-0000"}</Text>
-                            </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>
-                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Date</Text>
-                                <Text style={{ fontSize: 13, color: c.txt, fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
-                                {data.dueDate && <>
-                                    <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginTop: 8, marginBottom: 4 }}>Valid Until</Text>
-                                    <Text style={{ fontSize: 13, color: c.pri, fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
-                                </>}
-                            </View>
-                        </View>
-                        <View style={{ height: 2, backgroundColor: c.pri, marginTop: 18, ...bNone() }} />
-                    </View>
-                ) : isMinimal ? (
-                    // Minimal: clean
-                    <View style={{ paddingHorizontal: 48, paddingTop: 44, paddingBottom: 24, ...bNone() }}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                            <View style={{ ...bNone() }}>
-                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                <Text style={{ fontSize: 11, color: c.mut, letterSpacing: 3, textTransform: "uppercase", fontWeight: 700 }}>Proposal</Text>
-                                <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "PROP-0000"}</Text>
-                            </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>
-                                <Text style={{ fontSize: 8, color: c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Date</Text>
-                                <Text style={{ fontSize: 13, color: c.txt, fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
-                            </View>
-                        </View>
-                        <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 24, ...bNone() }} />
-                    </View>
-                ) : (
-                    // Modern: full-bleed bold cover header
-                    <View style={{ backgroundColor: c.pri, paddingHorizontal: 48, paddingTop: 40, paddingBottom: 36, ...bNone() }}>
-                        {/* Decorative shapes */}
-                        <View style={{ position: "absolute", top: 0, right: 0, width: 180, height: 120, ...r(0), borderBottomLeftRadius: 80, backgroundColor: "rgba(255,255,255,0.06)", ...bNone() }} />
-                        <View style={{ position: "absolute", bottom: -20, right: 80, width: 80, height: 80, ...r(40), backgroundColor: "rgba(255,255,255,0.04)", ...bNone() }} />
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                            <View style={{ ...bNone() }}>
-                                <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                                <Text style={{ fontSize: 38, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>PROPOSAL</Text>
-                                <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>{data.referenceNumber || data.invoiceNumber || "PROP-0000"}</Text>
-                            </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>
-                                <View style={{ backgroundColor: "rgba(255,255,255,0.12)", ...r(8), padding: 14, alignItems: "flex-end", ...bNone() }}>
-                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Prepared For</Text>
-                                    <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>{data.toName || "[Client Name]"}</Text>
-                                    <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.15)", width: "100%", marginVertical: 8, ...bNone() }} />
-                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Date</Text>
-                                    <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{fmtDate(data.invoiceDate)}</Text>
-                                    {data.dueDate && <>
-                                        <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.15)", width: "100%", marginVertical: 8, ...bNone() }} />
-                                        <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Valid Until</Text>
-                                        <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
-                                    </>}
-                                </View>
-                            </View>
-                        </View>
-                    </View>
-                )}
+                {/* ── HEADER (theme-specific layout) ── */}
+                <DocHeader tpl={tpl} c={c} title="PROPOSAL" refNum={data.referenceNumber || data.invoiceNumber || "PROP-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
 
-                {/* ── PREPARED BY / FOR (classic/minimal) ── */}
-                {(isClassic || isMinimal) && (
-                    <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
-                        <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared By</Text>
-                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
-                            {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
-                            {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
-                        </View>
-                        <View style={{ flex: 1, ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared For</Text>
-                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
-                            {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
-                            {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
-                        </View>
+                {/* ── PREPARED BY / FOR ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
+                    <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared By</Text>
+                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                        {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                        {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
+                        {data.fromPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromPhone}</Text> : null}
                     </View>
-                )}
-
-                {/* ── PREPARED BY / FOR (modern) ── */}
-                {!isClassic && !isMinimal && (
-                    <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
-                        <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared By</Text>
-                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
-                            {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
-                            {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
-                            {data.fromPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromPhone}</Text> : null}
-                        </View>
-                        <View style={{ flex: 1, ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared For</Text>
-                            <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
-                            {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
-                            {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
-                            {data.toPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toPhone}</Text> : null}
-                        </View>
+                    <View style={{ flex: 1, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared For</Text>
+                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                        {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                        {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
+                        {data.toPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toPhone}</Text> : null}
                     </View>
-                )}
+                </View>
 
                 {/* ── EXECUTIVE SUMMARY ── */}
                 {data.description && (
