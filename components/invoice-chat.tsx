@@ -1309,7 +1309,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     }, [docType, onLinkedSessionCreate])
 
     return (
-        <div className="flex flex-col h-full w-full overflow-x-hidden">
+        <div className="flex flex-col h-full">
             {/* Chain Navigator — shows when session is part of a linked chain */}
             <ChainNavigator
                 currentSessionId={selectedSessionId}
@@ -1359,7 +1359,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
             {/* Messages */}
             <ScrollArea className="flex-1 bg-background">
-                <div className="px-3 sm:px-4 py-5 space-y-4 pb-4 w-full max-w-xl mx-auto" style={{ maxWidth: "min(36rem, 100%)" }}>
+                <div className="px-4 py-5 space-y-4 pb-4 max-w-xl mx-auto">
                     {messages.map((msg, idx) => (
                         <div key={`${session?.id}-${idx}`} className={cn(
                             "flex w-full min-w-0 animate-in fade-in slide-in-from-bottom-1 duration-300",
@@ -1457,7 +1457,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     }}
                                 />
                             ) : msg.role === "user" ? (
-                                <div className="max-w-[75%] min-w-0 px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300"
+                                <div className="max-w-[78%] min-w-0 px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)", wordBreak: "break-word", overflowWrap: "anywhere" }}
                                 >
                                     <div className="whitespace-pre-wrap break-words">{msg.content}</div>
