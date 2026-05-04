@@ -28,6 +28,7 @@ import { ClientSelector } from "@/components/clients/client-selector"
 import { ChatSendCard } from "@/components/chat-send-card"
 import { ChatShareCard } from "@/components/chat-share-card"
 import { ChatPaymentCard } from "@/components/chat-payment-card"
+import { ChatCancelPaymentCard } from "@/components/chat-cancel-payment-card"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
@@ -46,6 +47,13 @@ const PAYMENT_INTENT_REGEX = /\b(payment\s*(gateway|method|link|option)|connect\
 
 function detectPaymentIntent(prompt: string): boolean {
     return PAYMENT_INTENT_REGEX.test(prompt)
+}
+
+// ── Cancel payment link intent detection ──────────────────────────────────────
+const CANCEL_PAYMENT_LINK_REGEX = /\b(cancel|remove|deactivate|disable|revoke|stop|delete)\s*(the\s*)?(payment\s*link|pay\s*link|razorpay\s*link|payment\s*url)\b/i
+
+function detectCancelPaymentLinkIntent(prompt: string): boolean {
+    return CANCEL_PAYMENT_LINK_REGEX.test(prompt)
 }
 
 function detectSendIntent(prompt: string): { hasSendIntent: boolean; email: string } {
@@ -151,7 +159,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [thinkingMode, setThinkingMode] = useState<"fast" | "thinking">("fast")
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
@@ -498,6 +506,49 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             return
         }
         // ── End payment intent guard ──────────────────────────────────────────
+
+        // ── Cancel payment link intent guard ──────────────────────────────────
+        if (detectCancelPaymentLinkIntent(userMessage) && data.paymentLink && data.paymentLinkStatus === "created") {
+            setInputValue("")
+            setMessages(prev => [...prev, { role: "user" as const, content: userMessage }])
+            // Fetch the Razorpay ID from the API
+            try {
+                const res = await authFetch(`/api/payments/create-link?sessionId=${session.id}`)
+                if (res.ok) {
+                    const linkData = await res.json()
+                    if (linkData.paymentLink?.razorpay_payment_link_id) {
+                        const formattedAmount = `${data.currency} ${(data.items.reduce((s, i) => s + i.quantity * i.rate * (1 - (i.discount || 0) / 100), 0)).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                        setMessages(prev => [...prev,
+                            { role: "assistant" as const, content: "", cancelPaymentCard: { razorpayId: linkData.paymentLink.razorpay_payment_link_id, amount: formattedAmount } },
+                        ])
+                        await saveMessage("user", userMessage)
+                        return
+                    }
+                }
+                // Fallback: no link found
+                setMessages(prev => [...prev, { role: "assistant" as const, content: "I couldn't find an active payment link to cancel." }])
+                await saveMessage("user", userMessage)
+                await saveMessage("assistant", "I couldn't find an active payment link to cancel.")
+            } catch {
+                setMessages(prev => [...prev, { role: "assistant" as const, content: "Something went wrong while checking the payment link. Please try again." }])
+                await saveMessage("user", userMessage)
+            }
+            return
+        }
+        if (detectCancelPaymentLinkIntent(userMessage) && (!data.paymentLink || data.paymentLinkStatus !== "created")) {
+            setInputValue("")
+            const noLinkMsg = !data.paymentLink
+                ? "There's no active payment link to cancel on this document."
+                : `The payment link is already ${data.paymentLinkStatus}. No action needed.`
+            setMessages(prev => [...prev,
+                { role: "user" as const, content: userMessage },
+                { role: "assistant" as const, content: noLinkMsg },
+            ])
+            await saveMessage("user", userMessage)
+            await saveMessage("assistant", noLinkMsg)
+            return
+        }
+        // ── End cancel payment link intent guard ──────────────────────────────
 
         // Display only the user's text, not the enriched file context
         const displayText = userMessage.includes("[CLIENT DETAILS FROM ATTACHED FILE")
@@ -1383,6 +1434,28 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                         <p className="text-[11px] text-muted-foreground mt-0.5">The invoice is now editable again</p>
                                     </div>
                                 </div>
+                            ) : msg.cancelPaymentCard ? (
+                                // Cancel payment link confirmation card (from chat intent)
+                                <ChatCancelPaymentCard
+                                    sessionId={session!.id}
+                                    razorpayPaymentLinkId={msg.cancelPaymentCard.razorpayId}
+                                    amount={msg.cancelPaymentCard.amount}
+                                    onCancelled={() => {
+                                        // Trigger the same flow as the button cancel
+                                        onChange({ paymentLink: "", paymentLinkStatus: undefined, showPaymentLinkInPdf: false })
+                                        if (onPaymentLinkCancelled) onPaymentLinkCancelled()
+                                        // Replace the card with a success notification
+                                        setMessages(prev => prev.map((m, i) =>
+                                            i === idx ? { role: "assistant" as const, content: "", cancelledCard: true } : m
+                                        ))
+                                    }}
+                                    onDismiss={() => {
+                                        // Remove the card and add a "kept active" message
+                                        setMessages(prev => prev.map((m, i) =>
+                                            i === idx ? { role: "assistant" as const, content: "Payment link kept active. No changes made." } : m
+                                        ))
+                                    }}
+                                />
                             ) : msg.role === "user" ? (
                                 <div className="max-w-[78%] min-w-0 px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)", wordBreak: "break-word", overflowWrap: "anywhere" }}
