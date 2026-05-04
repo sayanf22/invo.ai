@@ -586,6 +586,60 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         }
         // ── End cancel payment link intent guard ──────────────────────────────
 
+        // ── Pre-API send/share intent guard ───────────────────────────────────
+        // If a document is already generated and the user wants to send/share,
+        // handle it immediately without making an API call. This is faster and
+        // avoids the AI misinterpreting "send it" as a document modification.
+        if (documentGenerated && session) {
+            // Check share intent first (share, whatsapp, link)
+            const shareIntent = detectShareIntent(userMessage)
+            if (shareIntent.hasShareIntent) {
+                setInputValue("")
+                const shareMsg = shareIntent.method === "whatsapp"
+                    ? `Sure! Let me help you share your ${docType} on WhatsApp.`
+                    : shareIntent.method === "link"
+                        ? `Sure! Let me get a shareable link for your ${docType}.`
+                        : `How would you like to share your ${docType}?`
+                setMessages(prev => [...prev,
+                    { role: "user" as const, content: userMessage },
+                    { role: "assistant" as const, content: shareMsg },
+                    { role: "assistant" as const, content: "", shareCard: true },
+                ])
+                await saveMessage("user", userMessage)
+                await saveMessage("assistant", shareMsg)
+                return
+            }
+
+            // Check send intent (send it, send this, email to, send via email)
+            const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
+            if (hasSendIntent && sendMethod === "email") {
+                setInputValue("")
+                const cardEmail = detectedEmail || data.toEmail || ""
+                const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`
+                setMessages(prev => [...prev,
+                    { role: "user" as const, content: userMessage },
+                    { role: "assistant" as const, content: minimalMsg },
+                    { role: "assistant" as const, content: "", sendCard: { email: cardEmail } },
+                ])
+                await saveMessage("user", userMessage)
+                await saveMessage("assistant", minimalMsg)
+                return
+            }
+            if (hasSendIntent && sendMethod === "general") {
+                setInputValue("")
+                const shareMsg = `How would you like to send your ${docType}?`
+                setMessages(prev => [...prev,
+                    { role: "user" as const, content: userMessage },
+                    { role: "assistant" as const, content: shareMsg },
+                    { role: "assistant" as const, content: "", shareCard: true },
+                ])
+                await saveMessage("user", userMessage)
+                await saveMessage("assistant", shareMsg)
+                return
+            }
+        }
+        // ── End pre-API send/share intent guard ───────────────────────────────
+
         // Display only the user's text, not the enriched file context
         const displayText = userMessage.includes("[CLIENT DETAILS FROM ATTACHED FILE")
             ? userMessage.split("\n\n[CLIENT DETAILS")[0].trim() || "📎 Generate from attached file"
