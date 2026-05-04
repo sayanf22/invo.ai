@@ -587,55 +587,61 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         // ── End cancel payment link intent guard ──────────────────────────────
 
         // ── Pre-API send/share intent guard ───────────────────────────────────
-        // If a document is already generated and the user wants to send/share,
-        // handle it immediately without making an API call. This is faster and
-        // avoids the AI misinterpreting "send it" as a document modification.
+        // If a document is already generated and the user ONLY wants to send/share
+        // (no document modification mixed in), handle it immediately without an API call.
+        // For mixed messages like "change the rate to 500 and send it", let the AI
+        // process the modification first — the post-response handler will show the card.
         if (documentGenerated && session) {
-            // Check share intent first (share, whatsapp, link)
-            const shareIntent = detectShareIntent(userMessage)
-            if (shareIntent.hasShareIntent) {
-                setInputValue("")
-                const shareMsg = shareIntent.method === "whatsapp"
-                    ? `Sure! Let me help you share your ${docType} on WhatsApp.`
-                    : shareIntent.method === "link"
-                        ? `Sure! Let me get a shareable link for your ${docType}.`
-                        : `How would you like to share your ${docType}?`
-                setMessages(prev => [...prev,
-                    { role: "user" as const, content: userMessage },
-                    { role: "assistant" as const, content: shareMsg },
-                    { role: "assistant" as const, content: "", shareCard: true },
-                ])
-                await saveMessage("user", userMessage)
-                await saveMessage("assistant", shareMsg)
-                return
-            }
+            const MODIFICATION_VERBS = /\b(change|update|modify|add|remove|edit|fix|replace|set|make|increase|decrease|adjust|correct|revise|redo|undo)\b/i
+            const hasModification = MODIFICATION_VERBS.test(userMessage)
 
-            // Check send intent (send it, send this, email to, send via email)
-            const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
-            if (hasSendIntent && sendMethod === "email") {
-                setInputValue("")
-                const cardEmail = detectedEmail || data.toEmail || ""
-                const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`
-                setMessages(prev => [...prev,
-                    { role: "user" as const, content: userMessage },
-                    { role: "assistant" as const, content: minimalMsg },
-                    { role: "assistant" as const, content: "", sendCard: { email: cardEmail } },
-                ])
-                await saveMessage("user", userMessage)
-                await saveMessage("assistant", minimalMsg)
-                return
-            }
-            if (hasSendIntent && sendMethod === "general") {
-                setInputValue("")
-                const shareMsg = `How would you like to send your ${docType}?`
-                setMessages(prev => [...prev,
-                    { role: "user" as const, content: userMessage },
-                    { role: "assistant" as const, content: shareMsg },
-                    { role: "assistant" as const, content: "", shareCard: true },
-                ])
-                await saveMessage("user", userMessage)
-                await saveMessage("assistant", shareMsg)
-                return
+            if (!hasModification) {
+                // Check share intent first (share, whatsapp, link)
+                const shareIntent = detectShareIntent(userMessage)
+                if (shareIntent.hasShareIntent) {
+                    setInputValue("")
+                    const shareMsg = shareIntent.method === "whatsapp"
+                        ? `Sure! Let me help you share your ${docType} on WhatsApp.`
+                        : shareIntent.method === "link"
+                            ? `Sure! Let me get a shareable link for your ${docType}.`
+                            : `How would you like to share your ${docType}?`
+                    setMessages(prev => [...prev,
+                        { role: "user" as const, content: userMessage },
+                        { role: "assistant" as const, content: shareMsg },
+                        { role: "assistant" as const, content: "", shareCard: true },
+                    ])
+                    await saveMessage("user", userMessage)
+                    await saveMessage("assistant", shareMsg)
+                    return
+                }
+
+                // Check send intent (send it, send this, email to, send via email)
+                const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
+                if (hasSendIntent && sendMethod === "email") {
+                    setInputValue("")
+                    const cardEmail = detectedEmail || data.toEmail || ""
+                    const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`
+                    setMessages(prev => [...prev,
+                        { role: "user" as const, content: userMessage },
+                        { role: "assistant" as const, content: minimalMsg },
+                        { role: "assistant" as const, content: "", sendCard: { email: cardEmail } },
+                    ])
+                    await saveMessage("user", userMessage)
+                    await saveMessage("assistant", minimalMsg)
+                    return
+                }
+                if (hasSendIntent && sendMethod === "general") {
+                    setInputValue("")
+                    const shareMsg = `How would you like to send your ${docType}?`
+                    setMessages(prev => [...prev,
+                        { role: "user" as const, content: userMessage },
+                        { role: "assistant" as const, content: shareMsg },
+                        { role: "assistant" as const, content: "", shareCard: true },
+                    ])
+                    await saveMessage("user", userMessage)
+                    await saveMessage("assistant", shareMsg)
+                    return
+                }
             }
         }
         // ── End pre-API send/share intent guard ───────────────────────────────
@@ -1128,24 +1134,37 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     await saveMessage("assistant", displayMsg, savedActivities.length > 0 ? { activities: savedActivities } : undefined)
                     toast.success("Document updated!")
 
-                    // ── Send intent detection ──────────────────────────────────────────
-                    // If the user's prompt contained a send intent, show the appropriate card.
-                    // "send it" (generic) → multi-option share card
-                    // "email to xyz@..." or "send via email" → email send card directly
-                    const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
-                    if (hasSendIntent && sendMethod === "email") {
-                        const cardEmail = detectedEmail || docData.toEmail || ""
-                        setMessages(prev => [...prev, {
-                            role: "assistant",
-                            content: "",
-                            sendCard: { email: cardEmail },
-                        }])
-                    } else if (hasSendIntent && sendMethod === "general") {
-                        const shareMsg = `How would you like to send your ${docType}?`
+                    // ── Send/share intent detection ─────────────────────────────────────
+                    // If the user's prompt contained a send/share intent, show the appropriate card.
+                    // This handles mixed messages like "change the rate to 500 and send it"
+                    // where the AI processes the modification and we show the card after.
+                    const shareIntentPost = detectShareIntent(userMessage)
+                    if (shareIntentPost.hasShareIntent) {
+                        const shareMsg = shareIntentPost.method === "whatsapp"
+                            ? `Sure! Let me help you share your ${docType} on WhatsApp.`
+                            : shareIntentPost.method === "link"
+                                ? `Sure! Let me get a shareable link for your ${docType}.`
+                                : `How would you like to send your ${docType}?`
                         setMessages(prev => [...prev,
                             { role: "assistant", content: shareMsg },
                             { role: "assistant", content: "", shareCard: true },
                         ])
+                    } else {
+                        const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
+                        if (hasSendIntent && sendMethod === "email") {
+                            const cardEmail = detectedEmail || docData.toEmail || ""
+                            setMessages(prev => [...prev, {
+                                role: "assistant",
+                                content: "",
+                                sendCard: { email: cardEmail },
+                            }])
+                        } else if (hasSendIntent && sendMethod === "general") {
+                            const shareMsg = `How would you like to send your ${docType}?`
+                            setMessages(prev => [...prev,
+                                { role: "assistant", content: shareMsg },
+                                { role: "assistant", content: "", shareCard: true },
+                            ])
+                        }
                     }
                     // ── End send intent detection ──────────────────────────────────────
                 } else {
