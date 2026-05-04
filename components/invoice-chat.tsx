@@ -398,10 +398,16 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         }
     }, [limitError])
 
-    // Auto-scroll on new messages
+    // Auto-scroll on new messages AND when thinking activities grow
+    // Compute total activity count across all active thinking blocks
+    const totalActivityCount = messages.reduce((sum, m) => {
+        if (m.role === "thinking" && m.activities) return sum + m.activities.length
+        return sum
+    }, 0)
+
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" })
-    }, [messages])
+    }, [messages, totalActivityCount])
 
     // Save design changes to session context (debounced 800ms)
     // This ensures design persists and propagates to linked sessions
@@ -1321,6 +1327,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     <AgenticThinkingBlock
                                         activities={msg.activities || []}
                                         isWorking={msg.isWorking ?? false}
+                                        onExpand={() => {
+                                            if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" })
+                                        }}
                                     />
                                 </div>
                                 ) : null

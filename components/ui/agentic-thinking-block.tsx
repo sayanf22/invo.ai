@@ -18,6 +18,7 @@ export interface AgenticThinkingBlockProps {
     activities: ActivityItem[]
     isWorking: boolean
     className?: string
+    onExpand?: () => void
 }
 
 // ── Icon map ──────────────────────────────────────────────────────────────────
@@ -39,6 +40,7 @@ export function AgenticThinkingBlock({
     activities,
     isWorking,
     className,
+    onExpand,
 }: AgenticThinkingBlockProps) {
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
@@ -49,10 +51,13 @@ export function AgenticThinkingBlock({
                 next.delete(id)
             } else {
                 next.add(id)
+                // Notify parent to scroll down after expansion
+                // Use a small delay so the DOM has time to expand before scrolling
+                setTimeout(() => onExpand?.(), 50)
             }
             return next
         })
-    }, [])
+    }, [onExpand])
 
     if (activities.length === 0) return null
 
