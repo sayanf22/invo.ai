@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { buildQuotationResponseRow, type ResponseType } from "@/lib/quotation-response"
 
 /**
  * POST /api/quotations/respond
@@ -101,18 +102,23 @@ export async function POST(request: NextRequest) {
         || (context?.toEmail as string | undefined)
         || ""
 
+    // Build the row using the exported helper
+    const row = buildQuotationResponseRow(
+        {
+            sessionId,
+            responseType: response as ResponseType,
+            clientName: resolvedClientName,
+            clientEmail: resolvedClientEmail,
+            reason: note?.trim(),
+        },
+        ipAddress,
+        userAgent
+    )
+
     // Insert into the existing quotation_responses table
     const { error: insertError } = await (supabase as any)
         .from("quotation_responses")
-        .insert({
-            session_id: sessionId,
-            response_type: response,
-            client_name: resolvedClientName,
-            client_email: resolvedClientEmail,
-            reason: note?.trim() || null,
-            ip_address: ipAddress,
-            user_agent: userAgent.slice(0, 500), // cap length
-        })
+        .insert(row)
 
     if (insertError) {
         console.error("Failed to save quotation response:", insertError)

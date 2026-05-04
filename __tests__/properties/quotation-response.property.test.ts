@@ -19,8 +19,8 @@
 
 import { describe, it, expect } from "vitest"
 import * as fc from "fast-check"
-import { buildQuotationResponseRow } from "@/app/api/quotations/respond/route"
-import type { ResponseType, QuotationResponseInput } from "@/app/api/quotations/respond/route"
+import { buildQuotationResponseRow } from "@/lib/quotation-response"
+import type { ResponseType, QuotationResponseInput } from "@/lib/quotation-response"
 
 // ── Generators ────────────────────────────────────────────────────────────────
 
