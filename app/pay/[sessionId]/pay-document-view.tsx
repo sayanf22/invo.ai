@@ -187,9 +187,9 @@ export function PayDocumentView({ docData, payment, sessionId, documentType }: P
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [rendering, setRendering] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-  const [responseStatus, setResponseStatus] = useState<"accepted" | "rejected" | "changes_requested" | null>(null)
+  const [responseStatus, setResponseStatus] = useState<"accepted" | "declined" | "changes_requested" | null>(null)
   const [responseNote, setResponseNote] = useState("")
-  const [respondingAs, setRespondingAs] = useState<"accepted" | "rejected" | "changes_requested" | null>(null)
+  const [respondingAs, setRespondingAs] = useState<"accepted" | "declined" | "changes_requested" | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   // Track document view (fire-and-forget)
@@ -373,7 +373,7 @@ export function PayDocumentView({ docData, payment, sessionId, documentType }: P
       {/* PDF Preview */}
 
       {/* Accept / Reject / Need Changes — for quotations and proposals */}
-      {sessionId && (documentType === "quotation" || documentType === "proposal") && !responseStatus && (
+      {sessionId && (documentType === "quotation" || documentType === "proposal") && !responseStatus && docData.allowClientResponse !== false && (
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 space-y-4">
@@ -395,7 +395,7 @@ export function PayDocumentView({ docData, payment, sessionId, documentType }: P
                     Need Changes
                   </button>
                   <button type="button"
-                    onClick={() => setRespondingAs("rejected")}
+                    onClick={() => setRespondingAs("declined")}
                     className="flex-1 py-3 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all">
                     Decline
                   </button>
@@ -407,7 +407,7 @@ export function PayDocumentView({ docData, payment, sessionId, documentType }: P
                       {respondingAs === "accepted" ? "Accepting" : respondingAs === "rejected" ? "Declining" : "Requesting changes"}
                     </span>
                   </div>
-                  {(respondingAs === "changes_requested" || respondingAs === "rejected") && (
+                  {(respondingAs === "changes_requested" || respondingAs === "declined") && (
                     <textarea
                       value={responseNote}
                       onChange={e => setResponseNote(e.target.value)}
@@ -431,6 +431,8 @@ export function PayDocumentView({ docData, payment, sessionId, documentType }: P
                             body: JSON.stringify({
                               sessionId,
                               response: respondingAs,
+                              clientName: docData.toName || undefined,
+                              clientEmail: docData.toEmail || undefined,
                               note: responseNote.trim() || undefined,
                             }),
                           })
@@ -456,12 +458,12 @@ export function PayDocumentView({ docData, payment, sessionId, documentType }: P
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-5 text-center">
             <p className="font-semibold text-neutral-800 dark:text-neutral-200">
-              {responseStatus === "accepted" ? "✓ Accepted" : responseStatus === "rejected" ? "Declined" : "Changes requested"}
+              {responseStatus === "accepted" ? "✓ Accepted" : responseStatus === "declined" ? "Declined" : "Changes requested"}
             </p>
             <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
               {responseStatus === "accepted"
                 ? `You've accepted this ${docTypeLabel.toLowerCase()}. ${docData.fromName || "The sender"} has been notified.`
-                : responseStatus === "rejected"
+                : responseStatus === "declined"
                   ? `You've declined this ${docTypeLabel.toLowerCase()}. ${docData.fromName || "The sender"} has been notified.`
                   : `Your change request has been sent to ${docData.fromName || "the sender"}.`}
             </p>

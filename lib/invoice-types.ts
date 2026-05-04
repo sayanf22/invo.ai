@@ -91,6 +91,9 @@ export interface InvoiceData {
   paymentLinkStatus?: "created" | "paid" | "partially_paid" | "expired" | "cancelled"
   showPaymentLinkInPdf?: boolean  // Controls whether payment link & QR code are embedded in PDF
 
+  // Client response (quotations & proposals only)
+  allowClientResponse?: boolean  // Whether to show Accept/Reject/Need Changes buttons on the pay page (default: true)
+
   // Additional
   notes: string
   terms: string

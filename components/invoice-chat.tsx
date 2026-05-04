@@ -1320,6 +1320,26 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     return
                 }
 
+                // [ACTION:DISABLE_CLIENT_RESPONSE] — AI wants to disable accept/reject buttons
+                if (cleaned.startsWith("[ACTION:DISABLE_CLIENT_RESPONSE]")) {
+                    onChange({ allowClientResponse: false })
+                    const msg = "Done! The Accept/Decline/Changes buttons are now hidden from your client."
+                    setMessages(prev => [...prev, { role: "assistant", content: msg }])
+                    await saveMessage("user", displayText)
+                    await saveMessage("assistant", msg)
+                    return
+                }
+
+                // [ACTION:ENABLE_CLIENT_RESPONSE] — AI wants to enable accept/reject buttons
+                if (cleaned.startsWith("[ACTION:ENABLE_CLIENT_RESPONSE]")) {
+                    onChange({ allowClientResponse: true })
+                    const msg = "Done! Your client will now see Accept/Decline/Request Changes buttons on the document."
+                    setMessages(prev => [...prev, { role: "assistant", content: msg }])
+                    await saveMessage("user", displayText)
+                    await saveMessage("assistant", msg)
+                    return
+                }
+
                 // ── Send intent detection for plain-text responses ─────────────────
                 // If user asked to send and document already exists, show send card ONLY
                 // Replace the AI's "click Send button" instructions with a minimal message

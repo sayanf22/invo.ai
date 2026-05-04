@@ -416,6 +416,36 @@ function SignatureStep({
           disabled={isLocked}
         />
       </div>
+
+      {/* Client response toggle — quotations and proposals only */}
+      {(data.documentType === "Quotation" || data.documentType === "Proposal") && (
+        <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-border bg-muted/20">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 shrink-0 flex items-center justify-center text-muted-foreground">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+                <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-foreground">Allow client response</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {data.allowClientResponse !== false
+                  ? "Client can Accept / Decline / Request Changes"
+                  : "Response buttons hidden from client"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onChange({ allowClientResponse: data.allowClientResponse === false ? true : false })}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer ${data.allowClientResponse !== false ? "bg-primary" : "bg-muted"}`}
+            aria-label="Toggle client response buttons"
+          >
+            <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.allowClientResponse !== false ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
