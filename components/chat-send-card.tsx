@@ -13,10 +13,11 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import {
   Mail, Send, X, CheckCircle2, Loader2, AlertTriangle,
   ArrowRight, ChevronLeft, Eye, User, FileText, CreditCard,
-  Bell, Repeat2, BellOff,
+  Bell, Repeat2, BellOff, Link as LinkIcon,
 } from "lucide-react"
 import { authFetch } from "@/lib/auth-fetch"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import type { InvoiceData } from "@/lib/invoice-types"
 
 interface ChatSendCardProps {
@@ -231,36 +232,59 @@ export function ChatSendCard({
     ? "animate-in fade-in slide-in-from-right-3 duration-300"
     : "animate-in fade-in slide-in-from-left-3 duration-300"
 
-  // ── Step 3: Sent — compact confirmation, stays in chat ──
+  // ── Step 3: Sent — compact confirmation with document link ──
   if (step === "sent") {
+    const shortId = sessionId.split("-")[0] // First 8 chars of UUID
+    const docLink = `${typeof window !== "undefined" ? window.location.origin : ""}/d/${shortId}`
     return (
       <div className={cn(
         "flex justify-start w-full",
         mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
         "transition-all duration-300"
       )}>
-        <div className="w-full max-w-[88%] rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 px-4 py-3 flex items-center gap-3"
-          style={{ boxShadow: "0 2px 12px rgba(16,185,129,0.08)" }}
+        <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/50 px-4 py-3.5 space-y-2.5"
+          style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
         >
-          <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-muted/60 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-foreground/60" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground">
+                {isSignable ? "Signing request sent" : `${docLabel} sent`}
+              </p>
+              <p className="text-xs text-muted-foreground truncate mt-0.5">{email.trim()}</p>
+            </div>
+            {isInvoice && scheduleFollowUps && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                Reminders on
+              </span>
+            )}
+            {isSignable && autoInvoiceOnSign && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                Auto-invoice on
+              </span>
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
-              {isSignable ? "Signing request sent" : `${docLabel} sent`}
-            </p>
-            <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80 truncate mt-0.5">{email.trim()}</p>
+          {/* Document link */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/40 border border-border/30">
+            <LinkIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{docLink}</span>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(docLink)
+                  toast.success("Link copied!")
+                } catch {
+                  toast.error("Failed to copy")
+                }
+              }}
+              className="text-xs font-medium text-foreground hover:text-foreground/80 transition-colors shrink-0 px-1.5 py-0.5 rounded-md hover:bg-muted/60"
+            >
+              Copy
+            </button>
           </div>
-          {isInvoice && scheduleFollowUps && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 shrink-0">
-              Reminders on
-            </span>
-          )}
-          {isSignable && autoInvoiceOnSign && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 shrink-0">
-              Auto-invoice on
-            </span>
-          )}
         </div>
       </div>
     )
@@ -385,7 +409,7 @@ export function ChatSendCard({
               <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               <span className="text-sm text-foreground font-medium truncate">{email.trim()}</span>
               {isInvoice && includePayment && (
-                <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
+                <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-[10px] font-semibold text-muted-foreground shrink-0">
                   <CreditCard className="w-3 h-3" /> Pay link
                 </span>
               )}
@@ -442,12 +466,12 @@ export function ChatSendCard({
               <div className="rounded-xl border border-border/30 bg-muted/20 overflow-hidden">
                 <label className="flex items-center justify-between px-3.5 py-2.5 cursor-pointer">
                   <div className="flex items-center gap-2.5">
-                    <Repeat2 className={cn("w-4 h-4", makeRecurring ? "text-violet-500" : "text-muted-foreground")} />
+                    <Repeat2 className={cn("w-4 h-4", makeRecurring ? "text-foreground" : "text-muted-foreground")} />
                     <span className="text-xs font-medium text-foreground">Make recurring</span>
                   </div>
                   <div className={cn(
                     "relative w-9 h-5 rounded-full transition-colors duration-200 shrink-0",
-                    makeRecurring ? "bg-violet-500" : "bg-muted-foreground/20"
+                    makeRecurring ? "bg-foreground" : "bg-muted-foreground/20"
                   )}>
                     <input type="checkbox" checked={makeRecurring}
                       onChange={e => setMakeRecurring(e.target.checked)}
@@ -467,7 +491,7 @@ export function ChatSendCard({
                           className={cn(
                             "flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-colors",
                             recurringFrequency === f
-                              ? "bg-violet-500 text-white"
+                              ? "bg-foreground text-background"
                               : "bg-muted/60 text-muted-foreground hover:bg-muted"
                           )}>
                           {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -484,12 +508,12 @@ export function ChatSendCard({
               <label className={cn(
                 "flex items-center justify-between px-3.5 py-2.5 rounded-xl border cursor-pointer",
                 autoInvoiceOnSign
-                  ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-800/40"
+                  ? "bg-muted/40 border-border/50"
                   : "bg-muted/30 border-border/30",
                 !isPaidTier && "opacity-60 cursor-not-allowed"
               )}>
                 <div className="flex items-center gap-2.5">
-                  <FileText className={cn("w-4 h-4", autoInvoiceOnSign ? "text-emerald-600" : "text-muted-foreground")} />
+                  <FileText className={cn("w-4 h-4", autoInvoiceOnSign ? "text-foreground" : "text-muted-foreground")} />
                   <div>
                     <span className="text-xs font-medium text-foreground block">Auto-send invoice on signing</span>
                     {!isPaidTier && <span className="text-[10px] text-amber-600 dark:text-amber-400">Paid plan required</span>}
@@ -497,7 +521,7 @@ export function ChatSendCard({
                 </div>
                 <div className={cn(
                   "relative w-9 h-5 rounded-full transition-colors duration-200 shrink-0",
-                  autoInvoiceOnSign ? "bg-emerald-500" : "bg-muted-foreground/20"
+                  autoInvoiceOnSign ? "bg-foreground" : "bg-muted-foreground/20"
                 )}>
                   <input type="checkbox" checked={autoInvoiceOnSign}
                     onChange={e => isPaidTier && setAutoInvoiceOnSign(e.target.checked)}

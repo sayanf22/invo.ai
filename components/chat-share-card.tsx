@@ -46,7 +46,8 @@ export function ChatShareCard({
   const [whatsappMessage, setWhatsappMessage] = useState("")
 
   const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
-  const platformLink = `${typeof window !== "undefined" ? window.location.origin : ""}/pay/${sessionId}`
+  const shortId = sessionId.split("-")[0]
+  const platformLink = `${typeof window !== "undefined" ? window.location.origin : ""}/d/${shortId}`
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setMounted(true))
