@@ -1,5 +1,13 @@
 "use client"
 
+// Module-level counter for generating unique activity IDs.
+// Using Date.now() alone causes duplicates when multiple activities arrive
+// within the same millisecond (common during fast streaming responses).
+let _activityCounter = 0
+function nextActivityId(): string {
+    return `activity-${++_activityCounter}`
+}
+
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Sparkles } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -640,7 +648,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         if (parsed.type === "activity") {
                             // Append/update activity in the thinking message AND the ref
                             const newActivity: ActivityItem = {
-                                id: `activity-${Date.now()}-${currentActivitiesRef.current.length}`,
+                                id: nextActivityId(),
                                 action: parsed.action,
                                 label: parsed.label,
                                 detail: parsed.detail,
