@@ -86,11 +86,20 @@ export function AIInputWithLoading({
     [onValueChange]
   )
 
+  const submittingRef = useRef(false)
+
   const handleSubmit = async () => {
     if ((!inputValue.trim() && !stagedFile) || isLoading) return
-    await onSubmit?.(inputValue)
-    setValue("")
-    adjustHeight(true)
+    // Prevent double-submit from rapid Enter + click or double-click
+    if (submittingRef.current) return
+    submittingRef.current = true
+    try {
+      await onSubmit?.(inputValue)
+      setValue("")
+      adjustHeight(true)
+    } finally {
+      submittingRef.current = false
+    }
   }
 
   const hasContent = inputValue.trim() || stagedFile

@@ -254,10 +254,10 @@ export async function callBedrockBrief(
 
 /** System prompt for all Kimi orchestrator calls. */
 export const ORCHESTRATOR_SYSTEM_PROMPT =
-    "You are Kimi, a brief and factual document reviewer. " +
+    "You are Kimi, a document generation orchestrator. " +
     "You review business context, compliance rules, and generated documents. " +
-    "Respond in 3 sentences or fewer. Be precise and avoid filler. " +
-    "Never greet the user or act as a chatbot."
+    "You give precise, actionable instructions. Never greet the user or act as a chatbot. " +
+    "Be direct and specific — use exact numbers, field names, and values."
 
 /** Build the user prompt for business profile commentary. */
 export function BUSINESS_PROFILE_COMMENTARY_PROMPT(profile: {
@@ -300,6 +300,45 @@ export function COMPLIANCE_COMMENTARY_PROMPT(rules: {
     )
 }
 
+/**
+ * Build a pre-generation instruction brief for DeepSeek.
+ * Kimi analyzes the user's request + business profile + compliance rules
+ * and produces specific instructions that get injected into DeepSeek's prompt.
+ */
+export function PRE_GENERATION_BRIEF_PROMPT(data: {
+    userPrompt: string
+    documentType: string
+    country: string
+    currency: string
+    taxRegistered: boolean
+    taxRate: number | undefined
+    complianceRules: string
+    businessName: string
+    businessType: string
+    hasExistingDocument: boolean
+}): string {
+    return (
+        `You are orchestrating a document generation AI. Analyze the request below and produce a concise instruction brief (≤8 bullet points) telling the generator EXACTLY what to do.\n\n` +
+        `Focus on:\n` +
+        `1. What the user is asking for (new doc, edit, or question)\n` +
+        `2. Tax handling: should tax be applied? At what rate? What label?\n` +
+        `3. Mandatory fields for ${data.country} ${data.documentType}s that MUST be included\n` +
+        `4. Common mistakes to AVOID (wrong tax rate, missing fields, wrong currency)\n` +
+        `5. If editing an existing document, what specifically should change vs stay the same\n\n` +
+        `--- Context ---\n` +
+        `User Request: "${data.userPrompt}"\n` +
+        `Document Type: ${data.documentType}\n` +
+        `Business: ${data.businessName} (${data.businessType})\n` +
+        `Country: ${data.country}\n` +
+        `Currency: ${data.currency}\n` +
+        `Tax Registered: ${data.taxRegistered ? "Yes" : "No"}\n` +
+        `${data.taxRate !== undefined ? `Standard Tax Rate (from compliance DB): ${data.taxRate}%` : "No tax rate in compliance DB"}\n` +
+        `Editing Existing: ${data.hasExistingDocument ? "Yes" : "No (new document)"}\n\n` +
+        `--- Compliance Rules ---\n${data.complianceRules || "None available"}\n\n` +
+        `Respond with ONLY the bullet-point instructions. No preamble. Start with "•".`
+    )
+}
+
 /** Build the user prompt for RAG validation after document generation. */
 export function RAG_VALIDATION_PROMPT(data: {
     documentJson: string
@@ -311,5 +350,28 @@ export function RAG_VALIDATION_PROMPT(data: {
         `Respond in ≤5 sentences.\n\n` +
         `--- Generated Document ---\n${data.documentJson}\n\n` +
         `--- RAG Compliance Rules ---\n${data.ragRules}`
+    )
+}
+
+/**
+ * Build a correction prompt when Kimi finds issues in the generated document.
+ * This tells DeepSeek exactly what to fix in a follow-up generation.
+ */
+export function CORRECTION_INSTRUCTION_PROMPT(data: {
+    validationResult: string
+    documentJson: string
+    ragRules: string
+}): string {
+    return (
+        `The document below was generated but has compliance issues. ` +
+        `Produce a concise correction instruction (≤5 bullet points) telling the generator EXACTLY what fields to change and to what values. ` +
+        `Only list fields that need fixing — do not repeat compliant items.\n\n` +
+        `--- Validation Result ---\n${data.validationResult}\n\n` +
+        `--- Current Document ---\n${data.documentJson}\n\n` +
+        `--- Compliance Rules ---\n${data.ragRules}\n\n` +
+        `Respond with ONLY the correction bullets. Start with "FIX:". Example:\n` +
+        `FIX: Set taxRate to 18 (currently 0, business is GST-registered)\n` +
+        `FIX: Set taxLabel to "GST" (currently empty)\n` +
+        `If no fixes are needed, respond with exactly: "NO_FIXES_NEEDED"`
     )
 }

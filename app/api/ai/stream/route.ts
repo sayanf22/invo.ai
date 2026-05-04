@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { streamGenerateDocument, buildPrompt, DUAL_MODE_SYSTEM_PROMPT, type AIGenerationRequest } from "@/lib/deepseek"
-import { streamBedrockChat, callBedrockBrief, ORCHESTRATOR_SYSTEM_PROMPT, BUSINESS_PROFILE_COMMENTARY_PROMPT, COMPLIANCE_COMMENTARY_PROMPT, RAG_VALIDATION_PROMPT } from "@/lib/bedrock"
+import { streamBedrockChat, callBedrockBrief, ORCHESTRATOR_SYSTEM_PROMPT, BUSINESS_PROFILE_COMMENTARY_PROMPT, COMPLIANCE_COMMENTARY_PROMPT, RAG_VALIDATION_PROMPT, PRE_GENERATION_BRIEF_PROMPT, CORRECTION_INSTRUCTION_PROMPT } from "@/lib/bedrock"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 import { classifyIntent } from "@/lib/intent-router"
 
@@ -386,12 +386,75 @@ export async function POST(request: NextRequest) {
                     let modelCompletedSuccessfully = false
                     let completeResponseData: string | null = null
 
+                    // ── 3b. Kimi pre-generation brief (Thinking Mode orchestration) ──
+                    // Before DeepSeek generates, Kimi analyzes the request and produces
+                    // specific instructions that get injected into DeepSeek's prompt.
+                    // This is the core orchestration: Kimi GUIDES DeepSeek on what to do.
+                    let kimiInstructionBrief: string | null = null
+                    if (shouldOrchestrate && isDocGeneration) {
+                        try {
+                            sendEvent({ type: "activity", action: "think", label: "Planning document generation" })
+
+                            // Build the compliance rules summary for the brief
+                            const briefRulesSummary = complianceRulesForValidation.map(r => {
+                                const desc = r.description || r.requirement_key
+                                if (r.category === "tax_rates") {
+                                    const std = (r.requirement_value as any)?.standard
+                                    return `Tax Rate: ${std !== undefined ? std + "%" : "varies"} — ${desc}`
+                                }
+                                return `${r.category.replace(/_/g, " ")}: ${desc} (${JSON.stringify(r.requirement_value)})`
+                            }).join("\n")
+
+                            kimiInstructionBrief = await callBedrockBrief(
+                                ORCHESTRATOR_SYSTEM_PROMPT,
+                                PRE_GENERATION_BRIEF_PROMPT({
+                                    userPrompt: body.prompt.replace(/\[SYSTEM:[^\]]*\]\s*/g, '').trim(),
+                                    documentType: docTypeLower,
+                                    country: country || "Unknown",
+                                    currency: body.businessContext?.currency || "USD",
+                                    taxRegistered: !!body.businessContext?.taxRegistered,
+                                    taxRate: (body as any)._ragTaxRate,
+                                    complianceRules: briefRulesSummary || "None available",
+                                    businessName: body.businessContext?.name || "Unknown",
+                                    businessType: body.businessContext?.businessType || "Unknown",
+                                    hasExistingDocument: !!(body.currentData && Object.keys(body.currentData).length > 0),
+                                }),
+                                bedrockKey,
+                                300
+                            )
+
+                            if (kimiInstructionBrief) {
+                                // Inject Kimi's instructions into DeepSeek's prompt
+                                body.prompt = `[SYSTEM: ORCHESTRATOR INSTRUCTIONS — Follow these requirements precisely:\n${kimiInstructionBrief}\nEnd of orchestrator instructions.]\n\n${body.prompt}`
+
+                                sendEvent({
+                                    type: "activity",
+                                    action: "think",
+                                    label: "Planning document generation",
+                                    detail: "Instructions ready",
+                                    content: kimiInstructionBrief,
+                                })
+                            } else {
+                                sendEvent({
+                                    type: "activity",
+                                    action: "think",
+                                    label: "Planning document generation",
+                                    detail: "Skipped",
+                                })
+                            }
+                        } catch (err) {
+                            console.error("Kimi pre-generation brief failed:", err instanceof Error ? err.message : err)
+                            // Continue without — DeepSeek will generate using its own judgment
+                        }
+                    }
+
                     if (isDocGeneration) {
                         // Use DeepSeek for document generation
                         const contextParts = [
                             body.businessContext?.name && `Business: ${body.businessContext.name}`,
                             body.businessContext?.country && `Country: ${body.businessContext.country}`,
                             body.complianceContext ? `Compliance: ${complianceRuleCount} rules loaded` : null,
+                            kimiInstructionBrief ? `Orchestrator: Instructions injected` : null,
                             body.conversationHistory?.length ? `History: ${body.conversationHistory.length} messages` : null,
                             body.fileContext ? `File context: included` : null,
                             body.currentData ? `Editing existing document` : `Creating new document`,
@@ -468,7 +531,10 @@ export async function POST(request: NextRequest) {
                         }
                     }
 
-                    // ── 5. RAG validation (Thinking Mode only, after document generation) ──
+                    // ── 5. RAG validation + auto-correction (Thinking Mode only) ──
+                    // Kimi validates the generated document against compliance rules.
+                    // If issues are found, Kimi produces correction instructions and
+                    // DeepSeek regenerates with those fixes applied.
                     if (shouldOrchestrate && modelCompletedSuccessfully && complianceRulesForValidation.length > 0 && completeResponseData) {
                         try {
                             sendEvent({ type: "activity", action: "validate", label: "Validating compliance" })
@@ -477,23 +543,23 @@ export async function POST(request: NextRequest) {
                             let docFields = completeResponseData
                             try {
                                 const parsed = JSON.parse(completeResponseData)
+                                const docObj = parsed.document || parsed
                                 // Extract only the fields relevant for compliance validation
                                 const relevant: Record<string, any> = {}
-                                if (parsed.taxRate !== undefined) relevant.taxRate = parsed.taxRate
-                                if (parsed.tax_rate !== undefined) relevant.tax_rate = parsed.tax_rate
-                                if (parsed.currency !== undefined) relevant.currency = parsed.currency
-                                if (parsed.items !== undefined) relevant.items = parsed.items
-                                if (parsed.total !== undefined) relevant.total = parsed.total
-                                if (parsed.subtotal !== undefined) relevant.subtotal = parsed.subtotal
-                                if (parsed.taxAmount !== undefined) relevant.taxAmount = parsed.taxAmount
-                                if (parsed.tax_amount !== undefined) relevant.tax_amount = parsed.tax_amount
-                                if (parsed.invoiceNumber !== undefined) relevant.invoiceNumber = parsed.invoiceNumber
-                                if (parsed.invoice_number !== undefined) relevant.invoice_number = parsed.invoice_number
-                                if (parsed.date !== undefined) relevant.date = parsed.date
-                                if (parsed.dueDate !== undefined) relevant.dueDate = parsed.dueDate
-                                if (parsed.due_date !== undefined) relevant.due_date = parsed.due_date
-                                if (parsed.billTo !== undefined) relevant.billTo = parsed.billTo
-                                if (parsed.bill_to !== undefined) relevant.bill_to = parsed.bill_to
+                                const src = docObj
+                                if (src.taxRate !== undefined) relevant.taxRate = src.taxRate
+                                if (src.tax_rate !== undefined) relevant.tax_rate = src.tax_rate
+                                if (src.taxLabel !== undefined) relevant.taxLabel = src.taxLabel
+                                if (src.currency !== undefined) relevant.currency = src.currency
+                                if (src.items !== undefined) relevant.items = src.items
+                                if (src.fromTaxId !== undefined) relevant.fromTaxId = src.fromTaxId
+                                if (src.invoiceNumber !== undefined) relevant.invoiceNumber = src.invoiceNumber
+                                if (src.referenceNumber !== undefined) relevant.referenceNumber = src.referenceNumber
+                                if (src.invoiceDate !== undefined) relevant.invoiceDate = src.invoiceDate
+                                if (src.dueDate !== undefined) relevant.dueDate = src.dueDate
+                                if (src.toName !== undefined) relevant.toName = src.toName
+                                if (src.toEmail !== undefined) relevant.toEmail = src.toEmail
+                                if (src.paymentTerms !== undefined) relevant.paymentTerms = src.paymentTerms
                                 docFields = JSON.stringify(relevant, null, 2)
                             } catch {
                                 // If not valid JSON, use first 2000 chars of raw response
@@ -518,13 +584,98 @@ export async function POST(request: NextRequest) {
                             )
 
                             if (validation) {
+                                const hasIssues = validation.includes("⚠️")
                                 sendEvent({
                                     type: "activity",
                                     action: "validate",
                                     label: "Validating compliance",
-                                    detail: validation.includes("⚠️") ? "Issues found" : "Compliant",
+                                    detail: hasIssues ? "Issues found — correcting" : "Compliant",
                                     content: validation,
                                 })
+
+                                // ── 5b. Auto-correction: if Kimi found issues, get correction instructions and regenerate ──
+                                if (hasIssues) {
+                                    try {
+                                        sendEvent({ type: "activity", action: "generate", label: "Applying corrections" })
+
+                                        // Ask Kimi for specific correction instructions
+                                        const correctionInstructions = await callBedrockBrief(
+                                            ORCHESTRATOR_SYSTEM_PROMPT,
+                                            CORRECTION_INSTRUCTION_PROMPT({
+                                                validationResult: validation,
+                                                documentJson: docFields,
+                                                ragRules: ragSummary,
+                                            }),
+                                            bedrockKey,
+                                            300
+                                        )
+
+                                        if (correctionInstructions && !correctionInstructions.includes("NO_FIXES_NEEDED")) {
+                                            sendEvent({
+                                                type: "activity",
+                                                action: "generate",
+                                                label: "Applying corrections",
+                                                detail: "Regenerating",
+                                                content: correctionInstructions,
+                                            })
+
+                                            // Build a correction prompt for DeepSeek with the original document + fixes
+                                            const correctionBody: AIGenerationRequest = {
+                                                ...body,
+                                                prompt: `[SYSTEM: CORRECTION PASS — The orchestrator found compliance issues in the document you just generated. Apply these fixes to the EXISTING document below. Do NOT start from scratch — only change the specific fields listed. Return the complete corrected document JSON.\n\nFIXES REQUIRED:\n${correctionInstructions}\n\nORIGINAL DOCUMENT:\n${completeResponseData}\n\nReturn the corrected document in the same JSON format. Only change what the fixes require — keep everything else identical.]\n\n${body.prompt}`,
+                                                currentData: undefined, // Don't send currentData — we're providing the full doc in the prompt
+                                                conversationHistory: [], // Clean slate for correction
+                                            }
+
+                                            // Regenerate with corrections — collect server-side only.
+                                            // Do NOT forward chunks to client (would cause duplicate
+                                            // progress steps and pollute fullContent). Only send the
+                                            // final corrected `complete` event which overrides the original.
+                                            let correctedData: string | null = null
+                                            for await (const chunk of streamGenerateDocument(correctionBody, deepseekKey)) {
+                                                if (chunk.type === "complete") {
+                                                    correctedData = chunk.data as string || null
+                                                    break
+                                                }
+                                                if (chunk.type === "error") {
+                                                    console.error("Correction generation error:", chunk.data)
+                                                    break
+                                                }
+                                                // Skip chunk/reasoning events — don't forward to client
+                                            }
+
+                                            // If correction succeeded, send the corrected complete event
+                                            // to the client. This overrides the original completeData.
+                                            if (correctedData) {
+                                                completeResponseData = correctedData
+                                                sendEvent({ type: "complete", data: correctedData })
+                                                sendEvent({
+                                                    type: "activity",
+                                                    action: "validate",
+                                                    label: "Corrections applied",
+                                                    detail: "Document updated",
+                                                })
+                                            }
+                                        } else {
+                                            // Kimi said no fixes needed despite ⚠️ — just report
+                                            sendEvent({
+                                                type: "activity",
+                                                action: "generate",
+                                                label: "Applying corrections",
+                                                detail: "No actionable fixes",
+                                            })
+                                        }
+                                    } catch (corrErr) {
+                                        console.error("Kimi auto-correction failed:", corrErr instanceof Error ? corrErr.message : corrErr)
+                                        // Document is still usable — just not corrected
+                                        sendEvent({
+                                            type: "activity",
+                                            action: "generate",
+                                            label: "Applying corrections",
+                                            detail: "Skipped (error)",
+                                        })
+                                    }
+                                }
                             }
                         } catch (err) {
                             console.error("Kimi RAG validation failed:", err instanceof Error ? err.message : err)

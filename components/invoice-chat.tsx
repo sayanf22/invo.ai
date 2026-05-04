@@ -33,14 +33,51 @@ import { SendEmailDialog } from "@/components/send-email-dialog"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
 // ── Send intent detection ─────────────────────────────────────────────────────
-// Only trigger when user explicitly wants to SEND/DELIVER the document to someone.
+// Detects when user wants to SEND/DELIVER the document.
+// Returns:
+//   method: "email"   → user explicitly wants email (has email address or says "email")
+//   method: "general" → user says "send it/this" without specifying how → show options
+//   method: "none"    → no send intent detected
 // Must NOT trigger on: "add email", "what's the email", "email from previous doc", etc.
-// Requires: a send/deliver verb + (optional) a recipient target OR explicit "send it/this"
 
-// Matches: "send to", "send it", "send this", "email to", "mail to", "deliver to", "forward to"
-// Does NOT match: "add email", "email address", "email from", "what email"
-const SEND_INTENT_REGEX = /\b(send\s+(it|this|the\s+\w+|to\b)|email\s+to\b|mail\s+to\b|deliver\s+to\b|forward\s+to\b|dispatch\s+to\b)\b/i
+// Matches explicit email sending: "email to", "send via email", "mail to", or has an email address
+const EMAIL_SEND_REGEX = /\b(email\s+to\b|mail\s+to\b|send\s+(via|through|by)\s+email|forward\s+(via|through|by)\s+email)\b/i
+// Matches generic send: "send it", "send this", "send the invoice", "send to John", "deliver to"
+const GENERIC_SEND_REGEX = /\b(send\s+(it|this|the\s+\w+|to\b)|deliver\s+to\b|forward\s+to\b|dispatch\s+to\b)\b/i
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
+
+// Non-send email contexts — reject if these match
+const NON_SEND_EMAIL_REGEX = /\b(add|get|fetch|retrieve|find|what|which|update|fill|include|use|from|previous|linked|document)\s+(the\s+)?email\b/i
+const EMAIL_CONTEXT_REGEX = /\bemail\s+(address|from|of|in|on|for)\b/i
+
+function detectSendIntent(prompt: string): { hasSendIntent: boolean; method: "email" | "general" | "none"; email: string } {
+    const lower = prompt.toLowerCase().trim()
+
+    // Guard: reject non-send email contexts
+    if (NON_SEND_EMAIL_REGEX.test(lower) || EMAIL_CONTEXT_REGEX.test(lower)) {
+        return { hasSendIntent: false, method: "none", email: "" }
+    }
+
+    const emailMatch = prompt.match(EMAIL_REGEX)
+    const hasEmailAddress = !!emailMatch
+
+    // If user provides an email address with a send verb → email-specific
+    if (hasEmailAddress && GENERIC_SEND_REGEX.test(prompt)) {
+        return { hasSendIntent: true, method: "email", email: emailMatch![0] }
+    }
+
+    // If user explicitly says "email to" / "send via email" → email-specific
+    if (EMAIL_SEND_REGEX.test(prompt)) {
+        return { hasSendIntent: true, method: "email", email: emailMatch ? emailMatch[0] : "" }
+    }
+
+    // Generic send: "send it", "send this", "send to John" (no email address, no "email" keyword)
+    if (GENERIC_SEND_REGEX.test(prompt)) {
+        return { hasSendIntent: true, method: "general", email: "" }
+    }
+
+    return { hasSendIntent: false, method: "none", email: "" }
+}
 
 // ── Payment intent detection ──────────────────────────────────────────────────
 const PAYMENT_INTENT_REGEX = /\b(payment\s*(gateway|method|link|option)|connect\s*(razorpay|stripe|cashfree|payment)|add\s*(payment|gateway)|online\s*payment|accept\s*payment|pay\s*online|payment\s*setup)\b/i
@@ -54,18 +91,6 @@ const CANCEL_PAYMENT_LINK_REGEX = /\b(cancel|remove|deactivate|disable|revoke|st
 
 function detectCancelPaymentLinkIntent(prompt: string): boolean {
     return CANCEL_PAYMENT_LINK_REGEX.test(prompt)
-}
-
-function detectSendIntent(prompt: string): { hasSendIntent: boolean; email: string } {
-    const lower = prompt.toLowerCase().trim()
-    // Must have a clear send/deliver verb directed at someone
-    // Exclude: "add email", "email from", "what email", "email address", "get email"
-    const hasSendIntent = SEND_INTENT_REGEX.test(prompt)
-        // Extra guard: if the word "email" appears but only in a non-send context, reject
-        && !/\b(add|get|fetch|retrieve|find|what|which|update|fill|include|use|from|previous|linked|document)\s+(the\s+)?email\b/i.test(lower)
-        && !/\bemail\s+(address|from|of|in|on|for)\b/i.test(lower)
-    const emailMatch = prompt.match(EMAIL_REGEX)
-    return { hasSendIntent, email: emailMatch ? emailMatch[0] : "" }
 }
 
 // ── Share intent detection (WhatsApp, link, general share) ────────────────────
@@ -453,11 +478,22 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         }
     }, [data.design]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Ref-based guard to prevent double invocations of sendMessage.
+    // React state (isLoading) updates asynchronously, so two rapid calls
+    // (e.g., Enter key + button click, or effect re-fires) can both pass
+    // the isLoading check before the first call sets it to true.
+    const sendingRef = useRef(false)
+
     // Core send function — ALWAYS uses DeepSeek (via /api/ai/stream)
     // This is called for ALL text-only messages AND as step 2 after file extraction
     // GPT is NEVER used here — only DeepSeek for document generation/chat
     const sendMessage = useCallback(async (messageText: string) => {
         if (!messageText.trim() || isLoading || !session) return
+        // Ref-based double-send guard: prevents two calls in the same tick
+        if (sendingRef.current) return
+        sendingRef.current = true
+
+        try {
 
         const userMessage = messageText.trim()
 
@@ -1039,17 +1075,23 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     toast.success("Document updated!")
 
                     // ── Send intent detection ──────────────────────────────────────────
-                    // If the user's prompt contained a send intent (e.g. "send to xyz@email.com"),
-                    // append a send card after the assistant message.
-                    // The AI message is kept brief — the card IS the action.
-                    const { hasSendIntent, email: detectedEmail } = detectSendIntent(userMessage)
-                    if (hasSendIntent) {
+                    // If the user's prompt contained a send intent, show the appropriate card.
+                    // "send it" (generic) → multi-option share card
+                    // "email to xyz@..." or "send via email" → email send card directly
+                    const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
+                    if (hasSendIntent && sendMethod === "email") {
                         const cardEmail = detectedEmail || docData.toEmail || ""
                         setMessages(prev => [...prev, {
                             role: "assistant",
                             content: "",
                             sendCard: { email: cardEmail },
                         }])
+                    } else if (hasSendIntent && sendMethod === "general") {
+                        const shareMsg = `How would you like to send your ${docType}?`
+                        setMessages(prev => [...prev,
+                            { role: "assistant", content: shareMsg },
+                            { role: "assistant", content: "", shareCard: true },
+                        ])
                     }
                     // ── End send intent detection ──────────────────────────────────────
                 } else {
@@ -1069,9 +1111,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     // Check for share intent first
                     const shareIntent = detectShareIntent(userMessage)
 
-                    // General "share" — show multi-option share card
-                    if (shareIntent.hasShareIntent && shareIntent.method === "general") {
-                        const shareMsg = `How would you like to share your ${docType}?`
+                    // Any share intent (general, whatsapp, link) → show multi-option share card
+                    // The ChatShareCard has a proper Lock & Share confirmation flow
+                    if (shareIntent.hasShareIntent) {
+                        const shareMsg = shareIntent.method === "whatsapp"
+                            ? `Sure! Let me help you share your ${docType} on WhatsApp.`
+                            : shareIntent.method === "link"
+                                ? `Sure! Let me get a shareable link for your ${docType}.`
+                                : `How would you like to share your ${docType}?`
                         setMessages(prev => [...prev,
                             { role: "assistant", content: shareMsg },
                             { role: "assistant", content: "", shareCard: true },
@@ -1081,33 +1128,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         return
                     }
 
-                    if (shareIntent.hasShareIntent && shareIntent.method === "whatsapp") {
-                        const clientName = data.toName || ""
-                        const ref = data.invoiceNumber || data.referenceNumber || ""
-                        const platformLink = `${window.location.origin}/pay/${session.id}`
-                        const defaultMsg = `Hi ${clientName},\n\nPlease find the ${docType} ${ref}.\n\n${platformLink}\n\nThank you,\n${data.fromName || ""}`
-                        const waMsg = `Sure! Opening WhatsApp with a pre-filled message for your ${docType}.`
-                        setMessages(prev => [...prev, { role: "assistant", content: waMsg }])
-                        await saveMessage("user", displayText)
-                        await saveMessage("assistant", waMsg)
-                        window.open(`https://wa.me/?text=${encodeURIComponent(defaultMsg)}`, "_blank")
-                        onLockDocument?.()
-                        return
-                    }
-                    if (shareIntent.hasShareIntent && shareIntent.method === "link") {
-                        const platformLink = `${window.location.origin}/pay/${session.id}`
-                        try { await navigator.clipboard.writeText(platformLink) } catch {}
-                        const linkMsg = `Done! Here's your shareable link:\n\n\`${platformLink}\`\n\nIt's been copied to your clipboard.`
-                        setMessages(prev => [...prev, { role: "assistant", content: linkMsg }])
-                        await saveMessage("user", displayText)
-                        await saveMessage("assistant", linkMsg)
-                        return
-                    }
-
-                    const { hasSendIntent, email: detectedEmail } = detectSendIntent(userMessage)
-                    if (hasSendIntent) {
+                    const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
+                    if (hasSendIntent && sendMethod === "email") {
                         const cardEmail = detectedEmail || data.toEmail || ""
-                        // Show a minimal message + card instead of the AI's verbose instructions
+                        // Show a minimal message + email send card
                         const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`
                         setMessages(prev => [...prev, { role: "assistant", content: minimalMsg }, {
                             role: "assistant",
@@ -1116,6 +1140,17 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         }])
                         await saveMessage("user", displayText)
                         await saveMessage("assistant", minimalMsg)
+                        return
+                    }
+                    if (hasSendIntent && sendMethod === "general") {
+                        // Generic "send it" → show multi-option share card
+                        const shareMsg = `How would you like to send your ${docType}?`
+                        setMessages(prev => [...prev,
+                            { role: "assistant", content: shareMsg },
+                            { role: "assistant", content: "", shareCard: true },
+                        ])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", shareMsg)
                         return
                     }
                 }
@@ -1145,7 +1180,11 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             setStreamingContent(null)
             setIsLoading(false)
         }
-    }, [isLoading, messages, data, docType, onChange, session, saveMessage, updateSessionContext, saveGeneration, fileContext])
+
+        } finally {
+            sendingRef.current = false
+        }
+    }, [isLoading, messages, data, docType, onChange, session, saveMessage, updateSessionContext, saveGeneration, fileContext, thinkingMode])
 
     // File upload handler — supports both extract and generate modes
     // MODE ROUTING: File with generation request → GPT generates complete document
