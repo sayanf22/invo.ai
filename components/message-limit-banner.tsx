@@ -23,25 +23,38 @@ interface MessageLimitBannerProps {
 export function MessageLimitBanner({
     currentMessages,
     limit,
+    tier,
     currentDocType,
     onCreateDocument,
 }: MessageLimitBannerProps) {
+    const tierLabel = tier === "free" ? "Free" : tier === "starter" ? "Starter" : tier === "pro" ? "Pro" : "Agency"
+    const upgradeMsg = tier === "free"
+        ? "Upgrade to Starter for 30 messages/session"
+        : tier === "starter"
+        ? "Upgrade to Pro for 50 messages/session"
+        : null
+
     return (
         <div className="rounded-2xl border bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800 p-4">
             <div className="flex items-start gap-3 mb-3">
                 <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div>
                     <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                        You&apos;ve reached the message limit for this session
+                        Session message limit reached
                     </p>
                     <p className="text-amber-600 dark:text-amber-400 text-sm mt-0.5">
-                        {currentMessages}/{limit} messages used
+                        {currentMessages}/{limit} messages used ({tierLabel} plan)
                     </p>
+                    {upgradeMsg && (
+                        <a href="/pricing" className="text-xs text-amber-700 dark:text-amber-300 underline mt-0.5 block">
+                            {upgradeMsg}
+                        </a>
+                    )}
                 </div>
             </div>
 
             <p className="text-xs text-amber-700 dark:text-amber-300 mb-2.5 ml-8">
-                Create a new document to continue
+                Start a new document to continue chatting
             </p>
 
             <div className="flex gap-2 overflow-x-auto pb-1 -mb-1 scrollbar-none snap-x snap-mandatory ml-8">

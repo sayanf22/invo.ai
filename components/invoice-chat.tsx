@@ -214,10 +214,25 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
         if (savedMessages.length > 0) {
             // Loaded an existing session with messages
-            setMessages(savedMessages.map(msg => ({
-                role: msg.role as "user" | "assistant",
-                content: msg.content,
-            })))
+            // Restore activities from metadata if available
+            const restoredMessages: typeof messages = []
+            for (const msg of savedMessages) {
+                // If this assistant message has saved activities in metadata, inject a thinking block before it
+                const meta = msg.metadata as Record<string, unknown> | undefined
+                if (msg.role === "assistant" && meta?.activities && Array.isArray(meta.activities) && meta.activities.length > 0) {
+                    restoredMessages.push({
+                        role: "thinking" as const,
+                        content: "",
+                        activities: meta.activities as ActivityItem[],
+                        isWorking: false,
+                    })
+                }
+                restoredMessages.push({
+                    role: msg.role as "user" | "assistant",
+                    content: msg.content,
+                })
+            }
+            setMessages(restoredMessages)
             setWelcomeLoaded(true)
 
             // Restore document preview from session context
@@ -522,10 +537,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             limit: errorData.limit,
                             tier: errorData.tier,
                         })
-                        setMessages(prev => [...prev, {
-                            role: "assistant" as const,
-                            content: `You've reached the message limit (${errorData.currentMessages}/${errorData.limit}) for this session. You can create a new document to continue.`
-                        }])
+                        // Remove the thinking block and add the limit message
+                        setMessages(prev => {
+                            const withoutThinking = prev.filter(m => !(m.role === "thinking" && m.isWorking))
+                            return [...withoutThinking, {
+                                role: "assistant" as const,
+                                content: `You've reached the message limit (${errorData.currentMessages}/${errorData.limit}) for this session. Create a new document to continue.`
+                            }]
+                        })
                         setIsLoading(false)
                         return
                     }
@@ -539,10 +558,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             message: errorData.message,
                         })
                         setShowUpgradeModal(true)
-                        setMessages(prev => [...prev, {
-                            role: "assistant" as const,
-                            content: `You've reached your monthly document limit (${errorData.currentUsage}/${errorData.limit}). Upgrade your plan to create more documents.`
-                        }])
+                        setMessages(prev => {
+                            const withoutThinking = prev.filter(m => !(m.role === "thinking" && m.isWorking))
+                            return [...withoutThinking, {
+                                role: "assistant" as const,
+                                content: `You've reached your monthly document limit (${errorData.currentUsage}/${errorData.limit}). Upgrade your plan to create more documents.`
+                            }]
+                        })
                         setIsLoading(false)
                         return
                     }
@@ -561,10 +583,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             message: errorData.message,
                         })
                         setShowUpgradeModal(true)
-                        setMessages(prev => [...prev, {
-                            role: "assistant" as const,
-                            content: errorData.message || "This feature is not available on your current plan. Please upgrade to continue."
-                        }])
+                        setMessages(prev => {
+                            const withoutThinking = prev.filter(m => !(m.role === "thinking" && m.isWorking))
+                            return [...withoutThinking, {
+                                role: "assistant" as const,
+                                content: errorData.message || "This feature is not available on your current plan. Please upgrade to continue."
+                            }]
+                        })
                         setIsLoading(false)
                         return
                     }
@@ -938,7 +963,20 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     const displayMsg = aiMessage || "✅ Document generated! Check the preview. Need changes? Just tell me."
                     setMessages(prev => [...prev, { role: "assistant", content: displayMsg }])
                     await saveMessage("user", displayText)
-                    await saveMessage("assistant", displayMsg)
+                    // Save activities from the thinking block to metadata so they persist on refresh
+                    const thinkingActivities = (() => {
+                        // We need to read the current messages state — use a ref-like approach
+                        // by capturing from the setMessages callback
+                        return null // will be captured below
+                    })()
+                    // Capture activities from the thinking message before it gets replaced
+                    let savedActivities: ActivityItem[] = []
+                    setMessages(prev => {
+                        const thinkMsg = prev.find(m => m.role === "thinking")
+                        if (thinkMsg?.activities) savedActivities = [...thinkMsg.activities]
+                        return prev
+                    })
+                    await saveMessage("assistant", displayMsg, savedActivities.length > 0 ? { activities: savedActivities } : undefined)
                     toast.success("Document updated!")
 
                     // ── Send intent detection ──────────────────────────────────────────
@@ -1025,7 +1063,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 // ── End send intent detection ──────────────────────────────────────
                 setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
                 await saveMessage("user", displayText)
-                await saveMessage("assistant", cleaned)
+                // Save activities from thinking block to metadata for persistence
+                let chatActivities: ActivityItem[] = []
+                setMessages(prev => {
+                    const thinkMsg = prev.find(m => m.role === "thinking")
+                    if (thinkMsg?.activities) chatActivities = [...thinkMsg.activities]
+                    return prev
+                })
+                await saveMessage("assistant", cleaned, chatActivities.length > 0 ? { activities: chatActivities } : undefined)
             }
         } catch (err: any) {
             const errorMsg = err.message || "Something went wrong"
@@ -1264,10 +1309,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
             {/* Messages */}
             <ScrollArea className="flex-1 bg-background">
-                <div className="px-4 py-5 space-y-4 pb-4 max-w-xl mx-auto">
+                <div className="px-4 py-5 space-y-4 pb-4 max-w-xl mx-auto overflow-hidden">
                     {messages.map((msg, idx) => (
                         <div key={`${session?.id}-${idx}`} className={cn(
-                            "flex w-full animate-in fade-in slide-in-from-bottom-1 duration-300",
+                            "flex w-full min-w-0 animate-in fade-in slide-in-from-bottom-1 duration-300",
                             msg.role === "user" ? "justify-end" : "justify-start"
                         )}>
                             {msg.role === "thinking" ? (
@@ -1337,13 +1382,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     </div>
                                 </div>
                             ) : msg.role === "user" ? (
-                                <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300 overflow-hidden"
+                                <div className="max-w-[78%] min-w-0 px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300 overflow-hidden"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)", wordBreak: "break-word", overflowWrap: "anywhere" }}
                                 >
                                     <div className="whitespace-pre-wrap break-words">{msg.content}</div>
                                 </div>
                             ) : (
-                                <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-sm bg-card border border-border/50 text-sm leading-relaxed text-foreground animate-in fade-in slide-in-from-bottom-2 duration-400 break-words overflow-hidden"
+                                <div className="max-w-[85%] min-w-0 px-4 py-3 rounded-2xl rounded-bl-sm bg-card border border-border/50 text-sm leading-relaxed text-foreground animate-in fade-in slide-in-from-bottom-2 duration-400 overflow-hidden"
                                     style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)", wordBreak: "break-word", overflowWrap: "anywhere" }}
                                 >
                                     <MarkdownMessage content={msg.content} />

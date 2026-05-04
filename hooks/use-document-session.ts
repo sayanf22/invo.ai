@@ -11,6 +11,7 @@ export interface ChatMessage {
     role: "user" | "assistant" | "system"
     content: string
     created_at: string
+    metadata?: Record<string, unknown>
 }
 
 export function useDocumentSession(documentType: string = "invoice", externalSessionId?: string) {
@@ -159,7 +160,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
     }, [externalSessionId, user, loadSession])
 
     // Save message to the CURRENT session
-    const saveMessage = useCallback(async (role: "user" | "assistant", content: string) => {
+    const saveMessage = useCallback(async (role: "user" | "assistant", content: string, metadata?: Record<string, unknown>) => {
         if (!session?.id || !user) return
         setIsSaving(true)
         try {
@@ -169,6 +170,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                     session_id: session.id,
                     role,
                     content,
+                    ...(metadata ? { metadata } : {}),
                 })
 
             if (error) {
