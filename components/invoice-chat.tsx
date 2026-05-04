@@ -184,7 +184,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [thinkingMode, setThinkingMode] = useState<"fast" | "thinking">("fast")
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
@@ -1177,6 +1177,18 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 }
             } else {
                 // Not JSON — plain text response from AI (e.g., clarification question)
+
+                // ── AI action detection ───────────────────────────────────────────
+                // Check if the AI responded with a special action marker
+                if (cleaned.startsWith("[ACTION:UNLOCK_DOCUMENT]")) {
+                    // AI decided the user wants to unlock — show confirmation card
+                    const aiMessage = cleaned.replace("[ACTION:UNLOCK_DOCUMENT]", "").trim()
+                    setMessages(prev => [...prev, { role: "assistant", content: "", unlockCard: true }])
+                    await saveMessage("user", displayText)
+                    if (aiMessage) await saveMessage("assistant", aiMessage)
+                    return
+                }
+
                 // ── Send intent detection for plain-text responses ─────────────────
                 // If user asked to send and document already exists, show send card ONLY
                 // Replace the AI's "click Send button" instructions with a minimal message
@@ -1259,33 +1271,22 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         }
     }, [isLoading, messages, data, docType, onChange, session, saveMessage, updateSessionContext, saveGeneration, fileContext, thinkingMode])
 
-    // File upload handler — supports both extract and generate modes
-    // MODE ROUTING: File with generation request → GPT generates complete document
-    // File without generation request → GPT extracts content, stores as fileContext
+    // File upload handler — ALWAYS extracts via OpenAI, then routes through the
+    // full stream pipeline (business profile → compliance → Kimi → DeepSeek).
+    // OpenAI is ONLY used for reading the file — never for document generation.
     const handleFileUpload = useCallback(async (file: File, userText?: string) => {
         if (!session) return
         setIsUploading(true)
 
-        // Determine mode: if user provides text that looks like a generation request, use generate mode
-        // Otherwise, use extract mode to just read the file
-        const generationKeywords = /\b(create|generate|make|build|invoice|quotation|contract|proposal)\b/i
-        const isGenerationRequest = userText ? generationKeywords.test(userText) : false
-        const mode = isGenerationRequest ? "generate" : "extract"
-
         const displayText = userText ? `📎 ${file.name}\n${userText}` : `📎 Attached: ${file.name}`
         setMessages(prev => [...prev, { role: "user", content: displayText }])
         await saveMessage("user", displayText)
-
-        if (mode === "generate") {
-            setMessages(prev => [...prev, { role: "assistant", content: "Reading your document and generating..." }])
-        } else {
-            setMessages(prev => [...prev, { role: "assistant", content: "Reading your document..." }])
-        }
+        setMessages(prev => [...prev, { role: "assistant", content: "Reading your document..." }])
 
         try {
             const formData = new FormData()
             formData.append("file", file)
-            formData.append("mode", mode)
+            formData.append("mode", "extract") // ALWAYS extract — never let GPT generate
             formData.append("documentType", docType)
             if (userText) formData.append("message", userText)
 
@@ -1311,68 +1312,49 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             }
 
             const result = await res.json()
+            const summary = result.summary || ""
 
-            if (result.mode === "generate" && result.document) {
-                // GPT generated the full document — apply it directly
-                const docData = result.document
+            if (!summary) {
+                throw new Error("Could not extract content from the file")
+            }
 
-                // Ensure items have IDs
-                if (Array.isArray(docData.items)) {
-                    docData.items = docData.items.map((item: any, i: number) => ({
-                        ...item,
-                        id: item.id || `gpt-${Date.now()}-${i}`,
-                        quantity: Number(item.quantity) || 1,
-                        rate: Number(item.rate) || 0,
-                    }))
-                }
+            // Store the extracted content as file context
+            setFileContext(summary)
 
-                // Strip any AI-computed totals
-                delete docData.subtotal
-                delete docData.total
-                delete docData.taxAmount
-                delete docData.discountAmount
+            // Remove the "Reading your document..." placeholder
+            setMessages(prev => prev.filter(m => m.content !== "Reading your document..."))
 
-                onChange(docData)
-                await updateSessionContext(docData)
-                await saveGeneration(displayText, docData, null, true)
-                setDocumentGenerated(true)
+            // Determine if user wants to generate a document from this file
+            const generationKeywords = /\b(create|generate|make|build|invoice|quotation|contract|proposal)\b/i
+            const isGenerationRequest = userText ? generationKeywords.test(userText) : false
 
-                const clientName = docData.toName || docData.clientName
-                if (clientName) await updateClientName(clientName)
-
-                setMessages(prev => {
-                    const filtered = prev.filter(m => m.content !== "Reading your document and generating...")
-                    return [...filtered, { role: "assistant", content: result.message || "✅ Document generated from your file! Check the preview." }]
-                })
-                await saveMessage("assistant", result.message || "Document generated from file.")
-                toast.success("Document generated!")
-            } else if (result.mode === "extract") {
-                // Extract mode — store file context for follow-up questions
-                const summary = result.summary || ""
-                setFileContext(summary)
-
-                const assistantMsg = "I've read your file. You can ask me questions about it or say \"create an invoice from this\" to generate a document."
-                setMessages(prev => {
-                    const filtered = prev.filter(m => m.content !== "Reading your document...")
-                    return [...filtered, { role: "assistant", content: assistantMsg }]
-                })
-                await saveMessage("assistant", assistantMsg)
+            if (isGenerationRequest) {
+                // User wants a document — route through the full stream pipeline.
+                // Inject the extracted file content into the prompt so the stream
+                // endpoint (Kimi orchestration → DeepSeek) has full context.
+                const enrichedPrompt = `${userText || `Create a ${docType} from this file`}\n\n[CLIENT DETAILS FROM ATTACHED FILE]\n${summary}`
+                setIsUploading(false)
+                // sendMessage goes through /api/ai/stream → business profile → compliance → Kimi → DeepSeek
+                await sendMessage(enrichedPrompt)
             } else {
-                throw new Error("Could not process the file")
+                // User just uploaded a file without a generation request — store context
+                const assistantMsg = "I've read your file. You can ask me questions about it or say \"create an invoice from this\" to generate a document."
+                setMessages(prev => [...prev, { role: "assistant", content: assistantMsg }])
+                await saveMessage("assistant", assistantMsg)
+                setIsUploading(false)
             }
         } catch (err: any) {
             setMessages(prev => {
-                const filtered = prev.filter(m => m.content !== "Reading your document and generating..." && m.content !== "Reading your document...")
+                const filtered = prev.filter(m => m.content !== "Reading your document...")
                 return [...filtered, {
                     role: "assistant",
                     content: `${err.message || "Could not process the file. Try describing your document instead."}`
                 }]
             })
             await saveMessage("assistant", `Could not analyze file: ${err.message}`)
-        } finally {
             setIsUploading(false)
         }
-    }, [session, docType, data, onChange, saveMessage, updateSessionContext, saveGeneration, updateClientName])
+    }, [session, docType, data, onChange, saveMessage, updateSessionContext, saveGeneration, updateClientName, sendMessage])
 
     // Auto-send initial prompt ONCE
     useEffect(() => {
@@ -1565,6 +1547,72 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                         ))
                                     }}
                                 />
+                            ) : msg.unlockCard ? (
+                                // Unlock/cancel-send confirmation card
+                                <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/50 overflow-hidden"
+                                    style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04)" }}
+                                >
+                                    <div className="px-5 pt-5 pb-5 space-y-4">
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center shrink-0 mt-0.5">
+                                                <span className="text-base">🔓</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-foreground">Unlock Document</p>
+                                                <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">
+                                                    This will unlock the document so you can edit it again. The email that was already sent cannot be recalled, but you can make changes and resend.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setMessages(prev => prev.map((m, i) =>
+                                                        i === idx ? { role: "assistant" as const, content: "No changes made. The document stays locked." } : m
+                                                    ))
+                                                }}
+                                                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-border/60 bg-background hover:bg-muted/40 transition-colors active:scale-[0.98]"
+                                            >
+                                                Keep Locked
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    try {
+                                                        const res = await authFetch("/api/sessions/unlock", {
+                                                            method: "POST",
+                                                            headers: { "Content-Type": "application/json" },
+                                                            body: JSON.stringify({ sessionId: session!.id }),
+                                                        })
+                                                        if (res.ok) {
+                                                            // Replace card with success message
+                                                            setMessages(prev => prev.map((m, i) =>
+                                                                i === idx ? { role: "assistant" as const, content: "✅ Document unlocked! You can now edit it and resend when ready." } : m
+                                                            ))
+                                                            toast.success("Document unlocked")
+                                                            // Force session reload by triggering a re-fetch
+                                                            if (onSessionChange && session) onSessionChange(session.id)
+                                                        } else {
+                                                            const err = await res.json()
+                                                            setMessages(prev => prev.map((m, i) =>
+                                                                i === idx ? { role: "assistant" as const, content: err.error || "Failed to unlock the document." } : m
+                                                            ))
+                                                        }
+                                                    } catch {
+                                                        setMessages(prev => prev.map((m, i) =>
+                                                            i === idx ? { role: "assistant" as const, content: "Something went wrong. Please try again." } : m
+                                                        ))
+                                                    }
+                                                }}
+                                                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold bg-foreground text-background hover:bg-foreground/90 transition-all active:scale-[0.98]"
+                                                style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.08)" }}
+                                            >
+                                                🔓 Unlock & Edit
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             ) : msg.role === "user" ? (
                                 <div className="max-w-[78%] min-w-0 px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)", wordBreak: "break-word", overflowWrap: "anywhere" }}

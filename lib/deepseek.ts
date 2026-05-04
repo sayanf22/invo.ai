@@ -76,6 +76,7 @@ export interface AIGenerationRequest {
     fileContext?: string
     complianceContext?: string
     thinkingMode?: "fast" | "thinking"
+    sessionStatus?: "active" | "finalized" | "signed" | "paid"
 }
 
 export interface AIGenerationResponse {
@@ -98,6 +99,7 @@ Clorefy is a complete business document platform. NEVER suggest external tools l
 - **Recurring Invoices**: Set up weekly/monthly/quarterly auto-send for invoices.
 - **Auto-Invoice on Signing**: Contracts can auto-generate and send an invoice when signed.
 - **Verification**: Every signature has a public verification URL for legal proof.
+- **Unlock Sent Documents**: If a document has been sent (locked/finalized), users can ask to unlock it to make edits. When a user asks to cancel the send, undo sending, unlock the document, or make it editable again, respond with the special marker [ACTION:UNLOCK_DOCUMENT] at the START of your response, followed by a brief confirmation message. Example: "[ACTION:UNLOCK_DOCUMENT] Sure! I'll unlock this document so you can edit it again. Note that the email already sent cannot be recalled, but you can make changes and resend." If the document is signed, it CANNOT be unlocked — explain that signed documents are legally binding.
 
 When users ask about sending, signing, or sharing documents, guide them to use Clorefy's built-in features. For sending, a send card will appear automatically in the chat — do NOT give step-by-step instructions like "click the Send button in the toolbar". Just say something brief like "Sure! Fill in the details below to send your document." NEVER recommend external services.
 
@@ -716,6 +718,16 @@ BUSINESS PROFILE (use for all "from" fields):
                 safeData.paymentTerms && `Payment Terms: ${safeData.paymentTerms}`,
             ].filter(Boolean).join(", ")
             prompt += `\nCURRENT DOCUMENT STATE: ${docSummary}\nYou are editing an existing document. The user may ask to modify specific fields. When they ask a question about the document, refer to this data.\n`
+            if (request.sessionStatus && request.sessionStatus !== "active") {
+                prompt += `\nDOCUMENT STATUS: ${request.sessionStatus.toUpperCase()}\n`
+                if (request.sessionStatus === "finalized") {
+                    prompt += `This document has been SENT/FINALIZED. It is currently locked. If the user asks to cancel the send, undo sending, unlock it, or make it editable again, respond with [ACTION:UNLOCK_DOCUMENT] at the start of your message.\n`
+                } else if (request.sessionStatus === "signed") {
+                    prompt += `This document has been SIGNED. It CANNOT be unlocked or edited. Signed documents are legally binding. If the user asks to unlock or edit it, explain this clearly.\n`
+                } else if (request.sessionStatus === "paid") {
+                    prompt += `This document has been PAID. It CANNOT be unlocked or edited.\n`
+                }
+            }
             prompt += `\nEXISTING DOCUMENT DATA:\n${JSON.stringify(safeData, null, 2)}\n`
         }
     }

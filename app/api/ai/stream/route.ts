@@ -43,6 +43,17 @@ export async function POST(request: NextRequest) {
         if (sessionId) {
             const limitError = await checkMessageLimit(auth.supabase, auth.user.id, sessionId, userTier)
             if (limitError) return limitError
+
+            // Fetch session status so the AI knows if the document is locked/sent/signed
+            const { data: sessionData } = await auth.supabase
+                .from("document_sessions")
+                .select("status")
+                .eq("id", sessionId)
+                .eq("user_id", auth.user.id)
+                .single()
+            if (sessionData?.status) {
+                body.sessionStatus = sessionData.status as any
+            }
         }
 
         // SECURITY: Input size limit (100KB)
