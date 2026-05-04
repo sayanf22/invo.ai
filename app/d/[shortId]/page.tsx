@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase-server"
+import { createClient } from "@supabase/supabase-js"
 
 /**
  * Short link redirect: /d/<shortId> → /pay/<full-session-id>
- * 
+ *
  * shortId is the first 8 characters of the session UUID.
- * This provides a clean, short URL for sharing documents.
+ * This is a public page — no auth required. Uses service role to look up
+ * the session ID without requiring the recipient to be logged in.
  */
 export default async function ShortLinkRedirect({
   params,
@@ -14,18 +15,25 @@ export default async function ShortLinkRedirect({
 }) {
   const { shortId } = await params
 
-  if (!shortId || shortId.length < 6) {
+  // Validate: must be 6-8 hex chars (first segment of a UUID)
+  if (!shortId || !/^[0-9a-f]{6,8}$/i.test(shortId)) {
     redirect("/")
   }
 
+  // Use service role — this is a public redirect, no auth needed
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  )
+
   // Look up the session by matching the start of the UUID
-  const supabase = await createClient()
   const { data: session } = await supabase
     .from("document_sessions")
     .select("id")
-    .like("id", `${shortId}%`)
+    .like("id", `${shortId.toLowerCase()}%`)
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (!session) {
     redirect("/")

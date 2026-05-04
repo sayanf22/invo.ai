@@ -404,7 +404,7 @@ export function PayDocumentView({ docData, payment, sessionId, documentType }: P
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                      {respondingAs === "accepted" ? "Accepting" : respondingAs === "rejected" ? "Declining" : "Requesting changes"}
+                      {respondingAs === "accepted" ? "Accepting" : respondingAs === "declined" ? "Declining" : "Requesting changes"}
                     </span>
                   </div>
                   {(respondingAs === "changes_requested" || respondingAs === "declined") && (
