@@ -60,4 +60,4 @@ export default async function PayPage({ params }: PageProps) {
   const docData = session.context as unknown as InvoiceData
   const payment: PaymentInfo | null = pay ?? null
 
-  return <PayDocumentView docData={docData} payment={payment} />}
+  return <PayDocumentView docData={docData} payment={payment} sessionId={sessionId} documentType={session.document_type || "invoice"} />}

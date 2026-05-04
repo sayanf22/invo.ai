@@ -20,6 +20,8 @@ interface PaymentInfo {
 interface Props {
   docData: InvoiceData | null
   payment: PaymentInfo | null
+  sessionId?: string
+  documentType?: string
 }
 
 // ── QR Code ───────────────────────────────────────────────────────────
@@ -181,10 +183,14 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── Main Client Component ─────────────────────────────────────────────
 
-export function PayDocumentView({ docData, payment }: Props) {
+export function PayDocumentView({ docData, payment, sessionId, documentType }: Props) {
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [rendering, setRendering] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [responseStatus, setResponseStatus] = useState<"accepted" | "rejected" | "changes_requested" | null>(null)
+  const [responseNote, setResponseNote] = useState("")
+  const [respondingAs, setRespondingAs] = useState<"accepted" | "rejected" | "changes_requested" | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   // Track document view (fire-and-forget)
   useEffect(() => {
@@ -365,6 +371,104 @@ export function PayDocumentView({ docData, payment }: Props) {
       )}
 
       {/* PDF Preview */}
+
+      {/* Accept / Reject / Need Changes — for quotations and proposals */}
+      {sessionId && (documentType === "quotation" || documentType === "proposal") && !responseStatus && (
+        <div className="max-w-2xl mx-auto px-4 py-4">
+          <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+            <div className="p-4 sm:p-5 space-y-4">
+              <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                How would you like to respond to this {docTypeLabel.toLowerCase()}?
+              </p>
+
+              {/* Response buttons */}
+              {!respondingAs ? (
+                <div className="flex gap-2.5">
+                  <button type="button"
+                    onClick={() => setRespondingAs("accepted")}
+                    className="flex-1 py-3 rounded-xl text-sm font-semibold bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:opacity-90 active:scale-[0.98] transition-all">
+                    Accept
+                  </button>
+                  <button type="button"
+                    onClick={() => setRespondingAs("changes_requested")}
+                    className="flex-1 py-3 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all">
+                    Need Changes
+                  </button>
+                  <button type="button"
+                    onClick={() => setRespondingAs("rejected")}
+                    className="flex-1 py-3 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all">
+                    Decline
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                      {respondingAs === "accepted" ? "Accepting" : respondingAs === "rejected" ? "Declining" : "Requesting changes"}
+                    </span>
+                  </div>
+                  {(respondingAs === "changes_requested" || respondingAs === "rejected") && (
+                    <textarea
+                      value={responseNote}
+                      onChange={e => setResponseNote(e.target.value)}
+                      placeholder={respondingAs === "changes_requested" ? "What changes would you like?" : "Reason for declining (optional)"}
+                      rows={3}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 resize-none focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:focus:ring-neutral-600"
+                    />
+                  )}
+                  <div className="flex gap-2.5">
+                    <button type="button" onClick={() => { setRespondingAs(null); setResponseNote("") }}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors active:scale-[0.98]">
+                      Back
+                    </button>
+                    <button type="button" disabled={submitting || (respondingAs === "changes_requested" && !responseNote.trim())}
+                      onClick={async () => {
+                        setSubmitting(true)
+                        try {
+                          const res = await fetch("/api/quotations/respond", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              sessionId,
+                              response: respondingAs,
+                              note: responseNote.trim() || undefined,
+                            }),
+                          })
+                          if (res.ok) {
+                            setResponseStatus(respondingAs)
+                          }
+                        } catch { /* non-fatal */ }
+                        finally { setSubmitting(false) }
+                      }}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50">
+                      {submitting ? "Submitting..." : "Confirm"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Response submitted confirmation */}
+      {responseStatus && (
+        <div className="max-w-2xl mx-auto px-4 py-4">
+          <div className="rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-5 text-center">
+            <p className="font-semibold text-neutral-800 dark:text-neutral-200">
+              {responseStatus === "accepted" ? "✓ Accepted" : responseStatus === "rejected" ? "Declined" : "Changes requested"}
+            </p>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+              {responseStatus === "accepted"
+                ? `You've accepted this ${docTypeLabel.toLowerCase()}. ${docData.fromName || "The sender"} has been notified.`
+                : responseStatus === "rejected"
+                  ? `You've declined this ${docTypeLabel.toLowerCase()}. ${docData.fromName || "The sender"} has been notified.`
+                  : `Your change request has been sent to ${docData.fromName || "the sender"}.`}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-2xl mx-auto px-2 sm:px-4 pb-8 overflow-x-hidden">
         <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">

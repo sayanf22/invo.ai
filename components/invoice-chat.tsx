@@ -699,11 +699,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 const shareIntent = detectShareIntent(userMessage)
                 if (shareIntent.hasShareIntent) {
                     setInputValue("")
-                    const shareMsg = shareIntent.method === "whatsapp"
-                        ? `Sure! Let me help you share your ${docType} on WhatsApp.`
-                        : shareIntent.method === "link"
-                            ? `Sure! Let me get a shareable link for your ${docType}.`
-                            : `How would you like to share your ${docType}?`
+                    // If already sent, show link-only card
+                    const isSent = session.status === "finalized" || session.status === "signed"
+                    const shareMsg = isSent
+                        ? `Here's the link for your ${docType}:`
+                        : shareIntent.method === "whatsapp"
+                            ? `Sure! Let me help you share your ${docType} on WhatsApp.`
+                            : shareIntent.method === "link"
+                                ? `Sure! Let me get a shareable link for your ${docType}.`
+                                : `How would you like to share your ${docType}?`
                     setMessages(prev => [...prev,
                         { role: "user" as const, content: userMessage },
                         { role: "assistant" as const, content: shareMsg },
@@ -714,12 +718,17 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     return
                 }
 
-                // Check send intent (send it, send this, email to, send via email)
+                // Check send intent (send it, send this, email to, send via email, resend)
+                const RESEND_REGEX = /\b(resend|re-send|send\s*again|send\s*once\s*more)\b/i
+                const isResend = RESEND_REGEX.test(userMessage)
                 const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
-                if (hasSendIntent && sendMethod === "email") {
+                if ((hasSendIntent && sendMethod === "email") || isResend) {
                     setInputValue("")
                     const cardEmail = detectedEmail || data.toEmail || ""
-                    const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`
+                    const isSent = session.status === "finalized" || session.status === "signed"
+                    const minimalMsg = isSent || isResend
+                        ? `Sure! Fill in the details below to resend your ${docType}.`
+                        : `Sure! Fill in the details below to send your ${docType}.`
                     setMessages(prev => [...prev,
                         { role: "user" as const, content: userMessage },
                         { role: "assistant" as const, content: minimalMsg },
