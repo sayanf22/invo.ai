@@ -79,6 +79,7 @@ const PUBLIC_PATHS = [
   "/developers",
   "/sign",
   "/pay", // public payment pages — /pay/[sessionId] accessible without auth
+  "/d", // short link redirects — /d/[shortId] redirects to /pay/[sessionId], must be public
   "/view", // public document view — /view/[sessionId] accessible without auth (for email recipients)
   "/verify", // public document verification — /verify/[token] accessible without auth
   "/api",
