@@ -148,6 +148,105 @@ function detectDocumentProgress(content: string, lastKey: string): ActivityItem[
     return newSteps
 }
 
+// ── Recurring Invoice Card (inline) ───────────────────────────────────────────
+function RecurringCard({ mode, sessionId, onDone }: { mode: "setup" | "cancel"; sessionId: string; onDone: (msg: string) => void }) {
+    const [frequency, setFrequency] = useState<"weekly" | "monthly" | "quarterly">("monthly")
+    const [loading, setLoading] = useState(false)
+
+    if (mode === "cancel") {
+        return (
+            <div className="px-5 pt-5 pb-5 space-y-4">
+                <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-base">🔄</span>
+                    </div>
+                    <div>
+                        <p className="text-sm font-semibold text-foreground">Cancel Recurring Invoice</p>
+                        <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">
+                            This will stop automatic invoice generation. Already sent invoices are not affected.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex gap-2.5">
+                    <button type="button" onClick={() => onDone("Recurring invoices kept active. No changes made.")}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-border/60 bg-background hover:bg-muted/40 transition-colors active:scale-[0.98]">
+                        Keep Active
+                    </button>
+                    <button type="button" disabled={loading} onClick={async () => {
+                        setLoading(true)
+                        try {
+                            const res = await authFetch(`/api/recurring?sessionId=${sessionId}`, { method: "DELETE" })
+                            if (res.ok) { onDone("✅ Recurring invoices cancelled. No more automatic invoices will be generated."); toast.success("Recurring cancelled") }
+                            else { onDone("Failed to cancel recurring. Please try again.") }
+                        } catch { onDone("Something went wrong.") }
+                        finally { setLoading(false) }
+                    }}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold bg-foreground text-background hover:bg-foreground/90 transition-all active:scale-[0.98] disabled:opacity-50"
+                        style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}>
+                        {loading ? "Cancelling..." : "Cancel Recurring"}
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
+    // Setup mode
+    return (
+        <div className="px-5 pt-5 pb-5 space-y-4">
+            <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-base">🔄</span>
+                </div>
+                <div>
+                    <p className="text-sm font-semibold text-foreground">Set Up Recurring Invoice</p>
+                    <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">
+                        Automatically generate and send this invoice on a schedule.
+                    </p>
+                </div>
+            </div>
+            <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Frequency</p>
+                <div className="flex gap-2">
+                    {(["weekly", "monthly", "quarterly"] as const).map(f => (
+                        <button key={f} type="button" onClick={() => setFrequency(f)}
+                            className={cn(
+                                "flex-1 py-2 rounded-xl text-xs font-semibold transition-colors border",
+                                frequency === f
+                                    ? "bg-foreground text-background border-foreground"
+                                    : "bg-background text-muted-foreground border-border hover:bg-muted/40"
+                            )}>
+                            {f.charAt(0).toUpperCase() + f.slice(1)}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            <div className="flex gap-2.5">
+                <button type="button" onClick={() => onDone("No recurring schedule set up.")}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-border/60 bg-background hover:bg-muted/40 transition-colors active:scale-[0.98]">
+                    Cancel
+                </button>
+                <button type="button" disabled={loading} onClick={async () => {
+                    setLoading(true)
+                    try {
+                        const res = await authFetch("/api/recurring", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ sessionId, frequency, autoSend: true }),
+                        })
+                        if (res.ok) { onDone(`✅ Recurring invoice set up! Next invoice will be generated ${frequency === "weekly" ? "next week" : frequency === "monthly" ? "next month" : "next quarter"}.`); toast.success("Recurring set up") }
+                        else { const d = await res.json().catch(() => ({})); onDone(d.error || "Failed to set up recurring. Please try again.") }
+                    } catch { onDone("Something went wrong.") }
+                    finally { setLoading(false) }
+                }}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold bg-foreground text-background hover:bg-foreground/90 transition-all active:scale-[0.98] disabled:opacity-50"
+                    style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}>
+                    {loading ? "Setting up..." : "Confirm"}
+                </button>
+            </div>
+        </div>
+    )
+}
+
 interface InvoiceChatProps {
     data: InvoiceData
     onChange: (updates: Partial<InvoiceData>) => void
@@ -184,7 +283,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; linkCard?: string; recurringCard?: "setup" | "cancel"; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [thinkingMode, setThinkingMode] = useState<"fast" | "thinking">("fast")
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
@@ -1189,6 +1288,29 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     return
                 }
 
+                // [ACTION:SHOW_LINK] — AI wants to show the document link
+                if (cleaned.startsWith("[ACTION:SHOW_LINK]") && session) {
+                    const shortId = session.id.split("-")[0]
+                    const docLink = `${window.location.origin}/d/${shortId}`
+                    setMessages(prev => [...prev, { role: "assistant", content: "", linkCard: docLink }])
+                    await saveMessage("user", displayText)
+                    return
+                }
+
+                // [ACTION:SETUP_RECURRING] — AI wants to show recurring setup card
+                if (cleaned.startsWith("[ACTION:SETUP_RECURRING]") && session) {
+                    setMessages(prev => [...prev, { role: "assistant", content: "", recurringCard: "setup" as const }])
+                    await saveMessage("user", displayText)
+                    return
+                }
+
+                // [ACTION:CANCEL_RECURRING] — AI wants to cancel recurring
+                if (cleaned.startsWith("[ACTION:CANCEL_RECURRING]") && session) {
+                    setMessages(prev => [...prev, { role: "assistant", content: "", recurringCard: "cancel" as const }])
+                    await saveMessage("user", displayText)
+                    return
+                }
+
                 // ── Send intent detection for plain-text responses ─────────────────
                 // If user asked to send and document already exists, show send card ONLY
                 // Replace the AI's "click Send button" instructions with a minimal message
@@ -1490,6 +1612,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     fromName={data.fromName || ""}
                                     referenceNumber={data.invoiceNumber || data.referenceNumber || ""}
                                     toEmail={data.toEmail || ""}
+                                    isSent={session?.status === "finalized" || session?.status === "signed"}
                                     onSelectEmail={(email) => {
                                         // Replace share card with send card
                                         setMessages(prev => prev.map((m, i) =>
@@ -1547,6 +1670,48 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                         ))
                                     }}
                                 />
+                            ) : msg.linkCard ? (
+                                // Document link card with copy button
+                                <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/50 px-4 py-3.5 space-y-2"
+                                    style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-7 h-7 rounded-lg bg-muted/60 flex items-center justify-center shrink-0">
+                                            <span className="text-sm">🔗</span>
+                                        </div>
+                                        <p className="text-sm font-semibold text-foreground">Document Link</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/40 border border-border/30">
+                                        <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{msg.linkCard}</span>
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                try {
+                                                    await navigator.clipboard.writeText(msg.linkCard!)
+                                                    toast.success("Link copied!")
+                                                } catch { toast.error("Failed to copy") }
+                                            }}
+                                            className="text-xs font-medium text-foreground hover:text-foreground/80 transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-muted/60 border border-border/40"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : msg.recurringCard ? (
+                                // Recurring invoice setup/cancel card
+                                <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/50 overflow-hidden"
+                                    style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04)" }}
+                                >
+                                    <RecurringCard
+                                        mode={msg.recurringCard}
+                                        sessionId={session!.id}
+                                        onDone={(resultMsg) => {
+                                            setMessages(prev => prev.map((m, i) =>
+                                                i === idx ? { role: "assistant" as const, content: resultMsg } : m
+                                            ))
+                                        }}
+                                    />
+                                </div>
                             ) : msg.unlockCard ? (
                                 // Unlock/cancel-send confirmation card
                                 <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/50 overflow-hidden"

@@ -21,6 +21,7 @@ interface ChatShareCardProps {
   fromName?: string
   referenceNumber?: string
   toEmail?: string
+  isSent?: boolean
   onSelectEmail: (email: string) => void
   onDismiss: () => void
   onLockDocument?: () => void
@@ -35,6 +36,7 @@ export function ChatShareCard({
   fromName,
   referenceNumber,
   toEmail,
+  isSent,
   onSelectEmail,
   onDismiss,
   onLockDocument,
@@ -181,6 +183,51 @@ export function ChatShareCard({
                 {isLocking ? "Locking..." : "Confirm & Share"}
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Sent mode: show only the shared link ──────────────────────────────
+  if (isSent) {
+    return (
+      <div className={cn(
+        "flex justify-start w-full transition-all",
+        mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
+        "duration-300 ease-out"
+      )}>
+        <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/50 px-4 py-3.5 space-y-2"
+          style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-muted/60 flex items-center justify-center shrink-0">
+                <Link2 className="w-3.5 h-3.5 text-foreground/60" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Shared Link</p>
+            </div>
+            <button onClick={onDismiss}
+              className="w-6 h-6 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/40 border border-border/30">
+            <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{platformLink}</span>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(platformLink)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                  toast.success("Link copied!")
+                } catch { toast.error("Failed to copy") }
+              }}
+              className="text-xs font-medium text-foreground hover:text-foreground/80 transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-muted/60 border border-border/40"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
           </div>
         </div>
       </div>
