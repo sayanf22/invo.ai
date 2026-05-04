@@ -686,23 +686,23 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         >
           {/* Signature status badges — visible on all screen sizes */}
           {supportsSignatures && sessionId && hasPendingSignatures && !hasDeclined && !hasRevisionRequested && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border">
               Pending Signature
             </span>
           )}
           {supportsSignatures && sessionId && hasDeclined && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border">
               Declined
             </span>
           )}
           {supportsSignatures && sessionId && hasRevisionRequested && !hasDeclined && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border">
               Revision Requested
             </span>
           )}
           {supportsSignatures && sessionId && allSigned && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800">
-              Signed
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-foreground/70 border border-border">
+              ✓ Signed
             </span>
           )}
           {/* For contracts/proposals: toolbar state machine for signature actions */}
@@ -710,7 +710,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
             <button
               type="button"
               onClick={() => setCancelDialogOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-400 shadow-sm transition-all duration-200 active:scale-95 dark:border-red-700 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-900/40"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:bg-muted/60 shadow-sm transition-all duration-200 active:scale-95"
               title="Cancel the pending signature request"
             >
               <X className="w-4 h-4" />
@@ -719,33 +719,16 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           )}
           {supportsSignatures && sessionId && (toolbarState === "idle" || toolbarState === "actionable") && (
             <>
-              {/* Sign as Sender (Party A) — only if not yet self-signed */}
-              {!senderSigned && (
-                <button
-                  type="button"
-                  onClick={() => setSelfSignOpen(v => !v)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border shadow-sm transition-all duration-200 active:scale-95",
-                    selfSignOpen
-                      ? "border-emerald-400 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                      : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 dark:border-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400"
-                  )}
-                  title="Sign this document as the sender (Party A)"
-                >
-                  <PenLine className="w-4 h-4" />
-                  <span className="hidden sm:inline">Sign as Sender</span>
-                </button>
-              )}
               {senderSigned && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-foreground/70 border border-border">
                   ✓ You signed
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => setGetSignatureModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:border-violet-400 shadow-sm transition-all duration-200 active:scale-95 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-900/40"
-                title="Request signature — sends signing link via email or WhatsApp"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-medium border border-border bg-card text-foreground hover:bg-muted/60 shadow-sm transition-all duration-200 active:scale-95"
+                title="Request signature — sends signing link via email"
               >
                 <PenLine className="w-4 h-4" />
                 <span className="hidden sm:inline">Request Signature</span>
@@ -754,7 +737,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           )}
           {/* For non-signature docs (invoices): show Sent badge + Send button */}
           {!supportsSignatures && sessionId && sentAt && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shrink-0">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-foreground/70 border border-border shrink-0">
               Sent
             </span>
           )}
@@ -892,7 +875,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                 }}
                 className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium"
               >
-                <FileText className="w-4 h-4 text-red-500" />
+                <FileText className="w-4 h-4 text-muted-foreground" />
                 <span>PDF</span>
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -900,7 +883,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                 disabled={exportingDocx}
                 className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium"
               >
-                {exportingDocx ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4 text-blue-500" />}
+                {exportingDocx ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4 text-muted-foreground" />}
                 <span>Word (.docx)</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="my-1 bg-border/50" />
@@ -909,7 +892,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                 disabled={exportingImage}
                 className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium"
               >
-                {exportingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4 text-emerald-500" />}
+                {exportingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4 text-muted-foreground" />}
                 <span>PNG Image</span>
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -917,63 +900,13 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                 disabled={exportingImage}
                 className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium"
               >
-                {exportingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4 text-amber-500" />}
+                {exportingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4 text-muted-foreground" />}
                 <span>JPG Image</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
-
-      {/* Self-sign panel — slides in below toolbar */}
-      {selfSignOpen && supportsSignatures && sessionId && !senderSigned && (
-        <div className="border-b border-border bg-card px-4 py-4 animate-in slide-in-from-top-2 duration-200">
-          <div className="max-w-md">
-            <p className="text-sm font-semibold text-foreground mb-1">Sign as Sender (Party A)</p>
-            <p className="text-xs text-muted-foreground mb-3">
-              {savedSignatureUrl === undefined
-                ? "Loading your saved signature..."
-                : savedSignatureUrl
-                ? "Your saved signature is shown below. Click Confirm to apply it, or draw a new one."
-                : "Draw your signature below. Save it to your profile to reuse it next time."}
-            </p>
-            {savedSignatureUrl === undefined ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
-                <Loader2 className="w-4 h-4 animate-spin" /> Loading...
-              </div>
-            ) : savedSignatureUrl ? (
-              <div className="space-y-3">
-                <div className="inline-block border border-border rounded-xl p-3 bg-white">
-                  <img src={savedSignatureUrl} alt="Your signature" className="max-w-[200px] max-h-[70px] object-contain" />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleSelfSign(savedSignatureUrl)}
-                    disabled={selfSignLoading}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
-                  >
-                    {selfSignLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PenLine className="w-4 h-4" />}
-                    Apply My Signature
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSavedSignatureUrl(null)}
-                    className="px-3 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Draw New
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <SignaturePad
-                onSignature={handleSelfSign}
-                className="max-w-md"
-              />
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Live PDF Preview */}
       <div className="flex-1 overflow-hidden bg-neutral-100 dark:bg-neutral-900">
