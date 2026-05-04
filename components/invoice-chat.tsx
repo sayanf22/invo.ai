@@ -1371,9 +1371,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     <AgenticThinkingBlock
                                         activities={msg.activities || []}
                                         isWorking={msg.isWorking ?? false}
-                                        onExpand={() => {
-                                            if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" })
-                                        }}
                                     />
                                 </div>
                                 ) : null
