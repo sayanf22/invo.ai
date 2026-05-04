@@ -645,12 +645,6 @@ function HeaderSection({ data, logoUrl, tpl, c, config }: HeaderSectionProps) {
                         <Text style={{ fontSize: 9, color: c.pri, ...bold(c) }}>{data.status === "paid" ? "PAID" : "DRAFT"}</Text>
                     </View>
                 )}
-                {/* Non-invoice documents show a DRAFT badge */}
-                {!config.showStatusBadge && (docType === "CONTRACT" || docType === "QUOTATION") && (
-                    <View style={{ backgroundColor: c.acc, paddingHorizontal: 12, paddingVertical: 5, ...r(14) }}>
-                        <Text style={{ fontSize: 9, color: c.pri, ...bold(c) }}>DRAFT</Text>
-                    </View>
-                )}
             </View>
         </>
     )
