@@ -277,6 +277,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         updateClientName,
         saveGeneration,
         startNewSession,
+        updateSessionStatus,
     } = useDocumentSession(docType, selectedSessionId)
 
     const [inputValue, setInputValue] = useState("")
@@ -311,6 +312,22 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     // This ref is the source of truth for saving to DB — the setMessages
     // callback pattern is async and unreliable for synchronous reads.
     const currentActivitiesRef = useRef<ActivityItem[]>([])
+    // AbortController for cancelling streaming requests on unmount
+    const abortControllerRef = useRef<AbortController | null>(null)
+    // Track if component is mounted to prevent state updates after unmount
+    const isMountedRef = useRef(true)
+
+    // Cleanup on unmount
+    useEffect(() => {
+        isMountedRef.current = true
+        return () => {
+            isMountedRef.current = false
+            // Abort any in-flight streaming request
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort()
+            }
+        }
+    }, [])
 
     // Expose updateSessionContext to parent once session is ready
     useEffect(() => {
@@ -793,6 +810,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         // AI response. This prevents error responses from counting against the message limit.
         setIsLoading(true)
 
+        // Create AbortController for this request
+        abortControllerRef.current = new AbortController()
+        const signal = abortControllerRef.current.signal
+
         try {
             const response = await authFetch("/api/ai/stream", {
                 method: "POST",
@@ -831,6 +852,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         })()
                         : {}),
                 }),
+                signal, // Pass abort signal to fetch
             })
 
             if (!response.ok) {
@@ -917,6 +939,11 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
             // Phase 1: Read the stream, accumulate content + stream text progressively
             while (true) {
+                // Check if request was aborted (component unmounted)
+                if (signal.aborted || !isMountedRef.current) {
+                    reader.cancel()
+                    return
+                }
                 const { done, value: chunk } = await reader.read()
                 if (done) break
                 const text = decoder.decode(chunk, { stream: true })
@@ -1425,6 +1452,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 await saveMessage("assistant", cleaned, chatActivities.length > 0 ? { activities: chatActivities } : undefined)
             }
         } catch (err: any) {
+            // Ignore abort errors (component unmounted or user navigated away)
+            if (err.name === "AbortError" || !isMountedRef.current) {
+                return
+            }
             const errorMsg = err.message || "Something went wrong"
             const assistantMsg = errorMsg.includes("429") || errorMsg.includes("rate limit")
                 ? "⏳ High demand right now. Please wait a minute and try again."
@@ -1440,8 +1471,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             // The error message is shown in the UI only.
             await saveGeneration(messageText, {}, null, false, errorMsg)
         } finally {
-            setStreamingContent(null)
-            setIsLoading(false)
+            // Only update state if component is still mounted
+            if (isMountedRef.current) {
+                setStreamingContent(null)
+                setIsLoading(false)
+            }
+            abortControllerRef.current = null
         }
 
         } finally {
@@ -1812,8 +1847,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                                                 i === idx ? { role: "assistant" as const, content: "✅ Document unlocked! You can now edit it and resend when ready." } : m
                                                             ))
                                                             toast.success("Document unlocked")
-                                                            // Force session reload by triggering a re-fetch
-                                                            if (onSessionChange && session) onSessionChange(session.id)
+                                                            // Update session status locally to remove the banner immediately
+                                                            updateSessionStatus("active")
                                                         } else {
                                                             const err = await res.json()
                                                             setMessages(prev => prev.map((m, i) =>

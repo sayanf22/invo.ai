@@ -314,6 +314,35 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
         }
     }, [supabase, session, user])
 
+    // Refresh session status from DB (used after unlock to update the banner)
+    const refreshSession = useCallback(async () => {
+        if (!session || !user) return null
+        try {
+            const { data: refreshedSession, error } = await supabase
+                .from("document_sessions")
+                .select("*")
+                .eq("id", session.id)
+                .eq("user_id", user.id)
+                .single()
+
+            if (error || !refreshedSession) {
+                console.error("Error refreshing session:", error)
+                return null
+            }
+
+            setSession(refreshedSession as DocumentSession)
+            return refreshedSession as DocumentSession
+        } catch (error) {
+            console.error("Error refreshing session:", error)
+            return null
+        }
+    }, [supabase, session, user])
+
+    // Update session status locally (for immediate UI updates without DB round-trip)
+    const updateSessionStatus = useCallback((status: string) => {
+        setSession(prev => prev ? { ...prev, status } as DocumentSession : null)
+    }, [])
+
     return {
         session,
         messages,
@@ -327,6 +356,8 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
         completeSession,
         startNewSession,
         loadSession,
+        refreshSession,
+        updateSessionStatus,
         chainId: session?.chain_id ?? null,
     }
 }

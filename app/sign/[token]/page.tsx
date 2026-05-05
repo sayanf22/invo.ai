@@ -253,8 +253,8 @@ export default function SigningPage() {
                 const data = await response.json()
 
                 if (response.status === 410) {
-                    const data410 = await response.json().catch(() => ({}))
-                    if (data410.cancelled) {
+                    // data already parsed above
+                    if (data.cancelled) {
                         setIsCancelled(true)
                     } else {
                         setIsExpired(true)
