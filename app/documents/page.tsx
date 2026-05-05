@@ -4,10 +4,10 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import {
-  FileText, Download, Eye, Calendar, Loader2, ArrowLeft, Plus,
-  CheckCircle2, Clock, AlertCircle, XCircle, Link2, ExternalLink,
-  RefreshCw, ChevronDown, ChevronUp, CreditCard, Send, Mail,
-  BellOff, Repeat2, Bell, MessageSquare, PenLine,
+  FileText, Download, Eye, Loader2, ArrowLeft, Plus,
+  CheckCircle2, Clock, XCircle, Link2, ExternalLink,
+  RefreshCw, ChevronDown, ChevronUp, CreditCard, Mail,
+  BellOff, Repeat2, Bell, PenLine,
 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
@@ -129,136 +129,6 @@ interface RecurringRecord {
   run_count: number
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const TYPE_COLORS: Record<string, string> = {
-  invoice: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  contract: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
-  quotation: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  proposal: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-}
-
-const PAYMENT_STATUS_CONFIG = {
-  paid: {
-    label: "Paid",
-    icon: CheckCircle2,
-    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    dot: "bg-emerald-500",
-  },
-  partially_paid: {
-    label: "Partial",
-    icon: Clock,
-    className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-    dot: "bg-amber-500",
-  },
-  created: {
-    label: "Pending",
-    icon: Clock,
-    className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    dot: "bg-blue-500",
-  },
-  expired: {
-    label: "Expired",
-    icon: AlertCircle,
-    className: "bg-muted text-muted-foreground",
-    dot: "bg-muted-foreground",
-  },
-  cancelled: {
-    label: "Cancelled",
-    icon: XCircle,
-    className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    dot: "bg-red-500",
-  },
-}
-
-// ── Payment Status Badge ──────────────────────────────────────────────────────
-
-function PaymentBadge({ payment }: { payment: PaymentRecord }) {
-  const cfg = PAYMENT_STATUS_CONFIG[payment.status] ?? PAYMENT_STATUS_CONFIG.created
-  const Icon = cfg.icon
-  return (
-    <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", cfg.className)}>
-      <Icon size={10} />
-      {cfg.label}
-    </span>
-  )
-}
-
-// ── Email Status Badge ────────────────────────────────────────────────────────
-
-function EmailBadge({ email }: { email: EmailRecord }) {
-  const config = {
-    sent: { label: "Sent", className: "bg-muted text-muted-foreground" },
-    delivered: { label: "Delivered", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
-    opened: { label: "Opened", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-    bounced: { label: "Bounced", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-    failed: { label: "Failed", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-  }
-  const { label, className } = config[email.status] || config.sent
-  return (
-    <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", className)}
-      title={email.recipient_email ? `Sent to ${email.recipient_email}` : undefined}>
-      <Mail size={10} />
-      {label}
-    </span>
-  )
-}
-
-// ── Quotation Response Badge ──────────────────────────────────────────────────
-
-function QuotationResponseBadge({ responseType }: { responseType: string }) {
-  const config: Record<string, { label: string; className: string }> = {
-    accepted: { label: "Accepted", className: "bg-emerald-100 text-emerald-700" },
-    declined: { label: "Declined", className: "bg-red-100 text-red-700" },
-    changes_requested: { label: "Changes Requested", className: "bg-orange-100 text-orange-700" },
-  }
-  const { label, className } = config[responseType] ?? config.accepted
-  return (
-    <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0", className)}>
-      {label}
-    </span>
-  )
-}
-
-// ── Signature Status Badge ─────────────────────────────────────────────────────
-
-function SignatureBadge({ signature }: { signature: SignatureRecord }) {
-  // Declined takes priority
-  if (signature.signer_action === "declined") {
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 shrink-0">
-        <XCircle size={10} />
-        {signature.signer_name}
-      </span>
-    )
-  }
-  // Revision requested
-  if (signature.signer_action === "revision_requested") {
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
-        <MessageSquare size={10} />
-        {signature.signer_name}
-      </span>
-    )
-  }
-  // Signed
-  if (signature.signed_at) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">
-        <CheckCircle2 size={10} />
-        {signature.signer_name}
-      </span>
-    )
-  }
-  // Pending (signed_at null, signer_action null)
-  return (
-    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
-      <Clock size={10} />
-      {signature.signer_name}
-    </span>
-  )
-}
-
 // ── Payment Detail Panel ──────────────────────────────────────────────────────
 
 function PaymentPanel({ payment, currency, sessionId, onCancelled }: { payment: PaymentRecord; currency: string; sessionId: string; onCancelled?: () => void }) {
@@ -301,21 +171,26 @@ function PaymentPanel({ payment, currency, sessionId, onCancelled }: { payment: 
   const isActive = (payment.status === "created" || payment.status === "partially_paid") && !cancelled
 
   return (
-    <div className="mt-2 rounded-xl border border-border/50 bg-muted/20 overflow-hidden">
+    <div className="rounded-xl border border-border/40 bg-muted/30 overflow-hidden">
       {/* Amount row */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/40">
-        <div className="flex items-center gap-2">
-          <CreditCard size={13} className="text-muted-foreground shrink-0" />
+      <div className="flex items-center justify-between px-3.5 py-3 border-b border-border/30">
+        <div className="flex items-center gap-2.5">
+          <CreditCard size={14} className="text-muted-foreground shrink-0" />
           <span className="text-sm font-semibold text-foreground">{fmt(payment.amount)}</span>
           {payment.status === "partially_paid" && payment.amount_paid && (
             <span className="text-xs text-muted-foreground">({fmt(payment.amount_paid)} paid)</span>
           )}
         </div>
-        <PaymentBadge payment={payment} />
+        <span className={cn(
+          "text-[11px] font-semibold px-2 py-0.5 rounded-full",
+          payment.status === "paid" ? "bg-foreground/10 text-foreground" : "bg-muted text-muted-foreground"
+        )}>
+          {payment.status === "paid" ? "Paid" : payment.status === "partially_paid" ? "Partial" : payment.status === "expired" ? "Expired" : "Pending"}
+        </span>
       </div>
 
       {/* Tracking info */}
-      <div className="px-3 py-2 space-y-1.5">
+      <div className="px-3.5 py-2.5 space-y-1.5">
         {/* View tracking */}
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground flex items-center gap-1.5">
@@ -333,7 +208,7 @@ function PaymentPanel({ payment, currency, sessionId, onCancelled }: { payment: 
 
         {/* Paid at */}
         {payment.paid_at && (
-          <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+          <div className="flex items-center gap-1.5 text-xs text-foreground">
             <CheckCircle2 size={11} />
             Paid {format(new Date(payment.paid_at), "MMM d, yyyy 'at' h:mm a")}
           </div>
@@ -341,7 +216,7 @@ function PaymentPanel({ payment, currency, sessionId, onCancelled }: { payment: 
 
         {/* Expiry */}
         {payment.expires_at && payment.status === "created" && (
-          <div className={cn("flex items-center gap-1.5 text-xs", isOverdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+          <div className={cn("flex items-center gap-1.5 text-xs", isOverdue ? "text-foreground" : "text-muted-foreground")}>
             <Clock size={11} />
             {isOverdue
               ? `Expired ${formatDistanceToNow(new Date(payment.expires_at), { addSuffix: true })}`
@@ -351,12 +226,12 @@ function PaymentPanel({ payment, currency, sessionId, onCancelled }: { payment: 
 
         {/* Payment link */}
         {isActive && (
-          <div className="flex items-center justify-between gap-2 pt-0.5">
+          <div className="flex items-center justify-between gap-2 pt-1">
             <a
               href={payment.short_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+              className="inline-flex items-center gap-1 text-xs text-foreground hover:underline font-medium"
             >
               <Link2 size={11} />
               Open payment link
@@ -366,10 +241,10 @@ function PaymentPanel({ payment, currency, sessionId, onCancelled }: { payment: 
               type="button"
               onClick={handleCancelPaymentLink}
               disabled={cancelling}
-              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-800/50 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-colors disabled:opacity-50"
             >
               {cancelling ? <Loader2 size={10} className="animate-spin" /> : <XCircle size={10} />}
-              Cancel Link
+              Cancel
             </button>
           </div>
         )}
@@ -394,10 +269,10 @@ function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId:
 
   const statusConfig: Record<string, { label: string; dot: string }> = {
     sent:      { label: "Sent",      dot: "bg-muted-foreground/40" },
-    delivered: { label: "Delivered", dot: "bg-emerald-500" },
-    opened:    { label: "Opened",    dot: "bg-blue-500" },
-    bounced:   { label: "Bounced",   dot: "bg-red-500" },
-    failed:    { label: "Failed",    dot: "bg-red-500" },
+    delivered: { label: "Delivered", dot: "bg-foreground/60" },
+    opened:    { label: "Opened",    dot: "bg-foreground" },
+    bounced:   { label: "Bounced",   dot: "bg-muted-foreground" },
+    failed:    { label: "Failed",    dot: "bg-muted-foreground" },
   }
 
   const handleStopFollowUps = async () => {
@@ -413,14 +288,13 @@ function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId:
   const nextReminder = !stopped && stats.nextReminderAt ? new Date(stats.nextReminderAt) : null
 
   return (
-    <div className="mt-1.5 rounded-xl border border-border/40 bg-background overflow-hidden"
-      style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+    <div className="rounded-xl border border-border/40 bg-muted/30 overflow-hidden">
 
-      {/* Next reminder row — clean, no colored background */}
+      {/* Next reminder row */}
       {nextReminder && !stopped && (
-        <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border/30">
+        <div className="flex items-center justify-between px-3.5 py-3 border-b border-border/30">
           <div className="flex items-center gap-2.5">
-            <Bell size={13} className="text-muted-foreground shrink-0" />
+            <Bell size={14} className="text-muted-foreground shrink-0" />
             <div>
               <p className="text-xs font-medium text-foreground">
                 Next reminder {formatDistanceToNow(nextReminder, { addSuffix: true })}
@@ -435,7 +309,7 @@ function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId:
             type="button"
             onClick={handleStopFollowUps}
             disabled={stopping}
-            className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-border/60 transition-colors disabled:opacity-50 shrink-0"
+            className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-colors disabled:opacity-50 shrink-0"
           >
             {stopping ? <Loader2 size={11} className="animate-spin" /> : <BellOff size={11} />}
             Stop
@@ -450,19 +324,19 @@ function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId:
         </span>
         {stats.opened > 0 && (
           <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+            <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" />
             <span className="font-semibold text-foreground">{stats.opened}</span> opened
           </span>
         )}
         {stats.delivered > 0 && (
           <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+            <span className="w-1.5 h-1.5 rounded-full bg-foreground/60 shrink-0" />
             <span className="font-semibold text-foreground">{stats.delivered}</span> delivered
           </span>
         )}
         {stats.bounced > 0 && (
           <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground shrink-0" />
             <span className="font-semibold text-foreground">{stats.bounced}</span> bounced
           </span>
         )}
@@ -472,7 +346,7 @@ function EmailHistoryPanel({ stats, sessionId }: { stats: EmailStats; sessionId:
             type="button"
             onClick={handleStopFollowUps}
             disabled={stopping}
-            className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-border/60 transition-colors disabled:opacity-50"
+            className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-colors disabled:opacity-50"
           >
             {stopping ? <Loader2 size={11} className="animate-spin" /> : <BellOff size={11} />}
             Stop reminders
@@ -570,11 +444,11 @@ function RecurringPanel({ session, onRefresh }: { session: DocSession; onRefresh
   }
 
   return (
-    <div className="mt-2 rounded-xl border border-border/50 bg-muted/20 overflow-hidden">
+    <div className="rounded-xl border border-border/40 bg-muted/30 overflow-hidden">
       {/* Header row with toggle */}
-      <div className="flex items-center justify-between px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <Repeat2 size={13} className={cn("shrink-0", isActive ? "text-violet-500" : "text-muted-foreground")} />
+      <div className="flex items-center justify-between px-3.5 py-3">
+        <div className="flex items-center gap-2.5">
+          <Repeat2 size={14} className={cn("shrink-0", isActive ? "text-foreground" : "text-muted-foreground")} />
           <span className="text-xs font-semibold text-foreground">
             {isActive ? `Recurring · ${FREQ_LABELS[frequency]}` : "Recurring invoicing"}
           </span>
@@ -590,13 +464,13 @@ function RecurringPanel({ session, onRefresh }: { session: DocSession; onRefresh
           disabled={saving}
           className={cn(
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer",
-            isActive ? "bg-violet-500" : "bg-muted",
+            isActive ? "bg-foreground" : "bg-muted-foreground/30",
             saving && "opacity-50 pointer-events-none"
           )}
           aria-label={isActive ? "Pause recurring" : "Enable recurring"}
         >
           <span className={cn(
-            "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
+            "inline-block h-3.5 w-3.5 rounded-full bg-background shadow transition-transform duration-200",
             isActive ? "translate-x-[18px]" : "translate-x-0.5"
           )} />
         </button>
@@ -608,7 +482,7 @@ function RecurringPanel({ session, onRefresh }: { session: DocSession; onRefresh
         "grid-rows-[1fr]"
       )}>
         <div className="min-h-0 overflow-hidden">
-          <div className="px-3 pb-3 space-y-2">
+          <div className="px-3.5 pb-3.5 space-y-2">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Frequency</p>
             <div className="grid grid-cols-3 gap-1.5">
               {(["weekly", "monthly", "quarterly"] as const).map(f => (
@@ -618,10 +492,10 @@ function RecurringPanel({ session, onRefresh }: { session: DocSession; onRefresh
                   onClick={() => handleFrequencyChange(f)}
                   disabled={saving}
                   className={cn(
-                    "py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 capitalize",
+                    "py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 capitalize border",
                     frequency === f
-                      ? "bg-violet-500 text-white shadow-sm"
-                      : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
                   )}
                 >
                   {FREQ_LABELS[f]}
@@ -787,31 +661,22 @@ function ChainGroupCard({
   const latestRef = latestCtx.invoiceNumber || latestCtx.referenceNumber || ""
 
   return (
-    <div className="rounded-xl border border-border/50 bg-card overflow-hidden shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-all duration-300 hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)]">
-      {/* Group header */}
+    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
+      {/* Group header — clean monochromatic */}
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/30 transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/20 transition-colors active:bg-muted/30"
       >
-        <div className="w-9 h-9 rounded-xl bg-primary/8 dark:bg-primary/15 flex items-center justify-center shrink-0">
-          <Link2 size={16} className="text-primary" />
+        <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center shrink-0">
+          <Link2 size={15} className="text-muted-foreground" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm truncate">{clientName || latestRef || "Linked Documents"}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="font-semibold text-sm text-foreground truncate">{clientName || latestRef || "Linked Documents"}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
             {sessions.length} documents · {docTypes.join(", ")}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Doc type pills */}
-          {docTypes.map(t => (
-            <span key={t} className={cn(
-              "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider",
-              TYPE_COLORS[t.toLowerCase()] || "bg-muted text-muted-foreground"
-            )}>
-              {t}
-            </span>
-          ))}
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
           {expanded ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
         </div>
       </button>
@@ -825,15 +690,15 @@ function ChainGroupCard({
           {/* Thread container: left border line + cards */}
           <div className="relative pl-3 pr-3 pb-3 pt-1">
             {/* Vertical thread line */}
-            <div className="absolute left-[22px] top-0 bottom-3 w-px bg-border/60" />
+            <div className="absolute left-[22px] top-0 bottom-3 w-px bg-border/50" />
 
             <div className="space-y-2">
               {sessions.map((s, idx) => (
                 <div key={s.id} className="relative pl-5">
                   {/* Horizontal connector from thread line to card */}
-                  <div className="absolute left-0 top-[22px] w-5 h-px bg-border/60" />
+                  <div className="absolute left-0 top-[22px] w-5 h-px bg-border/50" />
                   {/* Small dot on the thread line */}
-                  <div className="absolute left-[-3px] top-[18px] w-[7px] h-[7px] rounded-full bg-border border-2 border-card" />
+                  <div className="absolute left-[-3px] top-[18px] w-[7px] h-[7px] rounded-full bg-muted-foreground/30 border-2 border-card" />
                   <DocCard
                     session={s}
                     onDownload={onDownload}
@@ -896,33 +761,51 @@ function DocCard({
   const showMarkAsPaid = docType === "invoice" && !isGatewayPaid && localStatus !== "paid"
   const showManualPaidBadge = docType === "invoice" && (isManuallyPaid || localStatus === "paid") && !isGatewayPaid
 
+  // Monochromatic type label
+  const typeLabel = docType.charAt(0).toUpperCase() + docType.slice(1)
+
   return (
-    <div
-      className={cn(
-        "rounded-xl border bg-card overflow-hidden transition-all duration-300",
-        "shadow-[0_8px_24px_rgb(0,0,0,0.06)] hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)] hover:border-border/80 hover:-translate-y-1",
-        payment?.status === "paid" ? "border-emerald-200/50 dark:border-emerald-800/40" : "border-border/50",
-      )}
-    >
+    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
       {/* Main row */}
-      <div className="px-3.5 pt-4 pb-3 sm:px-4">
-        {/* Header row: type pill + title | action icons */}
-        <div className="flex items-center gap-3">
-          <div className={cn("px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0", TYPE_COLORS[docType] || "bg-muted text-muted-foreground")}>
-            {docType}
+      <div className="px-4 py-3.5">
+        {/* Header row: type pill + title + actions */}
+        <div className="flex items-start gap-3">
+          {/* Type badge — monochromatic */}
+          <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-muted/70 text-muted-foreground shrink-0 mt-0.5">
+            {typeLabel}
+          </span>
+          
+          {/* Title and metadata */}
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-foreground leading-tight truncate">{title}</p>
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-1 flex-wrap">
+              {session.client_name && session.client_name !== title && (
+                <span className="truncate max-w-[120px]">{session.client_name}</span>
+              )}
+              {session.client_name && session.client_name !== title && (
+                <span className="text-muted-foreground/40">·</span>
+              )}
+              <span>{format(new Date(session.created_at), "MMM d, yyyy")}</span>
+              {total && (
+                <>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span className="font-medium text-foreground">{total}</span>
+                </>
+              )}
+            </div>
           </div>
-          <p className="font-semibold text-sm leading-tight truncate flex-1 min-w-0">{title}</p>
-          {/* Action icons — only Eye, Download, Recurring (for invoices without active recurring) */}
+          
+          {/* Action icons */}
           <div className="flex items-center gap-0.5 shrink-0">
             <a
               href={`/view/${session.id}`}
-              className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground"
+              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
               aria-label="View document"
             >
               <Eye size={15} />
             </a>
             <button
-              className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-secondary/60 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-40"
+              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-40"
               disabled={downloading}
               onClick={() => onDownload(session)}
               aria-label="Download PDF"
@@ -933,10 +816,10 @@ function DocCard({
             {hasRecurring && !session.recurring?.is_active && (
               <button
                 className={cn(
-                  "flex items-center justify-center w-8 h-8 rounded-xl transition-colors",
+                  "flex items-center justify-center w-8 h-8 rounded-lg transition-colors",
                   recurringExpanded
-                    ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400"
-                    : "hover:bg-secondary/60 text-muted-foreground hover:text-foreground"
+                    ? "bg-muted text-foreground"
+                    : "hover:bg-muted/60 text-muted-foreground hover:text-foreground"
                 )}
                 onClick={() => setRecurringExpanded(v => !v)}
                 aria-label="Recurring settings"
@@ -948,33 +831,19 @@ function DocCard({
           </div>
         </div>
 
-        {/* Metadata row: client · date · total */}
-        <div className="flex items-center gap-0 text-xs text-muted-foreground mt-1 pl-[calc(2.5rem+0.75rem)] truncate">
-          {[
-            session.client_name && session.client_name !== title ? session.client_name : null,
-            format(new Date(session.created_at), "MMM d, yyyy"),
-            total,
-          ].filter(Boolean).map((item, i, arr) => (
-            <span key={i} className="truncate">
-              {item}{i < arr.length - 1 && <span className="mx-1.5 text-muted-foreground/40">·</span>}
-            </span>
-          ))}
-        </div>
-
-        {/* Status pills */}
-        <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+        {/* Status pills — monochromatic style */}
+        <div className="flex items-center gap-1.5 mt-3 flex-wrap">
           {/* Email pill */}
           {(hasEmails || session.sent_at) && (
             <button onClick={() => setEmailExpanded(v => !v)}
               className={cn(
                 "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
                 emailExpanded
-                  ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800"
-                  : "bg-card text-muted-foreground border-border/60 hover:border-border hover:text-foreground"
+                  ? "bg-muted text-foreground border-border"
+                  : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
               )}>
               <Mail size={11} />
               {emailStats ? `${emailStats.totalSent} sent` : "Sent"}
-              {emailStats?.opened ? ` · ${emailStats.opened} opened` : ""}
             </button>
           )}
 
@@ -984,12 +853,10 @@ function DocCard({
               className={cn(
                 "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
                 expanded
-                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800"
-                  : payment
-                    ? payment.status === "paid"
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
-                      : "bg-card text-muted-foreground border-border/60 hover:border-border hover:text-foreground"
-                    : "bg-card text-muted-foreground border-border/60 hover:border-border hover:text-foreground"
+                  ? "bg-muted text-foreground border-border"
+                  : payment?.status === "paid"
+                    ? "bg-foreground/5 text-foreground border-foreground/20"
+                    : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
               )}>
               <CreditCard size={11} />
               {payment
@@ -1007,10 +874,10 @@ function DocCard({
               className={cn(
                 "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
                 signatureExpanded
-                  ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800"
+                  ? "bg-muted text-foreground border-border"
                   : session.status === "signed"
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
-                    : "bg-card text-muted-foreground border-border/60 hover:border-border hover:text-foreground"
+                    ? "bg-foreground/5 text-foreground border-foreground/20"
+                    : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
               )}>
               <PenLine size={11} />
               {session.status === "signed" ? "Signed" : "Pending"}
@@ -1022,10 +889,10 @@ function DocCard({
             <span className={cn(
               "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
               session.quotationResponse.response_type === "accepted"
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
+                ? "bg-foreground/5 text-foreground border-foreground/20"
                 : session.quotationResponse.response_type === "declined"
-                  ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800"
-                  : "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800"
+                  ? "bg-muted text-muted-foreground border-border/50"
+                  : "bg-muted text-muted-foreground border-border/50"
             )}>
               {session.quotationResponse.response_type === "accepted" ? "✓ Accepted"
                 : session.quotationResponse.response_type === "declined" ? "✗ Declined"
@@ -1039,8 +906,8 @@ function DocCard({
               className={cn(
                 "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
                 recurringExpanded
-                  ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800"
-                  : "bg-card text-muted-foreground border-border/60 hover:border-border hover:text-foreground"
+                  ? "bg-muted text-foreground border-border"
+                  : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
               )}>
               <Repeat2 size={11} />
               {session.recurring.frequency}
@@ -1131,7 +998,7 @@ function DocCard({
           recurringExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
         )}>
           <div className="min-h-0 overflow-hidden">
-            <div className="px-3.5 pb-3.5">
+            <div className="px-4 pb-4 pt-1">
               <RecurringPanel session={session} onRefresh={onRefresh} />
             </div>
           </div>
@@ -1145,7 +1012,7 @@ function DocCard({
           signatureExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
         )}>
           <div className="min-h-0 overflow-hidden">
-            <div className="px-3.5 pb-3.5">
+            <div className="px-4 pb-4 pt-1">
               <SignatureDetailsPanel sessionId={session.id} expanded={signatureExpanded} />
             </div>
           </div>
@@ -1159,7 +1026,7 @@ function DocCard({
           expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
         )}>
           <div className="min-h-0 overflow-hidden">
-            <div className="px-3.5 pb-3.5">
+            <div className="px-4 pb-4 pt-1">
               <PaymentPanel payment={payment!} currency={ctx.currency || "INR"} sessionId={session.id} onCancelled={onRefresh} />
             </div>
           </div>
@@ -1173,7 +1040,7 @@ function DocCard({
           emailExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
         )}>
           <div className="min-h-0 overflow-hidden">
-            <div className="px-3.5 pb-3.5">
+            <div className="px-4 pb-4 pt-1">
               <EmailHistoryPanel stats={emailStats!} sessionId={session.id} />
             </div>
           </div>
@@ -1664,46 +1531,37 @@ export default function MyDocumentsPage() {
 
         {/* Summary stats */}
         {(totalPaid > 0 || totalPending > 0) && (
-          <motion.div variants={itemVariants} className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col justify-center shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-shadow hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)]">
-              <div className="flex items-center gap-1.5 mb-1">
-                <div className="w-2 h-2 rounded-full bg-foreground/40" />
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total</p>
-              </div>
-              <p className="text-2xl font-semibold text-foreground tracking-tight">{sessions.length}</p>
+          <motion.div variants={itemVariants} className="grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-border/40 bg-card p-3.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Total</p>
+              <p className="text-xl font-semibold text-foreground">{sessions.length}</p>
             </div>
-            <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col justify-center shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-shadow hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)]">
-              <div className="flex items-center gap-1.5 mb-1">
-                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Paid</p>
-              </div>
-              <p className="text-2xl font-semibold text-foreground tracking-tight">{totalPaid}</p>
+            <div className="rounded-xl border border-border/40 bg-card p-3.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Paid</p>
+              <p className="text-xl font-semibold text-foreground">{totalPaid}</p>
             </div>
-            <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col justify-center shadow-[0_8px_24px_rgb(0,0,0,0.06)] transition-shadow hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)]">
-              <div className="flex items-center gap-1.5 mb-1">
-                <div className="w-2 h-2 rounded-full bg-amber-500" />
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pending</p>
-              </div>
-              <p className="text-2xl font-semibold text-foreground tracking-tight">{totalPending}</p>
+            <div className="rounded-xl border border-border/40 bg-card p-3.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Pending</p>
+              <p className="text-xl font-semibold text-foreground">{totalPending}</p>
             </div>
           </motion.div>
         )}
 
-        {/* Filter pills */}
+        {/* Filter pills — monochromatic */}
         {sessions.length > 0 && (
-          <motion.div variants={itemVariants} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+          <motion.div variants={itemVariants} className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
             {filterOptions.map(f => (
               <button
                 key={f.key}
                 onClick={() => setFilter(f.key)}
                 className={cn(
-                  "px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 whitespace-nowrap shrink-0 shadow-sm",
+                  "px-3.5 py-2 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap shrink-0 border",
                   filter === f.key
-                    ? "bg-zinc-900 text-zinc-50 shadow-md scale-105"
-                    : "bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
                 )}
               >
-                {f.label} <span className={cn("ml-1", filter === f.key ? "opacity-70" : "opacity-60")}>({f.count})</span>
+                {f.label}
               </button>
             ))}
           </motion.div>
