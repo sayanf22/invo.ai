@@ -340,6 +340,19 @@ export async function POST(request: NextRequest) {
             },
         })
 
+        // Finalize the session so the short link works (only finalized/paid/signed sessions are public)
+        // Also set sent_at and client_name for the Documents page
+        const clientName = (ctx.toName as string) || signerName || null
+        await serviceSupabase
+            .from("document_sessions")
+            .update({
+                status: "finalized",
+                sent_at: createdAt.toISOString(),
+                client_name: clientName,
+                updated_at: createdAt.toISOString(),
+            } as any)
+            .eq("id", sessionId)
+
         return NextResponse.json({
             success: true,
             signature: { ...signature, verification_url: verificationUrl },
