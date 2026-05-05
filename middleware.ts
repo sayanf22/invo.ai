@@ -107,6 +107,44 @@ function isPublicPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // ── Short link redirect: /d/[shortId] → /pay/[full-session-id] ──────
+  // Handle this in middleware to avoid service role key issues in edge runtime.
+  // Uses the anon key + REST API to look up the session ID.
+  if (pathname.startsWith("/d/") && pathname.length > 3) {
+    const shortId = pathname.slice(3) // strip "/d/"
+    // Validate: must be 6-8 hex chars
+    if (/^[0-9a-f]{6,8}$/i.test(shortId)) {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        if (supabaseUrl && supabaseKey) {
+          const res = await fetch(
+            `${supabaseUrl}/rest/v1/document_sessions?id=like.${shortId.toLowerCase()}*&select=id&limit=1`,
+            {
+              headers: {
+                apikey: supabaseKey,
+                Authorization: `Bearer ${supabaseKey}`,
+              },
+              signal: AbortSignal.timeout(3000),
+            }
+          )
+          if (res.ok) {
+            const rows = await res.json()
+            if (Array.isArray(rows) && rows.length > 0 && rows[0].id) {
+              const fullId = rows[0].id
+              const payUrl = new URL(`/pay/${fullId}`, request.url)
+              return NextResponse.redirect(payUrl, { status: 302 })
+            }
+          }
+        }
+      } catch {
+        // Fall through to page component if middleware lookup fails
+      }
+    }
+    // Invalid shortId or not found — redirect to home
+    return NextResponse.redirect(new URL("/", request.url))
+  }
+
   // ── Admin route protection ────────────────────────────────────────────
   // Must run before all other middleware logic.
   // All /clorefy-ctrl-8x2m/* paths (except /login) require a valid admin session.

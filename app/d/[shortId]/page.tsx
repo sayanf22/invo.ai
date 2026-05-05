@@ -4,9 +4,12 @@ import { createClient } from "@supabase/supabase-js"
 /**
  * Short link redirect: /d/<shortId> → /pay/<full-session-id>
  *
- * shortId is the first 8 characters of the session UUID.
- * This is a public page — no auth required. Uses service role to look up
- * the session ID without requiring the recipient to be logged in.
+ * The middleware handles this redirect first (faster, no service role needed).
+ * This page is a fallback in case the middleware lookup fails.
+ *
+ * Uses anon key (always available) with a direct query.
+ * The document_sessions table has RLS — anon can read finalized sessions
+ * via the public policy on the pay page.
  */
 export default async function ShortLinkRedirect({
   params,
@@ -20,10 +23,14 @@ export default async function ShortLinkRedirect({
     redirect("/")
   }
 
-  // Use service role — this is a public redirect, no auth needed
+  // Try service role first (if available), fall back to anon key
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+
   const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    supabaseUrl,
+    serviceKey || anonKey,
     { auth: { persistSession: false } }
   )
 
