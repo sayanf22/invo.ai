@@ -107,12 +107,26 @@ export async function POST(
             // Send notification to the user
             const amountDisplay = ((paymentLink.amount_paid ?? paymentLink.amount) / 100).toFixed(2)
             const currency = paymentLink.currency ?? "INR"
+
+            // Look up session_id for the notification link
+            let notifSessionId: string | null = null
+            try {
+                const { data: invPayment } = await supabaseAdmin
+                    .from("invoice_payments")
+                    .select("session_id")
+                    .eq("razorpay_payment_link_id", paymentLink.id)
+                    .eq("user_id", userId)
+                    .maybeSingle()
+                notifSessionId = invPayment?.session_id ?? null
+            } catch {}
+
             await supabaseAdmin.from("notifications").insert({
                 user_id: userId,
                 type: "payment_received",
                 title: "Invoice Paid! 🎉",
                 message: `Payment of ${currency} ${amountDisplay} received for ${paymentLink.reference_id ?? "your invoice"}.`,
                 metadata: {
+                    session_id: notifSessionId,
                     payment_link_id: paymentLink.id,
                     razorpay_payment_id: payment?.id,
                     amount: paymentLink.amount_paid ?? paymentLink.amount,
@@ -123,19 +137,27 @@ export async function POST(
 
             // Also update document_sessions.status to "paid"
             try {
-                const { data: invoicePayment } = await supabaseAdmin
-                    .from("invoice_payments")
-                    .select("session_id")
-                    .eq("razorpay_payment_link_id", paymentLink.id)
-                    .eq("user_id", userId)
-                    .maybeSingle()
-
-                if (invoicePayment?.session_id) {
+                if (notifSessionId) {
                     await supabaseAdmin
                         .from("document_sessions")
                         .update({ status: "paid" })
-                        .eq("id", invoicePayment.session_id)
+                        .eq("id", notifSessionId)
                         .eq("user_id", userId)
+                } else {
+                    const { data: invoicePayment } = await supabaseAdmin
+                        .from("invoice_payments")
+                        .select("session_id")
+                        .eq("razorpay_payment_link_id", paymentLink.id)
+                        .eq("user_id", userId)
+                        .maybeSingle()
+
+                    if (invoicePayment?.session_id) {
+                        await supabaseAdmin
+                            .from("document_sessions")
+                            .update({ status: "paid" })
+                            .eq("id", invoicePayment.session_id)
+                            .eq("user_id", userId)
+                    }
                 }
             } catch (err) {
                 console.error(`[webhook/${userId}] Failed to update document_sessions:`, err)
@@ -162,12 +184,26 @@ export async function POST(
             const paidDisplay = ((paymentLink.amount_paid ?? 0) / 100).toFixed(2)
             const totalDisplay = (paymentLink.amount / 100).toFixed(2)
             const currency = paymentLink.currency ?? "INR"
+
+            // Look up session_id for the notification link
+            let partialSessionId: string | null = null
+            try {
+                const { data: invPayment } = await supabaseAdmin
+                    .from("invoice_payments")
+                    .select("session_id")
+                    .eq("razorpay_payment_link_id", paymentLink.id)
+                    .eq("user_id", userId)
+                    .maybeSingle()
+                partialSessionId = invPayment?.session_id ?? null
+            } catch {}
+
             await supabaseAdmin.from("notifications").insert({
                 user_id: userId,
                 type: "general",
                 title: "Partial Payment Received",
                 message: `${currency} ${paidDisplay} of ${totalDisplay} received for ${paymentLink.reference_id ?? "your invoice"}.`,
                 metadata: {
+                    session_id: partialSessionId,
                     payment_link_id: paymentLink.id,
                     amount_paid: paymentLink.amount_paid,
                     amount_total: paymentLink.amount,

@@ -74,17 +74,6 @@ export default function NotificationsPage() {
         .limit(50)
       if (error) throw error
       setNotifications((data || []) as unknown as Notification[])
-
-      // Auto-mark all as read when the page is opened
-      const unread = (data || []).filter((n: any) => !n.read)
-      if (unread.length > 0) {
-        await supabase
-          .from("notifications" as any)
-          .update({ read: true })
-          .eq("user_id", user.id)
-          .eq("read", false)
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-      }
     } catch (err) {
       console.error("Failed to load notifications:", err)
     } finally {
@@ -182,13 +171,22 @@ export default function NotificationsPage() {
                 key={n.id}
                 onClick={() => {
                   if (!n.read) markAsRead(n.id)
-                  if (n.metadata?.session_id) router.push(`/view/${n.metadata.session_id}`)
+                  const sid = n.metadata?.session_id
+                  if (sid) {
+                    // Signature/payment/document notifications → view the document
+                    router.push(`/view/${sid}`)
+                  } else if (n.type.startsWith("subscription")) {
+                    router.push("/billing")
+                  }
                 }}
                 className={cn(
-                  "flex items-start gap-4 p-4 rounded-2xl border transition-all cursor-pointer",
+                  "flex items-start gap-4 p-4 rounded-2xl border transition-all",
+                  n.metadata?.session_id || n.type.startsWith("subscription")
+                    ? "cursor-pointer hover:shadow-md hover:-translate-y-px"
+                    : "cursor-default",
                   n.read
                     ? "bg-card border-border/50 opacity-60"
-                    : "bg-card border-border shadow-sm hover:shadow-md hover:-translate-y-px"
+                    : "bg-card border-border shadow-sm"
                 )}
               >
                 <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", cfg.bg)}>

@@ -139,12 +139,26 @@ export async function POST(request: NextRequest) {
                 ? "declined"
                 : "requested changes on"
 
+        const ctx = session.context as any
+        const referenceNumber = (ctx?.referenceNumber as string) || (ctx?.invoiceNumber as string) || ""
+        const docTypeLabel = session.document_type.charAt(0).toUpperCase() + session.document_type.slice(1)
+
         await (supabase as any).from("notifications").insert({
             user_id: session.user_id,
             type: `${session.document_type}_${response}`,
-            title: `${resolvedClientName} ${actionLabel} your ${session.document_type}`,
-            message: note?.trim() ? `Note: "${note.trim()}"` : null,
-            metadata: { sessionId, response, note: note?.trim() || null },
+            title: `${resolvedClientName} ${actionLabel} your ${docTypeLabel}`,
+            message: note?.trim()
+                ? `"${note.trim()}"`
+                : `${resolvedClientName} ${actionLabel} your ${docTypeLabel}${referenceNumber ? ` ${referenceNumber}` : ""}.`,
+            read: false,
+            metadata: {
+                session_id: sessionId,
+                response,
+                client_name: resolvedClientName,
+                client_email: resolvedClientEmail,
+                reference_number: referenceNumber,
+                reason: note?.trim() || null,
+            },
         })
     } catch {
         // Non-fatal — notification failure shouldn't block the response

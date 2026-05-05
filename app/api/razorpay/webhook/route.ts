@@ -169,6 +169,7 @@ export async function POST(request: Request) {
                             title: "Invoice Paid! 🎉",
                             message: `Payment of ${currency} ${amountDisplay} received for ${paymentLink.reference_id ?? "your invoice"}.`,
                             metadata: {
+                                session_id: sessionId ?? null,
                                 payment_link_id: paymentLink.id,
                                 razorpay_payment_id: payment?.id,
                                 amount: paymentLink.amount_paid ?? paymentLink.amount,
@@ -244,6 +245,7 @@ export async function POST(request: Request) {
                             title: "Partial Payment Received",
                             message: `${currency} ${paidDisplay} of ${totalDisplay} received for ${paymentLink.reference_id ?? "your invoice"}.`,
                             metadata: {
+                                session_id: notes.session_id ?? null,
                                 payment_link_id: paymentLink.id,
                                 amount_paid: paymentLink.amount_paid,
                                 amount_total: paymentLink.amount,
