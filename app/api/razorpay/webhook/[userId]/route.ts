@@ -109,7 +109,7 @@ export async function POST(
             const currency = paymentLink.currency ?? "INR"
             await supabaseAdmin.from("notifications").insert({
                 user_id: userId,
-                type: "general",
+                type: "payment_received",
                 title: "Invoice Paid! 🎉",
                 message: `Payment of ${currency} ${amountDisplay} received for ${paymentLink.reference_id ?? "your invoice"}.`,
                 metadata: {

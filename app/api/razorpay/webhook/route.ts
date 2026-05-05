@@ -165,7 +165,7 @@ export async function POST(request: Request) {
                         .from("notifications")
                         .insert({
                             user_id: userId,
-                            type: "general",
+                            type: "payment_received",
                             title: "Invoice Paid! 🎉",
                             message: `Payment of ${currency} ${amountDisplay} received for ${paymentLink.reference_id ?? "your invoice"}.`,
                             metadata: {

@@ -1017,6 +1017,22 @@ function DocCard({
             </button>
           )}
 
+          {/* Quotation/Proposal response pill */}
+          {session.quotationResponse && (docType === "quotation" || docType === "proposal") && (
+            <span className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
+              session.quotationResponse.response_type === "accepted"
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
+                : session.quotationResponse.response_type === "declined"
+                  ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800"
+                  : "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800"
+            )}>
+              {session.quotationResponse.response_type === "accepted" ? "✓ Accepted"
+                : session.quotationResponse.response_type === "declined" ? "✗ Declined"
+                : "Changes Requested"}
+            </span>
+          )}
+
           {/* Recurring pill */}
           {session.recurring?.is_active && (
             <button onClick={() => setRecurringExpanded(v => !v)}

@@ -146,7 +146,7 @@ export async function POST(
               try {
                 await supabaseAdmin.from("notifications").insert({
                   user_id: userId,
-                  type: "general",
+                  type: "payment_received",
                   title: "Invoice Paid! 🎉",
                   message: `Payment of ${currency} ${amountPaid.toFixed(2)} received.`,
                   metadata: { cf_link_id: cfLinkId, amount: amountPaid, currency, session_id: sessionId },

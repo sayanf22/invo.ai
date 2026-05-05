@@ -162,7 +162,7 @@ export async function POST(
               try {
                 await supabaseAdmin.from("notifications").insert({
                   user_id: userId,
-                  type: "general",
+                  type: "payment_received",
                   title: "Invoice Paid! 🎉",
                   message: `Payment of ${currency} ${(amountTotal / 100).toFixed(2)} received.`,
                   metadata: { stripe_event_id: eventId, amount: amountTotal, currency, session_id: sessionId, reference_id: referenceId },
