@@ -109,7 +109,9 @@ export async function middleware(request: NextRequest) {
 
   // ── Short link redirect: /d/[shortId] → /pay/[full-session-id] ──────
   // Handle this in middleware to avoid service role key issues in edge runtime.
-  // Uses the anon key + REST API to look up the session ID.
+  // Uses the anon key + RPC function to look up the session ID.
+  // The RPC function (lookup_session_by_short_id) handles UUID-to-text casting
+  // and respects RLS by only returning finalized/paid/signed sessions.
   if (pathname.startsWith("/d/") && pathname.length > 3) {
     const shortId = pathname.slice(3) // strip "/d/"
     // Validate: must be 6-8 hex chars
@@ -119,17 +121,21 @@ export async function middleware(request: NextRequest) {
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
         if (supabaseUrl && supabaseKey) {
           const res = await fetch(
-            `${supabaseUrl}/rest/v1/document_sessions?id=like.${shortId.toLowerCase()}*&select=id&limit=1`,
+            `${supabaseUrl}/rest/v1/rpc/lookup_session_by_short_id`,
             {
+              method: "POST",
               headers: {
+                "Content-Type": "application/json",
                 apikey: supabaseKey,
                 Authorization: `Bearer ${supabaseKey}`,
               },
+              body: JSON.stringify({ short_id: shortId.toLowerCase() }),
               signal: AbortSignal.timeout(3000),
             }
           )
           if (res.ok) {
             const rows = await res.json()
+            // RPC returns array of {id: uuid} objects
             if (Array.isArray(rows) && rows.length > 0 && rows[0].id) {
               const fullId = rows[0].id
               const payUrl = new URL(`/pay/${fullId}`, request.url)
