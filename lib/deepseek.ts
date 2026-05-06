@@ -67,6 +67,14 @@ export interface AIGenerationRequest {
         businessType?: string
         additionalNotes?: string
     }
+    /** Pre-selected client from the client book — AI must preserve these fields */
+    clientContext?: {
+        name: string
+        email?: string
+        address?: string
+        phone?: string
+        taxId?: string
+    }
     currentData?: Partial<InvoiceData>
     conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>
     parentContext?: {
@@ -693,6 +701,19 @@ BUSINESS PROFILE (use for all "from" fields):
     // Compliance context (RAG-retrieved rules)
     if (request.complianceContext) {
         prompt += `\n\n${request.complianceContext}`
+    }
+
+    // Pre-selected client context — injected when user picks a client from their client book
+    // This MUST be preserved in the generated document — do NOT overwrite these fields
+    if (request.clientContext) {
+        const c = request.clientContext
+        prompt += `\n\nPRE-SELECTED CLIENT (from client book — MUST use these exact values):\n`
+        prompt += `- Client Name: ${c.name}\n`
+        if (c.email) prompt += `- Client Email: ${c.email}\n`
+        if (c.address) prompt += `- Client Address: ${c.address}\n`
+        if (c.phone) prompt += `- Client Phone: ${c.phone}\n`
+        if (c.taxId) prompt += `- Client Tax ID: ${c.taxId}\n`
+        prompt += `\nCRITICAL INSTRUCTION: The user has pre-selected this client from their saved client list. You MUST set toName="${c.name}"${c.email ? `, toEmail="${c.email}"` : ""}${c.address ? `, toAddress="${c.address}"` : ""}${c.phone ? `, toPhone="${c.phone}"` : ""}${c.taxId ? `, toTaxId="${c.taxId}"` : ""} in the generated document. Do NOT ask for client details — they are already provided above. Do NOT invent or change any of these values.\n`
     }
 
     // File context (previously uploaded file contents)

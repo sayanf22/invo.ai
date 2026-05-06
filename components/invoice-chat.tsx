@@ -314,6 +314,17 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const currentActivitiesRef = useRef<ActivityItem[]>([])
     // AbortController for cancelling streaming requests on unmount
     const abortControllerRef = useRef<AbortController | null>(null)
+    // Track the currently selected client so the AI always has the reference
+    // even on the first message (before currentData is sent)
+    const selectedClientRef = useRef<{
+        name: string
+        email?: string
+        address?: string
+        phone?: string
+        taxId?: string
+    } | null>(null)
+    // Display name for the selected client (shown as a badge near the input)
+    const [selectedClientName, setSelectedClientName] = useState<string | null>(null)
     // Track if component is mounted to prevent state updates after unmount
     const isMountedRef = useRef(true)
 
@@ -823,10 +834,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     documentType: docType,
                     sessionId: session.id,
                     thinkingMode,
-                    // Send currentData if this is a follow-up OR if this is a linked session with seed data
-                    currentData: (messages.length > 1 || session.chain_id) ? data : undefined,
+                    // Send currentData if this is a follow-up, a linked session, OR a client was pre-selected
+                    currentData: (messages.length > 1 || session.chain_id || selectedClientRef.current) ? data : undefined,
                     conversationHistory: messages.length > 1 ? messages.slice(-20) : [],
                     ...(fileContext ? { fileContext } : {}),
+                    // Pass pre-selected client context so AI preserves those fields
+                    ...(selectedClientRef.current ? { clientContext: selectedClientRef.current } : {}),
                     // Pass parent context for linked sessions so AI knows the client details
                     // from the original document (email, address, etc.)
                     // Always pass for linked sessions — even if current doc already has the data,
@@ -1283,6 +1296,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     await updateSessionContext(docData)
                     await saveGeneration(userMessage, docData, null, true)
                     setDocumentGenerated(true)
+                    // Clear selected client ref after first generation — the client data
+                    // is now embedded in the document context (currentData) for future edits
+                    selectedClientRef.current = null
+                    setSelectedClientName(null)
 
                     // Update client name on session for chain grouping
                     const clientName = docData.toName || docData.clientName || docData.preparedFor
@@ -1922,7 +1939,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 }}
                                 clientSelectorSlot={
                                     <ClientSelector
-                                        onChange={(fields) =>
+                                        onChange={(fields) => {
+                                            selectedClientRef.current = {
+                                                name: fields.toName,
+                                                email: fields.toEmail || undefined,
+                                                address: fields.toAddress || undefined,
+                                                phone: fields.toPhone || undefined,
+                                                taxId: fields.toTaxId || undefined,
+                                            }
+                                            setSelectedClientName(fields.toName)
                                             onChange({
                                                 toName: fields.toName,
                                                 toEmail: fields.toEmail,
@@ -1930,7 +1955,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                                 toPhone: fields.toPhone,
                                                 toTaxId: fields.toTaxId,
                                             })
-                                        }
+                                        }}
                                     />
                                 }
                             />
@@ -1980,7 +2005,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             <>
                                 <div className="flex items-center gap-2 mb-2">
                                     <ClientSelector
-                                        onChange={(fields) =>
+                                        onChange={(fields) => {
+                                            selectedClientRef.current = {
+                                                name: fields.toName,
+                                                email: fields.toEmail || undefined,
+                                                address: fields.toAddress || undefined,
+                                                phone: fields.toPhone || undefined,
+                                                taxId: fields.toTaxId || undefined,
+                                            }
+                                            setSelectedClientName(fields.toName)
                                             onChange({
                                                 toName: fields.toName,
                                                 toEmail: fields.toEmail,
@@ -1988,8 +2021,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                                 toPhone: fields.toPhone,
                                                 toTaxId: fields.toTaxId,
                                             })
-                                        }
+                                        }}
                                     />
+                                    {/* Show selected client badge */}
+                                    {selectedClientName && (
+                                        <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-[13px] font-medium bg-primary/10 text-primary border border-primary/20 shrink-0 max-w-[160px] truncate">
+                                            <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
+                                            <span className="truncate">{selectedClientName}</span>
+                                        </span>
+                                    )}
                                 </div>
                                 <AIInputWithLoading
                                     value={inputValue}
