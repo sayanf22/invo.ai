@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { authFetch } from "@/lib/auth-fetch"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { MarkAsPaidButton } from "@/components/mark-as-paid-button"
+import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -837,56 +838,44 @@ function DocCard({
             )}
             {/* Delete — not shown for paid/signed (legal records) */}
             {onDelete && localStatus !== "paid" && localStatus !== "signed" && (
-              confirmDelete ? (
-                <div className="flex items-center gap-1 ml-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDelete(false)}
-                    className="text-[11px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-1 rounded-lg hover:bg-muted transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={deleting}
-                    onClick={async () => {
-                      setDeleting(true)
-                      try {
-                        const res = await authFetch(`/api/sessions/delete?sessionId=${session.id}`, { method: "DELETE" })
-                        if (res.ok) {
-                          onDelete(session.id)
-                        } else {
-                          const d = await res.json().catch(() => ({}))
-                          toast.error(d.error || "Failed to delete")
-                          setConfirmDelete(false)
-                        }
-                      } catch {
-                        toast.error("Failed to delete")
-                        setConfirmDelete(false)
-                      } finally {
-                        setDeleting(false)
-                      }
-                    }}
-                    className="text-[11px] font-semibold text-foreground bg-foreground/8 hover:bg-foreground/15 px-2 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
-                  >
-                    {deleting ? <Loader2 size={11} className="animate-spin" /> : null}
-                    Delete
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(true)}
-                  className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground/40 hover:text-muted-foreground"
-                  aria-label="Delete document"
-                  title="Delete document"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground/40 hover:text-muted-foreground"
+                aria-label="Delete document"
+                title="Delete document"
+              >
+                <Trash2 size={14} />
+              </button>
             )}
           </div>
         </div>
+
+        {/* Delete confirmation dialog */}
+        <DeleteConfirmDialog
+          open={confirmDelete}
+          loading={deleting}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={async () => {
+            setDeleting(true)
+            try {
+              const res = await authFetch(`/api/sessions/delete?sessionId=${session.id}`, { method: "DELETE" })
+              if (res.ok) {
+                setConfirmDelete(false)
+                onDelete!(session.id)
+              } else {
+                const d = await res.json().catch(() => ({}))
+                toast.error(d.error || "Failed to delete")
+                setConfirmDelete(false)
+              }
+            } catch {
+              toast.error("Failed to delete")
+              setConfirmDelete(false)
+            } finally {
+              setDeleting(false)
+            }
+          }}
+        />
 
         {/* Status pills — monochromatic style */}
         <div className="flex items-center gap-1.5 mt-3 flex-wrap">

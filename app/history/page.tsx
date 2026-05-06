@@ -5,16 +5,18 @@ import { useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
-import { History, FileText, Calendar, Link2, ChevronRight, ArrowRight, ScrollText, ClipboardList, Lightbulb, ChevronDown, ArrowLeft, Trash2, Loader2 } from "lucide-react"
+import { History, FileText, Link2, ChevronRight, ArrowRight, ScrollText, ClipboardList, Lightbulb, ChevronDown, ArrowLeft, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { cn } from "@/lib/utils"
 import { authFetch } from "@/lib/auth-fetch"
+import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
 
 interface Session {
   id: string
   document_type: string
+  status: string
   created_at: string | null
   updated_at: string | null
   chain_id: string | null
@@ -48,8 +50,10 @@ export default function HistoryPage() {
   const [groups, setGroups] = useState<SessionGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>("All")
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
+  // Delete state — lifted to page level so one dialog serves all cards
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!user) { router.push("/auth/login"); return }
@@ -92,37 +96,36 @@ export default function HistoryPage() {
       }
       grouped.sort((a, b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime())
       setGroups(grouped)
-    } catch (error: any) {
+    } catch {
       toast.error("Failed to load history")
     } finally { setLoading(false) }
   }
 
   const openSession = (session: Session) => router.push(`/?sessionId=${session.id}`)
 
-  const deleteSession = useCallback(async (sessionId: string) => {
-    setDeletingId(sessionId)
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!pendingDeleteId) return
+    setDeleting(true)
     try {
-      const res = await authFetch(`/api/sessions/delete?sessionId=${sessionId}`, { method: "DELETE" })
+      const res = await authFetch(`/api/sessions/delete?sessionId=${pendingDeleteId}`, { method: "DELETE" })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         toast.error(d.error || "Failed to delete")
         return
       }
-      // Remove from local state
-      setGroups(prev => {
-        const next = prev
-          .map(g => ({ ...g, sessions: g.sessions.filter(s => s.id !== sessionId) }))
+      setGroups(prev =>
+        prev
+          .map(g => ({ ...g, sessions: g.sessions.filter(s => s.id !== pendingDeleteId) }))
           .filter(g => g.sessions.length > 0)
-        return next
-      })
+      )
       toast.success("Document deleted")
+      setPendingDeleteId(null)
     } catch {
       toast.error("Failed to delete")
     } finally {
-      setDeletingId(null)
-      setConfirmDeleteId(null)
+      setDeleting(false)
     }
-  }, [])
+  }, [pendingDeleteId])
 
   const filteredGroups = filter === "All"
     ? groups
@@ -207,26 +210,38 @@ export default function HistoryPage() {
             {filteredGroups.map((group, gi) => (
               <div key={group.chainId || `s-${gi}`} className="animate-in fade-in slide-in-from-bottom-1 duration-300" style={{ animationDelay: `${gi * 30}ms` }}>
                 {group.sessions.length > 1 ? (
-                  <ChainGroup group={group} onOpen={openSession} onDelete={deleteSession} deletingId={deletingId} confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} />
+                  <ChainGroup group={group} onOpen={openSession} onRequestDelete={setPendingDeleteId} />
                 ) : (
-                  <SingleCard session={group.sessions[0]} clientName={group.clientName} onOpen={openSession} onDelete={deleteSession} deletingId={deletingId} confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} />
+                  <SingleCard
+                    session={group.sessions[0]}
+                    clientName={group.clientName}
+                    onOpen={openSession}
+                    onRequestDelete={setPendingDeleteId}
+                  />
                 )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Single delete dialog for the whole page */}
+      <DeleteConfirmDialog
+        open={!!pendingDeleteId}
+        loading={deleting}
+        onCancel={() => { if (!deleting) setPendingDeleteId(null) }}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   )
 }
 
-function ChainGroup({ group, onOpen, onDelete, deletingId, confirmDeleteId, setConfirmDeleteId }: {
+// ── Chain Group ───────────────────────────────────────────────────────────────
+
+function ChainGroup({ group, onOpen, onRequestDelete }: {
   group: SessionGroup
   onOpen: (s: Session) => void
-  onDelete: (id: string) => void
-  deletingId: string | null
-  confirmDeleteId: string | null
-  setConfirmDeleteId: (id: string | null) => void
+  onRequestDelete: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const docTypes = [...new Set(group.sessions.map(s => s.document_type))]
@@ -236,7 +251,6 @@ function ChainGroup({ group, onOpen, onDelete, deletingId, confirmDeleteId, setC
       className="rounded-2xl border border-border bg-card overflow-hidden"
       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 16px -4px rgba(0,0,0,0.08)" }}
     >
-      {/* Header row */}
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -264,7 +278,6 @@ function ChainGroup({ group, onOpen, onDelete, deletingId, confirmDeleteId, setC
         <ChevronDown className={cn("w-4 h-4 text-muted-foreground/50 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] shrink-0", expanded && "rotate-180")} />
       </button>
 
-      {/* Expandable items */}
       <div
         className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
         style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
@@ -274,12 +287,10 @@ function ChainGroup({ group, onOpen, onDelete, deletingId, confirmDeleteId, setC
             {group.sessions.map((session) => {
               const cfg = DOC_CONFIG[session.document_type] || fallback
               const Icon = cfg.icon
-              const isConfirming = confirmDeleteId === session.id
-              const isDeleting = deletingId === session.id
               const isProtected = session.status === "paid" || session.status === "signed"
 
               return (
-                <div key={session.id} className="flex items-center gap-0 border-b border-border/30 last:border-0 group">
+                <div key={session.id} className="flex items-center border-b border-border/30 last:border-0 group">
                   <button
                     type="button"
                     onClick={() => onOpen(session)}
@@ -297,39 +308,15 @@ function ChainGroup({ group, onOpen, onDelete, deletingId, confirmDeleteId, setC
                     <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" />
                   </button>
 
-                  {/* Delete control */}
                   {!isProtected && (
-                    <div className="flex items-center pr-3 shrink-0">
-                      {isConfirming ? (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteId(null)}
-                            className="text-[11px] font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onDelete(session.id)}
-                            disabled={isDeleting}
-                            className="text-[11px] font-semibold text-foreground bg-foreground/8 hover:bg-foreground/15 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
-                          >
-                            {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                            Delete
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(session.id) }}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted transition-all opacity-0 group-hover:opacity-100"
-                          aria-label="Delete document"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onRequestDelete(session.id) }}
+                      className="w-9 h-9 flex items-center justify-center mr-2 rounded-xl text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-all opacity-0 group-hover:opacity-100"
+                      aria-label="Delete document"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   )}
                 </div>
               )
@@ -341,26 +328,23 @@ function ChainGroup({ group, onOpen, onDelete, deletingId, confirmDeleteId, setC
   )
 }
 
-function SingleCard({ session, clientName, onOpen, onDelete, deletingId, confirmDeleteId, setConfirmDeleteId }: {
+// ── Single Card ───────────────────────────────────────────────────────────────
+
+function SingleCard({ session, clientName, onOpen, onRequestDelete }: {
   session: Session
   clientName: string | null
   onOpen: (s: Session) => void
-  onDelete: (id: string) => void
-  deletingId: string | null
-  confirmDeleteId: string | null
-  setConfirmDeleteId: (id: string | null) => void
+  onRequestDelete: (id: string) => void
 }) {
   const cfg = DOC_CONFIG[session.document_type] || fallback
   const Icon = cfg.icon
   const title = clientName || session.context?.toName || "Untitled"
   const date = session.updated_at || session.created_at
-  const isConfirming = confirmDeleteId === session.id
-  const isDeleting = deletingId === session.id
   const isProtected = session.status === "paid" || session.status === "signed"
 
   return (
     <div
-      className="flex items-center gap-0 rounded-2xl border border-border bg-card overflow-hidden group"
+      className="flex items-center rounded-2xl border border-border bg-card overflow-hidden group"
       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 12px -4px rgba(0,0,0,0.07)" }}
     >
       <button
@@ -373,7 +357,6 @@ function SingleCard({ session, clientName, onOpen, onDelete, deletingId, confirm
         >
           <Icon className={cn("w-5 h-5", cfg.color)} strokeWidth={1.5} />
         </div>
-
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold truncate">{title}</p>
           <div className="flex items-center gap-2 mt-0.5">
@@ -383,43 +366,18 @@ function SingleCard({ session, clientName, onOpen, onDelete, deletingId, confirm
             </span>
           </div>
         </div>
-
         <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
       </button>
 
-      {/* Delete control — monochromatic, appears on hover */}
       {!isProtected && (
-        <div className="flex items-center pr-3 shrink-0">
-          {isConfirming ? (
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteId(null)}
-                className="text-[11px] font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => onDelete(session.id)}
-                disabled={isDeleting}
-                className="text-[11px] font-semibold text-foreground bg-foreground/8 hover:bg-foreground/15 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
-              >
-                {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                Delete
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(session.id) }}
-              className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted transition-all opacity-0 group-hover:opacity-100"
-              aria-label="Delete document"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRequestDelete(session.id) }}
+          className="w-10 h-10 flex items-center justify-center mr-2 rounded-xl text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-all opacity-0 group-hover:opacity-100"
+          aria-label="Delete document"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       )}
     </div>
   )
