@@ -773,7 +773,7 @@ function DocCard({
   const typeLabel = docType.charAt(0).toUpperCase() + docType.slice(1)
 
   return (
-    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
+    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden group">
       {/* Main row */}
       <div className="px-4 py-3.5">
         {/* Header row: type pill + title + actions */}
@@ -841,7 +841,7 @@ function DocCard({
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
-                className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground/40 hover:text-muted-foreground"
+                className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground/40 hover:text-muted-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                 aria-label="Delete document"
                 title="Delete document"
               >

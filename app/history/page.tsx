@@ -312,7 +312,7 @@ function ChainGroup({ group, onOpen, onRequestDelete }: {
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); onRequestDelete(session.id) }}
-                      className="w-9 h-9 flex items-center justify-center mr-2 rounded-xl text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-all opacity-0 group-hover:opacity-100"
+                      className="w-9 h-9 flex items-center justify-center mr-2 rounded-xl text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-all [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                       aria-label="Delete document"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -373,7 +373,7 @@ function SingleCard({ session, clientName, onOpen, onRequestDelete }: {
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onRequestDelete(session.id) }}
-          className="w-10 h-10 flex items-center justify-center mr-2 rounded-xl text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-all opacity-0 group-hover:opacity-100"
+          className="w-10 h-10 flex items-center justify-center mr-2 rounded-xl text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-all [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
           aria-label="Delete document"
         >
           <Trash2 className="w-4 h-4" />
