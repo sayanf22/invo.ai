@@ -7,7 +7,7 @@ import {
   FileText, Download, Eye, Loader2, ArrowLeft, Plus,
   CheckCircle2, Clock, XCircle, Link2, ExternalLink,
   RefreshCw, ChevronDown, ChevronUp, CreditCard, Mail,
-  BellOff, Repeat2, Bell, PenLine,
+  BellOff, Repeat2, Bell, PenLine, Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
@@ -647,12 +647,14 @@ function ChainGroupCard({
   onDownload,
   downloadingId,
   onRefresh,
+  onDelete,
 }: {
   clientName: string | null
   sessions: DocSession[]
   onDownload: (s: DocSession) => void
   downloadingId: string | null
   onRefresh?: () => void
+  onDelete?: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const docTypes = [...new Set(sessions.map(s => s.document_type))].map(t => t.charAt(0).toUpperCase() + t.slice(1))
@@ -704,6 +706,7 @@ function ChainGroupCard({
                     onDownload={onDownload}
                     downloading={downloadingId === s.id}
                     onRefresh={onRefresh}
+                    onDelete={onDelete}
                   />
                 </div>
               ))}
@@ -722,11 +725,13 @@ function DocCard({
   onDownload,
   downloading,
   onRefresh,
+  onDelete,
 }: {
   session: DocSession
   onDownload: (s: DocSession) => void
   downloading: boolean
   onRefresh?: () => void
+  onDelete?: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [emailExpanded, setEmailExpanded] = useState(false)
@@ -734,6 +739,8 @@ function DocCard({
   const [signatureExpanded, setSignatureExpanded] = useState(false)
   const [localPayment, setLocalPayment] = useState<PaymentRecord | null>(session.payment ?? null)
   const [localStatus, setLocalStatus] = useState(session.status)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const docType = (session.document_type || "invoice").toLowerCase()
   const ctx = session.context || {}
 
@@ -827,6 +834,56 @@ function DocCard({
               >
                 <Repeat2 size={15} />
               </button>
+            )}
+            {/* Delete — not shown for paid/signed (legal records) */}
+            {onDelete && localStatus !== "paid" && localStatus !== "signed" && (
+              confirmDelete ? (
+                <div className="flex items-center gap-1 ml-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    className="text-[11px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-1 rounded-lg hover:bg-muted transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={async () => {
+                      setDeleting(true)
+                      try {
+                        const res = await authFetch(`/api/sessions/delete?sessionId=${session.id}`, { method: "DELETE" })
+                        if (res.ok) {
+                          onDelete(session.id)
+                        } else {
+                          const d = await res.json().catch(() => ({}))
+                          toast.error(d.error || "Failed to delete")
+                          setConfirmDelete(false)
+                        }
+                      } catch {
+                        toast.error("Failed to delete")
+                        setConfirmDelete(false)
+                      } finally {
+                        setDeleting(false)
+                      }
+                    }}
+                    className="text-[11px] font-semibold text-foreground bg-foreground/8 hover:bg-foreground/15 px-2 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {deleting ? <Loader2 size={11} className="animate-spin" /> : null}
+                    Delete
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground/40 hover:text-muted-foreground"
+                  aria-label="Delete document"
+                  title="Delete document"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )
             )}
           </div>
         </div>
@@ -1377,6 +1434,21 @@ export default function MyDocumentsPage() {
     }
   }
 
+  const deleteDocument = useCallback(async (sessionId: string) => {
+    try {
+      const res = await authFetch(`/api/sessions/delete?sessionId=${sessionId}`, { method: "DELETE" })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error || "Failed to delete")
+        return
+      }
+      setSessions(prev => prev.filter(s => s.id !== sessionId))
+      toast.success("Document deleted")
+    } catch {
+      toast.error("Failed to delete")
+    }
+  }, [])
+
   // Filter options with counts
   const filterOptions = [
     { key: "all", label: "All", count: sessions.length },
@@ -1609,6 +1681,7 @@ export default function MyDocumentsPage() {
                       onDownload={downloadDocument}
                       downloading={downloadingId === group.sessions[0].id}
                       onRefresh={() => loadSessions(true)}
+                      onDelete={deleteDocument}
                     />
                   ) : (
                     <ChainGroupCard
@@ -1618,6 +1691,7 @@ export default function MyDocumentsPage() {
                       onDownload={downloadDocument}
                       downloadingId={downloadingId}
                       onRefresh={() => loadSessions(true)}
+                      onDelete={deleteDocument}
                     />
                   )
                 ))}

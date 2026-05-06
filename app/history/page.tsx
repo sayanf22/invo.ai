@@ -1,15 +1,16 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
-import { History, FileText, Calendar, Link2, ChevronRight, ArrowRight, ScrollText, ClipboardList, Lightbulb, ChevronDown, ArrowLeft } from "lucide-react"
+import { History, FileText, Calendar, Link2, ChevronRight, ArrowRight, ScrollText, ClipboardList, Lightbulb, ChevronDown, ArrowLeft, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { cn } from "@/lib/utils"
+import { authFetch } from "@/lib/auth-fetch"
 
 interface Session {
   id: string
@@ -47,6 +48,8 @@ export default function HistoryPage() {
   const [groups, setGroups] = useState<SessionGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>("All")
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) { router.push("/auth/login"); return }
@@ -95,6 +98,31 @@ export default function HistoryPage() {
   }
 
   const openSession = (session: Session) => router.push(`/?sessionId=${session.id}`)
+
+  const deleteSession = useCallback(async (sessionId: string) => {
+    setDeletingId(sessionId)
+    try {
+      const res = await authFetch(`/api/sessions/delete?sessionId=${sessionId}`, { method: "DELETE" })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error || "Failed to delete")
+        return
+      }
+      // Remove from local state
+      setGroups(prev => {
+        const next = prev
+          .map(g => ({ ...g, sessions: g.sessions.filter(s => s.id !== sessionId) }))
+          .filter(g => g.sessions.length > 0)
+        return next
+      })
+      toast.success("Document deleted")
+    } catch {
+      toast.error("Failed to delete")
+    } finally {
+      setDeletingId(null)
+      setConfirmDeleteId(null)
+    }
+  }, [])
 
   const filteredGroups = filter === "All"
     ? groups
@@ -179,9 +207,9 @@ export default function HistoryPage() {
             {filteredGroups.map((group, gi) => (
               <div key={group.chainId || `s-${gi}`} className="animate-in fade-in slide-in-from-bottom-1 duration-300" style={{ animationDelay: `${gi * 30}ms` }}>
                 {group.sessions.length > 1 ? (
-                  <ChainGroup group={group} onOpen={openSession} />
+                  <ChainGroup group={group} onOpen={openSession} onDelete={deleteSession} deletingId={deletingId} confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} />
                 ) : (
-                  <SingleCard session={group.sessions[0]} clientName={group.clientName} onOpen={openSession} />
+                  <SingleCard session={group.sessions[0]} clientName={group.clientName} onOpen={openSession} onDelete={deleteSession} deletingId={deletingId} confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} />
                 )}
               </div>
             ))}
@@ -192,7 +220,14 @@ export default function HistoryPage() {
   )
 }
 
-function ChainGroup({ group, onOpen }: { group: SessionGroup; onOpen: (s: Session) => void }) {
+function ChainGroup({ group, onOpen, onDelete, deletingId, confirmDeleteId, setConfirmDeleteId }: {
+  group: SessionGroup
+  onOpen: (s: Session) => void
+  onDelete: (id: string) => void
+  deletingId: string | null
+  confirmDeleteId: string | null
+  setConfirmDeleteId: (id: string | null) => void
+}) {
   const [expanded, setExpanded] = useState(false)
   const docTypes = [...new Set(group.sessions.map(s => s.document_type))]
 
@@ -236,27 +271,67 @@ function ChainGroup({ group, onOpen }: { group: SessionGroup; onOpen: (s: Sessio
       >
         <div className="overflow-hidden">
           <div className={cn("transition-opacity duration-200 border-t border-border/50", expanded ? "opacity-100" : "opacity-0")}>
-            {group.sessions.map((session, si) => {
+            {group.sessions.map((session) => {
               const cfg = DOC_CONFIG[session.document_type] || fallback
               const Icon = cfg.icon
+              const isConfirming = confirmDeleteId === session.id
+              const isDeleting = deletingId === session.id
+              const isProtected = session.status === "paid" || session.status === "signed"
+
               return (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => onOpen(session)}
-                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-secondary/30 transition-colors text-left group border-b border-border/30 last:border-0"
-                >
-                  <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0", cfg.bg)}>
-                    <Icon className={cn("w-4 h-4", cfg.color)} strokeWidth={1.5} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{session.context?.toName || session.client_name || "Untitled"}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {cfg.label} · {session.created_at ? format(new Date(session.created_at), "MMM dd, h:mm a") : ""}
-                    </p>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" />
-                </button>
+                <div key={session.id} className="flex items-center gap-0 border-b border-border/30 last:border-0 group">
+                  <button
+                    type="button"
+                    onClick={() => onOpen(session)}
+                    className="flex items-center gap-3 flex-1 min-w-0 px-4 py-3 hover:bg-secondary/30 transition-colors text-left"
+                  >
+                    <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0", cfg.bg)}>
+                      <Icon className={cn("w-4 h-4", cfg.color)} strokeWidth={1.5} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{session.context?.toName || session.client_name || "Untitled"}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {cfg.label} · {session.created_at ? format(new Date(session.created_at), "MMM dd, h:mm a") : ""}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" />
+                  </button>
+
+                  {/* Delete control */}
+                  {!isProtected && (
+                    <div className="flex items-center pr-3 shrink-0">
+                      {isConfirming ? (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="text-[11px] font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDelete(session.id)}
+                            disabled={isDeleting}
+                            className="text-[11px] font-semibold text-foreground bg-foreground/8 hover:bg-foreground/15 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                            Delete
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(session.id) }}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted transition-all opacity-0 group-hover:opacity-100"
+                          aria-label="Delete document"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>
@@ -266,36 +341,86 @@ function ChainGroup({ group, onOpen }: { group: SessionGroup; onOpen: (s: Sessio
   )
 }
 
-function SingleCard({ session, clientName, onOpen }: { session: Session; clientName: string | null; onOpen: (s: Session) => void }) {
+function SingleCard({ session, clientName, onOpen, onDelete, deletingId, confirmDeleteId, setConfirmDeleteId }: {
+  session: Session
+  clientName: string | null
+  onOpen: (s: Session) => void
+  onDelete: (id: string) => void
+  deletingId: string | null
+  confirmDeleteId: string | null
+  setConfirmDeleteId: (id: string | null) => void
+}) {
   const cfg = DOC_CONFIG[session.document_type] || fallback
   const Icon = cfg.icon
   const title = clientName || session.context?.toName || "Untitled"
   const date = session.updated_at || session.created_at
+  const isConfirming = confirmDeleteId === session.id
+  const isDeleting = deletingId === session.id
+  const isProtected = session.status === "paid" || session.status === "signed"
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(session)}
-      className="flex items-center gap-3.5 w-full px-4 py-3.5 rounded-2xl border border-border bg-card text-left group active:scale-[0.99] transition-all duration-150 hover:bg-secondary/20"
+    <div
+      className="flex items-center gap-0 rounded-2xl border border-border bg-card overflow-hidden group"
       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 12px -4px rgba(0,0,0,0.07)" }}
     >
-      <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center shrink-0", cfg.bg)}
-        style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}
+      <button
+        type="button"
+        onClick={() => onOpen(session)}
+        className="flex items-center gap-3.5 flex-1 min-w-0 px-4 py-3.5 text-left active:scale-[0.99] transition-all duration-150 hover:bg-secondary/20"
       >
-        <Icon className={cn("w-5 h-5", cfg.color)} strokeWidth={1.5} />
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold truncate">{title}</p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className={cn("text-[11px] font-semibold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>{cfg.label}</span>
-          <span className="text-xs text-muted-foreground">
-            {date ? formatDistanceToNow(new Date(date), { addSuffix: true }) : ""}
-          </span>
+        <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center shrink-0", cfg.bg)}
+          style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}
+        >
+          <Icon className={cn("w-5 h-5", cfg.color)} strokeWidth={1.5} />
         </div>
-      </div>
 
-      <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
-    </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate">{title}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className={cn("text-[11px] font-semibold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>{cfg.label}</span>
+            <span className="text-xs text-muted-foreground">
+              {date ? formatDistanceToNow(new Date(date), { addSuffix: true }) : ""}
+            </span>
+          </div>
+        </div>
+
+        <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
+      </button>
+
+      {/* Delete control — monochromatic, appears on hover */}
+      {!isProtected && (
+        <div className="flex items-center pr-3 shrink-0">
+          {isConfirming ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="text-[11px] font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(session.id)}
+                disabled={isDeleting}
+                className="text-[11px] font-semibold text-foreground bg-foreground/8 hover:bg-foreground/15 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+              >
+                {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                Delete
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(session.id) }}
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted transition-all opacity-0 group-hover:opacity-100"
+              aria-label="Delete document"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
