@@ -40,8 +40,8 @@ export interface SubscriptionRecord {
 
 /**
  * Resolve the effective tier for a user based on their subscription record.
- * Returns "free" if the subscription is missing, expired, or has no valid period end.
- * Otherwise delegates to parseTier() for plan validation.
+ * Returns "free" if the subscription is missing, expired, or cancelled.
+ * A null current_period_end is treated as "no expiry" (admin grants).
  */
 export function resolveEffectiveTier(subscription: SubscriptionRecord | null | undefined): UserTier {
     if (!subscription) return "free"
@@ -50,9 +50,11 @@ export function resolveEffectiveTier(subscription: SubscriptionRecord | null | u
     if (subscription.status && !validStatuses.includes(subscription.status)) {
         return "free"
     }
-    if (!subscription.current_period_end || new Date(subscription.current_period_end) < new Date()) {
+    // If current_period_end is set, check it hasn't expired
+    if (subscription.current_period_end && new Date(subscription.current_period_end) < new Date()) {
         return "free"
     }
+    // null current_period_end = no expiry (admin grant) — treat as active
     return parseTier(subscription.plan)
 }
 

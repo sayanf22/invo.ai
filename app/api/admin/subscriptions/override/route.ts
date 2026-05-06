@@ -39,12 +39,70 @@ export async function POST(request: NextRequest) {
     .single()
   const oldTier = profile?.tier ?? 'free'
 
-  // Update profile
+  // Update profile tier
   const { error: updateError } = await supabase
     .from('profiles')
     .update({ tier, tier_expires_at: expires_at ?? null })
     .eq('id', user_id)
   if (updateError) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+
+  // ── Sync subscriptions table ──────────────────────────────────────────────
+  // The usage/stream routes read tier from `subscriptions`, not `profiles`.
+  // We must upsert here so the tier takes effect immediately.
+  const now = new Date()
+  // If no expiry given, grant for 100 years (effectively permanent)
+  const periodEnd = expires_at
+    ? new Date(expires_at).toISOString()
+    : new Date(now.getFullYear() + 100, now.getMonth(), now.getDate()).toISOString()
+
+  if (tier === 'free') {
+    // Downgrade to free: cancel any existing subscription
+    await supabase
+      .from('subscriptions' as any)
+      .update({
+        plan: 'free',
+        status: 'cancelled',
+        cancelled_at: now.toISOString(),
+        updated_at: now.toISOString(),
+        scheduled_downgrade: null,
+      })
+      .eq('user_id', user_id)
+  } else {
+    // Upgrade: upsert subscription row so tier is immediately active
+    const { data: existingSub } = await supabase
+      .from('subscriptions' as any)
+      .select('id')
+      .eq('user_id', user_id)
+      .maybeSingle()
+
+    if (existingSub) {
+      await supabase
+        .from('subscriptions' as any)
+        .update({
+          plan: tier,
+          status: 'active',
+          current_period_start: now.toISOString(),
+          current_period_end: periodEnd,
+          cancelled_at: null,
+          scheduled_downgrade: null,
+          updated_at: now.toISOString(),
+        })
+        .eq('user_id', user_id)
+    } else {
+      await supabase
+        .from('subscriptions' as any)
+        .insert({
+          user_id,
+          plan: tier,
+          status: 'active',
+          billing_cycle: 'admin_grant',
+          current_period_start: now.toISOString(),
+          current_period_end: periodEnd,
+          amount_paid: 0,
+          currency: 'USD',
+        })
+    }
+  }
 
   // Insert override record
   await supabase.from('admin_tier_overrides').insert({

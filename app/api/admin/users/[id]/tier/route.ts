@@ -52,14 +52,78 @@ export async function PATCH(
     .eq('id', id)
   if (updateError) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
 
-  // Insert tier override record
-  await supabase.from('admin_tier_overrides').insert({
-    user_id: id,
-    tier,
-    expires_at: expires_at ?? null,
-    reason: reason.trim(),
-    admin_email: adminEmail,
-  })
+  // ── Sync subscriptions table ──────────────────────────────────────────────
+  // The usage/stream routes read tier from `subscriptions`, not `profiles`.
+  // We must upsert here so the tier takes effect immediately for the user.
+  const now = new Date()
+  // If no expiry given, grant for 100 years (effectively permanent)
+  const periodEnd = expires_at
+    ? new Date(expires_at).toISOString()
+    : new Date(now.getFullYear() + 100, now.getMonth(), now.getDate()).toISOString()
+
+  if (tier === 'free') {
+    // Downgrade to free: cancel any existing subscription
+    await supabase
+      .from('subscriptions' as any)
+      .update({
+        plan: 'free',
+        status: 'cancelled',
+        cancelled_at: now.toISOString(),
+        updated_at: now.toISOString(),
+        scheduled_downgrade: null,
+      })
+      .eq('user_id', id)
+  } else {
+    // Upgrade: upsert subscription row so tier is immediately active
+    const { data: existingSub } = await supabase
+      .from('subscriptions' as any)
+      .select('id')
+      .eq('user_id', id)
+      .maybeSingle()
+
+    if (existingSub) {
+      await supabase
+        .from('subscriptions' as any)
+        .update({
+          plan: tier,
+          status: 'active',
+          current_period_start: now.toISOString(),
+          current_period_end: periodEnd,
+          cancelled_at: null,
+          scheduled_downgrade: null,
+          updated_at: now.toISOString(),
+        })
+        .eq('user_id', id)
+    } else {
+      await supabase
+        .from('subscriptions' as any)
+        .insert({
+          user_id: id,
+          plan: tier,
+          status: 'active',
+          billing_cycle: 'admin_grant',
+          current_period_start: now.toISOString(),
+          current_period_end: periodEnd,
+          amount_paid: 0,
+          currency: 'USD',
+        })
+    }
+  }
+
+  // Send notification to the user
+  try {
+    const { createNotification, PLAN_NAMES } = await import('@/lib/notifications')
+    const planLabel = (PLAN_NAMES as Record<string, string>)[tier] || tier
+    if (tier !== 'free') {
+      await createNotification(supabase, {
+        user_id: id,
+        type: 'subscription_free_grant',
+        title: `${planLabel} Plan Granted 🎁`,
+        message: `You've been granted the ${planLabel} plan${expires_at ? ` until ${new Date(expires_at).toLocaleDateString()}` : ''}. Enjoy the upgrade!`,
+        metadata: { tier, oldTier, reason: reason.trim(), expires_at: expires_at ?? null },
+      })
+    }
+  } catch { /* non-fatal */ }
 
   const ip = getAdminClientIP(request)
   await logAudit(supabase, {
