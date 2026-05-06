@@ -85,6 +85,8 @@ export function ChatSendCard({
   const emailRef = useRef<HTMLInputElement>(null)
   // Sign-first modal — shown before sending a contract
   const [showSignFirst, setShowSignFirst] = useState(false)
+  // Track if sender already self-signed (skip modal if so)
+  const [senderAlreadySigned, setSenderAlreadySigned] = useState(false)
 
   const isInvoice = documentType.toLowerCase() === "invoice"
   const isSignable = ["contract", "quotation", "proposal"].includes(documentType.toLowerCase())
@@ -99,6 +101,19 @@ export function ChatSendCard({
     const t = requestAnimationFrame(() => setMounted(true))
     return () => cancelAnimationFrame(t)
   }, [])
+
+  // For contracts: check if sender already self-signed (skip the prompt if so)
+  useEffect(() => {
+    if (!isContract || !sessionId) return
+    authFetch(`/api/signatures?sessionId=${sessionId}`)
+      .then(r => r.json())
+      .then(d => {
+        const sigs = d.signatures ?? []
+        const hasSenderSig = sigs.some((s: any) => s.party === "Sender" && s.signed_at)
+        if (hasSenderSig) setSenderAlreadySigned(true)
+      })
+      .catch(() => {})
+  }, [isContract, sessionId])
 
   useEffect(() => {
     if (mounted && step === "compose") {
@@ -545,8 +560,8 @@ export function ChatSendCard({
 
             <button
               onClick={() => {
-                // For contracts: show sign-first prompt before sending
-                if (isContract) {
+                // For contracts: show sign-first prompt before sending (unless already signed)
+                if (isContract && !senderAlreadySigned) {
                   setShowSignFirst(true)
                 } else {
                   handleSend()

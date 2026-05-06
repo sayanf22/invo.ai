@@ -56,6 +56,21 @@ export function GetSignatureModal({
   const canSubmit = signerName.trim().length > 0 && isValidEmail(signerEmail) && !loading
   // Sign-first modal — shown before sending a contract
   const [showSignFirst, setShowSignFirst] = useState(false)
+  // Track if sender already self-signed
+  const [senderAlreadySigned, setSenderAlreadySigned] = useState(false)
+
+  // Check if sender already self-signed when modal opens for a contract
+  useEffect(() => {
+    if (!open || documentType.toLowerCase() !== "contract") return
+    authFetch(`/api/signatures?sessionId=${sessionId}`)
+      .then(r => r.json())
+      .then(d => {
+        const sigs = d.signatures ?? []
+        const hasSenderSig = sigs.some((s: any) => s.party === "Sender" && s.signed_at)
+        if (hasSenderSig) setSenderAlreadySigned(true)
+      })
+      .catch(() => {})
+  }, [open, documentType, sessionId])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -302,8 +317,8 @@ export function GetSignatureModal({
                 form="signature-form"
                 disabled={!canSubmit}
                 onClick={(e) => {
-                  // For contracts: show sign-first prompt before sending
-                  if (documentType.toLowerCase() === "contract") {
+                  // For contracts: show sign-first prompt before sending (unless already signed)
+                  if (documentType.toLowerCase() === "contract" && !senderAlreadySigned) {
                     e.preventDefault()
                     if (canSubmit) setShowSignFirst(true)
                   } else {
