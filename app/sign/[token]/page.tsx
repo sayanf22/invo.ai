@@ -36,6 +36,7 @@ interface SignatureData {
     signer_email: string
     party: string
     signed_at: string | null
+    signer_action: string | null
     expires_at: string | null
     verification_url: string | null
     documents: {
@@ -280,6 +281,17 @@ export default function SigningPage() {
                     if (data.signatureImageDataUrl) {
                         setSignedImageUrl(data.signatureImageDataUrl)
                     }
+                }
+
+                // If signer already declined or requested revision, show that result screen
+                if (sig.signer_action === "declined" || sig.signer_action === "revision_requested") {
+                    const action = sig.signer_action as "declined" | "revision_requested"
+                    setResponseResult({
+                        action,
+                        message: action === "declined"
+                            ? "You have already declined to sign this document. The sender has been notified."
+                            : "You have already requested revisions to this document. The sender has been notified.",
+                    })
                 }
             } catch (err) {
                 setError("Failed to load signing request")

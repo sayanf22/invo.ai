@@ -55,9 +55,25 @@ export default async function PayPage({ params }: PageProps) {
     .limit(1)
     .maybeSingle()
 
+  // Fetch existing quotation/proposal response (so the client sees their previous answer on re-open)
+  let existingResponse: "accepted" | "declined" | "changes_requested" | null = null
+  if (session.document_type === "quotation" || session.document_type === "proposal") {
+    const { data: qr } = await (supabase as any)
+      .from("quotation_responses")
+      .select("response_type")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (qr?.response_type) {
+      existingResponse = qr.response_type as "accepted" | "declined" | "changes_requested"
+    }
+  }
+
   // Show the document regardless of whether a payment link exists.
   // payment will be null if no active link — PayDocumentView handles this gracefully.
   const docData = session.context as unknown as InvoiceData
   const payment: PaymentInfo | null = pay ?? null
 
-  return <PayDocumentView docData={docData} payment={payment} sessionId={sessionId} documentType={session.document_type || "invoice"} />}
+  return <PayDocumentView docData={docData} payment={payment} sessionId={sessionId} documentType={session.document_type || "invoice"} existingResponse={existingResponse} />
+}

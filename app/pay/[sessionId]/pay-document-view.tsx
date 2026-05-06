@@ -22,6 +22,7 @@ interface Props {
   payment: PaymentInfo | null
   sessionId?: string
   documentType?: string
+  existingResponse?: "accepted" | "declined" | "changes_requested" | null
 }
 
 // ── QR Code ───────────────────────────────────────────────────────────
@@ -183,11 +184,12 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── Main Client Component ─────────────────────────────────────────────
 
-export function PayDocumentView({ docData, payment, sessionId, documentType }: Props) {
+export function PayDocumentView({ docData, payment, sessionId, documentType, existingResponse }: Props) {
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [rendering, setRendering] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-  const [responseStatus, setResponseStatus] = useState<"accepted" | "declined" | "changes_requested" | null>(null)
+  // Pre-populate from server if client already responded previously
+  const [responseStatus, setResponseStatus] = useState<"accepted" | "declined" | "changes_requested" | null>(existingResponse ?? null)
   const [responseNote, setResponseNote] = useState("")
   const [respondingAs, setRespondingAs] = useState<"accepted" | "declined" | "changes_requested" | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -458,7 +460,7 @@ export function PayDocumentView({ docData, payment, sessionId, documentType }: P
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-5 text-center">
             <p className="font-semibold text-neutral-800 dark:text-neutral-200">
-              {responseStatus === "accepted" ? "✓ Accepted" : responseStatus === "declined" ? "Declined" : "Changes requested"}
+              {responseStatus === "accepted" ? "✓ Accepted" : responseStatus === "declined" ? "✗ Declined" : "↩ Changes Requested"}
             </p>
             <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
               {responseStatus === "accepted"
