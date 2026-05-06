@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Loader2, Copy, CheckCircle2, Link2, MessageCircle, Mail, PenLine, X, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
+import { SenderSignFirstModal } from "@/components/sender-sign-first-modal"
 
 interface GetSignatureModalProps {
   sessionId: string
@@ -53,6 +54,8 @@ export function GetSignatureModal({
   }, [signerName, documentType, messageEdited])
 
   const canSubmit = signerName.trim().length > 0 && isValidEmail(signerEmail) && !loading
+  // Sign-first modal — shown before sending a contract
+  const [showSignFirst, setShowSignFirst] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -298,7 +301,15 @@ export function GetSignatureModal({
                 type="submit"
                 form="signature-form"
                 disabled={!canSubmit}
-                onClick={handleSubmit}
+                onClick={(e) => {
+                  // For contracts: show sign-first prompt before sending
+                  if (documentType.toLowerCase() === "contract") {
+                    e.preventDefault()
+                    if (canSubmit) setShowSignFirst(true)
+                  } else {
+                    handleSubmit(e as any)
+                  }
+                }}
                 className="w-full h-11 rounded-xl bg-foreground text-background text-sm font-semibold transition-all duration-200 hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
@@ -311,6 +322,15 @@ export function GetSignatureModal({
           </div>
         </div>
       </div>
+
+      {/* Sign-first modal — contracts only */}
+      <SenderSignFirstModal
+        open={showSignFirst}
+        sessionId={sessionId}
+        onCancel={() => setShowSignFirst(false)}
+        onSkip={() => { setShowSignFirst(false); handleSubmit({ preventDefault: () => {} } as any) }}
+        onSigned={() => { setShowSignFirst(false); handleSubmit({ preventDefault: () => {} } as any) }}
+      />
     </>
   )
 }

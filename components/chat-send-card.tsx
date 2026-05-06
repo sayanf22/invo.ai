@@ -19,6 +19,7 @@ import { authFetch } from "@/lib/auth-fetch"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { InvoiceData } from "@/lib/invoice-types"
+import { SenderSignFirstModal } from "@/components/sender-sign-first-modal"
 
 interface ChatSendCardProps {
   sessionId: string
@@ -82,6 +83,8 @@ export function ChatSendCard({
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
   const emailRef = useRef<HTMLInputElement>(null)
+  // Sign-first modal — shown before sending a contract
+  const [showSignFirst, setShowSignFirst] = useState(false)
 
   const isInvoice = documentType.toLowerCase() === "invoice"
   const isSignable = ["contract", "quotation", "proposal"].includes(documentType.toLowerCase())
@@ -540,7 +543,16 @@ export function ChatSendCard({
               </div>
             )}
 
-            <button onClick={handleSend} disabled={isSending || isGeneratingMsg}
+            <button
+              onClick={() => {
+                // For contracts: show sign-first prompt before sending
+                if (isContract) {
+                  setShowSignFirst(true)
+                } else {
+                  handleSend()
+                }
+              }}
+              disabled={isSending || isGeneratingMsg}
               className="w-full h-11 rounded-2xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20">
               {isSending
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
@@ -551,5 +563,14 @@ export function ChatSendCard({
         )}
       </div>
     </div>
+
+    {/* Sign-first modal — contracts only */}
+    <SenderSignFirstModal
+      open={showSignFirst}
+      sessionId={sessionId}
+      onCancel={() => setShowSignFirst(false)}
+      onSkip={() => { setShowSignFirst(false); handleSend() }}
+      onSigned={() => { setShowSignFirst(false); handleSend() }}
+    />
   )
 }
