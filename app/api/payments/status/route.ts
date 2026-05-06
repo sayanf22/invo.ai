@@ -94,29 +94,45 @@ export async function GET(request: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const { data, error } = await supabaseAdmin
-        .from("invoice_payments")
-        .select("status, amount, currency, amount_paid")
-        .eq("session_id", sessionId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
+    // Check both the payment record AND the session status
+    // (session.status = "paid" covers manual payments and webhook-processed payments)
+    const [paymentResult, sessionResult] = await Promise.all([
+        supabaseAdmin
+            .from("invoice_payments")
+            .select("status, amount, currency, amount_paid, paid_at, is_manual, manually_marked_at")
+            .eq("session_id", sessionId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        supabaseAdmin
+            .from("document_sessions")
+            .select("status")
+            .eq("id", sessionId)
+            .maybeSingle(),
+    ])
 
-    if (error) {
-        console.error("Payment status fetch error:", error)
+    if (paymentResult.error) {
+        console.error("Payment status fetch error:", paymentResult.error)
         return NextResponse.json({ error: "Failed to fetch payment status" }, { status: 500 })
     }
 
+    const pay = paymentResult.data
+    const sessionStatus = sessionResult.data?.status
+
     // 4. Return 404 for non-existent sessions
-    if (!data) {
+    if (!pay) {
         return NextResponse.json({ error: "Payment link not found" }, { status: 404 })
     }
 
-    // 5. Return only public-safe fields
+    // If the session is marked paid (webhook processed or manual), override the payment status
+    const effectiveStatus = sessionStatus === "paid" ? "paid" : pay.status
+
+    // 5. Return only public-safe fields — no gateway URLs, no internal IDs
     return NextResponse.json({
-        status: data.status,
-        amount: data.amount,
-        currency: data.currency,
-        amountPaid: data.amount_paid,
+        status: effectiveStatus,
+        amount: pay.amount,
+        currency: pay.currency,
+        amount_paid: pay.amount_paid ?? null,
+        paid_at: pay.paid_at ?? pay.manually_marked_at ?? null,
     })
 }

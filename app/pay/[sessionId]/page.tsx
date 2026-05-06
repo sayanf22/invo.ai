@@ -11,12 +11,14 @@ function createServiceClient() {
   )
 }
 
-interface PaymentInfo {
+export interface PaymentInfo {
   short_url: string
-  status: string
+  status: "created" | "partially_paid" | "paid" | "expired" | "cancelled"
   amount: number
   currency: string
   amount_paid: number | null
+  paid_at: string | null
+  is_manual: boolean
 }
 
 interface PageProps {
@@ -34,7 +36,7 @@ export default async function PayPage({ params }: PageProps) {
 
   const supabase = createServiceClient()
 
-  // Fetch session data — only serve if it has been sent (has a payment link)
+  // Fetch session — include status so we can detect manual/offline payments
   const { data: session } = await supabase
     .from("document_sessions")
     .select("context, document_type, status, sent_at")
@@ -45,15 +47,43 @@ export default async function PayPage({ params }: PageProps) {
     return <PayDocumentView docData={null} payment={null} />
   }
 
-  // Fetch payment info — only active/paid (not cancelled/expired)
+  // Fetch the most recent payment record (any status — we need to show the right state)
   const { data: pay } = await (supabase as any)
     .from("invoice_payments")
-    .select("short_url, status, amount, currency, amount_paid")
+    .select("short_url, status, amount, currency, amount_paid, paid_at, is_manual, manually_marked_at")
     .eq("session_id", sessionId)
-    .in("status", ["created", "partially_paid", "paid"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  // Build the payment info to pass to the client.
+  // If the session itself is marked "paid" (e.g. manual payment, webhook already processed),
+  // override the payment status to "paid" so the UI always shows the correct state.
+  let payment: PaymentInfo | null = null
+  if (pay) {
+    const effectiveStatus: PaymentInfo["status"] =
+      session.status === "paid" ? "paid" : pay.status
+    payment = {
+      short_url: pay.short_url,
+      status: effectiveStatus,
+      amount: pay.amount,
+      currency: pay.currency,
+      amount_paid: pay.amount_paid ?? null,
+      paid_at: pay.paid_at ?? pay.manually_marked_at ?? null,
+      is_manual: !!pay.is_manual,
+    }
+  } else if (session.status === "paid") {
+    // Session is paid but no payment record (edge case — manual mark without a link)
+    payment = {
+      short_url: "",
+      status: "paid",
+      amount: 0,
+      currency: (session.context as any)?.currency || "USD",
+      amount_paid: null,
+      paid_at: null,
+      is_manual: true,
+    }
+  }
 
   // Fetch existing quotation/proposal response (so the client sees their previous answer on re-open)
   let existingResponse: "accepted" | "declined" | "changes_requested" | null = null
@@ -70,10 +100,15 @@ export default async function PayPage({ params }: PageProps) {
     }
   }
 
-  // Show the document regardless of whether a payment link exists.
-  // payment will be null if no active link — PayDocumentView handles this gracefully.
   const docData = session.context as unknown as InvoiceData
-  const payment: PaymentInfo | null = pay ?? null
 
-  return <PayDocumentView docData={docData} payment={payment} sessionId={sessionId} documentType={session.document_type || "invoice"} existingResponse={existingResponse} />
+  return (
+    <PayDocumentView
+      docData={docData}
+      payment={payment}
+      sessionId={sessionId}
+      documentType={session.document_type || "invoice"}
+      existingResponse={existingResponse}
+    />
+  )
 }

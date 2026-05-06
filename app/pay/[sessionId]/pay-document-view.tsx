@@ -1,21 +1,14 @@
 "use client"
 
-import { useEffect, useState, useRef, useMemo } from "react"
-import { Loader2, FileText, CheckCircle2, Clock } from "lucide-react"
+import { useEffect, useState, useRef, useMemo, useCallback } from "react"
+import { Loader2, FileText, CheckCircle2, Clock, RefreshCw, AlertCircle } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport, calculateTotal, getCurrencySymbol } from "@/lib/invoice-types"
 import { cn } from "@/lib/utils"
+import type { PaymentInfo } from "./page"
 
 // ── Types ─────────────────────────────────────────────────────────────
-
-interface PaymentInfo {
-  short_url: string
-  status: string
-  amount: number
-  currency: string
-  amount_paid: number | null
-}
 
 interface Props {
   docData: InvoiceData | null
@@ -45,7 +38,6 @@ async function generateQRDataUrl(url: string): Promise<string | null> {
 
 async function buildPdfBlob(data: InvoiceData): Promise<Blob> {
   const cleaned = cleanDataForExport(data)
-  // For the public pay page, we don't embed the payment QR in the PDF itself
   const { resolveLogoUrl } = await import("@/lib/resolve-logo-url")
   const logoUrl = await resolveLogoUrl(cleaned.fromLogo).catch(() => null)
   const templates = await import("@/lib/pdf-templates")
@@ -103,7 +95,6 @@ function PdfViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
   }, [])
 
   const fileData = useMemo(() => ({ data: pdfBytes.slice() }), [pdfBytes])
-  // On mobile, use full container width minus minimal padding to avoid overflow
   const pageWidth = containerWidth > 0 ? Math.min(containerWidth - 8, 800) : 320
 
   if (!ViewerComponents) {
@@ -145,7 +136,7 @@ function PdfViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
 
 // ── Status Badge ──────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status }: { status: PaymentInfo["status"] }) {
   if (status === "paid") {
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-sm font-semibold">
@@ -165,14 +156,18 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "expired") {
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 text-sm font-semibold">
-        <Clock className="w-4 h-4" />
+        <AlertCircle className="w-4 h-4" />
         Expired
       </span>
     )
   }
-  // Don't show a badge for cancelled — just show the document normally
   if (status === "cancelled") {
-    return null
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 text-sm font-semibold">
+        <AlertCircle className="w-4 h-4" />
+        Cancelled
+      </span>
+    )
   }
   return (
     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 text-sm font-semibold">
@@ -184,21 +179,26 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── Main Client Component ─────────────────────────────────────────────
 
-export function PayDocumentView({ docData, payment, sessionId, documentType, existingResponse }: Props) {
+export function PayDocumentView({ docData, payment: initialPayment, sessionId, documentType, existingResponse }: Props) {
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [rendering, setRendering] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-  // Pre-populate from server if client already responded previously
+
+  // Live payment state — starts from server-rendered value, can be refreshed
+  const [payment, setPayment] = useState<PaymentInfo | null>(initialPayment)
+  const [checkingStatus, setCheckingStatus] = useState(false)
+  const [lastChecked, setLastChecked] = useState<Date | null>(null)
+
+  // Quotation/proposal response state
   const [responseStatus, setResponseStatus] = useState<"accepted" | "declined" | "changes_requested" | null>(existingResponse ?? null)
   const [responseNote, setResponseNote] = useState("")
   const [respondingAs, setRespondingAs] = useState<"accepted" | "declined" | "changes_requested" | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Track document view (fire-and-forget)
+  // Track document view (fire-and-forget, no sensitive data)
   useEffect(() => {
-    // Extract sessionId from URL
     const path = window.location.pathname
-    const match = path.match(/\/pay\/([0-9a-f-]+)/i)
+    const match = path.match(/\/pay\/([0-9a-f-]{36})/i)
     if (match?.[1]) {
       fetch("/api/emails/track-view", {
         method: "POST",
@@ -229,13 +229,57 @@ export function PayDocumentView({ docData, payment, sessionId, documentType, exi
     return () => { cancelled = true }
   }, [docData])
 
-  // Generate QR code for gateway URL
+  // Generate QR code only for active (unpaid) payment links
   useEffect(() => {
-    if (!payment?.short_url) return
-    const isActive = payment.status === "created" || payment.status === "partially_paid"
-    if (!isActive) return
+    if (!payment?.short_url || payment.status !== "created") return
     generateQRDataUrl(payment.short_url).then(setQrDataUrl)
   }, [payment])
+
+  // Poll payment status after the user clicks "Pay Now" — check every 5s for up to 2 minutes
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+  }, [])
+
+  const checkPaymentStatus = useCallback(async () => {
+    if (!sessionId) return
+    setCheckingStatus(true)
+    try {
+      const res = await fetch(`/api/payments/status?sessionId=${encodeURIComponent(sessionId)}`)
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.status) {
+        setPayment(prev => prev ? { ...prev, status: data.status, amount_paid: data.amount_paid ?? prev.amount_paid, paid_at: data.paid_at ?? prev.paid_at } : prev)
+        setLastChecked(new Date())
+        // Stop polling once paid
+        if (data.status === "paid") stopPolling()
+      }
+    } catch { /* non-fatal */ }
+    finally { setCheckingStatus(false) }
+  }, [sessionId, stopPolling])
+
+  // Start polling when user opens the payment link (they clicked Pay Now)
+  const handlePayNow = useCallback(() => {
+    if (!payment?.short_url) return
+    // Open payment link
+    window.open(payment.short_url, "_blank", "noopener,noreferrer") ||
+      (window.location.href = payment.short_url)
+    // Poll for status updates — check after 5s, then every 10s for up to 2 min
+    stopPolling()
+    let attempts = 0
+    const maxAttempts = 12 // 2 minutes at 10s intervals
+    setTimeout(() => {
+      checkPaymentStatus()
+      pollRef.current = setInterval(() => {
+        attempts++
+        checkPaymentStatus()
+        if (attempts >= maxAttempts) stopPolling()
+      }, 10_000)
+    }, 5_000)
+  }, [payment, checkPaymentStatus, stopPolling])
+
+  // Cleanup polling on unmount
+  useEffect(() => () => stopPolling(), [stopPolling])
 
   // ── Document not found ──────────────────────────────────────────────
   if (!docData) {
@@ -263,7 +307,8 @@ export function PayDocumentView({ docData, payment, sessionId, documentType, exi
   const docRef = docData.invoiceNumber || docData.referenceNumber || docTypeLabel
 
   const isPaid = payment?.status === "paid"
-  const isActive = payment?.status === "created" || payment?.status === "partially_paid"
+  const isPartiallyPaid = payment?.status === "partially_paid"
+  const isActive = payment?.status === "created"
   const isInactive = payment?.status === "expired" || payment?.status === "cancelled"
 
   return (
@@ -287,7 +332,7 @@ export function PayDocumentView({ docData, payment, sessionId, documentType, exi
             </div>
             <div className="text-right shrink-0">
               <p className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">
-                {currencySymbol} {total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {currencySymbol}{total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                 {docData.currency || "USD"}
@@ -304,48 +349,53 @@ export function PayDocumentView({ docData, payment, sessionId, documentType, exi
         </div>
       </div>
 
-      {/* Payment controls */}
+      {/* Payment section — only for invoices */}
       {payment && (
         <div className="max-w-2xl mx-auto px-4 py-4">
-          {/* Paid state */}
-          {isPaid && (
-            <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 p-4 text-center">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400 mx-auto mb-2" />
-              <p className="font-semibold text-emerald-800 dark:text-emerald-300">Payment received</p>
-              <p className="text-sm text-emerald-600 dark:text-emerald-400 mt-0.5">
-                {payment.currency} {((payment.amount_paid ?? payment.amount) / 100).toFixed(2)} paid
+
+          {/* ── PAID ── */}
+          {(isPaid || isPartiallyPaid) && (
+            <div className={cn(
+              "rounded-2xl border p-5 text-center",
+              isPaid
+                ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40"
+                : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/40"
+            )}>
+              <CheckCircle2 className={cn("w-8 h-8 mx-auto mb-2", isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")} />
+              <p className={cn("font-semibold", isPaid ? "text-emerald-800 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300")}>
+                {isPaid ? "Payment received" : "Partial payment received"}
               </p>
+              {payment.amount_paid != null && (
+                <p className={cn("text-sm mt-0.5", isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
+                  {payment.currency} {(payment.amount_paid / 100).toFixed(2)} paid
+                  {isPartiallyPaid && ` of ${(payment.amount / 100).toFixed(2)}`}
+                </p>
+              )}
+              {payment.is_manual && (
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Marked as paid manually</p>
+              )}
             </div>
           )}
 
-          {/* Active payment state */}
+          {/* ── ACTIVE — show Pay Now button ── */}
           {isActive && (
             <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
-              <div className="p-4 sm:p-5">
-                <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
+              <div className="p-4 sm:p-5 space-y-4">
+                <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
                   Complete your payment
                 </p>
 
-                {/* Pay Now button — use location.href for mobile compatibility */}
-                <a
-                  href={payment.short_url}
-                  onClick={(e) => {
-                    // On mobile, target="_blank" can be blocked; use direct navigation as fallback
-                    if (typeof window !== "undefined") {
-                      e.preventDefault()
-                      window.open(payment.short_url, "_blank", "noopener,noreferrer") ||
-                        (window.location.href = payment.short_url)
-                    }
-                  }}
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={handlePayNow}
                   className="flex items-center justify-center w-full px-6 py-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-base transition-colors shadow-sm touch-manipulation select-none"
                 >
-                  Pay Now — {currencySymbol} {total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </a>
+                  Pay Now — {currencySymbol}{total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </button>
 
                 {/* QR code */}
                 {qrDataUrl && (
-                  <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800 flex flex-col items-center gap-2">
+                  <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex flex-col items-center gap-2">
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">
                       Or scan to pay on your phone
                     </p>
@@ -354,13 +404,32 @@ export function PayDocumentView({ docData, payment, sessionId, documentType, exi
                     </div>
                   </div>
                 )}
+
+                {/* Check status button — shown after user has clicked Pay Now */}
+                {lastChecked && (
+                  <div className="flex items-center justify-between pt-1">
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500">
+                      {checkingStatus ? "Checking…" : `Checked ${lastChecked.toLocaleTimeString()}`}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={checkPaymentStatus}
+                      disabled={checkingStatus}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 disabled:opacity-50 transition-colors"
+                    >
+                      <RefreshCw className={cn("w-3.5 h-3.5", checkingStatus && "animate-spin")} />
+                      Refresh status
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* Expired / Cancelled state */}
+          {/* ── EXPIRED / CANCELLED ── */}
           {isInactive && (
             <div className="rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-5 text-center">
+              <AlertCircle className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
               <p className="font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 {payment.status === "expired" ? "Payment link has expired" : "Payment link is no longer active"}
               </p>
@@ -372,107 +441,100 @@ export function PayDocumentView({ docData, payment, sessionId, documentType, exi
         </div>
       )}
 
-      {/* PDF Preview */}
-
       {/* Accept / Reject / Need Changes — for quotations and proposals */}
-      {sessionId && (documentType === "quotation" || documentType === "proposal") && !responseStatus && docData.allowClientResponse !== false && (
+      {sessionId && (documentType === "quotation" || documentType === "proposal") && docData.allowClientResponse !== false && (
         <div className="max-w-2xl mx-auto px-4 py-4">
-          <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
-            <div className="p-4 sm:p-5 space-y-4">
-              <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                How would you like to respond to this {docTypeLabel.toLowerCase()}?
-              </p>
+          {!responseStatus ? (
+            <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+              <div className="p-4 sm:p-5 space-y-4">
+                <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  How would you like to respond to this {docTypeLabel.toLowerCase()}?
+                </p>
 
-              {/* Response buttons */}
-              {!respondingAs ? (
-                <div className="flex gap-2.5">
-                  <button type="button"
-                    onClick={() => setRespondingAs("accepted")}
-                    className="flex-1 py-3 rounded-xl text-sm font-semibold bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:opacity-90 active:scale-[0.98] transition-all">
-                    Accept
-                  </button>
-                  <button type="button"
-                    onClick={() => setRespondingAs("changes_requested")}
-                    className="flex-1 py-3 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all">
-                    Need Changes
-                  </button>
-                  <button type="button"
-                    onClick={() => setRespondingAs("declined")}
-                    className="flex-1 py-3 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all">
-                    Decline
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
+                {!respondingAs ? (
+                  <div className="flex gap-2.5">
+                    <button type="button"
+                      onClick={() => setRespondingAs("accepted")}
+                      className="flex-1 py-3 rounded-xl text-sm font-semibold bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:opacity-90 active:scale-[0.98] transition-all">
+                      Accept
+                    </button>
+                    <button type="button"
+                      onClick={() => setRespondingAs("changes_requested")}
+                      className="flex-1 py-3 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all">
+                      Need Changes
+                    </button>
+                    <button type="button"
+                      onClick={() => setRespondingAs("declined")}
+                      className="flex-1 py-3 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all">
+                      Decline
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
                     <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
                       {respondingAs === "accepted" ? "Accepting" : respondingAs === "declined" ? "Declining" : "Requesting changes"}
                     </span>
+                    {(respondingAs === "changes_requested" || respondingAs === "declined") && (
+                      <textarea
+                        value={responseNote}
+                        onChange={e => setResponseNote(e.target.value)}
+                        placeholder={respondingAs === "changes_requested" ? "What changes would you like?" : "Reason for declining (optional)"}
+                        rows={3}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 resize-none focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:focus:ring-neutral-600"
+                      />
+                    )}
+                    <div className="flex gap-2.5">
+                      <button type="button" onClick={() => { setRespondingAs(null); setResponseNote("") }}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors active:scale-[0.98]">
+                        Back
+                      </button>
+                      <button type="button"
+                        disabled={submitting || (respondingAs === "changes_requested" && !responseNote.trim())}
+                        onClick={async () => {
+                          setSubmitting(true)
+                          try {
+                            const res = await fetch("/api/quotations/respond", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                sessionId,
+                                response: respondingAs,
+                                clientName: docData.toName || undefined,
+                                clientEmail: docData.toEmail || undefined,
+                                note: responseNote.trim() || undefined,
+                              }),
+                            })
+                            if (res.ok) setResponseStatus(respondingAs)
+                          } catch { /* non-fatal */ }
+                          finally { setSubmitting(false) }
+                        }}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50">
+                        {submitting ? "Submitting…" : "Confirm"}
+                      </button>
+                    </div>
                   </div>
-                  {(respondingAs === "changes_requested" || respondingAs === "declined") && (
-                    <textarea
-                      value={responseNote}
-                      onChange={e => setResponseNote(e.target.value)}
-                      placeholder={respondingAs === "changes_requested" ? "What changes would you like?" : "Reason for declining (optional)"}
-                      rows={3}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 resize-none focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:focus:ring-neutral-600"
-                    />
-                  )}
-                  <div className="flex gap-2.5">
-                    <button type="button" onClick={() => { setRespondingAs(null); setResponseNote("") }}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors active:scale-[0.98]">
-                      Back
-                    </button>
-                    <button type="button" disabled={submitting || (respondingAs === "changes_requested" && !responseNote.trim())}
-                      onClick={async () => {
-                        setSubmitting(true)
-                        try {
-                          const res = await fetch("/api/quotations/respond", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              sessionId,
-                              response: respondingAs,
-                              clientName: docData.toName || undefined,
-                              clientEmail: docData.toEmail || undefined,
-                              note: responseNote.trim() || undefined,
-                            }),
-                          })
-                          if (res.ok) {
-                            setResponseStatus(respondingAs)
-                          }
-                        } catch { /* non-fatal */ }
-                        finally { setSubmitting(false) }
-                      }}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50">
-                      {submitting ? "Submitting..." : "Confirm"}
-                    </button>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Already responded — show confirmation */
+            <div className="rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-5 text-center">
+              <p className="font-semibold text-neutral-800 dark:text-neutral-200">
+                {responseStatus === "accepted" ? "✓ Accepted" : responseStatus === "declined" ? "✗ Declined" : "↩ Changes Requested"}
+              </p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+                {responseStatus === "accepted"
+                  ? `You've accepted this ${docTypeLabel.toLowerCase()}. ${docData.fromName || "The sender"} has been notified.`
+                  : responseStatus === "declined"
+                    ? `You've declined this ${docTypeLabel.toLowerCase()}. ${docData.fromName || "The sender"} has been notified.`
+                    : `Your change request has been sent to ${docData.fromName || "the sender"}.`}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Response submitted confirmation */}
-      {responseStatus && (
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <div className="rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-5 text-center">
-            <p className="font-semibold text-neutral-800 dark:text-neutral-200">
-              {responseStatus === "accepted" ? "✓ Accepted" : responseStatus === "declined" ? "✗ Declined" : "↩ Changes Requested"}
-            </p>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-              {responseStatus === "accepted"
-                ? `You've accepted this ${docTypeLabel.toLowerCase()}. ${docData.fromName || "The sender"} has been notified.`
-                : responseStatus === "declined"
-                  ? `You've declined this ${docTypeLabel.toLowerCase()}. ${docData.fromName || "The sender"} has been notified.`
-                  : `Your change request has been sent to ${docData.fromName || "the sender"}.`}
-            </p>
-          </div>
-        </div>
-      )}
-
+      {/* PDF Preview */}
       <div className="max-w-2xl mx-auto px-2 sm:px-4 pb-8 overflow-x-hidden">
         <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
