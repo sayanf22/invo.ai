@@ -346,9 +346,8 @@ export default function RootLayout({
         </ThemeProvider>
         {/* Auto-reload on ChunkLoadError (stale deployment cache) */}
         <script dangerouslySetInnerHTML={{ __html: `
-          window.addEventListener('error', function(e) {
-            var msg = e.message || (e.error && e.error.message) || '';
-            var isChunk = msg.indexOf('Loading chunk') !== -1 || msg.indexOf('ChunkLoadError') !== -1;
+          function handleChunkError(msg) {
+            var isChunk = msg && (msg.indexOf('Loading chunk') !== -1 || msg.indexOf('ChunkLoadError') !== -1);
             if (isChunk) {
               var key = 'clorefy_chunk_reload';
               var last = sessionStorage.getItem(key);
@@ -358,6 +357,14 @@ export default function RootLayout({
                 window.location.reload();
               }
             }
+          }
+          window.addEventListener('error', function(e) {
+            var msg = e.message || (e.error && e.error.message) || '';
+            handleChunkError(msg);
+          });
+          window.addEventListener('unhandledrejection', function(e) {
+            var msg = (e.reason && (e.reason.message || String(e.reason))) || '';
+            handleChunkError(msg);
           });
         ` }} />
       </body>

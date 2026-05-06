@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { InvoLogo } from "@/components/invo-logo"
+import { Loader2 } from "lucide-react"
 
 export default function Error({
   error,
@@ -10,17 +11,19 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const [isChunkError, setIsChunkError] = useState(false)
+
   useEffect(() => {
     console.error("Unhandled error:", error)
 
     // ChunkLoadError = stale deployment cache. Auto-reload once to get fresh chunks.
-    // Guard with sessionStorage to prevent infinite reload loops.
-    const isChunkError =
+    const chunkError =
       error?.name === "ChunkLoadError" ||
       error?.message?.includes("Loading chunk") ||
       error?.message?.includes("ChunkLoadError")
 
-    if (isChunkError) {
+    if (chunkError) {
+      setIsChunkError(true)
       const reloadKey = "clorefy_chunk_reload"
       const lastReload = sessionStorage.getItem(reloadKey)
       const now = Date.now()
@@ -31,6 +34,16 @@ export default function Error({
       }
     }
   }, [error])
+
+  // Show a clean "updating" screen instead of an error for chunk issues
+  if (isChunkError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Updating to the latest version…</p>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4">
