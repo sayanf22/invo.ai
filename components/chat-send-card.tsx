@@ -322,14 +322,15 @@ export function ChatSendCard({
   }
 
   return (
-    <div className={cn(
-      "flex justify-start w-full transition-all",
-      mounted ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-4 scale-[0.96]",
-      "duration-500 ease-out"
-    )}>
-      <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/40 overflow-hidden"
-        style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.02)" }}
-      >
+    <>
+      <div className={cn(
+        "flex justify-start w-full transition-all",
+        mounted ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-4 scale-[0.96]",
+        "duration-500 ease-out"
+      )}>
+        <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/40 overflow-hidden"
+          style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.02)" }}
+        >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-4 pb-2.5">
           <div className="flex items-center gap-2.5">
@@ -615,5 +616,6 @@ export function ChatSendCard({
       onSkip={() => { setShowSignFirst(false); handleSend() }}
       onSigned={() => { setShowSignFirst(false); handleSend() }}
     />
+    </>
   )
 }
