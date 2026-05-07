@@ -221,8 +221,8 @@ describe("DocumentConfig property tests", () => {
       signatureImages: fc.oneof(
         fc.constant(undefined),
         fc.constant([] as Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }>),
-        fc.constant([{ signerName: "Client", party: "B", imageDataUrl: "", signedAt: "2025-01-15T10:30:00Z" }]),
-        fc.constant([{ signerName: "Client", party: "B", imageDataUrl: "data:image/png;base64,xyz789", signedAt: "2025-01-15T10:30:00Z" }]),
+        fc.constant([{ signerName: "Client", party: "B", imageDataUrl: "", signedAt: "2025-01-15T10:30:00Z" }] as Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }>),
+        fc.constant([{ signerName: "Client", party: "B", imageDataUrl: "data:image/png;base64,xyz789", signedAt: "2025-01-15T10:30:00Z" }] as Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }>),
       ),
     })
 

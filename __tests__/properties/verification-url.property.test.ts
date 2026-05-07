@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from "vitest"
 import * as fc from "fast-check"
-import { buildPublicVerificationData } from "@/app/verify/[signatureId]/page"
+import { buildPublicVerificationData } from "@/lib/verification-data"
 
 // ── Generators ────────────────────────────────────────────────────────────────
 

@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 type BedrockEvent = { type: "chunk" | "complete" | "error"; data: string }
 type DeepSeekEvent = { type: "chunk" | "complete" | "error" | "reasoning"; data: string }
-type ActivityEvent = { type: "activity"; action: string; label: string; detail?: string }
+type ActivityEvent = { type: "activity"; action: string; label: string; detail?: string; data?: string }
 type SentEvent = BedrockEvent | DeepSeekEvent | ActivityEvent | { type: string; data: string }
 
 // ── Fallback orchestration extracted from route handler ───────────────
