@@ -13,6 +13,7 @@ import { Mail, MessageCircle, Link2, Copy, Check, X, Lock, ArrowRight } from "lu
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
+import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
 interface ChatShareCardProps {
   sessionId: string
@@ -46,6 +47,9 @@ export function ChatShareCard({
   const [isLocking, setIsLocking] = useState(false)
   const [copied, setCopied] = useState(false)
   const [whatsappMessage, setWhatsappMessage] = useState("")
+
+  const { hasAnyGateway } = usePaymentMethods()
+  const isInvoice = documentType.toLowerCase() === "invoice"
 
   const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
   const shortId = sessionId.split("-")[0]
@@ -269,7 +273,11 @@ export function ChatShareCard({
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-medium text-foreground">Send via Email</p>
-              <p className="text-[11px] text-muted-foreground">Send with payment link</p>
+              <p className="text-[11px] text-muted-foreground">
+                {isInvoice
+                  ? (hasAnyGateway ? "Send with payment link" : "Send without payment link")
+                  : "Send via email"}
+              </p>
             </div>
             <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
           </button>

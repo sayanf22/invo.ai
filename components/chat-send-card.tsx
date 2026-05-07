@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { SenderSignFirstModal } from "@/components/sender-sign-first-modal"
+import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
 interface ChatSendCardProps {
   sessionId: string
@@ -59,6 +60,9 @@ function calcTotal(data: InvoiceData): string {
 export function ChatSendCard({
   sessionId, invoiceData, documentType, detectedEmail, onDismiss, onSent, onLockDocument, userTier = "free",
 }: ChatSendCardProps) {
+  // Check if user has any payment gateway connected
+  const { hasAnyGateway, loading: gatewayLoading } = usePaymentMethods()
+
   // Restore sent state from localStorage on mount (persists across refresh)
   const sentKey = `clorefy_sent_${sessionId}`
   const [step, setStep] = useState<Step>(() => {
@@ -73,7 +77,7 @@ export function ChatSendCard({
   const [slideDir, setSlideDir] = useState<SlideDir>("right")
   const [email, setEmail] = useState(detectedEmail)
   const [message, setMessage] = useState("")
-  const [includePayment, setIncludePayment] = useState(true)
+  const [includePayment, setIncludePayment] = useState(false)
   const [scheduleFollowUps, setScheduleFollowUps] = useState(true)
   const [makeRecurring, setMakeRecurring] = useState(false)
   const [recurringFrequency, setRecurringFrequency] = useState<"weekly" | "monthly" | "quarterly">("monthly")
@@ -87,6 +91,15 @@ export function ChatSendCard({
   const [showSignFirst, setShowSignFirst] = useState(false)
   // Track if sender already self-signed (skip modal if so)
   const [senderAlreadySigned, setSenderAlreadySigned] = useState(false)
+
+  // Default includePayment to true ONLY if user has a gateway connected
+  useEffect(() => {
+    if (!gatewayLoading && hasAnyGateway) {
+      setIncludePayment(true)
+    } else if (!gatewayLoading && !hasAnyGateway) {
+      setIncludePayment(false)
+    }
+  }, [hasAnyGateway, gatewayLoading])
 
   const isInvoice = documentType.toLowerCase() === "invoice"
   const isSignable = ["contract", "quotation", "proposal"].includes(documentType.toLowerCase())
@@ -391,8 +404,8 @@ export function ChatSendCard({
               </div>
             )}
 
-            {/* Payment toggle — invoices only */}
-            {isInvoice && (
+            {/* Payment toggle — invoices only, ONLY if gateway is connected */}
+            {isInvoice && hasAnyGateway && (
               <label className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-muted/30 border border-border/30 cursor-pointer group">
                 <div className="flex items-center gap-2.5">
                   <CreditCard className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -411,6 +424,21 @@ export function ChatSendCard({
                   )} />
                 </div>
               </label>
+            )}
+
+            {/* No gateway connected — show connect prompt (invoices only) */}
+            {isInvoice && !gatewayLoading && !hasAnyGateway && (
+              <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl bg-muted/30 border border-border/30">
+                <CreditCard className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-foreground">No payment link</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                    Connect a payment gateway in{" "}
+                    <a href="/settings" className="underline hover:text-foreground">Settings</a>
+                    {" "}to include a Pay Now link.
+                  </p>
+                </div>
+              </div>
             )}
 
             <button onClick={goToPreview}

@@ -7,7 +7,7 @@ import {
   FileText, Download, Eye, Loader2, ArrowLeft, Plus,
   CheckCircle2, Clock, XCircle, Link2, ExternalLink,
   RefreshCw, ChevronDown, ChevronUp, CreditCard, Mail,
-  BellOff, Repeat2, Bell, PenLine, Trash2,
+  BellOff, Repeat2, Bell, PenLine, Trash2, Search, CalendarDays, X,
 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
@@ -1108,6 +1108,8 @@ export default function MyDocumentsPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>("all")
+  const [dateRange, setDateRange] = useState<"all" | "this_month" | "last_month" | "this_year">("all")
+  const [searchQuery, setSearchQuery] = useState("")
 
   const loadSessions = useCallback(async (silent = false) => {
     if (!user?.id) { setLoading(false); return }
@@ -1449,11 +1451,61 @@ export default function MyDocumentsPage() {
     { key: "pending", label: "Pending", count: sessions.filter(s => s.payment?.status === "created" || (s.document_type === "invoice" && !s.payment && s.status !== "paid")).length },
   ].filter(f => f.key === "all" || f.count > 0)
 
+  // Helper: check if date is in the selected range
+  const isInDateRange = useCallback((dateStr: string): boolean => {
+    if (dateRange === "all") return true
+    const date = new Date(dateStr)
+    const now = new Date()
+    if (dateRange === "this_month") {
+      return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()
+    }
+    if (dateRange === "last_month") {
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      return date.getFullYear() === lastMonth.getFullYear() && date.getMonth() === lastMonth.getMonth()
+    }
+    if (dateRange === "this_year") {
+      return date.getFullYear() === now.getFullYear()
+    }
+    return true
+  }, [dateRange])
+
+  const dateRangeLabels: Record<typeof dateRange, string> = {
+    all: "All time",
+    this_month: "This month",
+    last_month: "Last month",
+    this_year: "This year",
+  }
+
   const filtered = sessions.filter(s => {
-    if (filter === "all") return true
-    if (filter === "paid") return s.payment?.status === "paid" || s.status === "paid"
-    if (filter === "pending") return s.payment?.status === "created"
-    return s.document_type === filter
+    // Type/status filter
+    if (filter !== "all") {
+      if (filter === "paid") {
+        if (!(s.payment?.status === "paid" || s.status === "paid")) return false
+      } else if (filter === "pending") {
+        if (s.payment?.status !== "created") return false
+      } else if (s.document_type !== filter) {
+        return false
+      }
+    }
+
+    // Date range filter
+    if (!isInDateRange(s.created_at)) return false
+
+    // Search filter — match client name, reference/invoice number, or type
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      const ctx = s.context || {}
+      const haystack = [
+        s.client_name,
+        ctx.toName,
+        ctx.invoiceNumber,
+        ctx.referenceNumber,
+        s.document_type,
+      ].filter(Boolean).join(" ").toLowerCase()
+      if (!haystack.includes(q)) return false
+    }
+
+    return true
   })
 
   // Group filtered sessions by chain_id
@@ -1608,6 +1660,49 @@ export default function MyDocumentsPage() {
           </motion.div>
         )}
 
+        {/* Search + Date range */}
+        {sessions.length > 0 && (
+          <motion.div variants={itemVariants} className="flex gap-2 items-center">
+            {/* Search input */}
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by client, number…"
+                className="w-full h-9 pl-9 pr-8 rounded-xl bg-muted/40 border border-border/40 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-border focus:bg-background transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Date range dropdown */}
+            <div className="relative shrink-0">
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value as any)}
+                className="appearance-none h-9 pl-8 pr-7 rounded-xl bg-muted/40 border border-border/40 text-xs font-medium text-foreground focus:outline-none focus:border-border focus:bg-background transition-colors cursor-pointer"
+              >
+                <option value="all">All time</option>
+                <option value="this_month">This month</option>
+                <option value="last_month">Last month</option>
+                <option value="this_year">This year</option>
+              </select>
+              <CalendarDays className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+            </div>
+          </motion.div>
+        )}
+
         {/* Filter pills — monochromatic */}
         {sessions.length > 0 && (
           <motion.div variants={itemVariants} className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -1631,7 +1726,7 @@ export default function MyDocumentsPage() {
         {/* Document List with AnimatePresence */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={filter}
+            key={`${filter}-${dateRange}-${searchQuery}`}
             variants={slideVariants}
             initial="enter"
             animate="center"
@@ -1649,14 +1744,25 @@ export default function MyDocumentsPage() {
                 <p className="text-sm text-muted-foreground mb-6 max-w-xs">
                   {sessions.length === 0
                     ? "Describe a document to the AI and it will appear here."
-                    : "Try a different filter."}
+                    : searchQuery
+                      ? `No results for "${searchQuery}". Try a different search.`
+                      : dateRange !== "all"
+                        ? `No documents in ${dateRangeLabels[dateRange]}.`
+                        : "Try a different filter."}
                 </p>
-                {sessions.length === 0 && (
+                {sessions.length === 0 ? (
                   <button
                     onClick={() => router.push("/")}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
                   >
                     Create your first document
+                  </button>
+                ) : (searchQuery || dateRange !== "all" || filter !== "all") && (
+                  <button
+                    onClick={() => { setSearchQuery(""); setDateRange("all"); setFilter("all") }}
+                    className="text-xs font-medium text-muted-foreground hover:text-foreground underline"
+                  >
+                    Clear all filters
                   </button>
                 )}
               </div>
