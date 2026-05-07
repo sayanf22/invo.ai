@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import {
@@ -1098,6 +1098,95 @@ function DocCard({
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+// ── Date Range Picker — custom dropdown, monochromatic ────────────────────────
+
+const DATE_RANGE_OPTIONS = [
+  { value: "all", label: "All time" },
+  { value: "this_month", label: "This month" },
+  { value: "last_month", label: "Last month" },
+  { value: "this_year", label: "This year" },
+] as const
+
+type DateRangeValue = typeof DATE_RANGE_OPTIONS[number]["value"]
+
+function DateRangePicker({ value, onChange }: {
+  value: DateRangeValue
+  onChange: (v: DateRangeValue) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const escHandler = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false) }
+    document.addEventListener("mousedown", handler)
+    document.addEventListener("keydown", escHandler)
+    return () => {
+      document.removeEventListener("mousedown", handler)
+      document.removeEventListener("keydown", escHandler)
+    }
+  }, [open])
+
+  const selected = DATE_RANGE_OPTIONS.find(o => o.value === value) ?? DATE_RANGE_OPTIONS[0]
+  const isFiltered = value !== "all"
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={cn(
+          "inline-flex items-center gap-1.5 h-9 pl-2.5 pr-2 rounded-xl border text-xs font-medium transition-all duration-200 active:scale-[0.96]",
+          open || isFiltered
+            ? "bg-background border-foreground/30 text-foreground shadow-sm"
+            : "bg-muted/40 border-border/40 text-muted-foreground hover:border-border hover:text-foreground hover:bg-muted/60"
+        )}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <CalendarDays className="w-3.5 h-3.5" />
+        <span className="tabular-nums">{selected.label}</span>
+        <ChevronDown className={cn(
+          "w-3 h-3 transition-transform duration-200",
+          open && "rotate-180"
+        )} />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className="absolute right-0 top-[calc(100%+6px)] z-20 min-w-[160px] rounded-xl border border-border bg-background shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150 origin-top-right"
+        >
+          {DATE_RANGE_OPTIONS.map(opt => {
+            const isActive = opt.value === value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={isActive}
+                onClick={() => { onChange(opt.value); setOpen(false) }}
+                className={cn(
+                  "w-full flex items-center justify-between gap-3 px-3 py-2 text-xs font-medium text-left transition-colors duration-100",
+                  isActive
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                )}
+              >
+                <span>{opt.label}</span>
+                {isActive && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function MyDocumentsPage() {
   const router = useRouter()
   const goBack = useSafeBack("/")
@@ -1108,7 +1197,7 @@ export default function MyDocumentsPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>("all")
-  const [dateRange, setDateRange] = useState<"all" | "this_month" | "last_month" | "this_year">("all")
+  const [dateRange, setDateRange] = useState<DateRangeValue>("all")
   const [searchQuery, setSearchQuery] = useState("")
 
   const loadSessions = useCallback(async (silent = false) => {
@@ -1469,7 +1558,7 @@ export default function MyDocumentsPage() {
     return true
   }, [dateRange])
 
-  const dateRangeLabels: Record<typeof dateRange, string> = {
+  const dateRangeLabels: Record<DateRangeValue, string> = {
     all: "All time",
     this_month: "This month",
     last_month: "Last month",
@@ -1663,21 +1752,24 @@ export default function MyDocumentsPage() {
         {/* Search + Date range */}
         {sessions.length > 0 && (
           <motion.div variants={itemVariants} className="flex gap-2 items-center">
-            {/* Search input */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60 pointer-events-none" />
+            {/* Search input — smooth focus transition */}
+            <div className="flex-1 relative group">
+              <Search className={cn(
+                "absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none transition-colors duration-200",
+                searchQuery ? "text-foreground" : "text-muted-foreground/60 group-focus-within:text-foreground"
+              )} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by client, number…"
-                className="w-full h-9 pl-9 pr-8 rounded-xl bg-muted/40 border border-border/40 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-border focus:bg-background transition-colors"
+                placeholder="Search by client or number…"
+                className="w-full h-9 pl-9 pr-8 rounded-xl bg-muted/40 border border-border/40 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/30 focus:bg-background focus:ring-4 focus:ring-foreground/5 transition-all duration-200"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150 active:scale-90 animate-in fade-in zoom-in-75 duration-200"
                   aria-label="Clear search"
                 >
                   <X className="w-3 h-3" />
@@ -1685,41 +1777,41 @@ export default function MyDocumentsPage() {
               )}
             </div>
 
-            {/* Date range dropdown */}
-            <div className="relative shrink-0">
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value as any)}
-                className="appearance-none h-9 pl-8 pr-7 rounded-xl bg-muted/40 border border-border/40 text-xs font-medium text-foreground focus:outline-none focus:border-border focus:bg-background transition-colors cursor-pointer"
-              >
-                <option value="all">All time</option>
-                <option value="this_month">This month</option>
-                <option value="last_month">Last month</option>
-                <option value="this_year">This year</option>
-              </select>
-              <CalendarDays className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
-            </div>
+            {/* Date range — custom dropdown (no native select for better UX) */}
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
           </motion.div>
         )}
 
-        {/* Filter pills — monochromatic */}
+        {/* Filter pills — monochromatic with counts */}
         {sessions.length > 0 && (
-          <motion.div variants={itemVariants} className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-            {filterOptions.map(f => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={cn(
-                  "px-3.5 py-2 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap shrink-0 border",
-                  filter === f.key
-                    ? "bg-foreground text-background border-foreground"
-                    : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
+          <motion.div variants={itemVariants} className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+            {filterOptions.map(f => {
+              const isActive = filter === f.key
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={cn(
+                    "group inline-flex items-center gap-1.5 px-3 h-9 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap shrink-0 border active:scale-[0.96]",
+                    isActive
+                      ? "bg-foreground text-background border-foreground shadow-sm"
+                      : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground hover:bg-muted/40"
+                  )}
+                >
+                  <span>{f.label}</span>
+                  {f.count > 0 && (
+                    <span className={cn(
+                      "inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold tabular-nums transition-colors duration-200",
+                      isActive
+                        ? "bg-background/20 text-background"
+                        : "bg-muted text-muted-foreground group-hover:bg-muted-foreground/20 group-hover:text-foreground"
+                    )}>
+                      {f.count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </motion.div>
         )}
 
