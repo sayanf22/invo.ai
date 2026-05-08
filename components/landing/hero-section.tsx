@@ -11,7 +11,7 @@ import { HeroMockup } from "./hero-mockup"
 export function HeroSection() {
     return (
         <>
-            <section className="relative w-full overflow-hidden bg-[#FAFAF9] pt-32 pb-0 sm:pt-40">
+            <section className="relative w-full overflow-hidden bg-[#FAFAF9] pt-24 sm:pt-32 md:pt-36 lg:pt-40 pb-0">
 
                 {/* Sophisticated Off-White/White Gradient Background */}
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-[#F5F4F0] to-[#EAE8E3] opacity-90" />
@@ -25,26 +25,27 @@ export function HeroSection() {
                     style={{ background: "radial-gradient(circle, rgba(224,123,57,0.12) 0%, transparent 60%)" }}
                 />
 
-                <div className="relative z-10 max-w-6xl mx-auto text-center px-5 sm:px-6">
+                <div className="relative z-10 max-w-6xl mx-auto text-center px-4 sm:px-6">
 
                     {/* Premium Beta announcement pill */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex justify-center mb-8 sm:mb-10"
+                        className="flex justify-center mb-6 sm:mb-10"
                     >
-                        <div className="group relative inline-flex items-center gap-2 px-4 py-2 rounded-full border border-stone-200/50 bg-white/60 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300">
+                        <div className="group relative inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-stone-200/50 bg-white/60 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 max-w-[92vw]">
                             <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[var(--landing-amber)]/0 via-[var(--landing-amber)]/5 to-[var(--landing-amber)]/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 animate-shimmer" />
-                            <span className="relative flex h-2 w-2">
+                            <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--landing-amber)] opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--landing-amber)]"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-[var(--landing-amber)]"></span>
                             </span>
-                            <span className="text-[13px] font-medium text-[var(--landing-text-dark)]">
+                            <span className="text-[11.5px] sm:text-[13px] font-medium text-[var(--landing-text-dark)] whitespace-nowrap">
                                 <span className="font-bold text-[var(--landing-amber)] mr-1">BETA</span>
-                                We&apos;re live — try it free and share your feedback
+                                <span className="sm:hidden">Try it free — share feedback</span>
+                                <span className="hidden sm:inline">We&apos;re live — try it free and share your feedback</span>
                             </span>
-                            <ArrowRight size={14} className="text-[var(--landing-text-muted)] group-hover:translate-x-0.5 transition-transform" />
+                            <ArrowRight size={12} className="sm:w-[14px] sm:h-[14px] text-[var(--landing-text-muted)] group-hover:translate-x-0.5 transition-transform shrink-0" />
                         </div>
                     </motion.div>
 
@@ -53,7 +54,7 @@ export function HeroSection() {
                         initial={{ opacity: 0, y: 30 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-                        className="font-display text-[3rem] sm:text-5xl md:text-6xl lg:text-[6.5rem] font-semibold tracking-tighter leading-[1.02] text-[#1C1A17] mb-6 sm:mb-8"
+                        className="font-display text-[2.5rem] xs:text-[2.75rem] sm:text-5xl md:text-6xl lg:text-[6.5rem] font-semibold tracking-tighter leading-[1.02] text-[#1C1A17] mb-5 sm:mb-8"
                     >
                         <span className="sr-only">Clorefy — AI Invoice, Contract &amp; Proposal Generator.</span>
 
@@ -106,7 +107,7 @@ export function HeroSection() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="text-base sm:text-lg md:text-xl text-[#5B5550] max-w-xl mx-auto mb-10 sm:mb-12 leading-relaxed font-medium px-2"
+                        className="text-[15px] sm:text-lg md:text-xl text-[#5B5550] max-w-xl mx-auto mb-8 sm:mb-12 leading-relaxed font-medium px-2"
                     >
                         Compliant invoices, contracts, and proposals across 11 countries — your business details saved once, auto-filled forever.
                     </motion.p>
@@ -116,21 +117,21 @@ export function HeroSection() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-5 w-full px-2 sm:px-0"
+                        className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5 w-full px-2 sm:px-0"
                     >
                         <Link
                             href="/auth/signup"
-                            className="group relative inline-flex items-center gap-2.5 px-8 py-4 sm:px-10 sm:py-5 rounded-[1rem] bg-[var(--landing-dark)] text-white font-bold text-base sm:text-xl transition-all border-[2.5px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] w-full sm:w-auto justify-center overflow-hidden"
+                            className="group relative inline-flex items-center gap-2 px-6 py-3.5 sm:px-10 sm:py-5 rounded-xl sm:rounded-[1rem] bg-[var(--landing-dark)] text-white font-bold text-[15px] sm:text-xl transition-all border-[2px] sm:border-[2.5px] border-[var(--landing-dark)] shadow-[3px_3px_0px_0px_rgba(26,26,26,1)] sm:shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] hover:shadow-[5px_5px_0px_0px_rgba(26,26,26,1)] sm:hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] w-full sm:w-auto justify-center overflow-hidden"
                         >
                             <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
                             <span className="relative z-10">Get Started Free</span>
-                            <ArrowRight size={18} className="sm:w-5 sm:h-5 transition-transform group-hover:translate-x-1 relative z-10" />
+                            <ArrowRight size={16} className="sm:w-5 sm:h-5 transition-transform group-hover:translate-x-1 relative z-10" />
                         </Link>
                         <a
                             href="https://www.youtube.com/@Clorefy"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-8 py-4 sm:px-10 sm:py-5 rounded-[1rem] border-[2.5px] border-[var(--landing-dark)] bg-white text-[var(--landing-dark)] font-bold text-base sm:text-xl transition-all shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] w-full sm:w-auto justify-center"
+                            className="inline-flex items-center gap-2 px-6 py-3.5 sm:px-10 sm:py-5 rounded-xl sm:rounded-[1rem] border-[2px] sm:border-[2.5px] border-[var(--landing-dark)] bg-white text-[var(--landing-dark)] font-bold text-[15px] sm:text-xl transition-all shadow-[3px_3px_0px_0px_rgba(26,26,26,1)] sm:shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] hover:shadow-[5px_5px_0px_0px_rgba(26,26,26,1)] sm:hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] w-full sm:w-auto justify-center"
                         >
                             See How it Works
                         </a>
