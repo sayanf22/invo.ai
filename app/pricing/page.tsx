@@ -196,59 +196,114 @@ export default function PricingPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
       />
-      <div className="min-h-screen" style={{ backgroundColor: "#faf8f5" }}>
 
-        {/* ── Breadcrumbs ── */}
-        <div className="max-w-6xl mx-auto pt-28 px-6">
-          <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Pricing" }]} />
-        </div>
+      {/* ── Hero section — matches landing hero aesthetic ── */}
+      <section className="relative w-full overflow-hidden bg-[var(--landing-cream)] pt-32 pb-0 sm:pt-36">
+        {/* Same background treatment as landing hero */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-[#F5F4F0] to-[#EAE8E3] opacity-90" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_70%_50%_at_50%_0%,#000_80%,transparent_100%)] pointer-events-none" />
+        <div
+          className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[1000px] h-[500px] rounded-[100%] opacity-40 pointer-events-none blur-[100px]"
+          style={{ background: "radial-gradient(circle, rgba(198,122,60,0.12) 0%, transparent 60%)" }}
+        />
 
-        {/* ── Hero ── */}
-        <section className="pt-8 pb-16 px-6 text-center">
-          <AnimatedHero className="space-y-7">
-            {/* Social proof pill */}
-            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white border border-stone-200/80 text-sm shadow-sm">
-              <span className="flex -space-x-1.5">
-                {["#f97316", "#3b82f6", "#10b981", "#8b5cf6"].map((c, i) => (
-                  <span key={i} className="w-5 h-5 rounded-full border-2 border-white" style={{ background: c }} />
-                ))}
-              </span>
-              <span className="text-stone-500 font-medium">2,400+ professionals save hours every week</span>
-            </div>
-
-            <h1 className="font-display text-5xl sm:text-6xl font-medium tracking-tight leading-[1.08]" style={{ color: "#1a1a1a" }}>
-              Simple pricing,<br />
-              <span className="font-serif italic" style={{ color: "#e07b39" }}>serious value</span>
-            </h1>
-
-            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-stone-400">
-              <span className="flex items-center gap-1.5"><Clock size={13} style={{ color: "#e07b39" }} /> Save 3–5 hrs per document</span>
-              <span className="flex items-center gap-1.5"><Zap size={13} style={{ color: "#e07b39" }} /> Ready in under 30 seconds</span>
-              <span className="flex items-center gap-1.5"><Lock size={13} style={{ color: "#e07b39" }} /> Cancel anytime</span>
-            </div>
-
-            {/* BillingToggle handles: toggle, cards, trust strip, comparison, and bottom CTA */}
-            <BillingToggle plans={plans}>
-              <ComparisonTable />
-            </BillingToggle>
-          </AnimatedHero>
-        </section>
-
-        {/* ── FAQ ── */}
-        <section className="py-24 px-6" style={{ backgroundColor: "#faf8f5" }}>
-          <div className="max-w-2xl mx-auto">
-            <AnimatedCard y={20}>
-              <div className="text-center mb-12">
-                <h2 className="font-display text-4xl font-medium mb-2" style={{ color: "#1a1a1a" }}>Common questions</h2>
-                <p className="text-stone-400 text-sm">Everything you need to know before signing up.</p>
-              </div>
-            </AnimatedCard>
-
-            <FaqAccordion items={faqs} />
+        <div className="relative z-10 max-w-6xl mx-auto">
+          {/* Breadcrumbs */}
+          <div className="px-4 sm:px-6 mb-6">
+            <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Pricing" }]} />
           </div>
-        </section>
 
-      </div>
+          {/* Hero content */}
+          <div className="text-center px-4 sm:px-6 pb-12">
+            <AnimatedHero className="space-y-6 sm:space-y-7">
+              {/* Beta-style pill */}
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-stone-200/50 bg-white/70 backdrop-blur-md shadow-sm">
+                <span className="flex -space-x-1.5">
+                  {["#C67A3C", "#1e3a8a", "#065f46", "#881337"].map((c, i) => (
+                    <span key={i} className="w-4 h-4 rounded-full border-2 border-white" style={{ background: c }} />
+                  ))}
+                </span>
+                <span className="text-[13px] font-medium text-[var(--landing-text-dark)]">
+                  <span className="font-bold text-[var(--landing-amber)] mr-1">2,400+</span>
+                  professionals save hours every week
+                </span>
+              </div>
+
+              {/* Main heading — matches landing typography */}
+              <h1
+                className="font-display text-[2.75rem] sm:text-5xl md:text-6xl lg:text-7xl font-semibold tracking-tighter leading-[1.02] text-[var(--landing-text-dark)]"
+                style={{ textShadow: "3px 3px 0px rgba(26,26,26,0.08), 0 8px 24px rgba(26,26,26,0.06)" }}
+              >
+                Simple pricing,<br />
+                <span
+                  className="font-serif italic"
+                  style={{
+                    backgroundImage: "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  serious value
+                </span>
+              </h1>
+
+              {/* Value props strip */}
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[var(--landing-text-muted)] font-medium">
+                <span className="flex items-center gap-1.5">
+                  <Clock size={13} className="text-[var(--landing-amber)]" strokeWidth={2.5} /> Save 3–5 hrs per document
+                </span>
+                <span className="w-1 h-1 rounded-full bg-stone-300" />
+                <span className="flex items-center gap-1.5">
+                  <Zap size={13} className="text-[var(--landing-amber)]" strokeWidth={2.5} /> Ready in under 30 seconds
+                </span>
+                <span className="w-1 h-1 rounded-full bg-stone-300" />
+                <span className="flex items-center gap-1.5">
+                  <Lock size={13} className="text-[var(--landing-amber)]" strokeWidth={2.5} /> Cancel anytime
+                </span>
+              </div>
+
+              {/* BillingToggle handles: toggle, cards, trust strip, comparison, and bottom CTA */}
+              <BillingToggle plans={plans}>
+                <ComparisonTable />
+              </BillingToggle>
+            </AnimatedHero>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="py-20 sm:py-28 px-4 sm:px-6 bg-[var(--landing-cream)]">
+        <div className="max-w-2xl mx-auto">
+          <AnimatedCard y={20}>
+            <div className="text-center mb-12">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] mb-3 text-[var(--landing-amber)]">FAQ</p>
+              <h2
+                className="font-display text-4xl sm:text-5xl font-semibold tracking-tight text-[var(--landing-text-dark)] leading-[1.05]"
+                style={{ textShadow: "2px 2px 0px rgba(26,26,26,0.06), 0 6px 20px rgba(26,26,26,0.04)" }}
+              >
+                Common{" "}
+                <span
+                  className="font-serif italic"
+                  style={{
+                    backgroundImage: "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  questions
+                </span>
+              </h2>
+              <p className="text-[var(--landing-text-muted)] text-sm sm:text-base mt-4">
+                Everything you need to know before signing up.
+              </p>
+            </div>
+          </AnimatedCard>
+
+          <FaqAccordion items={faqs} />
+        </div>
+      </section>
     </LandingLayout>
   )
 }

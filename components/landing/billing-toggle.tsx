@@ -40,14 +40,14 @@ export interface BillingToggleProps {
 
 const gridVariants = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.1, delayChildren: 0.1 } },
+  visible: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
 }
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 40 },
+  hidden: { opacity: 0, y: 24 },
   visible: {
     opacity: 1, y: 0,
-    transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
   },
 }
 
@@ -55,13 +55,19 @@ const cardVariants = {
 
 function FeatureRow({ text, tip, featured }: { text: string; tip: string | null; featured: boolean }) {
   return (
-    <div className="flex items-start gap-3">
-      <div className={`mt-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center shrink-0 ${featured ? "bg-amber-500" : "bg-stone-100"}`}>
-        <Check size={10} className={featured ? "text-white" : "text-stone-500"} strokeWidth={3} />
+    <div className="flex items-start gap-2.5">
+      <div className={`mt-[3px] w-[16px] h-[16px] rounded-full flex items-center justify-center shrink-0 ${
+        featured ? "bg-[var(--landing-amber)]" : "bg-stone-900"
+      }`}>
+        <Check size={9} className="text-white" strokeWidth={3.5} />
       </div>
-      <span className={`text-sm leading-snug ${featured ? "text-white/80" : "text-stone-600"}`}>
+      <span className={`text-[13px] leading-snug ${featured ? "text-white/85" : "text-stone-700"}`}>
         {text}
-        {tip && <span className={`ml-1.5 text-xs ${featured ? "text-white/35" : "text-stone-400"}`}>({tip})</span>}
+        {tip && (
+          <span className={`ml-1 text-[11px] ${featured ? "text-white/40" : "text-stone-400"}`}>
+            ({tip})
+          </span>
+        )}
       </span>
     </div>
   )
@@ -69,11 +75,15 @@ function FeatureRow({ text, tip, featured }: { text: string; tip: string | null;
 
 function MissingRow({ text, featured }: { text: string; featured: boolean }) {
   return (
-    <div className="flex items-start gap-3">
-      <div className={`mt-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center shrink-0 ${featured ? "bg-white/8" : "bg-stone-50"}`}>
-        <Minus size={8} className={featured ? "text-white/25" : "text-stone-300"} strokeWidth={3} />
+    <div className="flex items-start gap-2.5">
+      <div className={`mt-[3px] w-[16px] h-[16px] rounded-full flex items-center justify-center shrink-0 ${
+        featured ? "bg-white/8" : "bg-stone-100"
+      }`}>
+        <Minus size={8} className={featured ? "text-white/30" : "text-stone-400"} strokeWidth={3} />
       </div>
-      <span className={`text-sm leading-snug ${featured ? "text-white/25" : "text-stone-350"}`} style={{ color: featured ? undefined : "#c4bfba" }}>{text}</span>
+      <span className={`text-[13px] leading-snug ${featured ? "text-white/30" : "text-stone-400"}`}>
+        {text}
+      </span>
     </div>
   )
 }
@@ -89,14 +99,12 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
     const detected = detectCountryFromTimezone()
     setCp(COUNTRY_PRICING[detected] || COUNTRY_PRICING[DEFAULT_COUNTRY])
 
-    // Check if user is logged in to adjust CTA links
     const supabase = createClient()
     supabase.auth.getSession().then(({ data }) => {
       setIsLoggedIn(!!data.session)
     })
   }, [])
 
-  // Helper to get localized price for a plan
   const getPrice = (planId: string, cycle: "monthly" | "yearly") => {
     if (planId === "free") return "Free"
     const p = planId as "starter" | "pro" | "agency"
@@ -106,36 +114,43 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
 
   return (
     <>
-      {/* ── Billing toggle ── */}
-      <div className="inline-flex items-center gap-1 p-1.5 rounded-full bg-white border border-stone-200 shadow-sm">
+      {/* ── Billing toggle — landing style with offset shadow ── */}
+      <div className="inline-flex items-center gap-1 p-1 rounded-full bg-white border-[2px] border-[var(--landing-dark)] shadow-[3px_3px_0px_0px_rgba(18,18,17,1)]">
         <button
           onClick={() => setBilling("monthly")}
-          className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${billing === "monthly" ? "text-white shadow-sm" : "text-stone-400 hover:text-stone-700"}`}
-          style={billing === "monthly" ? { backgroundColor: "#1a1a1a" } : {}}
+          className={`px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 ${
+            billing === "monthly"
+              ? "bg-[var(--landing-dark)] text-white"
+              : "text-[var(--landing-text-muted)] hover:text-[var(--landing-text-dark)]"
+          }`}
         >
           Monthly
         </button>
         <button
           onClick={() => setBilling("yearly")}
-          className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${billing === "yearly" ? "text-white shadow-sm" : "text-stone-400 hover:text-stone-700"}`}
-          style={billing === "yearly" ? { backgroundColor: "#1a1a1a" } : {}}
+          className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 ${
+            billing === "yearly"
+              ? "bg-[var(--landing-dark)] text-white"
+              : "text-[var(--landing-text-muted)] hover:text-[var(--landing-text-dark)]"
+          }`}
         >
           Yearly
           <span
-            className="text-xs font-bold px-2 py-0.5 rounded-full transition-all"
-            style={billing === "yearly"
-              ? { backgroundColor: "#e07b39", color: "#fff" }
-              : { backgroundColor: "#fde8d8", color: "#c2622a" }}
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+              billing === "yearly"
+                ? "bg-[var(--landing-amber)] text-white"
+                : "bg-[var(--landing-amber)]/15 text-[var(--landing-amber)]"
+            }`}
           >
-            Save ~20%
+            Save 20%
           </span>
         </button>
       </div>
 
       {/* ── Cards ── */}
-      <section className="pb-20 px-4 sm:px-8 pt-16">
+      <section className="pb-20 px-4 sm:px-8 pt-12 sm:pt-16">
         <motion.div
-          className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
+          className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5"
           variants={gridVariants}
           initial="hidden"
           animate="visible"
@@ -144,130 +159,155 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
             <motion.div
               key={plan.id}
               variants={cardVariants}
-              className={`relative flex flex-col rounded-3xl transition-all duration-300 ${
-                plan.comingSoon ? "opacity-70" : plan.featured ? "" : "hover:-translate-y-1"
+              className={`relative flex flex-col rounded-[1.5rem] transition-all duration-300 ${
+                plan.comingSoon ? "opacity-75" : "hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(18,18,17,1)]"
               }`}
-              style={plan.featured
-                ? {
-                    background: "linear-gradient(145deg, #232323 0%, #1a1a1a 60%, #1f1c18 100%)",
-                    boxShadow: "0 0 0 1px rgba(224,123,57,0.35), 0 24px 48px -8px rgba(0,0,0,0.45), 0 0 80px -20px rgba(224,123,57,0.15)",
-                  }
-                : plan.comingSoon
-                ? { backgroundColor: "#f5f3f0", border: "1px solid #e8e4de" }
-                : { backgroundColor: "#ffffff", border: "1px solid #ebe8e3", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }
+              style={
+                plan.featured
+                  ? {
+                      backgroundColor: "var(--landing-dark)",
+                      border: "3px solid var(--landing-dark)",
+                      boxShadow: "4px 4px 0px 0px rgba(18,18,17,1)",
+                    }
+                  : plan.comingSoon
+                    ? {
+                        backgroundColor: "#f5f3ef",
+                        border: "3px solid #e8e4de",
+                        boxShadow: "2px 2px 0px 0px rgba(18,18,17,0.15)",
+                      }
+                    : {
+                        backgroundColor: "#ffffff",
+                        border: "3px solid var(--landing-dark)",
+                        boxShadow: "4px 4px 0px 0px rgba(18,18,17,1)",
+                      }
               }
             >
-              {/* Featured glow ring */}
+              {/* Featured — warm amber glow inside the dark card */}
               {plan.featured && (
                 <div
-                  className="absolute inset-0 rounded-3xl pointer-events-none"
+                  className="absolute inset-0 rounded-[1.2rem] pointer-events-none"
                   style={{
-                    background: "linear-gradient(145deg, rgba(224,123,57,0.12) 0%, transparent 50%)",
+                    background:
+                      "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(198,122,60,0.18) 0%, transparent 70%)",
                   }}
                 />
               )}
 
-              {/* Badge */}
+              {/* Badge — landing style with offset shadow */}
               {plan.badge && (
                 <div
-                  className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-md whitespace-nowrap text-white z-10"
-                  style={{ backgroundColor: plan.badge === "Most Popular" ? "#e07b39" : "#78716c" }}
+                  className={`absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap z-10 border-[2px] border-[var(--landing-dark)] ${
+                    plan.badge === "Most Popular"
+                      ? "bg-[var(--landing-amber)] text-white shadow-[2px_2px_0px_0px_rgba(18,18,17,1)]"
+                      : "bg-white text-[var(--landing-text-muted)] shadow-[2px_2px_0px_0px_rgba(18,18,17,1)]"
+                  }`}
                 >
-                  {plan.badge === "Most Popular" && <Zap size={9} />}
-                  {plan.badge === "Coming Soon" && <Clock size={9} />}
+                  {plan.badge === "Most Popular" && <Zap size={9} strokeWidth={2.5} />}
+                  {plan.badge === "Coming Soon" && <Clock size={9} strokeWidth={2.5} />}
                   {plan.badge}
                 </div>
               )}
 
               <div className="p-6 flex flex-col flex-1 relative z-10">
                 {/* Plan name */}
-                <div className={`text-[11px] font-bold uppercase tracking-widest mb-4 ${plan.featured ? "text-amber-400" : "text-stone-400"}`}>
+                <div
+                  className={`text-[11px] font-bold uppercase tracking-[0.15em] mb-4 ${
+                    plan.featured ? "text-[var(--landing-amber-light)]" : "text-[var(--landing-text-muted)]"
+                  }`}
+                >
                   {plan.name}
                 </div>
 
-                {/* Price */}
+                {/* Price — use display font to match landing */}
                 <div className="mb-4">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={`${plan.id}-${billing}`}
-                      initial={{ opacity: 0, y: -8 }}
+                      initial={{ opacity: 0, y: -6 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 8 }}
+                      exit={{ opacity: 0, y: 6 }}
                       transition={{ duration: 0.2 }}
                       className="flex items-baseline gap-1"
                     >
                       <span
-                        className={`font-semibold leading-none tracking-tight ${plan.featured ? "text-white" : plan.comingSoon ? "text-stone-300" : "text-stone-900"}`}
-                        style={{ fontSize: plan.comingSoon ? "1.5rem" : plan.monthly === 0 ? "2.75rem" : "2.5rem", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" }}
+                        className={`font-display font-bold leading-none tracking-tight ${
+                          plan.featured ? "text-white" : plan.comingSoon ? "text-stone-400" : "text-[var(--landing-text-dark)]"
+                        }`}
+                        style={{
+                          fontSize: plan.comingSoon ? "1.75rem" : plan.monthly === 0 ? "3rem" : "2.75rem",
+                        }}
                       >
-                        {plan.monthly === 0 ? "Free" : plan.comingSoon ? "Coming Soon" : getPrice(plan.id, billing)}
+                        {plan.monthly === 0
+                          ? "Free"
+                          : plan.comingSoon
+                            ? "Soon"
+                            : getPrice(plan.id, billing)}
                       </span>
                       {plan.monthly > 0 && !plan.comingSoon && (
-                        <span className={`text-sm font-medium ${plan.featured ? "text-white/35" : "text-stone-400"}`}>/mo</span>
+                        <span className={`text-sm font-medium ${plan.featured ? "text-white/45" : "text-stone-400"}`}>
+                          /mo
+                        </span>
                       )}
                     </motion.div>
                   </AnimatePresence>
 
-                  {plan.monthly > 0 && !plan.comingSoon && billing === "yearly" && (
-                    <p className={`text-xs mt-1.5 font-medium ${plan.featured ? "text-amber-400/80" : "text-emerald-600"}`}>
-                      Save ~20% vs monthly
-                    </p>
-                  )}
-                  {plan.monthly > 0 && !plan.comingSoon && billing === "monthly" && (
-                    <p className={`text-xs mt-1.5 ${plan.featured ? "text-white/30" : "text-stone-400"}`}>
-                      or {getPrice(plan.id, "yearly")}/mo billed yearly
-                    </p>
-                  )}
-                  {plan.monthly === 0 && (
-                    <p className="text-xs mt-1.5 text-stone-400">forever free</p>
-                  )}
-                  {plan.comingSoon && (
-                    <p className="text-xs mt-1.5 text-stone-400">price announced at launch</p>
-                  )}
+                  <div className="mt-1.5 min-h-[18px]">
+                    {plan.monthly > 0 && !plan.comingSoon && billing === "yearly" && (
+                      <p className={`text-xs font-semibold ${plan.featured ? "text-[var(--landing-amber-light)]" : "text-emerald-700"}`}>
+                        Save 20% vs monthly
+                      </p>
+                    )}
+                    {plan.monthly > 0 && !plan.comingSoon && billing === "monthly" && (
+                      <p className={`text-xs ${plan.featured ? "text-white/40" : "text-stone-500"}`}>
+                        or {getPrice(plan.id, "yearly")}/mo billed yearly
+                      </p>
+                    )}
+                    {plan.monthly === 0 && (
+                      <p className="text-xs text-stone-500 font-medium">Forever free</p>
+                    )}
+                    {plan.comingSoon && (
+                      <p className="text-xs text-stone-500">Price announced at launch</p>
+                    )}
+                  </div>
                 </div>
 
-                {/* Value hint */}
+                {/* Value hint pill — matches landing pill style */}
                 <div
-                  className="text-xs font-medium mb-3 px-2.5 py-1 rounded-full inline-block w-fit"
-                  style={plan.featured
-                    ? { backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" }
-                    : { backgroundColor: "#f5f3f0", color: "#a09890" }
+                  className="inline-flex text-[11px] font-semibold mb-3 px-2.5 py-1 rounded-full w-fit border"
+                  style={
+                    plan.featured
+                      ? { backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.1)" }
+                      : { backgroundColor: "#faf7f2", color: "var(--landing-text-muted)", borderColor: "#ebe6dd" }
                   }
                 >
                   {plan.valueHint}
                 </div>
 
-                <p className={`text-sm mb-5 leading-snug ${plan.featured ? "text-white/55" : "text-stone-400"}`}>
+                <p className={`text-sm mb-5 leading-relaxed ${plan.featured ? "text-white/60" : "text-[var(--landing-text-muted)]"}`}>
                   {plan.desc}
                 </p>
 
-                {/* CTA */}
-                <div className="mb-6">
+                {/* CTA — matches landing page button style */}
+                <div className="mb-5">
                   <Link
                     href={plan.comingSoon ? "#" : isLoggedIn ? `/choose-plan?billing=${billing}&plan=${plan.id}` : plan.href}
-                    className={`block w-full text-center py-3 rounded-2xl font-semibold text-sm transition-all duration-200 ${
+                    className={`block w-full text-center py-3 rounded-xl font-bold text-sm border-[2px] transition-all duration-150 active:translate-y-0 active:shadow-[1px_1px_0px_0px_rgba(18,18,17,1)] ${
                       plan.comingSoon
-                        ? "cursor-default"
+                        ? "cursor-default bg-stone-200 text-stone-400 border-stone-300"
                         : plan.featured
-                        ? "hover:opacity-90 active:scale-[0.98]"
-                        : "hover:opacity-90 active:scale-[0.98]"
+                          ? "bg-white text-[var(--landing-dark)] border-white hover:-translate-y-[1px] hover:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.25)] shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
+                          : "bg-[var(--landing-dark)] text-white border-[var(--landing-dark)] hover:-translate-y-[1px] hover:shadow-[3px_3px_0px_0px_rgba(18,18,17,1)] shadow-[2px_2px_0px_0px_rgba(18,18,17,1)]"
                     }`}
-                    style={plan.comingSoon
-                      ? { backgroundColor: "#ede9e4", color: "#b5afa8" }
-                      : plan.featured
-                      ? { backgroundColor: "#ffffff", color: "#1a1a1a" }
-                      : { backgroundColor: "#1a1a1a", color: "#ffffff" }
-                    }
                   >
                     {plan.cta}
                   </Link>
-                  <p className={`text-center text-xs mt-2 ${plan.featured ? "text-white/25" : "text-stone-400"}`}>
+                  <p className={`text-center text-[11px] mt-2 font-medium ${plan.featured ? "text-white/40" : "text-stone-500"}`}>
                     {plan.ctaNote}
                   </p>
                 </div>
 
                 {/* Divider */}
-                <div className={`h-px mb-5 ${plan.featured ? "bg-white/8" : "bg-stone-100"}`} />
+                <div className={`h-px mb-5 ${plan.featured ? "bg-white/10" : "bg-stone-200/70"}`} />
 
                 {/* Features */}
                 <div className="space-y-2.5 flex-1">
@@ -283,177 +323,154 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
           ))}
         </motion.div>
 
-        {/* Trust strip */}
+        {/* Trust strip — inline with landing editorial feel */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.65, duration: 0.5 }}
-          className="max-w-xl mx-auto mt-10 flex flex-wrap items-center justify-center gap-6 text-xs text-stone-400"
+          className="max-w-2xl mx-auto mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs text-[var(--landing-text-muted)] font-medium"
         >
-          <span className="flex items-center gap-1.5"><Lock size={11} /> SSL encrypted</span>
-          <span className="flex items-center gap-1.5"><Check size={11} /> No hidden fees</span>
-          <span className="flex items-center gap-1.5"><Zap size={11} /> Cancel anytime</span>
-          <span className="flex items-center gap-1.5"><Clock size={11} /> 14-day free trial</span>
+          <span className="flex items-center gap-1.5"><Lock size={11} strokeWidth={2.5} /> SSL encrypted</span>
+          <span className="w-1 h-1 rounded-full bg-stone-300" />
+          <span className="flex items-center gap-1.5"><Check size={11} strokeWidth={2.5} /> No hidden fees</span>
+          <span className="w-1 h-1 rounded-full bg-stone-300" />
+          <span className="flex items-center gap-1.5"><Zap size={11} strokeWidth={2.5} /> Cancel anytime</span>
+          <span className="w-1 h-1 rounded-full bg-stone-300" />
+          <span className="flex items-center gap-1.5"><Clock size={11} strokeWidth={2.5} /> 14-day free trial</span>
         </motion.div>
       </section>
 
-      {/* ── Value comparison ── */}
-      <section className="py-32 px-6 bg-[#FAF9F5] dark:bg-[#121212] relative overflow-hidden">
-        {/* Subtle background pattern/texture */}
-        <div className="absolute inset-0 pointer-events-none opacity-[0.03] mix-blend-multiply" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231a1a1a' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
-        
+      {/* ── "Real cost" comparison section — editorial landing style ── */}
+      <section className="py-24 sm:py-32 px-4 sm:px-6 bg-[var(--landing-cream)] relative overflow-hidden">
+        {/* Grid pattern matching landing */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_70%_50%_at_50%_0%,#000_80%,transparent_100%)] pointer-events-none" />
+
         <div className="max-w-4xl mx-auto relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center mb-16"
+            className="text-center mb-14"
           >
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] mb-4 text-[#D97757]">The Real Cost</p>
-            <h2 className="text-4xl sm:text-[3.5rem] font-medium tracking-tight text-[#1A1A1A] dark:text-[#EDEDED] leading-[1.1]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] mb-4 text-[var(--landing-amber)]">
+              The Real Cost
+            </p>
+            <h2
+              className="font-display text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-[var(--landing-text-dark)] leading-[1.05]"
+              style={{ textShadow: "2px 2px 0px rgba(26,26,26,0.06), 0 6px 20px rgba(26,26,26,0.04)" }}
+            >
               What are you actually<br />
-              <span className="font-display italic text-[#D97757]">paying right now?</span>
+              <span
+                className="font-serif italic"
+                style={{
+                  backgroundImage: "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                paying right now?
+              </span>
             </h2>
-            <p className="mt-6 text-[#6B6A68] dark:text-[#A0A0A0] text-[15px] sm:text-base max-w-lg mx-auto leading-relaxed">
-              A freelancer spending 3 hours drafting one invoice at $50/hr loses $150 in billable time. Every single time.
+            <p className="mt-5 text-[var(--landing-text-muted)] text-base max-w-lg mx-auto leading-relaxed">
+              A freelancer spending 3 hours on one invoice at $50/hr loses $150 in billable time. Every single time.
             </p>
           </motion.div>
 
-          {/* Comparison rows */}
+          {/* Rows — with landing offset-shadow treatment */}
           <div className="space-y-4">
             {/* Manual drafting */}
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="group flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-[24px] px-6 sm:px-8 py-6 bg-white dark:bg-[#1A1A1A] border border-[#EAE8E4] dark:border-[#2C2C2C] shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all hover:shadow-[0_8px_24px_rgba(0,0,0,0.04)] hover:-translate-y-0.5"
-            >
-              <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-[#F5F4EF] dark:bg-[#2C2C2C] text-[#8C8B88] dark:text-[#A0A0A0] transition-colors group-hover:text-[#D97757]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <ComparisonRow
+              delay={0}
+              title="Manual drafting"
+              desc="Word, Google Docs, or from scratch"
+              icon={
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-base font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">Manual drafting</p>
-                <p className="text-[13px] text-[#8C8B88] dark:text-[#808080] mt-1">Word, Google Docs, or from scratch</p>
-              </div>
-              <div className="flex items-center justify-between sm:justify-end gap-8 sm:gap-12 shrink-0 pt-4 sm:pt-0 border-t border-[#EAE8E4] dark:border-[#2C2C2C] sm:border-0 mt-2 sm:mt-0">
-                <div className="text-left sm:text-right">
-                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">2–4 hrs</p>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#8C8B88] dark:text-[#808080] mt-0.5">per doc</p>
-                </div>
-                <div className="text-left sm:text-right">
-                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">$100–200</p>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#8C8B88] dark:text-[#808080] mt-0.5">lost time</p>
-                </div>
-                <div className="text-right w-24 sm:w-28">
-                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">~$3k/mo</p>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#D97757] mt-0.5">Ouch</p>
-                </div>
-              </div>
-            </motion.div>
+              }
+              stats={[
+                { value: "2–4 hrs", label: "per doc" },
+                { value: "$100–200", label: "lost time" },
+              ]}
+              total="~$3k/mo"
+              totalLabel="Ouch"
+              variant="plain"
+            />
 
             {/* Hiring a VA */}
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-              className="group flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-[24px] px-6 sm:px-8 py-6 bg-white dark:bg-[#1A1A1A] border border-[#EAE8E4] dark:border-[#2C2C2C] shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all hover:shadow-[0_8px_24px_rgba(0,0,0,0.04)] hover:-translate-y-0.5"
-            >
-              <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-[#F5F4EF] dark:bg-[#2C2C2C] text-[#8C8B88] dark:text-[#A0A0A0] transition-colors group-hover:text-[#D97757]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <line x1="19" y1="8" x2="19" y2="14"/>
-                  <line x1="22" y1="11" x2="16" y2="11"/>
+            <ComparisonRow
+              delay={0.1}
+              title="Hiring a VA"
+              desc="Virtual assistant at $15–25/hr"
+              icon={
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <line x1="19" y1="8" x2="19" y2="14" />
+                  <line x1="22" y1="11" x2="16" y2="11" />
                 </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-base font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">Hiring a VA</p>
-                <p className="text-[13px] text-[#8C8B88] dark:text-[#808080] mt-1">Virtual assistant at $15–25/hr</p>
-              </div>
-              <div className="flex items-center justify-between sm:justify-end gap-8 sm:gap-12 shrink-0 pt-4 sm:pt-0 border-t border-[#EAE8E4] dark:border-[#2C2C2C] sm:border-0 mt-2 sm:mt-0">
-                <div className="text-left sm:text-right">
-                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">1–2 hrs</p>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#8C8B88] dark:text-[#808080] mt-0.5">per doc</p>
-                </div>
-                <div className="text-left sm:text-right">
-                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">$15–25</p>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#8C8B88] dark:text-[#808080] mt-0.5">per doc</p>
-                </div>
-                <div className="text-right w-24 sm:w-28">
-                  <p className="text-[15px] font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">$450/mo</p>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#D97757] mt-0.5">Expensive</p>
-                </div>
-              </div>
-            </motion.div>
+              }
+              stats={[
+                { value: "1–2 hrs", label: "per doc" },
+                { value: "$15–25", label: "per doc" },
+              ]}
+              total="$450/mo"
+              totalLabel="Expensive"
+              variant="plain"
+            />
 
-            {/* Clorefy — featured row */}
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-[24px] px-6 sm:px-8 py-6 relative overflow-hidden bg-[#23221F] dark:bg-[#161616] border border-[#3A3935] dark:border-[#2A2A2A] shadow-[0_12px_32px_rgba(0,0,0,0.12)]"
-            >
-              <div className="absolute top-0 left-0 w-full h-full pointer-events-none bg-gradient-to-r from-[#D97757]/10 to-transparent" />
-              
-              <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 relative z-10 bg-[#D97757]/10 text-[#D97757]">
-                <motion.svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+            {/* Clorefy Pro — dark featured row */}
+            <ComparisonRow
+              delay={0.2}
+              title="Clorefy Pro"
+              badge="Recommended"
+              desc="AI-generated, compliant, ready in seconds"
+              icon={
+                <motion.svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
                   animate={{ rotate: 180 }}
                   transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
                 >
                   <path d="M12 2L12.5 11.5L22 12L12.5 12.5L12 22L11.5 12.5L2 12L11.5 11.5L12 2Z" fill="currentColor" />
                 </motion.svg>
-              </div>
-              <div className="flex-1 min-w-0 relative z-10">
-                <div className="flex items-center gap-3">
-                  <p className="text-base font-semibold text-[#FDFCF7]">Clorefy Pro</p>
-                  <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-[0.15em] bg-[#D97757]/20 text-[#D97757] border border-[#D97757]/20">Recommended</span>
-                </div>
-                <p className="text-[13px] text-[#A9A8A5] mt-1">AI-generated, compliant, ready in seconds</p>
-              </div>
-              <div className="flex items-center justify-between sm:justify-end gap-8 sm:gap-12 shrink-0 relative z-10 pt-4 sm:pt-0 border-t border-[#3A3935] dark:border-[#2A2A2A] sm:border-0 mt-2 sm:mt-0">
-                <div className="text-left sm:text-right">
-                  <motion.p
-                    className="text-[15px] font-semibold text-[#FDFCF7]"
-                    animate={{ opacity: [0.7, 1, 0.7] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                  >&lt; 30s</motion.p>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#A9A8A5] mt-0.5">per doc</p>
-                </div>
-                <div className="text-left sm:text-right">
-                  <p className="text-[15px] font-semibold text-[#D97757]">~$0.13</p>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#A9A8A5] mt-0.5">per doc</p>
-                </div>
-                <div className="text-right w-24 sm:w-28">
-                  <p className="text-[15px] font-semibold text-[#FDFCF7]">{formatPrice(COUNTRY_PRICING["US"].pro.yearly, COUNTRY_PRICING["US"])}/mo</p>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#D97757] mt-0.5">150 docs</p>
-                </div>
-              </div>
-            </motion.div>
+              }
+              stats={[
+                { value: "< 30s", label: "per doc", animated: true },
+                { value: "~$0.13", label: "per doc", highlight: true },
+              ]}
+              total={`${formatPrice(COUNTRY_PRICING["US"].pro.yearly, COUNTRY_PRICING["US"])}/mo`}
+              totalLabel="150 docs"
+              variant="featured"
+            />
           </div>
 
-          {/* Stat strip */}
+          {/* Stat strip — landing-style cards */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.4, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4"
+            className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4"
           >
             {[
               { num: "99%", label: "Faster than manual" },
               { num: "$5,000+", label: "Saved annually" },
               { num: "30s", label: "Avg generation time" },
             ].map((stat, i) => (
-               <div key={i} className="flex flex-col items-center justify-center p-6 rounded-[24px] bg-white dark:bg-[#1A1A1A] border border-[#EAE8E4] dark:border-[#2C2C2C]">
-                 <div className="text-[2rem] font-medium tracking-tight text-[#1A1A1A] dark:text-[#EDEDED] leading-none mb-2">{stat.num}</div>
-                 <div className="text-[13px] text-[#8C8B88] dark:text-[#808080]">{stat.label}</div>
-               </div>
+              <div
+                key={i}
+                className="flex flex-col items-center justify-center p-6 rounded-2xl bg-white border-[2.5px] border-[var(--landing-dark)] shadow-[3px_3px_0px_0px_rgba(18,18,17,1)]"
+              >
+                <div className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[var(--landing-text-dark)] leading-none mb-1.5">
+                  {stat.num}
+                </div>
+                <div className="text-[12px] font-medium text-[var(--landing-text-muted)]">{stat.label}</div>
+              </div>
             ))}
           </motion.div>
         </div>
@@ -462,35 +479,186 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
       {/* ── Injected content (e.g. ComparisonTable) ── */}
       {children}
 
-      {/* ── CTA ── */}
-      <section className="py-24 sm:py-32 px-6 bg-white dark:bg-[#121212]">
+      {/* ── Bottom CTA — editorial landing style with offset shadow ── */}
+      <section className="py-24 sm:py-32 px-4 sm:px-6 bg-[var(--landing-cream)]">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="max-w-4xl mx-auto rounded-[32px] p-12 sm:p-24 text-center relative overflow-hidden bg-[#FAF9F5] dark:bg-[#1A1A1A] border border-[#EAE8E4] dark:border-[#2C2C2C]"
+          className="max-w-3xl mx-auto rounded-[2rem] p-10 sm:p-16 text-center relative overflow-hidden bg-white border-[3px] border-[var(--landing-dark)]"
+          style={{ boxShadow: "6px 6px 0px 0px rgba(18,18,17,1)" }}
         >
-          {/* Claude-like subtle radial glow inside the card */}
-          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at 50% 0%, rgba(217,119,87,0.06) 0%, transparent 70%)" }} />
-          
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] mb-4 relative z-10 text-[#D97757]">Start Today</p>
-          <h2 className="text-4xl sm:text-[3.5rem] font-medium tracking-tight mb-6 relative z-10 leading-[1.1] text-[#1A1A1A] dark:text-[#EDEDED]">
+          {/* Subtle amber glow */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(198,122,60,0.1) 0%, transparent 70%)",
+            }}
+          />
+
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] mb-4 relative z-10 text-[var(--landing-amber)]">
+            Start Today
+          </p>
+          <h2
+            className="font-display text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight mb-5 relative z-10 leading-[1.05] text-[var(--landing-text-dark)]"
+            style={{ textShadow: "2px 2px 0px rgba(26,26,26,0.06), 0 6px 20px rgba(26,26,26,0.04)" }}
+          >
             Your first document<br />
-            <span className="font-display italic text-[#D97757]">in 30 seconds</span>
+            <span
+              className="font-serif italic"
+              style={{
+                backgroundImage: "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              in 30 seconds
+            </span>
           </h2>
-          <p className="text-[#6B6A68] dark:text-[#A0A0A0] text-[15px] sm:text-base mb-10 relative z-10 max-w-md mx-auto leading-relaxed">
-            Free forever. No credit card. No setup. Just describe what you need and watch it generate magically.
+          <p className="text-[var(--landing-text-muted)] text-base mb-8 relative z-10 max-w-md mx-auto leading-relaxed">
+            Free forever. No credit card. No setup. Just describe what you need.
           </p>
           <Link
             href={isLoggedIn ? "/choose-plan" : "/auth/signup"}
-            className="group relative z-10 inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full font-medium text-[15px] bg-[#1A1A1A] text-white hover:bg-[#333333] dark:bg-[#EDEDED] dark:text-[#1A1A1A] dark:hover:bg-white transition-colors"
+            className="group relative z-10 inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold text-[15px] bg-[var(--landing-dark)] text-white border-[2.5px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(18,18,17,1)] hover:shadow-[6px_6px_0px_0px_rgba(18,18,17,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(18,18,17,1)] transition-all duration-150"
           >
             Get Started Free
-            <ArrowRight className="transition-transform group-hover:translate-x-1 opacity-70" size={18} />
+            <ArrowRight className="transition-transform group-hover:translate-x-1" size={18} />
           </Link>
         </motion.div>
       </section>
     </>
+  )
+}
+
+// ─── ComparisonRow helper ─────────────────────────────────────────────────────
+
+function ComparisonRow({
+  delay,
+  title,
+  desc,
+  icon,
+  stats,
+  total,
+  totalLabel,
+  variant,
+  badge,
+}: {
+  delay: number
+  title: string
+  desc: string
+  icon: React.ReactNode
+  stats: Array<{ value: string; label: string; animated?: boolean; highlight?: boolean }>
+  total: string
+  totalLabel: string
+  variant: "plain" | "featured"
+  badge?: string
+}) {
+  const isFeatured = variant === "featured"
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.6, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={`relative flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-2xl px-5 sm:px-7 py-5 sm:py-6 transition-all ${
+        isFeatured
+          ? "bg-[var(--landing-dark)] border-[2.5px] border-[var(--landing-dark)]"
+          : "bg-white border-[2.5px] border-[var(--landing-dark)] hover:-translate-y-0.5 hover:shadow-[5px_5px_0px_0px_rgba(18,18,17,1)]"
+      }`}
+      style={{
+        boxShadow: isFeatured
+          ? "4px 4px 0px 0px rgba(198,122,60,1)"
+          : "3px 3px 0px 0px rgba(18,18,17,1)",
+      }}
+    >
+      {isFeatured && (
+        <div
+          className="absolute inset-0 rounded-[1.3rem] pointer-events-none"
+          style={{
+            background: "linear-gradient(135deg, rgba(198,122,60,0.12) 0%, transparent 60%)",
+          }}
+        />
+      )}
+
+      {/* Icon */}
+      <div
+        className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 relative z-10 ${
+          isFeatured
+            ? "bg-[var(--landing-amber)]/15 text-[var(--landing-amber-light)]"
+            : "bg-stone-100 text-stone-500"
+        }`}
+      >
+        {icon}
+      </div>
+
+      {/* Text */}
+      <div className="flex-1 min-w-0 relative z-10">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className={`text-base font-bold ${isFeatured ? "text-white" : "text-[var(--landing-text-dark)]"}`}>
+            {title}
+          </p>
+          {badge && (
+            <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-[0.1em] bg-[var(--landing-amber)]/20 text-[var(--landing-amber-light)] border border-[var(--landing-amber)]/25">
+              {badge}
+            </span>
+          )}
+        </div>
+        <p className={`text-[13px] mt-0.5 ${isFeatured ? "text-white/60" : "text-[var(--landing-text-muted)]"}`}>
+          {desc}
+        </p>
+      </div>
+
+      {/* Stats */}
+      <div
+        className={`flex items-center justify-between sm:justify-end gap-6 sm:gap-10 shrink-0 relative z-10 pt-3 sm:pt-0 mt-3 sm:mt-0 ${
+          isFeatured ? "border-t border-white/10" : "border-t border-stone-200/70"
+        } sm:border-0`}
+      >
+        {stats.map((stat, i) => (
+          <div key={i} className="text-left sm:text-right">
+            {stat.animated ? (
+              <motion.p
+                className={`text-[15px] font-bold ${isFeatured ? "text-white" : "text-[var(--landing-text-dark)]"}`}
+                animate={{ opacity: [0.7, 1, 0.7] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              >
+                {stat.value}
+              </motion.p>
+            ) : (
+              <p
+                className={`text-[15px] font-bold ${
+                  stat.highlight
+                    ? "text-[var(--landing-amber)]"
+                    : isFeatured
+                      ? "text-white"
+                      : "text-[var(--landing-text-dark)]"
+                }`}
+              >
+                {stat.value}
+              </p>
+            )}
+            <p className={`text-[10px] font-bold uppercase tracking-[0.1em] mt-0.5 ${
+              isFeatured ? "text-white/50" : "text-stone-400"
+            }`}>
+              {stat.label}
+            </p>
+          </div>
+        ))}
+        <div className="text-right w-24 sm:w-28">
+          <p className={`text-[15px] font-bold ${isFeatured ? "text-white" : "text-[var(--landing-text-dark)]"}`}>
+            {total}
+          </p>
+          <p className={`text-[10px] font-bold uppercase tracking-[0.1em] mt-0.5 ${
+            isFeatured ? "text-[var(--landing-amber-light)]" : "text-[var(--landing-amber)]"
+          }`}>
+            {totalLabel}
+          </p>
+        </div>
+      </div>
+    </motion.div>
   )
 }
