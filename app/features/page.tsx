@@ -4,7 +4,7 @@ import { AnimatedCard } from "@/components/landing/animated-card"
 import { Breadcrumbs } from "@/components/seo/breadcrumbs"
 import {
     FileText, Wand2, Globe, Zap, Shield, Palette,
-    CheckCircle, ArrowRight, Sparkles, Languages,
+    CheckCircle, ArrowRight, Zap, Languages,
     Stamp, Calculator, PenTool, Users
 } from "lucide-react"
 import Link from "next/link"
@@ -22,7 +22,7 @@ const tabContent: Record<string, TabContentData> = {
         title: "AI-powered document generation",
         desc: "Describe what you need in plain language. Clorefy generates professional invoices, contracts, quotations, and proposals in seconds.",
         features: [
-            { icon: "Sparkles", name: "Smart AI drafting", detail: "Turn a few sentences into a complete, formatted document" },
+            { icon: "Wand2", name: "Smart AI drafting", detail: "Turn a few sentences into a complete, formatted document" },
             { icon: "FileText", name: "Multiple document types", detail: "Invoices, contracts, quotations, proposals, and more" },
             { icon: "Globe", name: "Multi-currency support", detail: "Generate documents in any currency with correct formatting" },
         ]
@@ -77,7 +77,7 @@ const featureGrid = [
     { icon: Users, name: "Team Sharing", desc: "Collaborate on templates" },
     { icon: Stamp, name: "Audit Trail", desc: "Version tracking & history" },
     { icon: CheckCircle, name: "Compliance", desc: "Legal-ready documents" },
-    { icon: Sparkles, name: "Smart Templates", desc: "Learn from your patterns" },
+    { icon: Zap, name: "Smart Templates", desc: "Learn from your patterns" },
 ]
 
 export default function FeaturesPage() {

@@ -12,26 +12,25 @@ export function CTASection() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.8 }}
-                className="max-w-[1400px] mx-auto bg-[var(--landing-dark)] rounded-[2rem] sm:rounded-[3.5rem] lg:rounded-[4.5rem] p-8 sm:p-12 lg:p-24 text-center relative overflow-hidden"
+                className="max-w-[1400px] mx-auto bg-white rounded-[2.5rem] sm:rounded-[4rem] border-[3px] border-[var(--landing-dark)] shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] p-8 sm:p-12 lg:p-24 text-center relative overflow-hidden"
             >
                 {/* Background effects */}
-                <div className="absolute inset-0 bg-mesh-dark opacity-40 pointer-events-none" />
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[1000px] bg-[radial-gradient(circle,rgba(198,122,60,0.15)_0%,transparent_70%)] pointer-events-none" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[1000px] bg-[radial-gradient(circle,rgba(224,123,57,0.05)_0%,transparent_70%)] pointer-events-none" />
 
                 <div className="relative z-10 max-w-4xl mx-auto">
-                    <h2 className="font-display text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-bold text-[var(--landing-cream)] mb-6 sm:mb-8 tracking-tight leading-[0.95]">
+                    <h2 className="font-display text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-bold text-[var(--landing-dark)] mb-6 sm:mb-8 tracking-tight leading-[0.95]">
                         Ready to <br />
                         <span className="text-[var(--landing-amber)] italic font-serif">transform</span> your workflow?
                     </h2>
 
-                    <p className="text-base sm:text-xl md:text-2xl text-[var(--landing-text-dim)] mb-8 sm:mb-14 max-w-2xl mx-auto font-light">
+                    <p className="text-base sm:text-xl md:text-2xl text-[var(--landing-text-muted)] mb-8 sm:mb-14 max-w-2xl mx-auto font-medium">
                         Join 10,000+ professionals generating documents with Clorefy. No credit card required.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
                         <Link
                             href="/auth/signup"
-                            className="group relative inline-flex items-center gap-2.5 px-7 py-4 sm:px-10 sm:py-5 rounded-full bg-[var(--landing-cream)] text-[var(--landing-dark)] font-bold text-base sm:text-xl hover:scale-105 active:scale-95 transition-all shadow-[0_20px_40px_rgba(0,0,0,0.2)] hover:shadow-[0_25px_50px_rgba(0,0,0,0.3)] w-full sm:w-auto justify-center"
+                            className="group relative inline-flex items-center gap-2.5 px-7 py-4 sm:px-10 sm:py-5 rounded-full bg-[var(--landing-dark)] text-white font-bold text-base sm:text-xl transition-all border-[2px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] w-full sm:w-auto justify-center"
                         >
                             Get Started Free
                             <ArrowRight className="transition-transform group-hover:translate-x-1" size={20} />
@@ -39,13 +38,13 @@ export function CTASection() {
 
                         <Link
                             href="/contact-sales"
-                            className="inline-flex items-center gap-2 px-7 py-4 sm:px-8 sm:py-5 rounded-full border border-white/20 text-white font-semibold text-base sm:text-lg hover:bg-white/5 transition-colors w-full sm:w-auto justify-center"
+                            className="inline-flex items-center gap-2 px-7 py-4 sm:px-8 sm:py-5 rounded-full border-[2px] border-[var(--landing-dark)] bg-white text-[var(--landing-dark)] font-bold text-base sm:text-xl transition-all shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] w-full sm:w-auto justify-center"
                         >
                             Contact Sales
                         </Link>
                     </div>
 
-                    <div className="mt-12 text-[var(--landing-text-dim)] text-sm font-medium opacity-60">
+                    <div className="mt-12 text-[var(--landing-text-muted)] text-sm font-medium">
                         No credit card required
                     </div>
                 </div>

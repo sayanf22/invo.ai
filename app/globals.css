@@ -400,28 +400,7 @@
   }
 }
 
-/* App shell rounded corners on desktop — body padding creates the frame */
-@media (min-width: 768px) {
-  html {
-    background-color: #e8ddd0;
-  }
-  
-  body {
-    padding: 8px;
-    min-height: 100dvh;
-    background-color: #e8ddd0;
-  }
-  
-  /* The direct child of body gets the rounded card treatment */
-  body > div:first-child {
-    border-radius: 1.25rem;
-    overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.05);
-    min-height: calc(100dvh - 16px);
-    background-color: #FBF7F0;
-  }
-}
-
+/* Removed global padding to keep landing page full width */
 /* Super rounded utility */
 .rounded-super {
   border-radius: 2.5rem;

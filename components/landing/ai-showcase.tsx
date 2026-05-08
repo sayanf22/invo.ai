@@ -1,7 +1,7 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { Type, Sparkles, FileCheck, ArrowRight } from "lucide-react"
+import { Type, FileCheck, ArrowRight, Wand2 } from "lucide-react"
 import { useState, useEffect } from "react"
 
 export function AIShowcase() {
@@ -40,7 +40,7 @@ export function AIShowcase() {
                         <div className="space-y-8">
                             {[
                                 { title: "Describe", desc: "Type your request in plain English. No rigid templates.", icon: Type },
-                                { title: "Refine", desc: "Our AI structures your data instantly.", icon: Sparkles },
+                                { title: "Refine", desc: "Our AI structures your data instantly.", icon: Wand2 },
                                 { title: "Done", desc: "Export professional PDFs or share seamlessly.", icon: FileCheck }
                             ].map((item, i) => (
                                 <div key={i} className={`flex gap-6 group transition-opacity duration-300 ${step === i ? 'opacity-100' : 'opacity-40'}`}>
@@ -93,7 +93,7 @@ export function AIShowcase() {
                                         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                                         className="w-full"
                                     >
-                                        <div className="bg-white rounded-3xl p-6 shadow-xl border border-stone-100 relative overflow-hidden">
+                                        <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] border-[3px] border-[var(--landing-dark)] relative overflow-hidden">
                                             <div className="flex gap-4 mb-4">
                                                 <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-400">U</div>
                                                 <div className="flex-1 space-y-2">
@@ -126,7 +126,7 @@ export function AIShowcase() {
                                             <div className="absolute inset-0 border-4 border-[var(--landing-amber)]/30 rounded-full" />
                                             <div className="absolute inset-0 border-4 border-t-[var(--landing-amber)] rounded-full animate-spin" />
                                             <div className="absolute inset-0 flex items-center justify-center">
-                                                <Sparkles className="text-[var(--landing-amber)] animate-pulse" size={32} />
+                                                <Wand2 className="text-[var(--landing-amber)] animate-pulse" size={32} />
                                             </div>
                                         </div>
                                         <p className="font-display text-3xl font-bold text-[var(--landing-text-dark)] mb-2">Generating...</p>

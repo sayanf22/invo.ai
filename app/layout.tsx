@@ -118,10 +118,6 @@ export default function RootLayout({
         {/* Critical: Set brand background color BEFORE CSS loads to prevent flash */}
         <style dangerouslySetInnerHTML={{ __html: `
           html, body { background-color: #FBF7F0 !important; }
-          @media (min-width: 768px) {
-            html { background-color: #e8ddd0 !important; }
-            body { background-color: #e8ddd0 !important; }
-          }
         ` }} />
         {/* JSON-LD — WebSite schema (enables sitelinks search box in Google) */}
         <script

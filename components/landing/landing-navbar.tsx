@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Menu, X, ArrowRight, ChevronDown, Sparkles, FileText, Shield, Briefcase, GraduationCap, Scale, Palette, Users, TrendingUp, BookOpen, HelpCircle, MessageCircle } from "lucide-react"
+import { Menu, X, ArrowRight, ChevronDown, Zap, FileText, Shield, Briefcase, GraduationCap, Scale, Palette, Users, TrendingUp, BookOpen, HelpCircle, MessageCircle } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { usePathname } from "next/navigation"
 import { ClorefyLogo } from "@/components/clorefy-logo"
@@ -10,7 +10,7 @@ import { ClorefyLogo } from "@/components/clorefy-logo"
 type DropdownItem = { label: string; desc: string; href: string; icon: any }
 
 const productItems: DropdownItem[] = [
-    { label: "Features", desc: "All the tools you need", href: "/features", icon: Sparkles },
+    { label: "Features", desc: "All the tools you need", href: "/features", icon: Zap },
     { label: "Pricing", desc: "Plans for every team", href: "/pricing", icon: FileText },
     { label: "Privacy & Security", desc: "Your data, your control", href: "/privacy", icon: Shield },
 ]

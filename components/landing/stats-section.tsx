@@ -59,18 +59,19 @@ function Counter({ from, to, duration, suffix }: { from: number; to: number; dur
             const progress = Math.min((ts - startTime) / (duration * 1000), 1)
             const eased = 1 - Math.pow(1 - progress, 4)
             const current = Math.floor(from + (to - from) * eased)
-            if (node) node.textContent = current.toLocaleString() + suffix
+            if (node) node.textContent = current.toLocaleString()
             if (progress < 1) raf = requestAnimationFrame(step)
             else setHasAnimated(true)
         }
         raf = requestAnimationFrame(step)
         return () => cancelAnimationFrame(raf)
-    }, [inView, from, to, duration, suffix, hasAnimated])
+    }, [inView, from, to, duration, hasAnimated])
 
     return (
-        <span ref={nodeRef} className="font-display font-bold text-5xl sm:text-6xl text-[var(--landing-text-dark)] tabular-nums tracking-tight leading-none">
-            0{suffix}
-        </span>
+        <div className="flex items-baseline font-serif text-[4rem] sm:text-[5.5rem] text-[#1C1A17] tracking-tight leading-[1.1]">
+            <span ref={nodeRef} className="font-bold tabular-nums">0</span>
+            <span className="font-light ml-1 opacity-60 text-[#1C1A17]">{suffix}</span>
+        </div>
     )
 }
 
@@ -86,8 +87,15 @@ const cardVariants = {
 
 export function StatsSection() {
     return (
-        <section className="py-16 sm:py-20 lg:py-24 px-4 sm:px-6 lg:px-10 bg-[var(--landing-cream)]">
-            <div className="max-w-lg sm:max-w-2xl mx-auto flex flex-col gap-4 sm:gap-5">
+        <section className="py-20 sm:py-32 px-4 sm:px-6 lg:px-10 bg-[var(--landing-cream)] relative overflow-hidden">
+            <div className="max-w-4xl mx-auto flex flex-col gap-6 sm:gap-10 relative z-10">
+                
+                <div className="text-center mb-4 sm:mb-8">
+                    <h2 className="font-serif text-4xl sm:text-5xl font-bold text-[#1C1A17] tracking-tight">
+                        The impact of automation
+                    </h2>
+                </div>
+
                 {stats.map((stat, i) => {
                     const Icon = stat.Icon
                     return (
@@ -97,20 +105,23 @@ export function StatsSection() {
                             initial="hidden"
                             whileInView="visible"
                             viewport={{ once: true, amount: 0.4 }}
-                            className="flex items-center gap-5 sm:gap-6 rounded-2xl sm:rounded-3xl bg-white p-5 sm:p-7 shadow-[0_4px_24px_-6px_rgba(0,0,0,0.1)] border border-stone-100/60"
+                            className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-10 rounded-[2rem] sm:rounded-[3rem] bg-white p-8 sm:p-12 shadow-[0_20px_60px_-15px_rgba(28,26,23,0.08)] border border-stone-200/60 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-500"
                         >
+                            {/* Subtle hover glow on light mode */}
+                            <div className={`absolute top-1/2 left-12 -translate-y-1/2 w-32 h-32 ${stat.bg} rounded-full blur-[80px] opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none`} />
+
                             {/* Rounded icon badge */}
-                            <div className={`${stat.bg} shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl flex items-center justify-center shadow-md`}>
-                                <Icon className="w-7 h-7 sm:w-9 sm:h-9 text-white" strokeWidth={1.8} />
+                            <div className={`${stat.bg} shrink-0 w-24 h-24 sm:w-32 sm:h-32 rounded-[1.5rem] sm:rounded-[2.5rem] flex items-center justify-center shadow-md z-10`}>
+                                <Icon className="w-12 h-12 sm:w-14 sm:h-14 text-white" strokeWidth={1.5} />
                             </div>
 
-                            {/* Text content — vertically centered */}
-                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                            {/* Text content */}
+                            <div className="flex-1 min-w-0 flex flex-col justify-center z-10">
                                 <Counter from={0} to={stat.value} duration={stat.duration} suffix={stat.suffix} />
-                                <p className="mt-1.5 text-base sm:text-lg font-semibold text-[var(--landing-text-dark)] leading-tight">
+                                <p className="mt-2 text-lg sm:text-xl font-bold text-[#1C1A17] leading-tight">
                                     {stat.label}
                                 </p>
-                                <p className="mt-0.5 text-[13px] sm:text-sm text-[var(--landing-text-muted)]">
+                                <p className="mt-1 text-sm sm:text-base text-[#5B5550] font-medium">
                                     {stat.detail}
                                 </p>
                             </div>

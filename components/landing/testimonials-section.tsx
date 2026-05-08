@@ -1,137 +1,76 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Star, ArrowLeft, ArrowRight } from "lucide-react"
-import { useState } from "react"
 
-// Using placeholder avatars for now
 const testimonials = [
     {
-        name: "Sarah Chen",
-        role: "Product Manager at TechFlow",
-        content: "I used to spend hours drafting PRDs and release notes. with Clorefy, I just talk through my ideas during my commute, and by the time I'm at my desk, the documents are ready.",
-        rating: 5,
-        avatar: "https://i.pravatar.cc/150?u=sarah"
+        name: "Priya Sharma",
+        role: "Founder at Nova Design",
+        content: "I used to spend my entire Friday afternoon creating invoices. With Clorefy, I just say 'Send my standard retainer invoice to Acme', and it's sent in 3 seconds.",
     },
     {
-        name: "James Wilson",
+        name: "Michael Chang",
         role: "Legal Consultant",
-        content: "The accuracy is astounding. It handles legal terminology perfectly and formats contracts exactly how I need them. It's like having a paralegal in my pocket.",
-        rating: 5,
-        avatar: "https://i.pravatar.cc/150?u=james"
+        content: "The formatting accuracy is astounding. It handles complex NDA clauses and formatting perfectly. It's literally like having a junior paralegal in my pocket.",
     },
     {
-        name: "Maria Garcia",
-        role: "Freelance Designer",
-        content: "Invoicing was the bane of my existence. Now I just say 'Invoice client X for 5 hours of design work at $100/hr', and it's sent. Changed my life.",
-        rating: 5,
-        avatar: "https://i.pravatar.cc/150?u=maria"
+        name: "Elena Rodriguez",
+        role: "Freelance Developer",
+        content: "Writing Statement of Work (SOW) documents was the bane of my existence. Now Clorefy turns my brief voice notes into a 5-page, professional project scope.",
+    },
+    {
+        name: "Aisha Patel",
+        role: "Agency Director",
+        content: "We use Clorefy's persistent memory for everything. It remembers our GST details, our client's addresses, and our standard terms. Zero data entry.",
     },
     {
         name: "David Kim",
         role: "Startup Founder",
-        content: "We use Clorefy for everything — meeting minutes, investor updates, hiring contracts. It's the operating system for our documentation.",
-        rating: 5,
-        avatar: "https://i.pravatar.cc/150?u=david"
+        content: "Drafting pitch deck memos used to take 2 days. Clorefy does it in 3 minutes based on my brief notes. The ROI is literally incalculable.",
+    },
+    {
+        name: "Sarah Chen",
+        role: "Product Manager",
+        content: "Sending customized proposals right after a discovery call while the lead is hot. Our close rate went up by 40% purely because of speed.",
     }
 ]
 
 export function TestimonialsSection() {
-    const [currentIndex, setCurrentIndex] = useState(0)
-
-    const next = () => {
-        setCurrentIndex((prev) => (prev + 1) % testimonials.length)
-    }
-
-    const prev = () => {
-        setCurrentIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length)
-    }
-
     return (
-        <section className="py-16 sm:py-24 lg:py-32 px-4 sm:px-6 lg:px-10 bg-white overflow-hidden">
-            <div className="max-w-7xl mx-auto">
-                <div className="flex flex-col md:flex-row items-end justify-between gap-8 mb-20">
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true }}
-                    >
-                        <h2 className="font-display text-3xl sm:text-4xl lg:text-6xl font-bold mb-4">
-                            Loved by <span className="text-[var(--landing-amber)] italic font-serif">builders</span>
-                        </h2>
-                        <p className="text-xl text-[var(--landing-text-muted)]">
-                            Join thousands of professionals who improved their workflow.
-                        </p>
-                    </motion.div>
+        <section className="py-24 sm:py-32 bg-[#1C1A17] overflow-hidden relative">
+            <div className="absolute inset-0 bg-mesh-dark opacity-30 pointer-events-none" />
+            
+            <div className="text-center mb-16 sm:mb-24 relative z-10 px-4">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="relative inline-block"
+                >
+                    <h2 className="font-serif text-5xl sm:text-7xl lg:text-[7.5rem] font-medium text-[#F4F0EB] tracking-tight leading-[0.95]">
+                        Trusted by <br /> professionals
+                    </h2>
+                </motion.div>
+            </div>
 
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true }}
-                        className="flex gap-4"
-                    >
-                        <button
-                            onClick={prev}
-                            className="w-14 h-14 rounded-full border border-stone-200 flex items-center justify-center hover:bg-[var(--landing-dark)] hover:text-white hover:border-[var(--landing-dark)] transition-all duration-300"
-                            aria-label="Previous testimonial"
+            {/* Scrolling Marquee Row */}
+            <div className="relative w-full flex overflow-x-hidden group pb-10 z-10">
+                <div className="flex animate-marquee gap-5 px-2.5">
+                    {[...testimonials, ...testimonials].map((t, i) => (
+                        <div 
+                            key={i} 
+                            className="w-[300px] sm:w-[350px] shrink-0 bg-[#FBF9F6] rounded-[2rem] p-8 flex flex-col justify-center shadow-xl text-center min-h-[250px]"
                         >
-                            <ArrowLeft size={24} />
-                        </button>
-                        <button
-                            onClick={next}
-                            className="w-14 h-14 rounded-full border border-stone-200 flex items-center justify-center hover:bg-[var(--landing-dark)] hover:text-white hover:border-[var(--landing-dark)] transition-all duration-300"
-                            aria-label="Next testimonial"
-                        >
-                            <ArrowRight size={24} />
-                        </button>
-                    </motion.div>
-                </div>
-
-                <div className="relative">
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.8 }}
-                        className="grid grid-cols-1 md:grid-cols-2 gap-8"
-                    >
-                        {[0, 1].map((offset) => {
-                            const index = (currentIndex + offset) % testimonials.length
-                            const t = testimonials[index]
-                            return (
-                                <motion.div
-                                    key={`${currentIndex}-${offset}`}
-                                    initial={{ opacity: 0, x: 50 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ duration: 0.5, delay: offset * 0.1 }}
-                                    className="p-10 rounded-[3rem] bg-[var(--landing-cream)] border border-stone-100 flex flex-col justify-between min-h-[400px]"
-                                >
-                                    <div>
-                                        <div className="flex gap-1 mb-8 text-[var(--landing-amber)]">
-                                            {[...Array(t.rating)].map((_, i) => (
-                                                <Star key={i} size={20} fill="currentColor" />
-                                            ))}
-                                        </div>
-                                        <p className="font-display text-2xl sm:text-3xl leading-snug font-medium mb-8">
-                                            &ldquo;{t.content}&rdquo;
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-full bg-stone-200 overflow-hidden relative">
-                                            {/* In a real app, use next/image here */}
-                                            <div className="absolute inset-0 bg-stone-300 flex items-center justify-center text-stone-500 font-bold">
-                                                {t.name[0]}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-lg">{t.name}</div>
-                                            <div className="text-[var(--landing-text-muted)]">{t.role}</div>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )
-                        })}
-                    </motion.div>
+                            <p className="text-[#1C1A17] text-sm sm:text-base font-medium leading-relaxed mb-8 px-2 flex-1 flex items-center justify-center">
+                                &ldquo;{t.content}&rdquo;
+                            </p>
+                            
+                            <div className="mt-auto">
+                                <h4 className="font-bold text-[#1C1A17] text-xs sm:text-sm">{t.name}</h4>
+                                <p className="text-[#86807B] text-[11px] sm:text-xs font-semibold mt-0.5 uppercase tracking-wide">{t.role}</p>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
         </section>

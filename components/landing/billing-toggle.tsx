@@ -1,7 +1,7 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { Check, Minus, ArrowRight, Sparkles, Clock, Zap, Lock } from "lucide-react"
+import { Check, Minus, ArrowRight, Clock, Zap, Lock } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
@@ -173,7 +173,7 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
                   className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-md whitespace-nowrap text-white z-10"
                   style={{ backgroundColor: plan.badge === "Most Popular" ? "#e07b39" : "#78716c" }}
                 >
-                  {plan.badge === "Most Popular" && <Sparkles size={9} />}
+                  {plan.badge === "Most Popular" && <Zap size={9} />}
                   {plan.badge === "Coming Soon" && <Clock size={9} />}
                   {plan.badge}
                 </div>

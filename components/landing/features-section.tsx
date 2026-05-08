@@ -142,7 +142,7 @@ export function FeaturesSection() {
                             key={feat.title}
                             custom={i}
                             variants={cardVariants}
-                            className={`rounded-[1.5rem] sm:rounded-[2.5rem] p-6 sm:p-10 flex flex-col justify-between hover:-translate-y-2 hover:shadow-2xl transition-[transform,box-shadow] duration-300 cursor-default ${feat.className}`}
+                            className={`rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 flex flex-col justify-between hover:-translate-y-2 hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] transition-[transform,box-shadow] duration-300 cursor-default border-[2.5px] border-[var(--landing-dark)] shadow-[3px_3px_0px_0px_rgba(26,26,26,1)] ${feat.className.replace('shadow-xl', '').replace('shadow-2xl', '').replace('border border-stone-100', '')}`}
                         >
                             <div className="mb-4 sm:mb-8">
                                 <div className={`w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center mb-4 sm:mb-6 ${feat.className.includes('text-white') ? 'bg-white/10 text-white' : 'bg-[var(--landing-cream)] text-[var(--landing-amber)]'}`}>

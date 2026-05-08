@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 
 const footerLinks = {
@@ -128,38 +127,19 @@ const countryGroups = [
 
 export function LandingFooter() {
     return (
-        <footer className="bg-[var(--landing-dark)] text-[var(--landing-cream)] pt-20 pb-10 px-6 sm:px-10">
-            <div className="max-w-7xl mx-auto">
-                {/* Top CTA strip */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pb-16 mb-16 border-b border-white/10">
-                    <div>
-                        <h3 className="font-display text-3xl sm:text-4xl font-bold mb-2">
-                            Ready to get started?
-                        </h3>
-                        <p className="text-[var(--landing-text-dim)] text-lg">
-                            Professional documents, generated in seconds.
-                        </p>
-                    </div>
-                    <Link
-                        href="/auth/signup"
-                        className="group shrink-0 flex items-center gap-2 px-8 py-4 rounded-full bg-[var(--landing-cream)] text-[var(--landing-dark)] font-bold text-lg hover:scale-105 active:scale-95 transition-all shadow-xl"
-                    >
-                        Get Started Free
-                        <ArrowRight className="transition-transform group-hover:translate-x-1" size={18} />
-                    </Link>
-                </div>
-
+        <footer className="bg-[var(--landing-cream)] text-[var(--landing-text-dark)] pt-16 px-6 sm:px-10 overflow-hidden">
+            <div className="max-w-7xl mx-auto flex flex-col min-h-full">
                 {/* Links Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-10 mb-16">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
                     {Object.entries(footerLinks).map(([group, links]) => (
                         <div key={group}>
-                            <h4 className="text-xs uppercase tracking-widest font-bold text-white/40 mb-6">{group}</h4>
-                            <ul className="space-y-3">
+                            <h4 className="font-display text-lg sm:text-xl text-[var(--landing-text-dark)] mb-5">{group}</h4>
+                            <ul className="space-y-2.5">
                                 {links.map((link) => (
                                     <li key={link.label}>
                                         <Link
                                             href={link.href}
-                                            className="text-sm text-[var(--landing-text-dim)] hover:text-[var(--landing-cream)] transition-colors duration-200"
+                                            className="text-sm font-medium text-[var(--landing-text-dark)]/70 hover:text-[var(--landing-amber)] transition-colors duration-200"
                                         >
                                             {link.label}
                                         </Link>
@@ -171,15 +151,15 @@ export function LandingFooter() {
                 </div>
 
                 {/* Countries & Cities — single merged section */}
-                <div className="pt-10 mb-12 border-t border-white/10">
-                    <h4 className="text-xs uppercase tracking-widest font-bold text-white/40 mb-8">
+                <div className="pt-8 mb-10 border-t border-black/10">
+                    <h4 className="font-display text-lg text-[var(--landing-text-dark)] mb-5">
                         Available in 11 Countries
                     </h4>
-                    <div className="space-y-5">
+                    <div className="space-y-4">
                         {countryGroups.map((country) => (
                             <div key={country.name} className="flex flex-wrap items-baseline gap-x-1 gap-y-1">
                                 {/* Country label */}
-                                <span className="text-xs text-white/35 mr-2 shrink-0">
+                                <span className="text-xs text-[var(--landing-text-dark)] font-bold mr-2 shrink-0">
                                     {country.flag} {country.name} · {country.tax}
                                 </span>
                                 {/* City links */}
@@ -187,12 +167,12 @@ export function LandingFooter() {
                                     <span key={city.label} className="flex items-center">
                                         <Link
                                             href={city.href}
-                                            className="text-sm text-[var(--landing-text-dim)] hover:text-[var(--landing-cream)] transition-colors duration-200"
+                                            className="text-sm font-medium text-[var(--landing-text-dark)]/70 hover:text-[var(--landing-amber)] transition-colors duration-200"
                                         >
                                             {city.label}
                                         </Link>
                                         {i < country.cities.length - 1 && (
-                                            <span className="text-white/20 mx-1.5 text-xs">·</span>
+                                            <span className="text-black/20 mx-1.5 text-xs">·</span>
                                         )}
                                     </span>
                                 ))}
@@ -201,18 +181,42 @@ export function LandingFooter() {
                     </div>
                 </div>
 
+                {/* Massive Animated Logo */}
+                <div className="w-full flex justify-center mt-auto mb-8">
+                    <svg
+                        className="w-full h-auto text-[var(--landing-dark)]"
+                        viewBox="0 0 1000 300"
+                        fill="currentColor"
+                        xmlns="http://www.w3.org/2000/svg"
+                        preserveAspectRatio="xMidYMid meet"
+                    >
+                        <text
+                            x="50%"
+                            y="75%"
+                            textAnchor="middle"
+                            fontFamily="system-ui, -apple-system, sans-serif"
+                            fontWeight="900"
+                            fontSize="260"
+                            letterSpacing="-0.05em"
+                            fill="currentColor"
+                        >
+                            Clorefy
+                        </text>
+                    </svg>
+                </div>
+
                 {/* Bottom bar */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-white/10">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-t border-black/10">
                     <div className="flex items-center gap-2.5">
-                        <ClorefyLogo size={28} />
+                        <ClorefyLogo size={24} />
                         <span className="font-bold text-sm">Clorefy</span>
                     </div>
-                    <p className="text-xs text-white/30">
+                    <p className="text-xs font-medium text-[var(--landing-text-dark)]/60">
                         © {new Date().getFullYear()} Clorefy. All rights reserved.
                     </p>
                     <Link
                         href="/clorefy-alternative-spellings"
-                        className="text-xs text-white/20 hover:text-white/40 transition-colors duration-200"
+                        className="text-xs font-medium text-[var(--landing-text-dark)]/60 hover:text-[var(--landing-amber)] transition-colors duration-200"
                     >
                         Alternative spellings
                     </Link>

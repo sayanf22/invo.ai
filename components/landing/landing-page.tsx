@@ -10,6 +10,7 @@ import { FeaturesSection } from "./features-section"
 import { MultiDeviceSection } from "./multi-device"
 import { TestimonialsSection } from "./testimonials-section"
 import { CTASection } from "./cta-section"
+import { StillNotSure } from "./still-not-sure"
 import { LandingFooter } from "./landing-footer"
 import { SmoothScroller } from "@/components/smooth-scroller"
 
@@ -28,6 +29,7 @@ export function LandingPage() {
                 <MultiDeviceSection />
                 <TestimonialsSection />
                 <CTASection />
+                <StillNotSure />
                 <LandingFooter />
             </div>
         </SmoothScroller>
