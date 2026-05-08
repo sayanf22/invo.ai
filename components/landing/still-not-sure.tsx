@@ -31,31 +31,13 @@ export function StillNotSure() {
                     transition={{ duration: 0.6 }}
                     className="relative bg-white rounded-[1.5rem] sm:rounded-[2rem] border-[3px] border-[#1C1A17] shadow-[0_20px_60px_-15px_rgba(28,26,23,0.1)] px-6 py-12 sm:p-16 lg:p-20 flex flex-col items-center text-center overflow-hidden"
                 >
-                    {/* Character Illustration peeking from the right */}
-                    <div className="absolute right-0 bottom-0 w-[200px] sm:w-[280px] lg:w-[320px] pointer-events-none transform translate-x-4 translate-y-6 lg:translate-x-0 lg:translate-y-2">
+                    {/* Magnifying Glass Illustration peeking from the right */}
+                    <div className="absolute right-0 bottom-0 w-[150px] sm:w-[200px] lg:w-[240px] pointer-events-none transform translate-x-4 translate-y-6 lg:-translate-x-4 lg:-translate-y-4">
                         <svg viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-                            {/* Arm */}
-                            <path d="M140 160 L180 300 L130 300 L110 160 Z" fill="#FF7A50" />
-                            
-                            {/* Body */}
-                            <path d="M160 300 L165 220 Q200 210 240 220 L250 300 Z" fill="#FF7A50" />
-                            
-                            {/* Face Base */}
-                            <circle cx="210" cy="190" r="28" fill="#FBE0CF" />
-                            <path d="M185 180 Q185 220 220 215 L235 180 Z" fill="#FBE0CF" />
-
-                            {/* Hair */}
-                            <path d="M185 185 C180 150 220 140 240 160 C245 170 240 190 230 195 L185 185 Z" fill="#1A1714" />
-                            <circle cx="195" cy="165" r="16" fill="#1A1714" />
-                            <circle cx="220" cy="155" r="18" fill="#1A1714" />
-                            <circle cx="250" cy="175" r="18" fill="#1A1714" />
-                            
-                            {/* Hand */}
-                            <circle cx="125" cy="160" r="14" fill="#FBE0CF" />
-                            
-                            {/* Magnifying Glass */}
-                            <path d="M115 145 L135 168" stroke="#1A1714" strokeWidth="8" strokeLinecap="round" />
-                            <circle cx="95" cy="125" r="26" stroke="#1A1714" strokeWidth="8" fill="white" />
+                            {/* Magnifying Glass Handle */}
+                            <path d="M190 190 L260 260" stroke="#1A1714" strokeWidth="20" strokeLinecap="round" />
+                            {/* Magnifying Glass Ring */}
+                            <circle cx="130" cy="130" r="80" stroke="#1A1714" strokeWidth="20" fill="white" />
                         </svg>
                     </div>
 
