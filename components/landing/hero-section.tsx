@@ -56,7 +56,7 @@ export function HeroSection() {
                     Create
                     <FlipWords 
                         words={["invoices", "contracts", "proposals", "quotations"]} 
-                        className="font-sans font-light text-[var(--landing-amber)] italic px-2 mx-0 tracking-tight" 
+                        className="font-sans font-medium text-[var(--landing-amber)] px-2 mx-0 tracking-tight" 
                     /> <br />
                     in seconds
                 </motion.div>
