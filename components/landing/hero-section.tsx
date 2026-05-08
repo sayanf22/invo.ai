@@ -53,7 +53,7 @@ export function HeroSection() {
                         initial={{ opacity: 0, y: 30 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-                        className="font-display text-[3.25rem] sm:text-6xl md:text-7xl lg:text-[7.5rem] font-semibold tracking-tighter leading-[1.05] text-[#1C1A17] mb-6 sm:mb-8"
+                        className="font-display text-[3rem] sm:text-5xl md:text-6xl lg:text-[6.5rem] font-semibold tracking-tighter leading-[1.02] text-[#1C1A17] mb-6 sm:mb-8"
                     >
                         <span className="sr-only">Clorefy — AI Invoice, Contract &amp; Proposal Generator.</span>
 
@@ -101,14 +101,14 @@ export function HeroSection() {
                         </span>
                     </motion.div>
 
-                    {/* Subtitle */}
+                    {/* Subtitle — shorter, benefit-focused */}
                     <motion.p
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="text-base sm:text-xl md:text-2xl text-[#5B5550] max-w-2xl mx-auto mb-10 sm:mb-14 leading-relaxed font-medium px-2"
+                        className="text-base sm:text-lg md:text-xl text-[#5B5550] max-w-xl mx-auto mb-10 sm:mb-12 leading-relaxed font-medium px-2"
                     >
-                        Your business profile, tax IDs, payment terms, and client details — saved once, auto-filled forever. Compliant documents across 11 countries in seconds.
+                        Compliant invoices, contracts, and proposals across 11 countries — your business details saved once, auto-filled forever.
                     </motion.p>
 
                     {/* CTA buttons */}
