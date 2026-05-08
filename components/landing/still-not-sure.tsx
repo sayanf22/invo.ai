@@ -32,23 +32,30 @@ export function StillNotSure() {
                     className="relative bg-white rounded-[1.5rem] sm:rounded-[2rem] border-[3px] border-[#1C1A17] shadow-[0_20px_60px_-15px_rgba(28,26,23,0.1)] px-6 py-12 sm:p-16 lg:p-20 flex flex-col items-center text-center overflow-hidden"
                 >
                     {/* Character Illustration peeking from the right */}
-                    <div className="absolute right-0 bottom-0 w-[200px] sm:w-[280px] lg:w-[320px] pointer-events-none transform translate-x-8 translate-y-6 lg:translate-x-4 lg:translate-y-4">
-                        <svg viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-sm">
-                            {/* Arm holding magnifying glass */}
-                            <path d="M140 280 L90 120 L110 110 L165 280 Z" fill="#FF7D54" />
+                    <div className="absolute right-0 bottom-0 w-[200px] sm:w-[280px] lg:w-[320px] pointer-events-none transform translate-x-4 translate-y-6 lg:translate-x-0 lg:translate-y-2">
+                        <svg viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                            {/* Arm */}
+                            <path d="M140 160 L180 300 L130 300 L110 160 Z" fill="#FF7A50" />
+                            
+                            {/* Body */}
+                            <path d="M160 300 L165 220 Q200 210 240 220 L250 300 Z" fill="#FF7A50" />
+                            
+                            {/* Face Base */}
+                            <circle cx="210" cy="190" r="28" fill="#FBE0CF" />
+                            <path d="M185 180 Q185 220 220 215 L235 180 Z" fill="#FBE0CF" />
+
+                            {/* Hair */}
+                            <path d="M185 185 C180 150 220 140 240 160 C245 170 240 190 230 195 L185 185 Z" fill="#1A1714" />
+                            <circle cx="195" cy="165" r="16" fill="#1A1714" />
+                            <circle cx="220" cy="155" r="18" fill="#1A1714" />
+                            <circle cx="250" cy="175" r="18" fill="#1A1714" />
+                            
                             {/* Hand */}
-                            <circle cx="100" cy="115" r="15" fill="#FDE8D8" />
+                            <circle cx="125" cy="160" r="14" fill="#FBE0CF" />
+                            
                             {/* Magnifying Glass */}
-                            <circle cx="80" cy="90" r="25" stroke="#1C1A17" strokeWidth="6" fill="white" />
-                            <path d="M95 105 L115 125" stroke="#1C1A17" strokeWidth="6" strokeLinecap="round" />
-                            {/* Character Body */}
-                            <path d="M150 200 Q200 180 250 200 L260 300 L140 300 Z" fill="#FF7D54" />
-                            {/* Head/Hair */}
-                            <circle cx="210" cy="160" r="30" fill="#FDE8D8" />
-                            <path d="M180 160 Q180 120 220 120 Q250 120 250 150 Q250 180 230 180 Q210 180 210 150 Z" fill="#1C1A17" />
-                            <circle cx="190" cy="140" r="12" fill="#1C1A17" />
-                            <circle cx="240" cy="135" r="15" fill="#1C1A17" />
-                            <circle cx="230" cy="170" r="14" fill="#1C1A17" />
+                            <path d="M115 145 L135 168" stroke="#1A1714" strokeWidth="8" strokeLinecap="round" />
+                            <circle cx="95" cy="125" r="26" stroke="#1A1714" strokeWidth="8" fill="white" />
                         </svg>
                     </div>
 
