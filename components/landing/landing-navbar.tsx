@@ -101,10 +101,13 @@ function NavDropdown({ label, items, isOpen, onOpen, onClose }: {
             onMouseLeave={handleLeave}
         >
             <button
-                className={`flex items-center gap-1 px-2.5 lg:px-3 py-2 rounded-full text-sm lg:text-base font-bold transition-all duration-200 whitespace-nowrap ${isOpen ? 'text-black' : 'text-stone-600 hover:text-black'}`}
+                className={`relative z-[102] flex items-center gap-1 px-3 lg:px-4 py-2 text-sm lg:text-base font-bold transition-all duration-200 whitespace-nowrap
+                ${isOpen ? 'text-black bg-white border-2 border-black border-b-0 rounded-t-[1rem]' : 'text-stone-600 hover:text-black rounded-full border-2 border-transparent'}`}
             >
                 {label}
                 <ChevronDown size={14} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                {/* White block to hide the top border of the dropdown box below it */}
+                {isOpen && <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-white z-[103]" />}
             </button>
 
             <AnimatePresence>
@@ -114,14 +117,14 @@ function NavDropdown({ label, items, isOpen, onOpen, onClose }: {
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        style={{ width: items.length > 4 ? 300 : 280 }}
-                        className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-2 rounded-2xl bg-white/95 backdrop-blur-xl border border-stone-200/50 shadow-xl shadow-black/8"
+                        style={{ width: items.length > 4 ? 320 : 280 }}
+                        className="absolute top-full left-0 p-3 rounded-[1.5rem] rounded-tl-none bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] z-[100]"
                         onMouseEnter={handleEnter}
                         onMouseLeave={handleLeave}
                     >
-                        {/* Arrow pointer */}
-                        <div className="absolute -top-[6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-l border-t border-stone-200/50 rotate-45 rounded-tl-sm" />
-
+                        <div className="text-xs font-bold text-stone-400 mb-2 px-3 uppercase tracking-wider">
+                            Explore {label}
+                        </div>
                         {items.map((item) => (
                             <motion.div key={item.label} variants={itemVariants}>
                                 <Link
@@ -129,7 +132,7 @@ function NavDropdown({ label, items, isOpen, onOpen, onClose }: {
                                     className="group flex items-start gap-3 p-3 rounded-xl hover:bg-stone-50 transition-colors"
                                     onClick={onClose}
                                 >
-                                    <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center text-[var(--landing-amber)] shrink-0 group-hover:scale-110 transition-transform">
+                                    <div className="w-9 h-9 rounded-lg bg-stone-100 flex items-center justify-center text-stone-600 shrink-0 group-hover:bg-black group-hover:text-white transition-all duration-300">
                                         <item.icon size={18} />
                                     </div>
                                     <div>
@@ -174,29 +177,22 @@ export function LandingNavbar() {
         <>
             {/* Desktop Navbar */}
             <nav
-                className={`hidden md:flex fixed top-6 left-1/2 -translate-x-1/2 z-[100] items-center gap-0.5 lg:gap-1 px-2 py-2 rounded-full transition-all duration-500 border ${scrolled ? 'border-stone-200/30 shadow-lg shadow-black/5' : 'border-transparent'}`}
-                style={{
-                    background: scrolled ? "rgba(251,247,240,0.65)" : "rgba(251,247,240,0.08)",
-                    backdropFilter: "blur(40px) saturate(2) brightness(1.05)",
-                    WebkitBackdropFilter: "blur(40px) saturate(2) brightness(1.05)",
-                    transition: "background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease",
-                }}
+                className={`hidden md:flex fixed top-6 left-1/2 -translate-x-1/2 z-[100] items-center gap-0.5 lg:gap-1 px-2 py-2 rounded-2xl transition-all duration-500 bg-[var(--landing-cream)] border border-stone-200/60 shadow-sm`}
             >
                 {/* Logo */}
-                <Link href="/" className="flex items-center px-2 lg:px-3 mr-1 lg:mr-2">
+                <Link href="/" className="flex items-center px-2 lg:px-4 mr-1 lg:mr-2 border-r border-stone-200/60 pr-4 lg:pr-6">
                     <ClorefyLogo size={42} />
                 </Link>
 
                 <NavDropdown label="Product" items={productItems} isOpen={openDropdown === "product"} onOpen={() => openMenu("product")} onClose={() => closeMenu("product")} />
                 <NavDropdown label="Use Cases" items={useCaseItems} isOpen={openDropdown === "usecases"} onOpen={() => openMenu("usecases")} onClose={() => closeMenu("usecases")} />
-                <Link href="/business" className="px-2.5 lg:px-3 py-2 rounded-full text-sm lg:text-base font-bold text-stone-600 hover:text-black transition-colors whitespace-nowrap">Business</Link>
+                <Link href="/business" className="px-3 lg:px-4 py-2 rounded-full text-sm lg:text-base font-bold text-stone-600 hover:text-black border-2 border-transparent transition-colors whitespace-nowrap">Business</Link>
                 <NavDropdown label="Resources" items={resourceItems} isOpen={openDropdown === "resources"} onOpen={() => openMenu("resources")} onClose={() => closeMenu("resources")} />
 
-                <div className="flex items-center gap-1.5 lg:gap-2 ml-1.5 lg:ml-2 pl-1.5 lg:pl-2 border-l border-stone-200/50">
-                    <Link href="/auth/login" className="px-3 lg:px-4 py-2 rounded-full text-sm lg:text-base font-bold text-stone-600 hover:text-black transition-colors whitespace-nowrap">Log in</Link>
-                    <Link href="/auth/signup" className="group flex items-center gap-1.5 px-4 lg:px-5 py-2 lg:py-2.5 rounded-full bg-[var(--landing-dark)] text-white text-sm lg:text-base font-bold hover:scale-105 active:scale-95 transition-all shadow-md hover:shadow-lg whitespace-nowrap">
+                <div className="flex items-center gap-2 lg:gap-3 ml-1.5 lg:ml-4 pl-3 border-l border-stone-200/60">
+                    <Link href="/auth/login" className="px-3 lg:px-4 py-2 rounded-[10px] text-sm lg:text-base font-bold text-stone-600 hover:text-black border-2 border-transparent hover:border-black transition-all whitespace-nowrap">Log in</Link>
+                    <Link href="/auth/signup" className="flex items-center gap-1.5 px-4 lg:px-5 py-2 lg:py-2.5 rounded-[10px] bg-[#e3b8f5] text-black text-sm lg:text-base font-bold border-2 border-black hover:bg-[#d8a8eb] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all whitespace-nowrap">
                         Get Started
-                        <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
                     </Link>
                 </div>
             </nav>
@@ -205,23 +201,7 @@ export function LandingNavbar() {
             <nav className="md:hidden fixed top-4 left-4 right-4 z-50">
                 {/* Top bar — always visible */}
                 <div
-                    className={`flex items-center justify-between px-4 py-3 rounded-2xl border transition-all duration-300 ${
-                        mobileOpen
-                            ? "border-stone-200/50 shadow-lg"
-                            : scrolled
-                                ? "border-stone-200/40 shadow-md"
-                                : "border-transparent shadow-none"
-                    }`}
-                    style={{
-                        background: mobileOpen
-                            ? "rgba(251,247,240,0.92)"
-                            : scrolled
-                                ? "rgba(251,247,240,0.65)"
-                                : "rgba(251,247,240,0.12)",
-                        backdropFilter: "blur(40px) saturate(2) brightness(1.05)",
-                        WebkitBackdropFilter: "blur(40px) saturate(2) brightness(1.05)",
-                        transition: "background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease",
-                    }}
+                    className="flex items-center justify-between px-4 py-3 rounded-2xl bg-white border-[2.5px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] transition-all duration-300"
                 >
                     <Link href="/" className="flex items-center">
                         <ClorefyLogo size={42} />

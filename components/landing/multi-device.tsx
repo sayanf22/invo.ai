@@ -45,8 +45,8 @@ export function MultiDeviceSection() {
             <div className="relative w-full max-w-[1200px] mx-auto flex items-center justify-center">
 
                 {/* Mobile: just show the desktop mockup, no parallax */}
-                <div className="sm:hidden w-full">
-                    <div className="w-full bg-white rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] border border-stone-100 overflow-hidden">
+                <div className="sm:hidden w-full px-4">
+                    <div className="w-full bg-white rounded-2xl shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] border-[3px] border-[var(--landing-dark)] overflow-hidden">
                         {/* Browser chrome */}
                         <div className="h-8 bg-[#F9F9F9] border-b border-stone-200 flex items-center px-3 gap-1.5">
                             <div className="flex gap-1 opacity-50">
@@ -80,7 +80,7 @@ export function MultiDeviceSection() {
                 {/* 1. DESKTOP: Main Document Editor */}
                 <motion.div
                     style={{ y: yDesktop }}
-                    className="relative z-10 w-[90%] md:w-[75%] aspect-[16/10] bg-white rounded-2xl md:rounded-[2rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.25)] border border-stone-100 overflow-hidden ring-1 ring-black/5"
+                    className="relative z-10 w-[90%] md:w-[75%] aspect-[16/10] bg-white rounded-2xl md:rounded-[2rem] shadow-[12px_12px_0px_0px_rgba(26,26,26,1)] border-[4px] border-[var(--landing-dark)] overflow-hidden"
                 >
                     {/* Fake Browser UI */}
                     <div className="h-10 md:h-12 bg-[#F9F9F9] border-b border-stone-200 flex items-center px-4 gap-2">
@@ -175,7 +175,7 @@ export function MultiDeviceSection() {
                 {/* 2. TABLET: Dashboard List - Floating Left */}
                 <motion.div
                     style={{ y: yTablet, x: -50, rotate: -5 }}
-                    className="absolute left-[-5%] md:left-[0%] bottom-[5%] z-20 w-[45%] md:w-[300px] aspect-[3/4] bg-white rounded-[2rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.3)] border-[8px] border-stone-900 overflow-hidden hidden sm:block"
+                    className="absolute left-[-5%] md:left-[0%] bottom-[5%] z-20 w-[45%] md:w-[300px] aspect-[3/4] bg-white rounded-[2rem] shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] border-[4px] border-[var(--landing-dark)] overflow-hidden hidden sm:block"
                 >
                     <div className="h-full bg-stone-50 flex flex-col">
                         {/* Tablet Header */}
@@ -197,7 +197,7 @@ export function MultiDeviceSection() {
                                     initial={{ x: -20, opacity: 0 }}
                                     whileInView={{ x: 0, opacity: 1 }}
                                     transition={{ delay: 0.2 + (i * 0.1) }}
-                                    className="p-3 bg-white rounded-xl shadow-sm border border-stone-100 flex items-center gap-3 group hover:shadow-md transition-all"
+                                    className="p-3 bg-white rounded-xl border-[2px] border-stone-200 flex items-center gap-3 group hover:border-[var(--landing-dark)] hover:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] transition-all"
                                 >
                                     <div className={`h-10 w-10 rounded-lg ${item.color} flex items-center justify-center shrink-0`}>
                                         <item.icon size={18} />
@@ -210,7 +210,7 @@ export function MultiDeviceSection() {
                             ))}
                         </div>
                         {/* FAB */}
-                        <div className="absolute bottom-6 right-6 w-12 h-12 bg-[var(--landing-amber)] rounded-full flex items-center justify-center text-white shadow-lg shadow-orange-300/50">
+                        <div className="absolute bottom-6 right-6 w-12 h-12 bg-[var(--landing-amber)] rounded-full flex items-center justify-center text-white border-2 border-[var(--landing-dark)] shadow-[2px_2px_0px_0px_rgba(26,26,26,1)]">
                             <Plus size={24} />
                         </div>
                     </div>
@@ -219,7 +219,7 @@ export function MultiDeviceSection() {
                 {/* 3. MOBILE: Prompt Interface - Floating Right */}
                 <motion.div
                     style={{ y: yMobile, x: 50, rotate: 5 }}
-                    className="absolute right-[-2%] md:right-[5%] top-[10%] z-30 w-[40%] md:w-[220px] aspect-[9/18] bg-white rounded-[2.5rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.35)] border-[8px] border-stone-900 overflow-hidden hidden sm:block"
+                    className="absolute right-[-2%] md:right-[5%] top-[10%] z-30 w-[40%] md:w-[220px] aspect-[9/18] bg-white rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] border-[4px] border-[var(--landing-dark)] overflow-hidden hidden sm:block"
                 >
                     <div className="h-full bg-white flex flex-col relative">
                         {/* Dynamic Island */}
@@ -238,7 +238,7 @@ export function MultiDeviceSection() {
                                 initial={{ scale: 0.8, opacity: 0 }}
                                 whileInView={{ scale: 1, opacity: 1 }}
                                 transition={{ delay: 0.5 }}
-                                className="self-end bg-[var(--landing-dark)] text-white p-3 rounded-2xl rounded-tr-sm text-xs max-w-[85%] shadow-sm"
+                                className="self-end bg-[var(--landing-dark)] text-white p-3 rounded-2xl rounded-tr-sm text-xs max-w-[85%] border-2 border-[var(--landing-dark)] shadow-[2px_2px_0px_0px_rgba(26,26,26,1)]"
                             >
                                 Draft a freelance contract for web design services.
                             </motion.div>
@@ -248,7 +248,7 @@ export function MultiDeviceSection() {
                                 initial={{ scale: 0.8, opacity: 0 }}
                                 whileInView={{ scale: 1, opacity: 1 }}
                                 transition={{ delay: 1 }}
-                                className="self-start bg-white border border-stone-100 p-3 rounded-2xl rounded-tl-sm text-xs max-w-[85%] shadow-sm flex items-center gap-2 text-stone-500"
+                                className="self-start bg-white border-2 border-[var(--landing-dark)] p-3 rounded-2xl rounded-tl-sm text-xs max-w-[85%] shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] flex items-center gap-2 text-[var(--landing-text-dark)] font-medium"
                             >
                                 <div className="flex gap-1">
                                     <div className="w-1.5 h-1.5 bg-[var(--landing-amber)] rounded-full animate-bounce" />

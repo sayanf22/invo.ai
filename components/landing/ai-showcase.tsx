@@ -62,10 +62,12 @@ export function AIShowcase() {
                         <div className="absolute inset-0 bg-gradient-to-tr from-[var(--landing-amber)]/20 to-purple-500/10 blur-[100px] rounded-full" />
 
                         <motion.div
+                            layout
                             initial={{ opacity: 0, scale: 0.95 }}
                             whileInView={{ opacity: 1, scale: 1 }}
                             viewport={{ once: true }}
-                            className="relative bg-white/60 backdrop-blur-xl rounded-[3rem] p-8 sm:p-12 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.15)] border border-white min-h-[600px] flex flex-col will-change-transform"
+                            transition={{ layout: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } }}
+                            className="relative bg-white rounded-[3rem] p-8 sm:p-12 border-[3px] border-[var(--landing-dark)] shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] min-h-[600px] flex flex-col will-change-transform"
                         >
                             {/* Steps Indicator */}
                             <div className="flex justify-center mb-10">
@@ -142,12 +144,12 @@ export function AIShowcase() {
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: -20, scale: 0.97 }}
                                         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                                        className="w-full"
+                                        className="w-full flex justify-center"
                                     >
                                         {/* Outer wrapper clips the scaled content to the right height */}
-                                        <div className="w-full overflow-hidden rounded-2xl shadow-2xl" style={{ border: "1px solid #e8e4de" }}>
-                                            {/* Scale the invoice down so it fits without scrolling */}
-                                            <div style={{ transform: "scale(0.72)", transformOrigin: "top center", width: "138.9%", marginLeft: "-19.4%" }}>
+                                        <div className="w-full max-w-[500px] h-[400px] sm:h-[460px] overflow-hidden rounded-2xl shadow-2xl relative bg-white" style={{ border: "1px solid #e8e4de" }}>
+                                            {/* Scale the invoice down and absolutely position it to avoid document flow reserved height bug */}
+                                            <div className="absolute top-0 left-0" style={{ transform: "scale(0.72)", transformOrigin: "top center", width: "138.9%", marginLeft: "-19.4%" }}>
                                                 <div className="bg-white relative">
                                                     {/* Top accent bar */}
                                                     <div className="h-2 w-full" style={{ backgroundColor: "#e07b39" }} />

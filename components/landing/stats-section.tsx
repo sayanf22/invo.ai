@@ -105,7 +105,7 @@ export function StatsSection() {
                             initial="hidden"
                             whileInView="visible"
                             viewport={{ once: true, amount: 0.4 }}
-                            className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-10 rounded-[2rem] sm:rounded-[3rem] bg-white p-8 sm:p-12 shadow-[0_20px_60px_-15px_rgba(28,26,23,0.08)] border border-stone-200/60 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-500"
+                            className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-10 rounded-[2rem] sm:rounded-[3rem] bg-white p-8 sm:p-12 border-[2.5px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] relative overflow-hidden group hover:-translate-y-1 hover:shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] transition-[transform,box-shadow] duration-500 cursor-default"
                         >
                             {/* Subtle hover glow on light mode */}
                             <div className={`absolute top-1/2 left-12 -translate-y-1/2 w-32 h-32 ${stat.bg} rounded-full blur-[80px] opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none`} />
