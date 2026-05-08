@@ -177,7 +177,7 @@ export function LandingNavbar() {
         <>
             {/* Desktop Navbar */}
             <nav
-                className={`hidden md:flex fixed top-6 left-1/2 -translate-x-1/2 z-[100] items-center gap-0.5 lg:gap-1 px-2 py-2 rounded-2xl transition-all duration-500 bg-[var(--landing-cream)] border border-stone-200/60 shadow-sm`}
+                className={`hidden md:flex fixed top-6 left-1/2 -translate-x-1/2 z-[100] items-center gap-0.5 lg:gap-1 px-2 py-2 rounded-2xl transition-all duration-500 bg-[var(--landing-cream)] border-[2px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)]`}
             >
                 {/* Logo */}
                 <Link href="/" className="flex items-center px-2 lg:px-4 mr-1 lg:mr-2 border-r border-stone-200/60 pr-4 lg:pr-6">

@@ -142,20 +142,22 @@ export function WhyNotChatGPT() {
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <Link
                 href="/auth/signup"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[var(--landing-dark)] text-white font-bold text-base transition-all shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:-translate-y-1 w-full sm:w-auto overflow-hidden relative group"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[1rem] bg-[var(--landing-dark)] text-white font-bold text-base transition-all border-[2.5px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] w-full sm:w-auto overflow-hidden relative group"
               >
                 <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
                 <span className="relative z-10 flex items-center gap-2">
                   <FileText size={18} />
-                  Try Clorefy
+                  Try Clorefy Free
                 </span>
               </Link>
-              <Link
-                href="/auth/signup"
-                className="inline-flex items-center justify-center px-8 py-4 rounded-full bg-white text-[var(--landing-dark)] font-bold text-base border border-stone-200 transition-all hover:bg-stone-50 hover:shadow-md hover:-translate-y-1 w-full sm:w-auto"
+              <a
+                href="https://www.youtube.com/@Clorefy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center px-8 py-4 rounded-[1rem] bg-white text-[var(--landing-dark)] font-bold text-base border-[2.5px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] transition-all w-full sm:w-auto"
               >
-                Start for free
-              </Link>
+                Watch Demo
+              </a>
             </div>
 
           </div>

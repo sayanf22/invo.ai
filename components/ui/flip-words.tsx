@@ -5,94 +5,59 @@ import { cn } from "@/lib/utils";
 
 export const FlipWords = ({
   words,
+  gradients,
   duration = 3000,
   className,
 }: {
   words: string[];
+  gradients?: string[];
   duration?: number;
   className?: string;
 }) => {
-  const [currentWord, setCurrentWord] = useState(words[0]);
-  const [isAnimating, setIsAnimating] = useState<boolean>(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
 
-  // thanks for the fix Julian - https://github.com/Julian-AT
+  const currentWord = words[currentIndex];
+  const currentGradient = gradients?.[currentIndex % gradients.length];
+
   const startAnimation = useCallback(() => {
-    const word = words[words.indexOf(currentWord) + 1] || words[0];
-    setCurrentWord(word);
+    setCurrentIndex((prev) => (prev + 1) % words.length);
     setIsAnimating(true);
-  }, [currentWord, words]);
+  }, [words.length]);
 
   useEffect(() => {
-    if (!isAnimating)
-      setTimeout(() => {
-        startAnimation();
-      }, duration);
+    if (!isAnimating) {
+      const t = setTimeout(startAnimation, duration);
+      return () => clearTimeout(t);
+    }
   }, [isAnimating, duration, startAnimation]);
 
   return (
-    <AnimatePresence
-      onExitComplete={() => {
-        setIsAnimating(false);
-      }}
-    >
-      <motion.div
-        initial={{
-          opacity: 0,
-          y: 10,
-        }}
-        animate={{
-          opacity: 1,
-          y: 0,
-        }}
-        transition={{
-          type: "spring",
-          stiffness: 100,
-          damping: 10,
-        }}
-        exit={{
-          opacity: 0,
-          y: -40,
-          x: 40,
-          filter: "blur(8px)",
-          scale: 2,
-          position: "absolute",
-        }}
-        className={cn(
-          "z-10 inline-block relative text-left text-foreground px-2",
-          className
-        )}
+    <AnimatePresence mode="wait" onExitComplete={() => setIsAnimating(false)}>
+      <motion.span
         key={currentWord}
+        initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        exit={{ opacity: 0, y: -20, filter: "blur(8px)" }}
+        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+        className={cn("inline-block relative", className)}
       >
-        {/* edit suggested by Sajal: https://x.com/DewanganSajal */}
-        {currentWord.split(" ").map((word, wordIndex) => (
-          <motion.span
-            key={word + wordIndex}
-            initial={{ opacity: 0, y: 10, filter: "blur(8px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{
-              delay: wordIndex * 0.3,
-              duration: 0.3,
-            }}
-            className="inline-block whitespace-nowrap"
-          >
-            {word.split("").map((letter, letterIndex) => (
-              <motion.span
-                key={word + letterIndex}
-                initial={{ opacity: 0, y: 10, filter: "blur(8px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                transition={{
-                  delay: wordIndex * 0.3 + letterIndex * 0.05,
-                  duration: 0.2,
-                }}
-                className="inline-block"
-              >
-                {letter}
-              </motion.span>
-            ))}
-            <span className="inline-block">&nbsp;</span>
-          </motion.span>
-        ))}
-      </motion.div>
+        {/* Gradient applied to inner span so it doesn't conflict with framer-motion opacity */}
+        <span
+          style={
+            currentGradient
+              ? {
+                  backgroundImage: currentGradient,
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }
+              : undefined
+          }
+        >
+          {currentWord}
+        </span>
+      </motion.span>
     </AnimatePresence>
   );
 };

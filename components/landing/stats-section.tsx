@@ -105,23 +105,23 @@ export function StatsSection() {
                             initial="hidden"
                             whileInView="visible"
                             viewport={{ once: true, amount: 0.4 }}
-                            className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-10 rounded-[2rem] sm:rounded-[3rem] bg-white p-8 sm:p-12 border-[2.5px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] relative overflow-hidden group hover:-translate-y-1 hover:shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] transition-[transform,box-shadow] duration-500 cursor-default"
+                            className="flex flex-row sm:flex-row items-center gap-5 sm:gap-10 rounded-2xl sm:rounded-[3rem] bg-white p-5 sm:p-12 border-[2.5px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] relative overflow-hidden group hover:-translate-y-1 hover:shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] transition-[transform,box-shadow] duration-500 cursor-default"
                         >
                             {/* Subtle hover glow on light mode */}
                             <div className={`absolute top-1/2 left-12 -translate-y-1/2 w-32 h-32 ${stat.bg} rounded-full blur-[80px] opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none`} />
 
                             {/* Rounded icon badge */}
-                            <div className={`${stat.bg} shrink-0 w-24 h-24 sm:w-32 sm:h-32 rounded-[1.5rem] sm:rounded-[2.5rem] flex items-center justify-center shadow-md z-10`}>
-                                <Icon className="w-12 h-12 sm:w-14 sm:h-14 text-white" strokeWidth={1.5} />
+                            <div className={`${stat.bg} shrink-0 w-16 h-16 sm:w-32 sm:h-32 rounded-xl sm:rounded-[2.5rem] flex items-center justify-center shadow-md z-10`}>
+                                <Icon className="w-8 h-8 sm:w-14 sm:h-14 text-white" strokeWidth={1.5} />
                             </div>
 
                             {/* Text content */}
                             <div className="flex-1 min-w-0 flex flex-col justify-center z-10">
                                 <Counter from={0} to={stat.value} duration={stat.duration} suffix={stat.suffix} />
-                                <p className="mt-2 text-lg sm:text-xl font-bold text-[#1C1A17] leading-tight">
+                                <p className="mt-1 text-base sm:text-xl font-bold text-[#1C1A17] leading-tight">
                                     {stat.label}
                                 </p>
-                                <p className="mt-1 text-sm sm:text-base text-[#5B5550] font-medium">
+                                <p className="mt-0.5 text-xs sm:text-base text-[#5B5550] font-medium">
                                     {stat.detail}
                                 </p>
                             </div>
