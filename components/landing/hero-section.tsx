@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react"
 import { motion } from "framer-motion"
 
 import { FlipWords } from "@/components/ui/flip-words"
+import { ServicesMarquee } from "./services-marquee"
 
 export function HeroSection() {
     return (
