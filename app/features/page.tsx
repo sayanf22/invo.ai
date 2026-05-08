@@ -4,7 +4,7 @@ import { AnimatedCard } from "@/components/landing/animated-card"
 import { Breadcrumbs } from "@/components/seo/breadcrumbs"
 import {
     FileText, Wand2, Globe, Zap, Shield, Palette,
-    CheckCircle, ArrowRight, Zap, Languages,
+    CheckCircle, ArrowRight, Languages,
     Stamp, Calculator, PenTool, Users
 } from "lucide-react"
 import Link from "next/link"
