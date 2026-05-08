@@ -71,10 +71,14 @@ export function HeroSection() {
                             <FlipWords
                                 words={["invoices", "contracts", "proposals", "quotations"]}
                                 gradients={[
-                                    "linear-gradient(120deg, #e07b39 0%, #f5a623 100%)",
-                                    "linear-gradient(120deg, #2563eb 0%, #06b6d4 100%)",
-                                    "linear-gradient(120deg, #059669 0%, #34d399 100%)",
-                                    "linear-gradient(120deg, #7c3aed 0%, #ec4899 100%)",
+                                    // Invoices — warm amber → terracotta (matches brand)
+                                    "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
+                                    // Contracts — deep indigo → slate (professional, high contrast)
+                                    "linear-gradient(120deg, #1e3a8a 0%, #3730a3 50%, #0f172a 100%)",
+                                    // Proposals — forest emerald → deep teal (rich, editorial)
+                                    "linear-gradient(120deg, #065f46 0%, #047857 50%, #134e4a 100%)",
+                                    // Quotations — burgundy → warm rose (elegant, warm)
+                                    "linear-gradient(120deg, #881337 0%, #9f1239 50%, #6b0f2a 100%)",
                                 ]}
                                 className="italic font-serif tracking-tight"
                             />
