@@ -4,7 +4,7 @@ import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { motion } from "framer-motion"
 
-import { ServicesMarquee } from "./services-marquee"
+import { FlipWords } from "@/components/ui/flip-words"
 
 export function HeroSection() {
     return (
@@ -45,25 +45,20 @@ export function HeroSection() {
                 </motion.div>
 
                 {/* Main heading */}
-                <motion.h1
+                <motion.div
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-                    className="font-display text-[3.25rem] sm:text-7xl md:text-8xl lg:text-[9rem] font-semibold tracking-tighter leading-[0.9] text-[#1C1A17] mb-6 sm:mb-8"
+                    className="font-display text-[3.25rem] sm:text-6xl md:text-7xl lg:text-[7.5rem] font-semibold tracking-tighter leading-[1.1] text-[#1C1A17] mb-6 sm:mb-8"
                 >
                     <span className="sr-only">Clorefy — AI Invoice, Contract &amp; Proposal Generator. </span>
-                    It remembers,
-                    <br />
-                    so you <span className="italic gradient-text sm:pr-4 relative inline-block">
-                        don&apos;t
-                        <motion.div
-                            initial={{ scaleX: 0 }}
-                            animate={{ scaleX: 1 }}
-                            transition={{ duration: 1, delay: 0.8, ease: "easeOut" }}
-                            className="absolute -bottom-2 left-0 w-full h-[4px] bg-[var(--landing-amber)]/30 rounded-full origin-left"
-                        />
-                    </span>
-                </motion.h1>
+                    Create
+                    <FlipWords 
+                        words={["invoices", "contracts", "proposals", "quotations"]} 
+                        className="text-[var(--landing-amber)] italic px-0 mx-2 -ml-2 sm:-ml-4" 
+                    /> <br />
+                    in seconds
+                </motion.div>
 
                 {/* Subtitle */}
                 <motion.p
