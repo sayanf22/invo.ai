@@ -1200,6 +1200,75 @@ export default function MyDocumentsPage() {
   const [dateRange, setDateRange] = useState<DateRangeValue>("all")
   const [searchQuery, setSearchQuery] = useState("")
 
+  // Tier + usage (for limit-reached banner)
+  type TierUsage = {
+    tier: "free" | "starter" | "pro" | "agency"
+    documentsUsed: number
+    documentsLimit: number // 0 = unlimited
+    emailsUsed: number
+    emailsLimit: number    // 0 = unlimited
+  }
+  const [tierUsage, setTierUsage] = useState<TierUsage | null>(null)
+
+  // Load tier + current-month usage whenever the user is available
+  useEffect(() => {
+    if (!user?.id) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const now = new Date()
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+
+        const [subRes, usageRes] = await Promise.all([
+          supabase
+            .from("subscriptions")
+            .select("plan, status, current_period_end")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          (supabase as any)
+            .from("user_usage")
+            .select("documents_count, emails_count")
+            .eq("user_id", user.id)
+            .eq("month", month)
+            .maybeSingle(),
+        ])
+
+        // Resolve effective tier (mirrors lib/cost-protection.ts resolveEffectiveTier)
+        const sub = subRes.data as { plan: string | null; status: string | null; current_period_end: string | null } | null
+        const validStatuses = ["active", "trialing"]
+        let effectiveTier: TierUsage["tier"] = "free"
+        if (sub) {
+          if (sub.status && !validStatuses.includes(sub.status)) effectiveTier = "free"
+          else if (sub.current_period_end && new Date(sub.current_period_end) < new Date()) effectiveTier = "free"
+          else if (sub.plan && ["free", "starter", "pro", "agency"].includes(sub.plan)) effectiveTier = sub.plan as TierUsage["tier"]
+        }
+
+        // Limits must match lib/cost-protection.ts TIER_LIMITS exactly
+        const LIMITS = {
+          free:    { docs: 5,   emails: 5   },
+          starter: { docs: 50,  emails: 100 },
+          pro:     { docs: 150, emails: 250 },
+          agency:  { docs: 0,   emails: 0   },
+        } as const
+        const tierLimits = LIMITS[effectiveTier]
+
+        const usage = usageRes.data as { documents_count: number | null; emails_count: number | null } | null
+        if (!cancelled) {
+          setTierUsage({
+            tier: effectiveTier,
+            documentsUsed: usage?.documents_count ?? 0,
+            documentsLimit: tierLimits.docs,
+            emailsUsed: usage?.emails_count ?? 0,
+            emailsLimit: tierLimits.emails,
+          })
+        }
+      } catch (err) {
+        console.error("[documents] usage fetch failed:", err)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [user, supabase])
+
   const loadSessions = useCallback(async (silent = false) => {
     if (!user?.id) { setLoading(false); return }
     if (!silent) setLoading(true)
@@ -1730,6 +1799,67 @@ export default function MyDocumentsPage() {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-4 space-y-4">
+
+        {/* Tier limit banner — monochromatic, minimal, only shown when relevant */}
+        {tierUsage && (() => {
+          const docUsedPct = tierUsage.documentsLimit > 0 ? (tierUsage.documentsUsed / tierUsage.documentsLimit) * 100 : 0
+          const emailUsedPct = tierUsage.emailsLimit > 0 ? (tierUsage.emailsUsed / tierUsage.emailsLimit) * 100 : 0
+          const docLimitReached = tierUsage.documentsLimit > 0 && tierUsage.documentsUsed >= tierUsage.documentsLimit
+          const emailLimitReached = tierUsage.emailsLimit > 0 && tierUsage.emailsUsed >= tierUsage.emailsLimit
+          const docWarning = !docLimitReached && docUsedPct >= 80
+          const emailWarning = !emailLimitReached && emailUsedPct >= 80
+          const anyLimitReached = docLimitReached || emailLimitReached
+          const anyWarning = docWarning || emailWarning
+
+          if (!anyLimitReached && !anyWarning) return null
+
+          const tierLabel = tierUsage.tier.charAt(0).toUpperCase() + tierUsage.tier.slice(1)
+          const nextTierLabel = tierUsage.tier === "free" ? "Starter" : tierUsage.tier === "starter" ? "Pro" : "Agency"
+
+          return (
+            <motion.div variants={itemVariants}>
+              <div className={cn(
+                "rounded-xl border p-3.5 flex items-start gap-3",
+                anyLimitReached
+                  ? "border-foreground/30 bg-foreground text-background"
+                  : "border-border bg-muted/40"
+              )}>
+                <div className={cn(
+                  "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                  anyLimitReached ? "bg-background/20" : "bg-foreground/10"
+                )}>
+                  {anyLimitReached ? <XCircle className="w-4 h-4" /> : <Clock className="w-4 h-4 text-foreground" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold mb-0.5">
+                    {anyLimitReached ? `${tierLabel} plan limit reached` : `${tierLabel} plan — approaching limit`}
+                  </p>
+                  <p className={cn("text-xs leading-relaxed", anyLimitReached ? "text-background/80" : "text-muted-foreground")}>
+                    {docLimitReached && `Documents: ${tierUsage.documentsUsed} / ${tierUsage.documentsLimit} used this month. `}
+                    {emailLimitReached && `Emails: ${tierUsage.emailsUsed} / ${tierUsage.emailsLimit} used this month. `}
+                    {!anyLimitReached && docWarning && `Documents: ${tierUsage.documentsUsed} / ${tierUsage.documentsLimit} used. `}
+                    {!anyLimitReached && emailWarning && `Emails: ${tierUsage.emailsUsed} / ${tierUsage.emailsLimit} used. `}
+                    {emailLimitReached && "Scheduled follow-up reminders will pause until next month or an upgrade. "}
+                    {tierUsage.tier !== "agency" && `Upgrade to ${nextTierLabel} for higher limits.`}
+                  </p>
+                  {tierUsage.tier !== "agency" && (
+                    <button
+                      type="button"
+                      onClick={() => router.push("/billing")}
+                      className={cn(
+                        "mt-2 inline-flex items-center gap-1 text-xs font-semibold underline-offset-4 hover:underline transition-colors",
+                        anyLimitReached ? "text-background" : "text-foreground"
+                      )}
+                    >
+                      View plans
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )
+        })()}
 
         {/* Summary stats */}
         {(totalPaid > 0 || totalPending > 0) && (

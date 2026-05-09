@@ -382,42 +382,27 @@ export async function incrementEmailCount(
  *
  * After the final reminder, users get 7+ days grace period before the payment link expires.
  * This aligns with Stripe/QuickBooks invoicing best practice: link lifetime >= last reminder + 7 days grace.
+ *
+ * All paid tiers share the same schedule — differentiation is via document/email volume limits,
+ * not via reminder cadence (which is a correctness property, not a tier feature).
  */
 export function getFollowUpSchedule(tier: UserTier): Array<{
     daysFromNow: number
     sequenceStep: number
     sequenceType: "pre_due" | "due_today" | "followup" | "final"
 }> {
-    switch (tier) {
-        case "free":
-            return [] // No auto follow-ups on free tier
-        case "starter":
-            return [
-                { daysFromNow: -3, sequenceStep: 1, sequenceType: "pre_due"  },
-                { daysFromNow: 3,  sequenceStep: 2, sequenceType: "followup" },
-                { daysFromNow: 7,  sequenceStep: 3, sequenceType: "followup" },
-            ]
-        case "pro":
-            return [
-                { daysFromNow: -3, sequenceStep: 1, sequenceType: "pre_due"   },
-                { daysFromNow: 0,  sequenceStep: 2, sequenceType: "due_today" },
-                { daysFromNow: 3,  sequenceStep: 3, sequenceType: "followup"  },
-                { daysFromNow: 7,  sequenceStep: 4, sequenceType: "followup"  },
-                { daysFromNow: 14, sequenceStep: 5, sequenceType: "followup"  },
-                { daysFromNow: 30, sequenceStep: 6, sequenceType: "final"     },
-            ]
-        case "agency":
-            return [
-                { daysFromNow: -3, sequenceStep: 1, sequenceType: "pre_due"   },
-                { daysFromNow: 0,  sequenceStep: 2, sequenceType: "due_today" },
-                { daysFromNow: 3,  sequenceStep: 3, sequenceType: "followup"  },
-                { daysFromNow: 7,  sequenceStep: 4, sequenceType: "followup"  },
-                { daysFromNow: 14, sequenceStep: 5, sequenceType: "followup"  },
-                { daysFromNow: 30, sequenceStep: 6, sequenceType: "final"     },
-            ]
-        default:
-            return []
-    }
+    // Free tier gets no auto follow-ups
+    if (tier === "free") return []
+
+    // All paid tiers (starter, pro, agency) share the same industry-standard cadence
+    return [
+        { daysFromNow: -3, sequenceStep: 1, sequenceType: "pre_due"   },
+        { daysFromNow: 0,  sequenceStep: 2, sequenceType: "due_today" },
+        { daysFromNow: 3,  sequenceStep: 3, sequenceType: "followup"  },
+        { daysFromNow: 7,  sequenceStep: 4, sequenceType: "followup"  },
+        { daysFromNow: 14, sequenceStep: 5, sequenceType: "followup"  },
+        { daysFromNow: 30, sequenceStep: 6, sequenceType: "final"     },
+    ]
 }
 
 /**

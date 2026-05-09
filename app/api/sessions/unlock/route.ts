@@ -63,5 +63,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Failed to unlock document" }, { status: 500 })
     }
 
+    // Cancel pending email reminders — the document is being edited again,
+    // so sending reminders referencing the old snapshot would confuse the recipient.
+    // User can re-enable reminders by re-sending the updated document.
+    await (auth.supabase as any)
+        .from("email_schedules")
+        .update({
+            status: "cancelled",
+            cancelled_reason: "document_unlocked",
+            updated_at: new Date().toISOString(),
+        })
+        .eq("session_id", sessionId)
+        .eq("user_id", auth.user.id)
+        .eq("status", "pending")
+
     return NextResponse.json({ success: true, message: "Document unlocked and editable again" })
 }
