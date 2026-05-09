@@ -18,12 +18,17 @@
 const BEDROCK_REGION = "us-east-1"
 const BEDROCK_ENDPOINT = `https://bedrock-runtime.${BEDROCK_REGION}.amazonaws.com`
 
-// Nova Lite v1 — best price-to-quality ratio for long-form content
+// Nova Lite v1 — best price-to-quality for evergreen content, no web search
 export const NOVA_LITE_MODEL_ID = "amazon.nova-lite-v1:0"
 
-// Pricing per 1M tokens (USD), Jan 2025 — used for cost tracking
+// Nova 2 Lite — 2026 model with built-in web grounding (search), 3x cost but
+// useful for "latest tax rates 2026" style posts that need current facts.
+export const NOVA_2_LITE_MODEL_ID = "amazon.nova-2-lite-v1:0"
+
+// Pricing per 1M tokens (USD), Dec 2025 / Jan 2026 — used for cost tracking
 const PRICING = {
   [NOVA_LITE_MODEL_ID]: { input: 0.06, output: 0.24 },
+  [NOVA_2_LITE_MODEL_ID]: { input: 0.17, output: 0.68 },
 } as const
 
 export interface NovaMessage {
@@ -37,6 +42,12 @@ export interface NovaGenerateOptions {
   maxTokens?: number
   temperature?: number
   topP?: number
+  /**
+   * Enable built-in web grounding (web search). Only works on Nova 2 models.
+   * Adds citations to the response based on real-time web results.
+   * Cost: adds ~$0.01 per request with search.
+   */
+  enableWebSearch?: boolean
 }
 
 export interface NovaGenerateResult {
@@ -82,6 +93,18 @@ export async function novaConverse(
 
   if (options.systemPrompt) {
     body.system = [{ text: options.systemPrompt }]
+  }
+
+  // Enable built-in web grounding on Nova 2 models
+  if (options.enableWebSearch) {
+    if (modelId !== NOVA_2_LITE_MODEL_ID) {
+      throw new Error(
+        `Web search is only available on Nova 2 models. Got: ${modelId}`
+      )
+    }
+    body.toolConfig = {
+      tools: [{ builtInTool: { name: "web_grounding" } }],
+    }
   }
 
   const response = await fetch(url, {

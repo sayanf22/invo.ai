@@ -14,7 +14,7 @@
  * - No fluff, actionable content
  */
 
-import { novaGenerate, NOVA_LITE_MODEL_ID } from "@/lib/bedrock-nova"
+import { novaGenerate, NOVA_LITE_MODEL_ID, NOVA_2_LITE_MODEL_ID } from "@/lib/bedrock-nova"
 
 export interface BlogGenerationInput {
   topic: string
@@ -194,19 +194,28 @@ function countWords(html: string): number {
 }
 
 /**
- * Generate a complete blog article using AWS Bedrock Nova Lite.
+ * Generate a complete blog article using AWS Bedrock.
+ *
+ * Model selection logic:
+ * - category === "news" → Nova 2 Lite with web search (current info, citations)
+ * - else → Nova Lite v1 (cheaper, evergreen content from training data)
  */
 export async function generateBlogPost(
   input: BlogGenerationInput
 ): Promise<BlogGenerationOutput> {
   const userPrompt = buildUserPrompt(input)
 
+  // Use Nova 2 Lite with web grounding for news/current-events content
+  const useWebSearch = input.category === "news"
+  const modelId = useWebSearch ? NOVA_2_LITE_MODEL_ID : NOVA_LITE_MODEL_ID
+
   const result = await novaGenerate(userPrompt, {
-    modelId: NOVA_LITE_MODEL_ID,
+    modelId,
     systemPrompt: SYSTEM_PROMPT,
     maxTokens: 5000,
     temperature: 0.7,
     topP: 0.9,
+    enableWebSearch: useWebSearch,
   })
 
   const parsed = parseAndValidate(result.text)

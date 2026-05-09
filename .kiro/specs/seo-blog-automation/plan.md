@@ -32,11 +32,14 @@ Based on analysis of HubSpot, Zapier, Notion, Stripe, and top SaaS content marke
 **Why split?** Supabase free tier is 500MB. Storing full article HTML in Postgres burns it fast. R2 is 10GB free, ~$0.015/GB/month after. Content scales to 10,000+ posts for under $1/mo.
 
 ### AI Model
-- **Amazon Nova Lite** on Bedrock — cheapest quality model
-- Pricing: $0.06/MTok input, $0.24/MTok output
-- Per blog post cost: ~$0.005 (half a cent for a 2000-word post)
-- 1 post/day for 365 days = **$1.82/year**
-- Why not Claude Haiku: 5x more expensive for similar quality on long-form
+- **Amazon Nova Lite v1** on Bedrock — default for evergreen content
+  - Pricing: $0.06/MTok input, $0.24/MTok output
+  - Per blog post cost: ~$0.005 (half a cent for a 2000-word post)
+- **Amazon Nova 2 Lite** — used only for `news` category (built-in web search)
+  - Pricing: $0.17/MTok input, $0.68/MTok output
+  - Per blog post cost: ~$0.015 (with citations from live web)
+- 1 post/day, mostly evergreen: **~$2.20/year**
+- See `.kiro/specs/seo-blog-automation/models-and-web-search.md` for details
 
 ### Flow
 
