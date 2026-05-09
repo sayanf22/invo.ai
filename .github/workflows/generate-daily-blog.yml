@@ -1,0 +1,22 @@
+name: Generate Daily Blog Post
+
+# Runs daily at 10:00 UTC (3:30 PM IST).
+# Picks the next topic from the queue and generates a blog post as a draft.
+# Admin reviews and publishes via /clorefy-ctrl-8x2m/blog dashboard.
+
+on:
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch: # allow manual trigger from Actions tab
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger blog generation
+        run: |
+          curl -X POST "https://clorefy.com/api/cron/generate-blog" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 90 \
+            --fail-with-body

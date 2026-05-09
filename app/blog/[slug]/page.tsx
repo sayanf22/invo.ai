@@ -1,29 +1,39 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { getPostBySlug, getRelatedPosts, getPostsByHub, getAllSlugs } from "@/lib/blog-data"
+import { getCombinedPostBySlug, getCombinedRelatedPosts, getCombinedPostsByHub, getAllCombinedSlugs } from "@/lib/blog-combined"
 import { Breadcrumbs } from "@/components/seo/breadcrumbs"
 import { ArrowLeft, Clock, ArrowRight } from "lucide-react"
 import { generateArticleSchema } from "@/lib/structured-data"
 
-// Static generation — all blog posts are pre-rendered at build time
-export function generateStaticParams() {
-    return getAllSlugs().map((slug) => ({ slug }))
+// Revalidate blog posts every hour to pick up edits + newly published AI posts
+export const revalidate = 3600
+
+// ISR: pre-render all known slugs at build time. On-demand posts fall through to fallback rendering.
+export async function generateStaticParams() {
+    const slugs = await getAllCombinedSlugs()
+    return slugs.map((slug) => ({ slug }))
 }
+
+// Allow dynamic params (so newly published posts work without rebuild)
+export const dynamicParams = true
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
     const { slug } = await params
-    const post = getPostBySlug(slug)
+    const post = await getCombinedPostBySlug(slug)
     if (!post) return { title: "Not Found" }
 
+    const title = post.metaTitle ?? post.title
+    const description = post.metaDescription ?? post.description
+
     return {
-        title: post.title,
-        description: post.description,
+        title,
+        description,
         keywords: [post.keyword, "Clorefy", "AI document generator"],
         alternates: { canonical: `/blog/${post.slug}` },
         openGraph: {
             title: post.title,
-            description: post.description,
+            description,
             url: `https://clorefy.com/blog/${post.slug}`,
             type: "article",
             publishedTime: post.publishedAt,
@@ -33,21 +43,20 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         twitter: {
             card: "summary_large_image",
             title: post.title,
-            description: post.description,
+            description,
         },
     }
 }
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = await params
-    const post = getPostBySlug(slug)
+    const post = await getCombinedPostBySlug(slug)
     if (!post) notFound()
 
     // Build related posts: prioritize same-hub posts, then fall back to relatedSlugs
-    let related = getRelatedPosts(slug)
+    let related = await getCombinedRelatedPosts(slug)
     if (post.hub) {
-        const hubPosts = getPostsByHub(post.hub).filter((p) => p.slug !== slug)
-        // Merge: hub posts first, then remaining related posts (deduplicated)
+        const hubPosts = (await getCombinedPostsByHub(post.hub)).filter((p) => p.slug !== slug)
         const hubSlugs = new Set(hubPosts.map((p) => p.slug))
         const nonHubRelated = related.filter((p) => !hubSlugs.has(p.slug))
         related = [...hubPosts.slice(0, 3), ...nonHubRelated].slice(0, 5)
@@ -102,7 +111,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                             prose-li:text-[16px] prose-li:leading-relaxed
                             prose-strong:text-foreground
                             prose-a:text-primary prose-a:no-underline hover:prose-a:underline"
-                        dangerouslySetInnerHTML={{ __html: post.content }}
+                        dangerouslySetInnerHTML={{ __html: post.content ?? "" }}
                     />
 
                     {/* Related Tool Pages */}

@@ -88,6 +88,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/clorefy-ctrl-8x2m/users', label: 'Users', icon: Users },
       { href: '/clorefy-ctrl-8x2m/subscriptions', label: 'Subscriptions', icon: CreditCard },
       { href: '/clorefy-ctrl-8x2m/revenue', label: 'Revenue', icon: DollarSign },
+      { href: '/clorefy-ctrl-8x2m/blog', label: 'Blog & Content', icon: FileText },
     ],
   },
   {

@@ -1,11 +1,13 @@
 import type { MetadataRoute } from "next"
-import { getAllPosts } from "@/lib/blog-data"
+import { getAllCombinedSlugs } from "@/lib/blog-combined"
 import { getAllProgrammaticPages } from "@/lib/seo-data"
 import { getAllCityPages } from "@/lib/city-data"
 
 const BASE_URL = "https://clorefy.com"
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export const revalidate = 3600 // Regenerate sitemap every hour (picks up new blog posts)
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // ── Public marketing pages (indexed, high priority) ──────────────────
   // Use hardcoded content timestamps instead of current date for static pages
   const marketingPages: MetadataRoute.Sitemap = [
@@ -67,13 +69,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly" as const,
       priority: 0.7, // bumped — this page directly targets branded misspelling searches
     },
-    // Brand name URL — helps Google associate "clorefy" with this domain
-    {
-      url: `${BASE_URL}/clorefy`,
-      lastModified: new Date("2026-04-26"),
-      changeFrequency: "monthly" as const,
-      priority: 0.6,
-    },
   ]
 
   // ── Legal pages (trust signals for Google) ───────────────────────────
@@ -89,10 +84,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/auth/signup`, lastModified: new Date("2025-01-01"), changeFrequency: "yearly", priority: 0.3 },
   ]
 
-  // ── Blog posts (content marketing — high SEO value) ───────────────────
-  const blogPages: MetadataRoute.Sitemap = getAllPosts().map((post) => ({
-    url: `${BASE_URL}/blog/${post.slug}`,
-    lastModified: new Date(post.updatedAt),
+  // ── Blog posts (content marketing — high SEO value, includes AI-generated) ──
+  const blogSlugs = await getAllCombinedSlugs()
+  const blogPages: MetadataRoute.Sitemap = blogSlugs.map((slug) => ({
+    url: `${BASE_URL}/blog/${slug}`,
+    lastModified: new Date(),
     changeFrequency: "monthly" as const,
     priority: 0.7,
   }))

@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
-import { getAllPosts, getAllCategories, getPostsByCategory } from "@/lib/blog-data"
+import { getAllCombinedPosts, getAllCombinedCategories, getCombinedPostsByCategory } from "@/lib/blog-combined"
 import { BlogCategoryFilter } from "@/components/blog/category-filter"
 import { ArrowRight, Clock } from "lucide-react"
 
@@ -16,12 +16,16 @@ export const metadata: Metadata = {
     },
 }
 
+// Revalidate blog listing every 10 minutes (picks up newly published posts)
+export const revalidate = 600
+
 const CATEGORY_LABELS: Record<string, string> = {
     guides: "Guides",
     templates: "Templates",
     country: "Country Guides",
     tips: "Tips & Best Practices",
     comparisons: "Comparisons",
+    news: "News",
 }
 
 interface BlogPageProps {
@@ -30,8 +34,10 @@ interface BlogPageProps {
 
 export default async function BlogPage({ searchParams }: BlogPageProps) {
     const { category } = await searchParams
-    const categories = getAllCategories()
-    const posts = category ? getPostsByCategory(category) : getAllPosts()
+    const categories = await getAllCombinedCategories()
+    const posts = category
+        ? await getCombinedPostsByCategory(category)
+        : await getAllCombinedPosts()
 
     return (
         <div className="min-h-screen bg-background">
