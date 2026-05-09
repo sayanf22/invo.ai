@@ -6,6 +6,7 @@ import { createStripePaymentLink } from "@/lib/stripe-payments"
 import { createCashfreePaymentLink } from "@/lib/cashfree-payment-links"
 import { getUserPaymentCredentials } from "@/app/api/payments/settings/route"
 import { logAudit } from "@/lib/audit-log"
+import { getClientIP } from "@/lib/api-auth"
 
 /**
  * POST /api/payments/regenerate-link
@@ -14,23 +15,20 @@ import { logAudit } from "@/lib/audit-log"
  * lands on an invoice whose payment link has EXPIRED (auto-expired by the
  * gateway), but the invoice is still unpaid.
  *
- * This solves the real-world problem where emails with old short-lived links
- * are already in recipient inboxes. When they click, we auto-refresh the link
- * transparently so they never see "link expired".
- *
- * INVARIANTS:
- *   - Only regenerates for EXPIRED links — not cancelled (sender intent) or paid
- *   - Session must still be in a non-terminal state (active/finalized)
- *   - Rate-limited by IP + sessionId (max 3 regenerations per hour per session)
- *   - No authentication required (recipient is unauthenticated by design)
- *   - Uses the session owner's (user's) own gateway credentials
- *
- * Returns the new platform pay URL (which is the same as the old one —
- * since the platform URL is session-scoped, not link-scoped).
+ * SECURITY:
+ *   - Public (unauthenticated) — recipient is by definition unauthenticated
+ *   - Origin validation: must come from our own pay page (or same-origin)
+ *   - Per-session rate limit: max 3 regenerations per hour
+ *   - Per-IP rate limit: max 10 regenerations per hour across all sessions
+ *   - Only regenerates for `expired` links — cancelled & paid are rejected
+ *   - Uses the session owner's own gateway credentials
+ *   - No PII or gateway details leaked in error responses
+ *   - Full audit trail on every regeneration attempt
  */
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const MAX_REGENS_PER_HOUR = 3
+const MAX_REGENS_PER_SESSION_PER_HOUR = 3
+const MAX_REGENS_PER_IP_PER_HOUR = 10
 
 // Currency smallest-unit multipliers (same as send-document route)
 const CURRENCY_MULTIPLIERS: Record<string, number> = {
@@ -46,7 +44,41 @@ function adminClient() {
     )
 }
 
+/**
+ * Lightweight origin check — the recipient's browser must have come from
+ * an allowed origin (our pay page or email link fetch).
+ */
+function validateRecipientOrigin(request: NextRequest): boolean {
+    const origin = request.headers.get("origin")
+    const referer = request.headers.get("referer")
+
+    const allowedOrigins = [
+        process.env.NEXT_PUBLIC_APP_URL,
+        "https://clorefy.com",
+        "https://www.clorefy.com",
+        ...(process.env.NODE_ENV !== "production"
+            ? ["http://localhost:3000", "http://localhost:3001"]
+            : []),
+    ].filter(Boolean) as string[]
+
+    // Server-side fetch (from our own page.tsx) may not have an Origin header
+    // but will have a matching Host header
+    const host = request.headers.get("host")
+    const ourHosts = allowedOrigins.map(o => o.replace(/^https?:\/\//, "").replace(/\/$/, ""))
+    if (host && ourHosts.includes(host)) return true
+
+    if (origin && allowedOrigins.includes(origin)) return true
+    if (!origin && referer && allowedOrigins.some(o => referer.startsWith(o + "/") || referer === o)) return true
+
+    return false
+}
+
 export async function POST(request: NextRequest) {
+    // ── 0. Origin check — reject cross-origin calls from random domains ──
+    if (!validateRecipientOrigin(request)) {
+        return NextResponse.json({ error: "Invalid origin" }, { status: 403 })
+    }
+
     let body: Record<string, unknown>
     try {
         body = await request.json()
@@ -60,8 +92,26 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = adminClient()
+    const clientIP = getClientIP(request)
 
-    // 1. Load the session
+    // ── 1. Per-IP rate limit — defense against scraping/abuse ────────────
+    // Uses audit_logs (existing table, indexed on created_at + ip_address)
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { count: ipRegens } = await (supabase as any)
+        .from("audit_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("action", "payment_link.regenerated")
+        .eq("ip_address", clientIP)
+        .gte("created_at", hourAgo)
+
+    if ((ipRegens ?? 0) >= MAX_REGENS_PER_IP_PER_HOUR) {
+        return NextResponse.json(
+            { error: "Too many requests. Please try again later." },
+            { status: 429 }
+        )
+    }
+
+    // ── 2. Load the session ──────────────────────────────────────────────
     const { data: session } = await supabase
         .from("document_sessions")
         .select("id, user_id, status, document_type, context")
@@ -85,7 +135,7 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    // 2. Load the most-recent payment record
+    // ── 3. Load the most-recent payment record ───────────────────────────
     const { data: lastPayment } = await (supabase as any)
         .from("invoice_payments")
         .select("id, status, amount, currency, reference_id, customer_name, customer_email, customer_phone, description")
@@ -115,18 +165,14 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    // 3. Rate limit: max 3 regenerations per session per hour
-    // We track this directly against invoice_payments: count how many "created"
-    // records exist for this session within the last hour. That count maps 1:1
-    // to regeneration attempts since each creates a new row.
-    const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-    const { count: recentRegens } = await (supabase as any)
+    // ── 4. Per-session rate limit ────────────────────────────────────────
+    const { count: sessionRegens } = await (supabase as any)
         .from("invoice_payments")
         .select("id", { count: "exact", head: true })
         .eq("session_id", sessionId)
         .gte("created_at", hourAgo)
 
-    if ((recentRegens ?? 0) >= MAX_REGENS_PER_HOUR) {
+    if ((sessionRegens ?? 0) >= MAX_REGENS_PER_SESSION_PER_HOUR) {
         return NextResponse.json(
             { error: "Too many refresh attempts. Please try again later or contact the sender." },
             { status: 429 }

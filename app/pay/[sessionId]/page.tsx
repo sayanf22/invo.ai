@@ -50,11 +50,19 @@ export default async function PayPage({ params }: PageProps) {
   // Fetch the most recent payment record (any status — we need to show the right state)
   const { data: pay } = await (supabase as any)
     .from("invoice_payments")
-    .select("short_url, status, amount, currency, amount_paid, paid_at, is_manual, manually_marked_at")
+    .select("short_url, status, amount, currency, amount_paid, paid_at, is_manual, manually_marked_at, expires_at")
     .eq("session_id", sessionId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  // Lazy expiry: if the link's expires_at has passed but the webhook hasn't
+  // fired yet (network hiccup / gateway delay), treat it as expired for the
+  // purposes of auto-regeneration. This keeps the recipient experience fresh
+  // without waiting for a webhook.
+  const linkHasExpired = pay?.expires_at && new Date(pay.expires_at) < new Date()
+  const effectiveLinkStatus: PaymentInfo["status"] | undefined =
+    pay && linkHasExpired && pay.status === "created" ? "expired" : pay?.status
 
   // Build the payment info to pass to the client.
   // If the session itself is marked "paid" (e.g. manual payment, webhook already processed),
@@ -62,7 +70,7 @@ export default async function PayPage({ params }: PageProps) {
   let payment: PaymentInfo | null = null
   if (pay) {
     const effectiveStatus: PaymentInfo["status"] =
-      session.status === "paid" ? "paid" : pay.status
+      session.status === "paid" ? "paid" : (effectiveLinkStatus ?? pay.status)
 
     // ── AUTO-REFRESH EXPIRED LINKS ──────────────────────────────────────
     // A recipient clicking an old email should never see "link expired" for

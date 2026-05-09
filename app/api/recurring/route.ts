@@ -114,6 +114,7 @@ export async function DELETE(request: NextRequest) {
   const sessionId = new URL(request.url).searchParams.get("sessionId")
   if (!sessionId) return NextResponse.json({ error: "sessionId required" }, { status: 400 })
 
+  // 1. Deactivate the recurring schedule
   const { error } = await (auth.supabase as any)
     .from("recurring_invoices")
     .update({ is_active: false })
@@ -121,5 +122,20 @@ export async function DELETE(request: NextRequest) {
     .eq("user_id", auth.user.id)
 
   if (error) return NextResponse.json({ error: "Failed to cancel" }, { status: 500 })
+
+  // 2. Cancel any pending reminders for this invoice — the user cancelled the
+  //    recurring schedule, so they clearly don't want automated outreach anymore.
+  //    This mirrors the pattern from payment-link cancellation.
+  await (auth.supabase as any)
+    .from("email_schedules")
+    .update({
+      status: "cancelled",
+      cancelled_reason: "recurring_cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("session_id", sessionId)
+    .eq("user_id", auth.user.id)
+    .eq("status", "pending")
+
   return NextResponse.json({ success: true })
 }
