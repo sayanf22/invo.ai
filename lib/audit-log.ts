@@ -52,6 +52,7 @@ export type AuditAction =
     | "payment_settings.cashfree_connected"
     | "payment_link.created"
     | "payment_link.cancelled"
+    | "payment_link.regenerated"
     | "email.send"
     | "email.resend"
     | "email.webhook"

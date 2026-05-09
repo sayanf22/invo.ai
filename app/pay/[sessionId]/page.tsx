@@ -63,14 +63,64 @@ export default async function PayPage({ params }: PageProps) {
   if (pay) {
     const effectiveStatus: PaymentInfo["status"] =
       session.status === "paid" ? "paid" : pay.status
-    payment = {
-      short_url: pay.short_url,
-      status: effectiveStatus,
-      amount: pay.amount,
-      currency: pay.currency,
-      amount_paid: pay.amount_paid ?? null,
-      paid_at: pay.paid_at ?? pay.manually_marked_at ?? null,
-      is_manual: !!pay.is_manual,
+
+    // ── AUTO-REFRESH EXPIRED LINKS ──────────────────────────────────────
+    // A recipient clicking an old email should never see "link expired" for
+    // an unpaid invoice. We regenerate the gateway link server-side on first
+    // view. Cancelled links are respected (sender intent). Paid is terminal.
+    if (
+      effectiveStatus === "expired" &&
+      session.status !== "paid" &&
+      session.status !== "cancelled"
+    ) {
+      try {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"
+        const res = await fetch(`${appUrl}/api/payments/regenerate-link`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+          // Server-side fetch — no caching
+          cache: "no-store",
+        })
+        if (res.ok) {
+          // Re-fetch the most recent payment record (should now be a fresh "created")
+          const { data: refreshed } = await (supabase as any)
+            .from("invoice_payments")
+            .select("short_url, status, amount, currency, amount_paid, paid_at, is_manual, manually_marked_at")
+            .eq("session_id", sessionId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (refreshed && refreshed.status === "created") {
+            payment = {
+              short_url: refreshed.short_url,
+              status: "created",
+              amount: refreshed.amount,
+              currency: refreshed.currency,
+              amount_paid: refreshed.amount_paid ?? null,
+              paid_at: refreshed.paid_at ?? refreshed.manually_marked_at ?? null,
+              is_manual: !!refreshed.is_manual,
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[pay-page] auto-refresh expired link failed:", err)
+        // Fall through — recipient will see the expired state with a contact-sender message
+      }
+    }
+
+    // If auto-refresh didn't run or didn't succeed, use the original payment state
+    if (!payment) {
+      payment = {
+        short_url: pay.short_url,
+        status: effectiveStatus,
+        amount: pay.amount,
+        currency: pay.currency,
+        amount_paid: pay.amount_paid ?? null,
+        paid_at: pay.paid_at ?? pay.manually_marked_at ?? null,
+        is_manual: !!pay.is_manual,
+      }
     }
   } else if (session.status === "paid") {
     // Session is paid but no payment record (edge case — manual mark without a link)

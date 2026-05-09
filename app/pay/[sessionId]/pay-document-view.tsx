@@ -428,15 +428,11 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
 
           {/* ── EXPIRED / CANCELLED ── */}
           {isInactive && (
-            <div className="rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-5 text-center">
-              <AlertCircle className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-              <p className="font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                {payment.status === "expired" ? "Payment link has expired" : "Payment link is no longer active"}
-              </p>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                Please contact <strong>{docData.fromName || "the sender"}</strong> to arrange payment.
-              </p>
-            </div>
+            <ExpiredPaymentCard
+              status={payment!.status as "expired" | "cancelled"}
+              senderName={docData.fromName || "the sender"}
+              sessionId={sessionId ?? ""}
+            />
           )}
         </div>
       )}
@@ -566,6 +562,100 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
           Powered by Clorefy
         </p>
       </div>
+    </div>
+  )
+}
+
+// ── Expired Payment Card with auto-retry ──────────────────────────────
+// Shown only if server-side auto-regen failed (e.g. gateway hiccup at SSR time).
+// Lets the recipient retry once more from the client, then falls back to a
+// clear "contact sender" message.
+
+function ExpiredPaymentCard({
+  status,
+  senderName,
+  sessionId,
+}: {
+  status: "expired" | "cancelled"
+  senderName: string
+  sessionId: string
+}) {
+  const [retrying, setRetrying] = useState(false)
+  const [retried, setRetried] = useState(false)
+
+  const handleRetry = useCallback(async () => {
+    if (!sessionId || retrying) return
+    setRetrying(true)
+    try {
+      const res = await fetch("/api/payments/regenerate-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      })
+      if (res.ok) {
+        // Fresh link generated — reload the page to pick up the new state.
+        window.location.reload()
+        return
+      }
+      setRetried(true)
+    } catch {
+      setRetried(true)
+    } finally {
+      setRetrying(false)
+    }
+  }, [sessionId, retrying])
+
+  // Cancelled = sender intent — do not offer retry
+  if (status === "cancelled") {
+    return (
+      <div className="rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-5 text-center">
+        <AlertCircle className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+        <p className="font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+          Payment link is no longer active
+        </p>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">
+          Please contact <strong>{senderName}</strong> to arrange payment.
+        </p>
+      </div>
+    )
+  }
+
+  // Expired + retry not yet failed — offer refresh
+  return (
+    <div className="rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-5 text-center">
+      <AlertCircle className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+      <p className="font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+        {retried ? "We couldn't refresh the payment link" : "Payment link needs a quick refresh"}
+      </p>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
+        {retried
+          ? <>Please contact <strong>{senderName}</strong> to arrange payment.</>
+          : <>Click below to generate a fresh link. This takes a few seconds.</>}
+      </p>
+      {!retried && (
+        <button
+          type="button"
+          onClick={handleRetry}
+          disabled={retrying}
+          className={cn(
+            "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all",
+            "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900",
+            "hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
+          )}
+        >
+          {retrying ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Refreshing…
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-4 h-4" />
+              Refresh payment link
+            </>
+          )}
+        </button>
+      )}
     </div>
   )
 }
