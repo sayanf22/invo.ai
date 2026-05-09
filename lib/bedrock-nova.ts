@@ -1,39 +1,31 @@
 /**
- * AWS Bedrock Nova client for long-form content generation.
+ * Bedrock content generation client for blog automation.
  *
- * Uses Amazon Nova Lite — the cheapest quality model on Bedrock.
- * Pricing (2025): $0.06/1M input tokens, $0.24/1M output tokens.
- * A 2000-word blog post costs approximately $0.005 (half a cent).
+ * PRIMARY model: Kimi K2.5 via Bedrock Mantle — already working in production,
+ * same key, same endpoint as the chat feature. No extra setup needed.
  *
- * NOTE: This is separate from lib/bedrock.ts which uses Bedrock Mantle
- * (Kimi K2.5) for chat. This file uses the standard Bedrock Runtime API
- * with Nova models, which is designed for longer-form generation.
+ * OPTIONAL models (require Nova model access to be enabled in AWS Console):
+ * - Nova Lite v1: $0.06/1M input — cheapest, no web search
+ * - Nova 2 Lite: $0.17/1M input — has built-in web grounding (search)
  *
- * Authentication: Long-term API key (bearer token) stored in env as
- * `amazon_beadrocl_key`. The key is pre-base64-encoded by AWS.
- *
- * Docs: https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys-use.html
+ * To enable Nova: AWS Console → Amazon Bedrock → Model access → Request access
+ * to "Amazon Nova Lite" (instant approval). Then set modelId in options.
  */
 
-const BEDROCK_REGION = "us-east-1"
-const BEDROCK_ENDPOINT = `https://bedrock-runtime.${BEDROCK_REGION}.amazonaws.com`
+const BEDROCK_MANTLE_URL = "https://bedrock-mantle.us-east-1.api.aws/v1/chat/completions"
+const BEDROCK_RUNTIME_ENDPOINT = "https://bedrock-runtime.us-east-1.amazonaws.com"
 
-// Nova Lite v1 — best price-to-quality for evergreen content, no web search
+export const KIMI_MODEL_ID = "moonshotai.kimi-k2.5"
 export const NOVA_LITE_MODEL_ID = "amazon.nova-lite-v1:0"
-
-// Nova 2 Lite — 2026 model with built-in web grounding (search), 3x cost but
-// useful for "latest tax rates 2026" style posts that need current facts.
 export const NOVA_2_LITE_MODEL_ID = "amazon.nova-2-lite-v1:0"
 
-// Pricing per 1M tokens (USD), Dec 2025 / Jan 2026 — used for cost tracking
-const PRICING = {
+// Default: use Kimi (proven working, no extra setup)
+export const DEFAULT_BLOG_MODEL = KIMI_MODEL_ID
+
+const PRICING: Record<string, { input: number; output: number }> = {
+  [KIMI_MODEL_ID]: { input: 0.15, output: 0.60 },
   [NOVA_LITE_MODEL_ID]: { input: 0.06, output: 0.24 },
   [NOVA_2_LITE_MODEL_ID]: { input: 0.17, output: 0.68 },
-} as const
-
-export interface NovaMessage {
-  role: "user" | "assistant"
-  content: Array<{ text: string }>
 }
 
 export interface NovaGenerateOptions {
@@ -43,9 +35,8 @@ export interface NovaGenerateOptions {
   temperature?: number
   topP?: number
   /**
-   * Enable built-in web grounding (web search). Only works on Nova 2 models.
-   * Adds citations to the response based on real-time web results.
-   * Cost: adds ~$0.01 per request with search.
+   * Enable built-in web grounding. Only works on Nova 2 Lite.
+   * Requires Nova 2 Lite model access to be enabled in AWS Console.
    */
   enableWebSearch?: boolean
 }
@@ -60,30 +51,76 @@ export interface NovaGenerateResult {
 
 function getApiKey(): string {
   const key = process.env.amazon_beadrocl_key
-  if (!key) {
-    throw new Error(
-      "Missing AWS Bedrock API key. Set env var `amazon_beadrocl_key`."
-    )
-  }
+  if (!key) throw new Error("Missing env var: amazon_beadrocl_key")
   return key
 }
 
 /**
- * Generate text using Amazon Bedrock Converse API with Nova models.
- *
- * The Converse API is the recommended unified interface for Nova.
+ * Generate text using Kimi K2.5 via Bedrock Mantle (OpenAI-compatible API).
+ * This is the primary path — already proven working.
  */
-export async function novaConverse(
-  messages: NovaMessage[],
-  options: NovaGenerateOptions = {}
+async function generateWithKimi(
+  userPrompt: string,
+  systemPrompt: string,
+  maxTokens: number,
+  temperature: number
+): Promise<NovaGenerateResult> {
+  const apiKey = getApiKey()
+
+  const response = await fetch(BEDROCK_MANTLE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: KIMI_MODEL_ID,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: maxTokens,
+      temperature,
+      stream: false,
+    }),
+  })
+
+  if (!response.ok) {
+    const err = await response.text().catch(() => "")
+    throw new Error(`Kimi API error ${response.status}: ${err.slice(0, 400)}`)
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>
+    usage?: { prompt_tokens?: number; completion_tokens?: number }
+  }
+
+  const text = data.choices?.[0]?.message?.content ?? ""
+  const inputTokens = data.usage?.prompt_tokens ?? 0
+  const outputTokens = data.usage?.completion_tokens ?? 0
+  const pricing = PRICING[KIMI_MODEL_ID]
+  const costUsd =
+    (inputTokens / 1_000_000) * pricing.input +
+    (outputTokens / 1_000_000) * pricing.output
+
+  return { text, inputTokens, outputTokens, costUsd, modelId: KIMI_MODEL_ID }
+}
+
+/**
+ * Generate text using Nova models via Bedrock Runtime (Converse API).
+ * Requires Nova model access to be enabled in AWS Console.
+ */
+async function generateWithNova(
+  userPrompt: string,
+  options: NovaGenerateOptions
 ): Promise<NovaGenerateResult> {
   const modelId = options.modelId ?? NOVA_LITE_MODEL_ID
   const apiKey = getApiKey()
 
-  const url = `${BEDROCK_ENDPOINT}/model/${encodeURIComponent(modelId)}/converse`
+  const url = `${BEDROCK_RUNTIME_ENDPOINT}/model/${encodeURIComponent(modelId)}/converse`
 
   const body: Record<string, unknown> = {
-    messages,
+    messages: [{ role: "user", content: [{ text: userPrompt }] }],
     inferenceConfig: {
       maxTokens: options.maxTokens ?? 4000,
       temperature: options.temperature ?? 0.7,
@@ -95,16 +132,11 @@ export async function novaConverse(
     body.system = [{ text: options.systemPrompt }]
   }
 
-  // Enable built-in web grounding on Nova 2 models
   if (options.enableWebSearch) {
     if (modelId !== NOVA_2_LITE_MODEL_ID) {
-      throw new Error(
-        `Web search is only available on Nova 2 models. Got: ${modelId}`
-      )
+      throw new Error(`Web search only works on Nova 2 Lite. Got: ${modelId}`)
     }
-    body.toolConfig = {
-      tools: [{ builtInTool: { name: "web_grounding" } }],
-    }
+    body.toolConfig = { tools: [{ builtInTool: { name: "web_grounding" } }] }
   }
 
   const response = await fetch(url, {
@@ -117,10 +149,8 @@ export async function novaConverse(
   })
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "")
-    throw new Error(
-      `Bedrock Nova API error ${response.status}: ${errorText.slice(0, 500)}`
-    )
+    const err = await response.text().catch(() => "")
+    throw new Error(`Nova API error ${response.status}: ${err.slice(0, 400)}`)
   }
 
   const data = (await response.json()) as {
@@ -131,8 +161,7 @@ export async function novaConverse(
   const text = data.output?.message?.content?.[0]?.text ?? ""
   const inputTokens = data.usage?.inputTokens ?? 0
   const outputTokens = data.usage?.outputTokens ?? 0
-
-  const pricing = PRICING[modelId as keyof typeof PRICING] ?? { input: 0.06, output: 0.24 }
+  const pricing = PRICING[modelId] ?? { input: 0.06, output: 0.24 }
   const costUsd =
     (inputTokens / 1_000_000) * pricing.input +
     (outputTokens / 1_000_000) * pricing.output
@@ -141,14 +170,27 @@ export async function novaConverse(
 }
 
 /**
- * Convenience helper: single-turn text generation from a user prompt.
+ * Main entry point for blog content generation.
+ *
+ * Routes to the right model:
+ * - Default (no modelId): Kimi K2.5 — already working, no setup needed
+ * - modelId = NOVA_LITE_MODEL_ID: Nova Lite — requires model access enabled
+ * - modelId = NOVA_2_LITE_MODEL_ID + enableWebSearch: Nova 2 with web search
  */
 export async function novaGenerate(
   userPrompt: string,
   options: NovaGenerateOptions = {}
 ): Promise<NovaGenerateResult> {
-  return novaConverse(
-    [{ role: "user", content: [{ text: userPrompt }] }],
-    options
-  )
+  const modelId = options.modelId ?? DEFAULT_BLOG_MODEL
+
+  if (modelId === KIMI_MODEL_ID) {
+    return generateWithKimi(
+      userPrompt,
+      options.systemPrompt ?? "",
+      options.maxTokens ?? 4000,
+      options.temperature ?? 0.7
+    )
+  }
+
+  return generateWithNova(userPrompt, { ...options, modelId })
 }
