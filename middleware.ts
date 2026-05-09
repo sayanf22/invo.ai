@@ -90,6 +90,7 @@ const PUBLIC_PATHS = [
   "/refund-policy",
   "/business",
   "/tools",
+  "/blog", // public blog — no auth required
   "/clorefy-alternative-spellings",
   "/clorefy", // brand name URL — public, no auth needed
   "/clorify", // misspelling redirect — public
