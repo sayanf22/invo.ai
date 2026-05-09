@@ -187,6 +187,21 @@ const pricingPlans: PricingPlan[] = [
 
 const productJsonLd = generateProductSchema(pricingPlans)
 
+// ─── FAQ Structured Data (for rich snippets) ─────────────────────────────────
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((faq) => ({
+    "@type": "Question",
+    name: faq.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: faq.answer,
+    },
+  })),
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PricingPage() {
@@ -195,6 +210,10 @@ export default function PricingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
       {/* ── Hero section — matches landing hero aesthetic ── */}

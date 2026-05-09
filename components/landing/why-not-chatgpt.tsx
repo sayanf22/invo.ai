@@ -129,14 +129,15 @@ export function WhyNotChatGPT() {
             </h2>
 
             <p className="text-[#5B5550] text-lg leading-relaxed mb-4 max-w-md font-medium">
-              General AI doesn&apos;t know your business. Every time you need a document, you have to
-              re-explain your company, your tax IDs, your client&apos;s details — and then spend 15
-              minutes formatting the output into a PDF.
+              ChatGPT writes text. It can&apos;t send invoices to your clients, collect payments,
+              chase overdue bills, or run recurring billing every month. You&apos;d still need 5
+              other tools — and they don&apos;t talk to each other.
             </p>
 
             <p className="text-[#5B5550] text-lg leading-relaxed mb-10 max-w-md">
-              Speak naturally and Clorefy instantly extracts the context. Rambled thoughts become
-              clear, perfectly formatted, tax-compliant documents.
+              Clorefy generates tax-compliant invoices, contracts, quotations, and proposals —
+              then emails them to clients, adds a payment link, auto-sends reminders until paid,
+              and schedules recurring invoices every month. One platform, fully automated.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">

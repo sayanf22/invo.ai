@@ -36,6 +36,9 @@ const nextConfig = {
   // ── Brand name redirects (helps Google associate brand with domain) ──
   async redirects() {
     return [
+      // Brand slug redirects — /clorefy → / (301 permanent)
+      { source: "/clorefy", destination: "/", permanent: true },
+      { source: "/clorefy/:path*", destination: "/:path*", permanent: true },
       // Misspelling redirects — /clorify → /
       { source: "/clorify", destination: "/", permanent: true },
       { source: "/clorify/:path*", destination: "/:path*", permanent: true },
