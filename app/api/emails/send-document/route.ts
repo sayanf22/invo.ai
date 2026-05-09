@@ -386,31 +386,45 @@ export async function POST(request: NextRequest) {
         })
 
         const now = new Date()
-        const scheduleRows = followUps.map(({ daysFromNow, sequenceStep, sequenceType }) => {
-          const scheduledFor = new Date(now)
-          scheduledFor.setDate(scheduledFor.getDate() + daysFromNow)
-          // Set to 9 AM UTC for all follow-ups
-          scheduledFor.setUTCHours(9, 0, 0, 0)
-          return {
-            user_id: userId,
-            session_id: sessionId,
-            recipient_email: recipientEmail,
-            document_type: documentType,
-            subject: null, // will be generated at send time
-            scheduled_for: scheduledFor.toISOString(),
-            sequence_step: sequenceStep,
-            sequence_type: sequenceType,
-            status: "pending",
+
+        // Resolve the anchor date for the schedule:
+        //   - For pre_due/due_today: schedule relative to the invoice's due date (context.dueDate)
+        //   - For followup/final:    schedule relative to the due date so overdue cadence is correct
+        //   - If no due date exists: anchor to "now" (today is treated as the due date)
+        const dueDateStr = (context.dueDate as string) || (context.invoiceDate as string) || null
+        const anchorDate = dueDateStr ? new Date(dueDateStr) : new Date(now)
+        // Normalize to 9 AM UTC on that day
+        anchorDate.setUTCHours(9, 0, 0, 0)
+
+        const scheduleRows = followUps
+          .map(({ daysFromNow, sequenceStep, sequenceType }) => {
+            const scheduledFor = new Date(anchorDate)
+            scheduledFor.setUTCDate(scheduledFor.getUTCDate() + daysFromNow)
+            return {
+              user_id: userId,
+              session_id: sessionId,
+              recipient_email: recipientEmail,
+              document_type: documentType,
+              subject: null,
+              scheduled_for: scheduledFor.toISOString(),
+              sequence_step: sequenceStep,
+              sequence_type: sequenceType,
+              status: "pending",
+            }
+          })
+          // Skip any reminders that would be scheduled in the past
+          // (e.g., pre_due -3 days when invoice is already overdue)
+          .filter((row) => new Date(row.scheduled_for).getTime() > now.getTime())
+
+        if (scheduleRows.length > 0) {
+          const { error: scheduleError } = await (supabase as any)
+            .from("email_schedules")
+            .insert(scheduleRows)
+
+          if (scheduleError) {
+            console.error("Failed to schedule follow-ups:", scheduleError)
+            // Non-fatal — email was sent successfully
           }
-        })
-
-        const { error: scheduleError } = await (supabase as any)
-          .from("email_schedules")
-          .insert(scheduleRows)
-
-        if (scheduleError) {
-          console.error("Failed to schedule follow-ups:", scheduleError)
-          // Non-fatal — email was sent successfully
         }
       }
     }

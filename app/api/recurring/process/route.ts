@@ -126,6 +126,47 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      // Guard: only roll forward a recurring invoice if its parent is in a good state.
+      // If the parent was cancelled or expired without payment, pause recurring.
+      // Industry standard: don't keep invoicing a client whose last invoice failed.
+      const { data: parentPayment } = await (supabase as any)
+        .from("invoice_payments")
+        .select("status")
+        .eq("session_id", sourceSession.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (parentPayment && ["cancelled", "expired", "failed"].includes(parentPayment.status)) {
+        // Pause the recurring schedule — operator must re-enable after fixing the parent
+        await (supabase as any)
+          .from("recurring_invoices")
+          .update({ is_active: false })
+          .eq("id", rec.id)
+
+        // Notify the owner so they know why it paused
+        await (supabase as any)
+          .from("notifications")
+          .insert({
+            user_id: sourceSession.user_id,
+            type: "general",
+            title: "Recurring Invoice Paused",
+            message: `Recurring invoice paused because the source invoice payment is ${parentPayment.status}. Resume it from the document to continue.`,
+            read: false,
+            metadata: {
+              recurring_id: rec.id,
+              source_session_id: sourceSession.id,
+              parent_payment_status: parentPayment.status,
+            },
+          })
+
+        results.push({
+          recurringId: rec.id,
+          error: `Parent payment is ${parentPayment.status} — recurring invoice paused`,
+        })
+        continue
+      }
+
       const parentContext = (sourceSession.context ?? {}) as Record<string, any>
 
       // Build new context: copy everything, increment invoice number, update dates

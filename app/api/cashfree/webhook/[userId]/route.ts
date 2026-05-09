@@ -139,6 +139,17 @@ export async function POST(
                     .eq("id", targetSessionId)
                     .eq("user_id", userId)
                     .neq("status", "paid")
+
+                // Cancel all pending email reminders — payment received
+                await (supabaseAdmin as any)
+                    .from("email_schedules")
+                    .update({
+                        status: "cancelled",
+                        cancelled_reason: "payment_received",
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("session_id", targetSessionId)
+                    .eq("status", "pending")
             }
 
             // Notification (fire-and-forget)
@@ -164,6 +175,44 @@ export async function POST(
                 .eq("razorpay_payment_link_id", cfLinkId)
                 .eq("user_id", userId)
                 .neq("status", "paid") // Don't downgrade from paid
+            }
+        } else if (linkStatus === "EXPIRED" || linkStatus === "CANCELLED") {
+            // Cashfree link is dead — update status and cancel pending reminders
+            const newStatus = linkStatus === "EXPIRED" ? "expired" : "cancelled"
+            const reason = linkStatus === "EXPIRED" ? "payment_link_expired" : "payment_link_cancelled"
+
+            if (cfLinkId) {
+                await supabaseAdmin.from("invoice_payments").update({
+                    status: newStatus,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("razorpay_payment_link_id", cfLinkId)
+                .eq("user_id", userId)
+                .neq("status", "paid") // Never downgrade a paid invoice
+            }
+
+            // Resolve session_id and cancel pending reminders
+            const deadSessionId = sessionId || await (async () => {
+                if (!cfLinkId) return null
+                const { data: inv } = await supabaseAdmin
+                    .from("invoice_payments")
+                    .select("session_id")
+                    .eq("razorpay_payment_link_id", cfLinkId)
+                    .eq("user_id", userId)
+                    .maybeSingle()
+                return inv?.session_id ?? null
+            })()
+
+            if (deadSessionId) {
+                await (supabaseAdmin as any)
+                    .from("email_schedules")
+                    .update({
+                        status: "cancelled",
+                        cancelled_reason: reason,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("session_id", deadSessionId)
+                    .eq("status", "pending")
             }
         }
     }

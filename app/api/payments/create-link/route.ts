@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
                 testMode: userCreds.testMode,
                 userClientId: userCreds.clientId,
                 userClientSecret: userCreds.clientSecret,
-                expireInDays: 30,
+                expireInDays: 37, // 30-day final reminder + 7-day grace period (industry standard)
             })
         } catch (err: unknown) {
             console.error("Cashfree payment link creation failed:", err)

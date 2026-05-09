@@ -365,14 +365,23 @@ export async function incrementEmailCount(
 /**
  * Returns the follow-up schedule for a given tier.
  * Each entry: { daysFromNow, sequenceStep, sequenceType }
+ * `daysFromNow` is relative to the invoice due date:
+ *   - Negative = before due date (polite pre-due nudge)
+ *   - 0        = on due date
+ *   - Positive = after due date (overdue reminders)
+ *
  * Only invoices get follow-ups (contracts/quotations/proposals don't have payment links).
  *
- * Industry standard (FreshBooks/Stripe/invoicemojo.com):
+ * Industry standard 2026 (Stripe/QuickBooks/FreshBooks/Invoicemojo):
+ *   - Day -3:  Pre-due polite reminder
+ *   - Day  0:  Due-today gentle nudge
  *   - Day +3:  First overdue reminder (polite)
  *   - Day +7:  Second reminder (firmer)
  *   - Day +14: Third reminder (urgent)
- *   - Day +30: Final notice
- *   Max 4 follow-ups total. Stop on payment/bounce.
+ *   - Day +30: Final notice (last reminder — payment link must stay alive at least +7 more days)
+ *
+ * After the final reminder, users get 7+ days grace period before the payment link expires.
+ * This aligns with Stripe/QuickBooks invoicing best practice: link lifetime >= last reminder + 7 days grace.
  */
 export function getFollowUpSchedule(tier: UserTier): Array<{
     daysFromNow: number
@@ -384,26 +393,52 @@ export function getFollowUpSchedule(tier: UserTier): Array<{
             return [] // No auto follow-ups on free tier
         case "starter":
             return [
+                { daysFromNow: -3, sequenceStep: 1, sequenceType: "pre_due"  },
                 { daysFromNow: 3,  sequenceStep: 2, sequenceType: "followup" },
                 { daysFromNow: 7,  sequenceStep: 3, sequenceType: "followup" },
             ]
         case "pro":
             return [
-                { daysFromNow: 3,  sequenceStep: 2, sequenceType: "followup" },
-                { daysFromNow: 7,  sequenceStep: 3, sequenceType: "followup" },
-                { daysFromNow: 14, sequenceStep: 4, sequenceType: "followup" },
-                { daysFromNow: 30, sequenceStep: 5, sequenceType: "final"    },
+                { daysFromNow: -3, sequenceStep: 1, sequenceType: "pre_due"   },
+                { daysFromNow: 0,  sequenceStep: 2, sequenceType: "due_today" },
+                { daysFromNow: 3,  sequenceStep: 3, sequenceType: "followup"  },
+                { daysFromNow: 7,  sequenceStep: 4, sequenceType: "followup"  },
+                { daysFromNow: 14, sequenceStep: 5, sequenceType: "followup"  },
+                { daysFromNow: 30, sequenceStep: 6, sequenceType: "final"     },
             ]
         case "agency":
             return [
-                { daysFromNow: 3,  sequenceStep: 2, sequenceType: "followup" },
-                { daysFromNow: 7,  sequenceStep: 3, sequenceType: "followup" },
-                { daysFromNow: 14, sequenceStep: 4, sequenceType: "followup" },
-                { daysFromNow: 30, sequenceStep: 5, sequenceType: "final"    },
+                { daysFromNow: -3, sequenceStep: 1, sequenceType: "pre_due"   },
+                { daysFromNow: 0,  sequenceStep: 2, sequenceType: "due_today" },
+                { daysFromNow: 3,  sequenceStep: 3, sequenceType: "followup"  },
+                { daysFromNow: 7,  sequenceStep: 4, sequenceType: "followup"  },
+                { daysFromNow: 14, sequenceStep: 5, sequenceType: "followup"  },
+                { daysFromNow: 30, sequenceStep: 6, sequenceType: "final"     },
             ]
         default:
             return []
     }
+}
+
+/**
+ * Minimum payment link lifetime in days, aligned with final reminder + grace period.
+ *
+ * Industry rule (Stripe hosted invoices, QuickBooks, FreshBooks):
+ *   Payment link MUST outlive the entire reminder sequence plus a grace period,
+ *   so users who receive the final reminder still have time to pay.
+ *
+ * Invariant enforced here:
+ *   linkLifetime >= (lastReminderDayAfterDue + 7-day grace) AND >= 30 days (user-specified minimum)
+ */
+export function getMinPaymentLinkLifetimeDays(tier: UserTier): number {
+    const GRACE_DAYS = 7          // Days after final reminder before link expires
+    const MIN_LIFETIME = 30       // User-specified hard floor: link must live at least 1 month
+
+    const schedule = getFollowUpSchedule(tier)
+    // Only positive days (post-due reminders) matter for the lifetime calculation
+    const lastReminderDay = schedule.reduce((max, entry) => Math.max(max, entry.daysFromNow), 0)
+    const lifetime = lastReminderDay + GRACE_DAYS
+    return Math.max(lifetime, MIN_LIFETIME)
 }
 
 // ─── Document Type Check ───────────────────────────────────────────────────────

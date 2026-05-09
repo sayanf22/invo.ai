@@ -216,21 +216,64 @@ export async function POST(
 
         case "payment_link.expired": {
             const paymentLink = event.payload.payment_link.entity
+
+            // Resolve session_id to cancel pending reminders
+            const { data: expiredPayment } = await supabaseAdmin
+                .from("invoice_payments")
+                .select("session_id")
+                .eq("razorpay_payment_link_id", paymentLink.id)
+                .eq("user_id", userId)
+                .maybeSingle()
+
             await supabaseAdmin
                 .from("invoice_payments")
                 .update({ status: "expired", updated_at: new Date().toISOString() })
                 .eq("razorpay_payment_link_id", paymentLink.id)
                 .eq("user_id", userId)
+
+            const expiredSessionId = (expiredPayment as any)?.session_id
+            if (expiredSessionId) {
+                await (supabaseAdmin as any)
+                    .from("email_schedules")
+                    .update({
+                        status: "cancelled",
+                        cancelled_reason: "payment_link_expired",
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("session_id", expiredSessionId)
+                    .eq("status", "pending")
+            }
             break
         }
 
         case "payment_link.cancelled": {
             const paymentLink = event.payload.payment_link.entity
+
+            const { data: cancelledPayment } = await supabaseAdmin
+                .from("invoice_payments")
+                .select("session_id")
+                .eq("razorpay_payment_link_id", paymentLink.id)
+                .eq("user_id", userId)
+                .maybeSingle()
+
             await supabaseAdmin
                 .from("invoice_payments")
                 .update({ status: "cancelled", updated_at: new Date().toISOString() })
                 .eq("razorpay_payment_link_id", paymentLink.id)
                 .eq("user_id", userId)
+
+            const cancelledSessionId = (cancelledPayment as any)?.session_id
+            if (cancelledSessionId) {
+                await (supabaseAdmin as any)
+                    .from("email_schedules")
+                    .update({
+                        status: "cancelled",
+                        cancelled_reason: "payment_link_cancelled",
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("session_id", cancelledSessionId)
+                    .eq("status", "pending")
+            }
             break
         }
 

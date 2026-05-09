@@ -128,6 +128,7 @@ export async function POST(
             }
 
             // Update document session status (only if not already paid)
+            let resolvedSessionId = sessionId
             try {
                 if (sessionId) {
                     await supabaseAdmin
@@ -145,6 +146,7 @@ export async function POST(
                         .maybeSingle()
 
                     if (inv?.session_id) {
+                        resolvedSessionId = inv.session_id
                         await supabaseAdmin
                             .from("document_sessions")
                             .update({ status: "paid" })
@@ -152,6 +154,19 @@ export async function POST(
                             .eq("user_id", userId)
                             .neq("status", "paid")
                     }
+                }
+
+                // Cancel all pending email reminders — payment received
+                if (resolvedSessionId) {
+                    await (supabaseAdmin as any)
+                        .from("email_schedules")
+                        .update({
+                            status: "cancelled",
+                            cancelled_reason: "payment_received",
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq("session_id", resolvedSessionId)
+                        .eq("status", "pending")
                 }
             } catch (err) {
                 console.error(`[stripe-webhook/${userId}] document_sessions update error:`, err)
@@ -169,6 +184,59 @@ export async function POST(
                 })
               } catch { /* non-fatal */ }
             })()
+
+            break
+        }
+
+        case "checkout.session.expired": {
+            // Stripe Checkout Sessions auto-expire after 24h
+            // Mark the payment as expired and cancel pending reminders
+            const session = event.data?.object || {}
+            const metadata = session.metadata || {}
+            const referenceId = metadata.reference_id || session.client_reference_id || ""
+            const sessionId = metadata.session_id || ""
+
+            if (!referenceId && !sessionId) break
+
+            // Resolve session_id + update status to expired (only if still pending)
+            let resolvedSessionId = sessionId
+            if (sessionId) {
+                await supabaseAdmin
+                    .from("invoice_payments")
+                    .update({ status: "expired", updated_at: new Date().toISOString() })
+                    .eq("session_id", sessionId)
+                    .eq("user_id", userId)
+                    .in("status", ["created", "partially_paid"])
+            } else if (referenceId) {
+                const { data: inv } = await supabaseAdmin
+                    .from("invoice_payments")
+                    .select("session_id")
+                    .eq("reference_id", referenceId)
+                    .eq("user_id", userId)
+                    .maybeSingle()
+                if (inv?.session_id) {
+                    resolvedSessionId = inv.session_id
+                    await supabaseAdmin
+                        .from("invoice_payments")
+                        .update({ status: "expired", updated_at: new Date().toISOString() })
+                        .eq("session_id", inv.session_id)
+                        .eq("user_id", userId)
+                        .in("status", ["created", "partially_paid"])
+                }
+            }
+
+            // Cancel pending email reminders — link is dead, no point reminding
+            if (resolvedSessionId) {
+                await (supabaseAdmin as any)
+                    .from("email_schedules")
+                    .update({
+                        status: "cancelled",
+                        cancelled_reason: "payment_link_expired",
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("session_id", resolvedSessionId)
+                    .eq("status", "pending")
+            }
 
             break
         }

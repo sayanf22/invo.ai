@@ -261,6 +261,13 @@ export async function POST(request: Request) {
                 const paymentLink = event.payload.payment_link.entity
                 console.log("Payment link expired:", paymentLink.id)
 
+                // Resolve session_id for this link (before updating status)
+                const { data: expiredPayment } = await supabase
+                    .from("invoice_payments" as any)
+                    .select("session_id")
+                    .eq("razorpay_payment_link_id", paymentLink.id)
+                    .maybeSingle()
+
                 await supabase
                     .from("invoice_payments" as any)
                     .update({
@@ -268,12 +275,32 @@ export async function POST(request: Request) {
                         updated_at: new Date().toISOString(),
                     })
                     .eq("razorpay_payment_link_id", paymentLink.id)
+
+                // Cancel all pending email reminders — no point reminding on a dead link
+                const expiredSessionId = (expiredPayment as any)?.session_id
+                if (expiredSessionId) {
+                    await (supabase as any)
+                        .from("email_schedules")
+                        .update({
+                            status: "cancelled",
+                            cancelled_reason: "payment_link_expired",
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq("session_id", expiredSessionId)
+                        .eq("status", "pending")
+                }
                 break
             }
 
             case "payment_link.cancelled": {
                 const paymentLink = event.payload.payment_link.entity
                 console.log("Payment link cancelled:", paymentLink.id)
+
+                const { data: cancelledPayment } = await supabase
+                    .from("invoice_payments" as any)
+                    .select("session_id")
+                    .eq("razorpay_payment_link_id", paymentLink.id)
+                    .maybeSingle()
 
                 await supabase
                     .from("invoice_payments" as any)
@@ -282,6 +309,20 @@ export async function POST(request: Request) {
                         updated_at: new Date().toISOString(),
                     })
                     .eq("razorpay_payment_link_id", paymentLink.id)
+
+                // Cancel all pending email reminders
+                const cancelledSessionId = (cancelledPayment as any)?.session_id
+                if (cancelledSessionId) {
+                    await (supabase as any)
+                        .from("email_schedules")
+                        .update({
+                            status: "cancelled",
+                            cancelled_reason: "payment_link_cancelled",
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq("session_id", cancelledSessionId)
+                        .eq("status", "pending")
+                }
                 break
             }
 

@@ -315,35 +315,35 @@ export async function createPaymentLink(params: CreatePaymentLinkParams): Promis
         throw new Error(`Unsupported currency: ${params.currency}`)
     }
 
-    // ── Smart Expiry (Industry Standard) ──────────────────────────────────────
-    // Stripe: "active for 10 days or more depending on when the invoice is due"
-    // Zoho:   default 15 days, editable
-    // Zoho Payments API: default 30 days
-    // Stripe hosted invoices: expire 30 days after due date
+    // ── Smart Expiry (Industry Standard 2026) ────────────────────────────────
+    // Rule: Payment link lifetime MUST outlive the full reminder sequence + grace period.
+    //   - Stripe hosted invoices: 30 days after due date
+    //   - QuickBooks: 37+ days (30-day sequence + 7-day grace after final notice)
+    //   - Our schedule: final reminder at due+30, so link lives until due+37 at minimum
     //
-    // Our approach (best of all):
-    //   - If due date is provided: expire 30 days AFTER the due date (Stripe standard)
-    //   - Minimum: always at least 15 days from now (Zoho standard)
-    //   - Maximum: 180 days from now (Razorpay hard limit)
-    //   - If expireInDays is explicitly passed, use that (user override)
+    // Invariants enforced here:
+    //   - Minimum lifetime: 30 days from NOW (user-specified floor — "don't expire before 1 month")
+    //   - If due date given: expire 37 days AFTER due date (30-day final reminder + 7-day grace)
+    //   - Cap: 180 days (Razorpay hard limit)
     let expireByUnix: number
 
     if (params.expireInDays !== undefined) {
-        // Explicit override
-        const days = Math.min(Math.max(params.expireInDays, 1), 180)
+        // Explicit override — but still honor the 30-day floor
+        const days = Math.min(Math.max(params.expireInDays, 30), 180)
         expireByUnix = Math.floor(Date.now() / 1000) + days * 86400
     } else if (params.dueDateIso) {
-        // Smart: 30 days after due date, minimum 15 days from now
+        // Smart: 37 days after due date (matches final reminder day +30 + 7-day grace)
+        // Minimum: 30 days from now
         const dueDate = new Date(params.dueDateIso)
-        const thirtyAfterDue = new Date(dueDate.getTime() + 30 * 86400 * 1000)
-        const fifteenFromNow = new Date(Date.now() + 15 * 86400 * 1000)
+        const thirtySevenAfterDue = new Date(dueDate.getTime() + 37 * 86400 * 1000)
+        const thirtyFromNow = new Date(Date.now() + 30 * 86400 * 1000)
         const sixMonthsFromNow = new Date(Date.now() + 180 * 86400 * 1000)
-        const expireDate = new Date(Math.max(thirtyAfterDue.getTime(), fifteenFromNow.getTime()))
+        const expireDate = new Date(Math.max(thirtySevenAfterDue.getTime(), thirtyFromNow.getTime()))
         const capped = new Date(Math.min(expireDate.getTime(), sixMonthsFromNow.getTime()))
         expireByUnix = Math.floor(capped.getTime() / 1000)
     } else {
-        // Default: 30 days from now (Zoho Payments API default)
-        expireByUnix = Math.floor(Date.now() / 1000) + 30 * 86400
+        // No due date given — default to 37 days (30-day final reminder + 7-day grace)
+        expireByUnix = Math.floor(Date.now() / 1000) + 37 * 86400
     }
 
     const body: Record<string, unknown> = {

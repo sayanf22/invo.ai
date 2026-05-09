@@ -94,6 +94,18 @@ export async function POST(request: NextRequest) {
         .update({ status: "cancelled", updated_at: new Date().toISOString() })
         .eq("id", link.id)
 
+    // Cancel all pending email reminders for this session — no point reminding
+    // the client to pay a link that's been cancelled
+    await (supabaseAdmin as any)
+        .from("email_schedules")
+        .update({
+            status: "cancelled",
+            cancelled_reason: "payment_link_cancelled",
+            updated_at: new Date().toISOString(),
+        })
+        .eq("session_id", sessionId)
+        .eq("status", "pending")
+
     await logAudit(auth.supabase, {
         user_id: auth.user.id,
         action: "payment_link.cancelled",
