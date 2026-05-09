@@ -5,6 +5,7 @@ import { getCombinedPostBySlug, getCombinedRelatedPosts, getCombinedPostsByHub, 
 import { Breadcrumbs } from "@/components/seo/breadcrumbs"
 import { ArrowLeft, Clock, ArrowRight, Calendar, Tag } from "lucide-react"
 import { generateArticleSchema } from "@/lib/structured-data"
+import { ReadingProgress } from "@/components/blog/reading-progress"
 
 export const revalidate = 3600
 export const dynamicParams = true
@@ -101,20 +102,8 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                     />
                 </div>
 
-                {/* Reading progress script */}
-                <script dangerouslySetInnerHTML={{ __html: `
-                    (function() {
-                        function updateProgress() {
-                            var el = document.getElementById('reading-progress');
-                            if (!el) return;
-                            var scrollTop = window.scrollY || document.documentElement.scrollTop;
-                            var docHeight = document.documentElement.scrollHeight - window.innerHeight;
-                            var pct = docHeight > 0 ? Math.min(100, (scrollTop / docHeight) * 100) : 0;
-                            el.style.width = pct + '%';
-                        }
-                        window.addEventListener('scroll', updateProgress, { passive: true });
-                    })();
-                ` }} />
+                {/* Reading progress bar — client component handles scroll */}
+                <ReadingProgress />
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
                     <div className="flex gap-12 items-start">
