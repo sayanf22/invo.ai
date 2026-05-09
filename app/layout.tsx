@@ -1,4 +1,4 @@
-import React from "react"
+import React, { Suspense } from "react"
 import type { Metadata, Viewport } from "next"
 import { DM_Sans, DM_Mono, Playfair_Display, Inter, Lora, Roboto_Mono } from "next/font/google"
 
@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/components/auth-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "@/components/ui/sonner"
+import { GoogleAnalytics } from "@/components/google-analytics"
 
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" })
 const dmMono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" })
@@ -351,6 +352,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
+            <Suspense fallback={null}>
+              <GoogleAnalytics />
+            </Suspense>
             {children}
             <Toaster />
             <SonnerToaster richColors position="top-right" />
