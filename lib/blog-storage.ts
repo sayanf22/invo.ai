@@ -252,7 +252,11 @@ export async function getAllPublishedSlugs(): Promise<string[]> {
 export async function incrementViewCount(slug: string): Promise<void> {
   const supabase = getServiceClient()
   // Best effort; ignore errors (don't block page render)
-  await supabase.rpc("increment_blog_view", { p_slug: slug }).catch(() => {})
+  try {
+    await supabase.rpc("increment_blog_view", { p_slug: slug })
+  } catch {
+    // ignore
+  }
 }
 
 // ── Internal ────────────────────────────────────────────────────────────

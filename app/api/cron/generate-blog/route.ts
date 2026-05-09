@@ -103,11 +103,11 @@ export async function POST(request: NextRequest) {
       hub: topic.hub ?? undefined,
     })
 
-    // Save post as draft (admin reviews before publishing)
+    // Save post as published directly — no manual review needed
     const saved = await saveGeneratedPost(generated, {
       category: topic.category,
       hub: topic.hub ?? undefined,
-      status: "draft",
+      status: "published",
     })
 
     // Mark topic as generated

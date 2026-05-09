@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { FileText, Check, Archive, Eye, Sparkles, RefreshCw, AlertCircle } from "lucide-react"
+import { FileText, Check, Archive, Eye, Sparkles, RefreshCw, AlertCircle, Trash2 } from "lucide-react"
 
 interface BlogPost {
   id: string
@@ -94,12 +94,30 @@ export default function AdminBlogPage() {
     }
   }
 
+  const deletePost = async (id: string, title: string) => {
+    if (!confirm(`Delete "${title}"?\n\nThis permanently removes the post and cannot be undone.`)) return
+    try {
+      const res = await fetch("/api/admin/blog/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Delete failed")
+      }
+      await loadPosts()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed")
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Blog Management</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          AI-generated blog posts using Amazon Nova Lite. Review drafts before publishing.
+          AI-generated blog posts using Kimi K2.5 (AWS Bedrock). Posts auto-publish daily at 10:00 UTC. Delete or archive from here.
         </p>
       </div>
 
@@ -259,6 +277,13 @@ export default function AdminBlogPage() {
                     <Archive className="w-3.5 h-3.5" />
                   </button>
                 )}
+                <button
+                  onClick={() => deletePost(p.id, p.title)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50"
+                  title="Delete permanently"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           ))
