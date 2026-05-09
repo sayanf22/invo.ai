@@ -4,10 +4,12 @@
  * Cron-triggered endpoint that pulls the next topic from the queue
  * and generates a blog post as a draft. Admin reviews before publishing.
  *
- * Auth: Cloudflare Cron Triggers send a special header. For manual testing
- * or Vercel-style cron, we also accept a CRON_SECRET header.
+ * Auth: Invoked by Supabase pg_cron via pg_net.http_post(). The cron job
+ * sends the x-cron-secret header which must match env CRON_SECRET.
  *
- * Trigger: Once per day (recommended). Safe to call multiple times — only
+ * See migration blog_generation_cron_job for the schedule definition.
+ *
+ * Trigger: Once per day at 10:00 UTC. Safe to call multiple times — only
  * processes one pending topic per call.
  */
 
@@ -42,16 +44,12 @@ function getServiceClient(): SupabaseClient {
 }
 
 function isAuthorized(request: NextRequest): boolean {
-  // Cloudflare Cron Triggers always come from internal network — no special header
-  // but we still want to prevent public access. We require either:
-  // 1. CRON_SECRET header matches env var (for manual / Vercel-style cron)
-  // 2. Cloudflare-specific header (cf-cron) — set by CF Cron Triggers
+  // Invoked by Supabase pg_cron via pg_net.http_post. pg_cron sends the
+  // x-cron-secret header we defined in the cron schedule SQL.
   const secret = request.headers.get("x-cron-secret")
-  const cfCron = request.headers.get("cf-cron") // set by CF when cron-triggered
   const envSecret = process.env.CRON_SECRET
-  if (cfCron) return true
-  if (envSecret && secret === envSecret) return true
-  return false
+  if (!envSecret) return false
+  return secret === envSecret
 }
 
 export async function POST(request: NextRequest) {
