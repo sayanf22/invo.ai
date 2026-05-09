@@ -250,6 +250,22 @@ export default function RootLayout({
             }),
           }}
         />
+        {/* Google Analytics */}
+        <script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=G-RC703VVHDW"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-RC703VVHDW');
+            `,
+          }}
+        />
+
         {/* JSON-LD — FAQ for rich snippets (boosts brand SERP real estate) */}
         <script
           type="application/ld+json"
