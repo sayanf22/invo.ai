@@ -126,43 +126,106 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Guard: only roll forward a recurring invoice if its parent is in a good state.
-      // If the parent was cancelled or expired without payment, pause recurring.
-      // Industry standard: don't keep invoicing a client whose last invoice failed.
-      const { data: parentPayment } = await (supabase as any)
-        .from("invoice_payments")
-        .select("status")
-        .eq("session_id", sourceSession.id)
+      // ── Industry-standard recurring-billing guard (Stripe/QuickBooks) ──────
+      // Rule: Never generate a new invoice if the PREVIOUS one is still unpaid.
+      //       This prevents stacking overdue invoices on the same client.
+      //
+      // We check the MOST RECENT invoice in the chain — not just the original
+      // source — because by cycle N+2, the "previous" invoice is the one from
+      // cycle N+1, not the original source.
+      const chainIdForLookup = sourceSession.chain_id || sourceSession.id
+
+      const { data: latestInChain } = await (supabase as any)
+        .from("document_sessions")
+        .select("id, status, sent_at, context")
+        .or(`id.eq.${chainIdForLookup},chain_id.eq.${chainIdForLookup}`)
+        .eq("user_id", sourceSession.user_id)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle()
 
-      if (parentPayment && ["cancelled", "expired", "failed"].includes(parentPayment.status)) {
-        // Pause the recurring schedule — operator must re-enable after fixing the parent
+      const previousSessionId = latestInChain?.id ?? sourceSession.id
+
+      const { data: parentPayment } = await (supabase as any)
+        .from("invoice_payments")
+        .select("status, expires_at")
+        .eq("session_id", previousSessionId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      // Lazy-expiry check: if the webhook missed, treat an expired timestamp as expired
+      const linkHasExpired =
+        parentPayment?.expires_at && new Date(parentPayment.expires_at) < now
+      const effectiveParentStatus: string | null = parentPayment
+        ? (linkHasExpired && parentPayment.status === "created" ? "expired" : parentPayment.status)
+        : null
+
+      // Decision matrix:
+      //   - paid              → proceed (generate new cycle)
+      //   - partially_paid    → pause (collect remainder first)
+      //   - created (unpaid)  → pause (previous still outstanding)
+      //   - expired/cancelled/failed → pause
+      //   - no payment record → session was never paid → treat like unpaid → pause
+      //   - session status is already "active" after unlock → sender is editing → pause
+      const SHOULD_PAUSE = [
+        !parentPayment,
+        parentPayment && effectiveParentStatus !== "paid",
+        latestInChain?.status && ["active", "draft", "cancelled"].includes(latestInChain.status),
+      ].some(Boolean)
+
+      if (SHOULD_PAUSE) {
+        const reason = !parentPayment
+          ? "no_payment"
+          : effectiveParentStatus || "unknown"
+
+        // Pause recurring — owner must take action before new cycles generate
         await (supabase as any)
           .from("recurring_invoices")
           .update({ is_active: false })
           .eq("id", rec.id)
 
-        // Notify the owner so they know why it paused
+        // Cancel any lingering reminders for the paused invoice
+        if (previousSessionId) {
+          await (supabase as any)
+            .from("email_schedules")
+            .update({
+              status: "cancelled",
+              cancelled_reason: "recurring_paused_unpaid_parent",
+              updated_at: now.toISOString(),
+            })
+            .eq("session_id", previousSessionId)
+            .eq("status", "pending")
+        }
+
+        // Notify the owner with a clear explanation
+        const humanReason = reason === "paid"
+          ? "previous cycle editing in progress"
+          : reason === "partially_paid"
+            ? "previous invoice is only partially paid"
+            : reason === "no_payment"
+              ? "previous invoice has no payment record"
+              : `previous invoice is ${reason}`
+
         await (supabase as any)
           .from("notifications")
           .insert({
             user_id: sourceSession.user_id,
             type: "general",
             title: "Recurring Invoice Paused",
-            message: `Recurring invoice paused because the source invoice payment is ${parentPayment.status}. Resume it from the document to continue.`,
+            message: `We paused the recurring schedule because ${humanReason}. Once resolved, you can re-enable it from the document.`,
             read: false,
             metadata: {
               recurring_id: rec.id,
               source_session_id: sourceSession.id,
-              parent_payment_status: parentPayment.status,
+              previous_session_id: previousSessionId,
+              pause_reason: reason,
             },
           })
 
         results.push({
           recurringId: rec.id,
-          error: `Parent payment is ${parentPayment.status} — recurring invoice paused`,
+          error: `Paused — ${humanReason}`,
         })
         continue
       }
@@ -221,6 +284,21 @@ export async function POST(request: NextRequest) {
           child_session_id: newSession.id,
           relationship: "recurring",
         })
+
+      // Industry standard: once a new cycle is issued, stop reminding for the
+      // PREVIOUS cycle. Reminders should always point to the newest outstanding
+      // invoice, never a stale one.
+      if (previousSessionId && previousSessionId !== newSession.id) {
+        await (supabase as any)
+          .from("email_schedules")
+          .update({
+            status: "cancelled",
+            cancelled_reason: "superseded_by_new_cycle",
+            updated_at: now.toISOString(),
+          })
+          .eq("session_id", previousSessionId)
+          .eq("status", "pending")
+      }
 
       // Increment document count
       await (supabase as any).rpc("increment_document_count", {
