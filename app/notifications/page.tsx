@@ -44,6 +44,7 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
   signature_declined:              { icon: XCircle,       color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/30" },
   signature_revision_requested:    { icon: MessageSquare, color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-950/30" },
   recurring_invoice_generated:     { icon: Repeat2,       color: "text-violet-600",  bg: "bg-violet-50 dark:bg-violet-950/30" },
+  payment_reminder:                { icon: Clock,         color: "text-foreground",  bg: "bg-muted" },
   auto_invoice_sent:               { icon: FileText,      color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
   support_resolved:                { icon: CheckCircle2,  color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
 }
