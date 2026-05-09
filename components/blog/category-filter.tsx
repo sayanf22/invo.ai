@@ -9,6 +9,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   country: "Country Guides",
   tips: "Tips & Best Practices",
   comparisons: "Comparisons",
+  news: "News",
 }
 
 interface BlogCategoryFilterProps {

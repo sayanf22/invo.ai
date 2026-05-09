@@ -1,15 +1,17 @@
 /**
  * Bedrock content generation client for blog automation.
  *
- * PRIMARY model: Kimi K2.5 via Bedrock Mantle — already working in production,
- * same key, same endpoint as the chat feature. No extra setup needed.
+ * Uses Kimi K2.5 via Bedrock Mantle — same endpoint and key as the chat
+ * feature, already proven working in production.
  *
- * OPTIONAL models (require Nova model access to be enabled in AWS Console):
- * - Nova Lite v1: $0.06/1M input — cheapest, no web search
- * - Nova 2 Lite: $0.17/1M input — has built-in web grounding (search)
+ * Web search note: Nova 2 Lite on Bedrock has built-in web grounding but
+ * requires a quota increase (currently 0 on new accounts). Until that's
+ * approved, Kimi handles all blog generation. For evergreen SEO content
+ * (guides, comparisons, templates, country guides) this is sufficient —
+ * Kimi's training data covers all relevant topics.
  *
- * To enable Nova: AWS Console → Amazon Bedrock → Model access → Request access
- * to "Amazon Nova Lite" (instant approval). Then set modelId in options.
+ * When Nova 2 Lite quota is approved, set modelId = NOVA_2_LITE_MODEL_ID
+ * and enableWebSearch = true for news category posts.
  */
 
 const BEDROCK_MANTLE_URL = "https://bedrock-mantle.us-east-1.api.aws/v1/chat/completions"
@@ -19,7 +21,7 @@ export const KIMI_MODEL_ID = "moonshotai.kimi-k2.5"
 export const NOVA_LITE_MODEL_ID = "amazon.nova-lite-v1:0"
 export const NOVA_2_LITE_MODEL_ID = "amazon.nova-2-lite-v1:0"
 
-// Default: use Kimi (proven working, no extra setup)
+// Default: Kimi K2.5 — proven working, same key as chat feature
 export const DEFAULT_BLOG_MODEL = KIMI_MODEL_ID
 
 const PRICING: Record<string, { input: number; output: number }> = {
@@ -36,7 +38,7 @@ export interface NovaGenerateOptions {
   topP?: number
   /**
    * Enable built-in web grounding. Only works on Nova 2 Lite.
-   * Requires Nova 2 Lite model access to be enabled in AWS Console.
+   * Requires Nova 2 Lite quota to be approved in AWS Service Quotas.
    */
   enableWebSearch?: boolean
 }
@@ -57,7 +59,7 @@ function getApiKey(): string {
 
 /**
  * Generate text using Kimi K2.5 via Bedrock Mantle (OpenAI-compatible API).
- * This is the primary path — already proven working.
+ * Primary path — already proven working in production.
  */
 async function generateWithKimi(
   userPrompt: string,
@@ -108,7 +110,8 @@ async function generateWithKimi(
 
 /**
  * Generate text using Nova models via Bedrock Runtime (Converse API).
- * Requires Nova model access to be enabled in AWS Console.
+ * Requires Nova model quota to be approved in AWS Service Quotas.
+ * Nova 2 Lite supports enableWebSearch = true for web-grounded responses.
  */
 async function generateWithNova(
   userPrompt: string,
@@ -172,10 +175,8 @@ async function generateWithNova(
 /**
  * Main entry point for blog content generation.
  *
- * Routes to the right model:
- * - Default (no modelId): Kimi K2.5 — already working, no setup needed
- * - modelId = NOVA_LITE_MODEL_ID: Nova Lite — requires model access enabled
- * - modelId = NOVA_2_LITE_MODEL_ID + enableWebSearch: Nova 2 with web search
+ * Default: Kimi K2.5 (AWS Bedrock Mantle) — works today, no setup needed.
+ * Optional: Nova 2 Lite with web search — when AWS quota is approved.
  */
 export async function novaGenerate(
   userPrompt: string,

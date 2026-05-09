@@ -14,7 +14,7 @@
  * - No fluff, actionable content
  */
 
-import { novaGenerate, DEFAULT_BLOG_MODEL, NOVA_2_LITE_MODEL_ID } from "@/lib/bedrock-nova"
+import { novaGenerate, DEFAULT_BLOG_MODEL } from "@/lib/bedrock-nova"
 
 export interface BlogGenerationInput {
   topic: string
@@ -205,11 +205,10 @@ export async function generateBlogPost(
 ): Promise<BlogGenerationOutput> {
   const userPrompt = buildUserPrompt(input)
 
-  // Use Nova 2 Lite with web grounding for news/current-events content
-  // (requires Nova 2 Lite model access enabled in AWS Console)
-  // All other categories use Kimi K2.5 — already working, no setup needed
-  const useWebSearch = input.category === "news"
-  const modelId = useWebSearch ? NOVA_2_LITE_MODEL_ID : DEFAULT_BLOG_MODEL
+  // All categories use Kimi K2.5 (AWS Bedrock Mantle) — proven working.
+  // When Nova 2 Lite quota is approved, news category can switch to
+  // NOVA_2_LITE_MODEL_ID with enableWebSearch: true for real-time data.
+  const modelId = DEFAULT_BLOG_MODEL
 
   const result = await novaGenerate(userPrompt, {
     modelId,
@@ -217,7 +216,6 @@ export async function generateBlogPost(
     maxTokens: 5000,
     temperature: 0.7,
     topP: 0.9,
-    enableWebSearch: useWebSearch,
   })
 
   const parsed = parseAndValidate(result.text)
