@@ -4,6 +4,7 @@ import { Suspense } from "react"
 import { getAllCombinedPosts, getAllCombinedCategories, getCombinedPostsByCategory } from "@/lib/blog-combined"
 import { BlogCategoryFilter } from "@/components/blog/category-filter"
 import { ArrowRight, Clock, Calendar, BookOpen } from "lucide-react"
+import { LandingLayout } from "@/components/landing/landing-layout"
 
 export const metadata: Metadata = {
     title: "Blog — Invoicing, Contracts & Business Document Guides | Clorefy",
@@ -51,13 +52,11 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
     const restPosts = allPosts.slice(1)
 
     return (
-        <div className="min-h-screen bg-[#FAFAF9]">
-            {/* Header */}
-            <header className="border-b border-stone-200 bg-white">
+        <LandingLayout>
+            <div className="bg-[#FAFAF9]">
+                {/* Header */}
+                <header className="border-b border-stone-200 bg-white">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
-                    <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-[#1C1A17] transition-colors mb-8">
-                        <ArrowRight className="w-3.5 h-3.5 rotate-180" /> Back to Clorefy
-                    </Link>
                     <div className="flex items-start justify-between gap-8">
                         <div>
                             <div className="flex items-center gap-2 mb-4">
@@ -172,6 +171,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                     </>
                 )}
             </main>
-        </div>
+            </div>
+        </LandingLayout>
     )
 }

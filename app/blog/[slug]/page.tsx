@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/seo/breadcrumbs"
 import { ArrowLeft, Clock, ArrowRight, Calendar, Tag } from "lucide-react"
 import { generateArticleSchema } from "@/lib/structured-data"
 import { ReadingProgress } from "@/components/blog/reading-progress"
+import { LandingLayout } from "@/components/landing/landing-layout"
 
 export const revalidate = 3600
 export const dynamicParams = true
@@ -89,10 +90,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     const categoryColor = CATEGORY_COLORS[post.category] ?? "bg-muted text-muted-foreground"
 
     return (
-        <>
+        <LandingLayout>
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-            <div className="min-h-screen bg-[#FAFAF9]">
+            <div className="bg-[#FAFAF9]">
                 {/* Top progress bar — visual reading indicator */}
                 <div className="fixed top-0 left-0 right-0 h-0.5 bg-stone-200 z-50">
                     <div
@@ -318,6 +319,6 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                     </div>
                 </div>
             </div>
-        </>
+        </LandingLayout>
     )
 }

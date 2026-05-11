@@ -1,18 +1,16 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Send, Loader2, Check, Paperclip, FileText, X, Info, Sparkles, ArrowRight, Edit2, Save, Eye } from "lucide-react"
+import { Send, Loader2, Paperclip, FileText, X, ArrowRight, Edit2, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import { motion, AnimatePresence } from "framer-motion"
 import { logErrorToDatabase } from "@/lib/error-logger"
+import { CollectedInfoView } from "@/components/onboarding/collected-info-view"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -498,226 +496,9 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
     }
 
     // Derived view component for the field list.
-    // useCallback-ified to avoid remounting the whole tree on every parent re-render —
-    // remounts reset framer-motion animations (progress bar jumps back to 0%).
-    const CollectedInfoView = useCallback(() => (
-        <div className="space-y-4 pb-10 w-full min-w-0">
-            <div className="border rounded-2xl bg-card shadow-sm p-5 space-y-3 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-                <div className="flex items-center justify-between text-sm relative z-10">
-                    <span className="font-semibold text-base">Profile Progress</span>
-                    <span className="text-muted-foreground text-base font-medium">{progressPercent}%</span>
-                </div>
-                {/* Smooth continuous progress bar */}
-                <div className="w-full h-2.5 rounded-full bg-muted/60 overflow-hidden mt-2 relative z-10">
-                    <motion.div
-                        className="h-full bg-primary rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progressPercent}%` }}
-                        transition={{ duration: 0.5, ease: "easeOut" }}
-                    />
-                </div>
-                <p className="text-xs text-muted-foreground relative z-10">
-                    {completedCount} of {totalSteps} steps completed
-                </p>
-            </div>
-
-            <div className="border rounded-2xl bg-card shadow-sm p-3 space-y-1.5 relative z-10">
-                <div className="flex items-center justify-between px-2 mb-2">
-                    <h4 className="text-sm font-semibold text-foreground/80">Extracted Information</h4>
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Click to edit</span>
-                </div>
-                
-                <AnimatePresence initial={false}>
-                    {TRACKED_STEPS.map((step) => {
-                        const field = step.id
-                        const isExpanded = expandedField === field
-                        
-                        let hasValue = false
-                        let displayValue: string | null = null
-
-                        if (field === "taxDetails") {
-                            hasValue = collectedData.taxRegistered !== undefined
-                            displayValue = collectedData.taxRegistered ? (collectedData.taxId || "Registered") : "Not Registered"
-                        } else if (field === "bankDetails") {
-                            hasValue = !!((collectedData.bankDetails && Object.keys(collectedData.bankDetails).length > 0) || collectedData.bankDetailsSkipped)
-                            displayValue = collectedData.bankDetailsSkipped ? "Skipped" : (collectedData.bankDetails?.bankName || "Provided")
-                        } else if (field === "additionalNotes") {
-                            hasValue = !!(collectedData.additionalNotes || allComplete)
-                            displayValue = collectedData.additionalNotes ? "Notes added" : "Skipped/Done"
-                        } else {
-                            const val = (collectedData as any)[field]
-                            if (Array.isArray(val)) {
-                                hasValue = val.length > 0
-                                if (field === "clientCountries") {
-                                    displayValue = val.map((c: string) => COUNTRY_FLAGS[c] || c).join(" ")
-                                } else {
-                                    displayValue = val.join(", ")
-                                }
-                            } else if (typeof val === "object" && val !== null) {
-                                hasValue = Object.values(val).some(v => v && String(v).trim().length > 0)
-                                if (field === "address") {
-                                    const a = val as Record<string, string>
-                                    displayValue = [a.city, a.state].filter(Boolean).join(", ") || "Provided"
-                                } else {
-                                    displayValue = "Provided"
-                                }
-                            } else {
-                                hasValue = val && String(val).trim().length > 0
-                                if (field === "country") {
-                                    displayValue = `${COUNTRY_FLAGS[val] || ""} ${val}`.trim()
-                                } else {
-                                    displayValue = String(val)
-                                }
-                            }
-                        }
-
-                        return (
-                            <motion.div
-                                key={field}
-                                layout
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className={cn(
-                                    "rounded-xl transition-all duration-200 overflow-hidden border",
-                                    isExpanded ? "bg-card border-primary/20 shadow-md my-2" : "bg-transparent border-transparent hover:bg-muted/50 cursor-pointer",
-                                    (hasValue && !isExpanded) ? "bg-primary/[0.02] border-primary/5" : ""
-                                )}
-                            >
-                                {/* Header (Always visible) */}
-                                <div 
-                                    className="flex items-center gap-3 py-2.5 px-3 select-none"
-                                    onClick={() => setExpandedField(isExpanded ? null : field)}
-                                >
-                                    <div className={cn(
-                                        "w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors",
-                                        hasValue 
-                                            ? (isExpanded ? "bg-primary text-primary-foreground shadow-sm" : "bg-primary/10 text-primary") 
-                                            : "border-2 border-muted-foreground/30 text-muted-foreground/30"
-                                    )}>
-                                        <AnimatePresence mode="wait">
-                                            {hasValue ? (
-                                                <motion.div
-                                                    key="check"
-                                                    initial={{ scale: 0 }}
-                                                    animate={{ scale: 1 }}
-                                                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                                >
-                                                    <Check className="w-3.5 h-3.5" />
-                                                </motion.div>
-                                            ) : (
-                                                <motion.div
-                                                    key="dot"
-                                                    exit={{ scale: 0 }}
-                                                >
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-current opacity-50" />
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
-                                    <span className={cn(
-                                        "font-medium text-[13px] flex-1 truncate transition-colors",
-                                        isExpanded ? "text-primary" : (hasValue ? "text-foreground" : "text-muted-foreground")
-                                    )}>
-                                        {step.label}
-                                    </span>
-                                    {!isExpanded && displayValue && hasValue && (
-                                        <span className="text-[12px] text-muted-foreground truncate max-w-[100px] lg:max-w-[130px]" title={displayValue}>
-                                            {displayValue}
-                                        </span>
-                                    )}
-                                    <div className="shrink-0 w-5 h-5 flex items-center justify-center">
-                                        {isExpanded ? <X className="w-3.5 h-3.5 text-muted-foreground" /> : <Edit2 className="w-3.5 h-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                                    </div>
-                                </div>
-
-                                {/* Expanded Edit Area */}
-                                <AnimatePresence>
-                                    {isExpanded && (
-                                        <motion.div
-                                            initial={{ height: 0, opacity: 0 }}
-                                            animate={{ height: "auto", opacity: 1 }}
-                                            exit={{ height: 0, opacity: 0 }}
-                                            transition={{ duration: 0.2 }}
-                                            className="px-3 pb-3 pt-1 border-t border-border/50 bg-muted/20"
-                                        >
-                                            <div className="space-y-3 mt-2">
-                                                {/* Field specific inputs */}
-                                                {field === "address" ? (
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <Input placeholder="Street" className="col-span-2 h-8 text-xs" value={collectedData.address?.street || ""} onChange={e => updateNestedField("address", "street", e.target.value)} />
-                                                        <Input placeholder="City" className="h-8 text-xs" value={collectedData.address?.city || ""} onChange={e => updateNestedField("address", "city", e.target.value)} />
-                                                        <Input placeholder="State" className="h-8 text-xs" value={collectedData.address?.state || ""} onChange={e => updateNestedField("address", "state", e.target.value)} />
-                                                        <Input placeholder="Zip" className="col-span-2 h-8 text-xs" value={collectedData.address?.postalCode || ""} onChange={e => updateNestedField("address", "postalCode", e.target.value)} />
-                                                    </div>
-                                                ) : field === "taxDetails" ? (
-                                                    <div className="space-y-3">
-                                                        <div className="flex items-center justify-between bg-background p-2 rounded-lg border shadow-sm">
-                                                            <Label htmlFor="tax-registered" className="text-xs">Registered for Tax?</Label>
-                                                            <Switch 
-                                                                id="tax-registered" 
-                                                                checked={collectedData.taxRegistered === true}
-                                                                onCheckedChange={(c) => updateField("taxRegistered", c)}
-                                                            />
-                                                        </div>
-                                                        {collectedData.taxRegistered && (
-                                                            <Input placeholder="Tax ID Number" className="h-8 text-xs" value={collectedData.taxId || ""} onChange={e => updateField("taxId", e.target.value)} />
-                                                        )}
-                                                    </div>
-                                                ) : field === "bankDetails" ? (
-                                                    <div className="space-y-2">
-                                                        <div className="flex items-center justify-between bg-background p-2 rounded-lg border shadow-sm mb-2">
-                                                            <Label htmlFor="skip-bank" className="text-xs">Skip Bank Details?</Label>
-                                                            <Switch 
-                                                                id="skip-bank" 
-                                                                checked={collectedData.bankDetailsSkipped === true}
-                                                                onCheckedChange={(c) => {
-                                                                    updateField("bankDetailsSkipped", c)
-                                                                    if (c) updateField("bankDetails", {})
-                                                                }}
-                                                            />
-                                                        </div>
-                                                        {!collectedData.bankDetailsSkipped && (
-                                                            <>
-                                                                <Input placeholder="Bank Name" className="h-8 text-xs" value={collectedData.bankDetails?.bankName || ""} onChange={e => updateNestedField("bankDetails", "bankName", e.target.value)} />
-                                                                <Input placeholder="Account Name" className="h-8 text-xs" value={collectedData.bankDetails?.accountName || ""} onChange={e => updateNestedField("bankDetails", "accountName", e.target.value)} />
-                                                                <Input placeholder="Account Number" className="h-8 text-xs" value={collectedData.bankDetails?.accountNumber || ""} onChange={e => updateNestedField("bankDetails", "accountNumber", e.target.value)} />
-                                                                <Input placeholder="Routing / IFSC Code" className="h-8 text-xs" value={collectedData.bankDetails?.routingNumber || collectedData.bankDetails?.ifscCode || ""} onChange={e => updateNestedField("bankDetails", "routingNumber", e.target.value)} />
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                ) : field === "clientCountries" ? (
-                                                    <Input 
-                                                        placeholder="e.g. US, IN, GB (comma separated)" 
-                                                        className="h-8 text-xs" 
-                                                        value={(collectedData.clientCountries || []).join(", ")} 
-                                                        onChange={e => updateField("clientCountries", e.target.value.split(",").map(s => s.trim()).filter(Boolean))} 
-                                                    />
-                                                ) : (
-                                                    <Input 
-                                                        placeholder={step.placeholder}
-                                                        className="h-8 text-xs bg-background shadow-sm"
-                                                        value={(collectedData as any)[field] || ""}
-                                                        onChange={e => updateField(field, e.target.value)}
-                                                    />
-                                                )}
-                                                
-                                                <div className="flex justify-end pt-1">
-                                                    <Button size="sm" className="h-7 text-[11px] gap-1 px-3 shadow-sm" onClick={() => setExpandedField(null)}>
-                                                        <Save className="w-3 h-3" /> Save
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </motion.div>
-                        )
-                    })}
-                </AnimatePresence>
-            </div>
-        </div>
-    ), [progressPercent, completedCount, totalSteps, collectedData, expandedField, allComplete])
+    // Extracted as a top-level module (components/onboarding/collected-info-view.tsx)
+    // to prevent remount-on-re-render — that was resetting the progress bar animation
+    // back to 0% on every expand/collapse.
 
     return (
         <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 h-full max-w-7xl mx-auto w-full relative px-0 lg:px-6 lg:py-4">
@@ -744,27 +525,39 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                 <SheetHeader className="mb-4">
                                     <SheetTitle className="text-left">Review Information</SheetTitle>
                                 </SheetHeader>
-                                <CollectedInfoView />
+                                <CollectedInfoView
+                                    trackedSteps={TRACKED_STEPS}
+                                    progressPercent={progressPercent}
+                                    completedCount={completedCount}
+                                    totalSteps={totalSteps}
+                                    collectedData={collectedData}
+                                    expandedField={expandedField}
+                                    allComplete={allComplete}
+                                    onToggleExpand={setExpandedField}
+                                    onUpdateField={updateField}
+                                    onUpdateNestedField={updateNestedField}
+                                />
                             </SheetContent>
                         </Sheet>
                     </div>
-                    {/* Smooth continuous progress bar (not choppy dashes) */}
+                    {/* Smooth continuous progress bar (not choppy dashes) —
+                        initial={false} prevents reset-to-0 on remount. */}
                     <div className="w-full h-2 rounded-full bg-muted/60 overflow-hidden">
                         <motion.div
                             className="h-full bg-primary rounded-full"
-                            initial={{ width: 0 }}
+                            initial={false}
                             animate={{ width: `${progressPercent}%` }}
                             transition={{ duration: 0.5, ease: "easeOut" }}
                         />
                     </div>
                 </div>
 
-                {/* Messages Area — pb adjusts based on overlay height (input vs Setup Complete card) */}
-                <ScrollArea className={cn(
-                    "flex-1 p-4 lg:p-6 transition-[padding] duration-300",
-                    allComplete ? "pb-64 sm:pb-56" : "pb-36"
-                )}>
-                    <div className="space-y-6 max-w-3xl mx-auto">
+                {/* Messages Area — native overflow-y-auto (no custom scrollbar overlap).
+                    flex flex-col + mt-auto anchors messages to the BOTTOM of the
+                    scroll area so initial state feels natural (message sits just above
+                    the input, not floating alone at the top). */}
+                <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 lg:p-6 flex flex-col">
+                    <div className="space-y-6 max-w-3xl mx-auto w-full mt-auto">
                         <AnimatePresence initial={false}>
                             {messages.map((msg, idx) => (
                                 <motion.div
@@ -823,14 +616,18 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                 </motion.div>
                             )}
                         </AnimatePresence>
-                        {/* Scroll target — tall enough to keep the last message visible above the overlay */}
-                        <div ref={scrollRef} className={cn(allComplete ? "h-40 sm:h-32" : "h-12")} />
+                        {/* Scroll target (small — input is now sibling so no overlay needed) */}
+                        <div ref={scrollRef} className="h-2" />
                     </div>
-                </ScrollArea>
+                </div>
 
-                {/* Input Area / Completion State - Fixed to bottom with safe area padding */}
-                <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-4 pb-3 sm:pb-4 pt-16 bg-gradient-to-t from-background via-background to-transparent shrink-0 pointer-events-none" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
-                    <div className="max-w-3xl mx-auto pointer-events-auto">
+                {/* Input Area / Completion State — flex sibling (not absolute).
+                    Proper layout, no scrollbar overlap, mobile-safe. */}
+                <div
+                    className="shrink-0 border-t border-border/50 bg-background px-3 sm:px-4 py-3 sm:py-4"
+                    style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+                >
+                    <div className="max-w-3xl mx-auto">
                         <AnimatePresence mode="wait">
                             {allComplete ? (
                                 <motion.div
@@ -840,12 +637,12 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                     transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
                                     className="relative group"
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-transparent rounded-3xl blur-2xl transition-all duration-700 opacity-60" />
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-transparent rounded-3xl blur-2xl transition-all duration-700 opacity-60 pointer-events-none" />
                                     <div className="relative flex flex-col sm:flex-row items-center sm:items-start lg:items-center justify-between gap-4 sm:gap-6 p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-card/95 backdrop-blur-xl border border-border/50 shadow-2xl overflow-hidden">
-                                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
                                         
                                         <div className="flex flex-col sm:flex-row items-center sm:items-start lg:items-center gap-4 sm:gap-6 z-10 w-full sm:w-auto">
-                                            <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 relative flex items-center justify-center rounded-2xl bg-gradient-to-br from-background to-muted/30 border border-border/50 shadow-inner overflow-visible">
+                                            <div className="w-14 h-14 sm:w-20 sm:h-20 shrink-0 relative flex items-center justify-center rounded-2xl bg-gradient-to-br from-background to-muted/30 border border-border/50 shadow-inner overflow-visible">
                                                 <div className="relative w-full h-full flex items-center justify-center">
                                                     <motion.svg viewBox="0 0 100 100" className="w-[130%] h-[130%] drop-shadow-md absolute">
                                                         <motion.rect 
@@ -879,16 +676,16 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                                     </motion.svg>
                                                 </div>
                                             </div>
-                                            <div className="text-center sm:text-left space-y-1.5">
-                                                <h3 className="font-medium tracking-tight text-foreground text-xl">Setup Complete</h3>
-                                                <p className="text-sm text-muted-foreground max-w-[280px]">We've collected all the necessary details. Your workspace is ready to go.</p>
+                                            <div className="text-center sm:text-left space-y-1">
+                                                <h3 className="font-medium tracking-tight text-foreground text-lg sm:text-xl">Setup Complete</h3>
+                                                <p className="text-xs sm:text-sm text-muted-foreground max-w-[280px]">We've collected all the necessary details. Your workspace is ready to go.</p>
                                             </div>
                                         </div>
                                         
                                         <Button 
                                             onClick={handleComplete} 
                                             size="lg"
-                                            className="w-full sm:w-auto gap-2 shadow-xl shadow-primary/10 transition-all hover:-translate-y-0.5 active:translate-y-0 rounded-xl sm:rounded-2xl h-12 sm:h-12 px-8 font-medium shrink-0 z-10"
+                                            className="w-full sm:w-auto gap-2 shadow-xl shadow-primary/10 transition-all hover:-translate-y-0.5 active:translate-y-0 rounded-xl sm:rounded-2xl h-11 sm:h-12 px-8 font-medium shrink-0 z-10"
                                         >
                                             Proceed
                                             <ArrowRight className="w-4 h-4" />
@@ -903,15 +700,15 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                     exit={{ opacity: 0, scale: 0.95, y: 10 }}
                                 >
                                     <div className={cn(
-                                        "rounded-2xl border bg-card/95 backdrop-blur-md transition-all duration-300 relative z-20",
+                                        "rounded-2xl border bg-card/95 backdrop-blur-md transition-all duration-300 relative",
                                         (isLoading || isUploading)
                                             ? "border-primary/40 shadow-lg"
-                                            : "border-border shadow-md focus-within:border-primary/40 focus-within:shadow-xl focus-within:-translate-y-0.5"
+                                            : "border-border shadow-md focus-within:border-primary/40 focus-within:shadow-xl"
                                     )}>
                                         {/* Staged file card */}
                                         {stagedFile && (
                                             <div className="px-4 pt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                                <div className="inline-flex items-start gap-0 rounded-xl border border-border/50 bg-muted/40 overflow-hidden shadow-sm max-w-[180px]">
+                                                <div className="inline-flex items-start gap-0 rounded-xl border border-border/50 bg-muted/40 overflow-hidden shadow-sm max-w-[180px] relative">
                                                     <div className="w-full px-3 py-2.5">
                                                         <div className="w-10 h-10 rounded-lg bg-background border border-border/50 flex flex-col items-center justify-center mb-1.5 shadow-sm">
                                                             <FileText className="w-4 h-4 text-muted-foreground" />
@@ -963,20 +760,20 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                                 }}
                                                 placeholder={stagedFile ? "Add a note about this file..." : "Tell me about your business..."}
                                                 disabled={isLoading || isUploading}
-                                                className="border-none shadow-none h-14 px-4 text-[15px] focus-visible:ring-0 bg-transparent placeholder:text-muted-foreground/50"
+                                                className="border-none shadow-none h-12 sm:h-14 px-4 text-[15px] focus-visible:ring-0 bg-transparent placeholder:text-muted-foreground/50"
                                                 autoFocus
                                             />
                                         </div>
 
                                         {/* Bottom bar with attach + send */}
-                                        <div className="flex items-center justify-between px-3 pb-3">
+                                        <div className="flex items-center justify-between px-2 pb-2 sm:px-3 sm:pb-3">
                                             <label
                                                 htmlFor={!(isLoading || isUploading) ? "onboarding-file-input" : undefined}
                                                 className={cn(
-                                                    "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200",
+                                                    "flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl transition-all duration-200",
                                                     (isLoading || isUploading)
                                                         ? "opacity-40 cursor-not-allowed text-muted-foreground"
-                                                        : "cursor-pointer text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 hover:shadow-inner"
+                                                        : "cursor-pointer text-muted-foreground/60 hover:text-foreground hover:bg-muted/50"
                                                 )}
                                             >
                                                 {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
@@ -994,7 +791,7 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                                 }}
                                                 disabled={(!inputValue.trim() && !stagedFile) || isLoading || isUploading}
                                                 className={cn(
-                                                    "flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200",
+                                                    "flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full transition-all duration-200",
                                                     (inputValue.trim() || stagedFile)
                                                         ? "bg-primary text-primary-foreground hover:opacity-90 active:scale-95 shadow-md hover:shadow-lg"
                                                         : "bg-muted text-muted-foreground/40 cursor-not-allowed"
@@ -1012,12 +809,21 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
             </div>
 
             {/* ── Collected Data Sidebar (Desktop) ─────────────────────────── */}
-            <div className="hidden lg:block lg:w-[320px] shrink-0 min-w-0">
-                <ScrollArea className="h-full">
-                    <div className="pr-1">
-                        <CollectedInfoView />
-                    </div>
-                </ScrollArea>
+            <div className="hidden lg:block lg:w-[320px] shrink-0 min-w-0 overflow-y-auto">
+                <div className="pr-1">
+                    <CollectedInfoView
+                        trackedSteps={TRACKED_STEPS}
+                        progressPercent={progressPercent}
+                        completedCount={completedCount}
+                        totalSteps={totalSteps}
+                        collectedData={collectedData}
+                        expandedField={expandedField}
+                        allComplete={allComplete}
+                        onToggleExpand={setExpandedField}
+                        onUpdateField={updateField}
+                        onUpdateNestedField={updateNestedField}
+                    />
+                </div>
             </div>
         </div>
     )
