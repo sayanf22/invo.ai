@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, PenLine, Download, FileDown, ChevronDown, Image as ImageIcon, X } from "lucide-react"
+import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, PenLine, Download, FileDown, ChevronDown, Image as ImageIcon, X, Lock } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
@@ -66,7 +66,7 @@ const PDF_OPTIONS = {
 } as const
 
 /* ─── Live PDF Preview ─── */
-function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: number; onPageCount: (n: number) => void }) {
+function LivePDFPreview({ data, zoom, onPageCount, locked = false, lockReason }: { data: InvoiceData; zoom: number; onPageCount: (n: number) => void; locked?: boolean; lockReason?: string }) {
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [numPages, setNumPages] = useState(0)
   const [isRendering, setIsRendering] = useState(false)
@@ -263,13 +263,25 @@ function LivePDFPreview({ data, zoom, onPageCount }: { data: InvoiceData; zoom: 
             }
           >
             {Array.from({ length: numPages }, (_, i) => (
-              <div key={i} className="shadow-lg rounded-lg overflow-hidden mb-6 bg-white">
+              <div key={i} className="relative shadow-lg rounded-lg overflow-hidden mb-6 bg-white">
                 <ViewerComponents.Page
                   pageNumber={i + 1}
                   width={pageWidth}
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
                 />
+                {/* Lock corner ribbon — monochrome, non-intrusive, visible on every page */}
+                {locked && (
+                  <div
+                    className="absolute top-3 right-3 pointer-events-none select-none"
+                    aria-label="Document locked"
+                  >
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-900/85 text-white text-[10px] font-semibold uppercase tracking-wider shadow-md backdrop-blur-sm">
+                      <Lock className="w-3 h-3" strokeWidth={2.5} />
+                      <span>Locked</span>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </ViewerComponents.Document>
@@ -358,6 +370,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const supportsSignatures = SIGNATURE_DOCUMENT_TYPES.includes((data.documentType || "").toLowerCase())
   const hasPendingSignatures = signatures.some(s => s.signed_at === null && (s.signer_action === null || s.signer_action === undefined))
   const allSigned = signatures.length > 0 && signatures.every(s => s.signed_at !== null)
+
   const hasDeclined = signatures.some((s: any) => s.signer_action === "declined")
   const hasRevisionRequested = signatures.some((s: any) => s.signer_action === "revision_requested")
 
@@ -372,6 +385,36 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
 
   // Find the first pending signature for cancel flow
   const pendingSignature = signatures.find(s => s.signed_at === null && (s.signer_action === null || s.signer_action === undefined))
+
+  // ── Document lock state ───────────────────────────────────────────
+  // A document is "locked" for editing when it has already been sent,
+  // signed, paid, or has an active payment link. The lock badge overlay
+  // on the preview pages reflects this, matching the chat "Unlock Document"
+  // card the user can trigger to make it editable again.
+  const paymentLinkStatus = (data as any).paymentLinkStatus as string | undefined
+  const hasActivePaymentLink = !!((data as any).paymentLink
+    && paymentLinkStatus
+    && paymentLinkStatus !== "expired"
+    && paymentLinkStatus !== "cancelled"
+    && paymentLinkStatus !== "failed")
+
+  const isDocumentLocked =
+    !!sentAt
+    || manualPaid
+    || paymentLinkStatus === "paid"
+    || hasActivePaymentLink
+    || allSigned
+    || hasPendingSignatures
+
+  // Short reason string for the tooltip on the lock badge
+  const lockReason = (() => {
+    if (allSigned) return "All parties have signed"
+    if (hasPendingSignatures) return "Awaiting signature"
+    if (paymentLinkStatus === "paid" || manualPaid) return "Invoice has been paid"
+    if (hasActivePaymentLink) return "Payment link is active"
+    if (sentAt) return "Document has been sent"
+    return undefined
+  })()
 
   // Fetch user tier once on mount
   useEffect(() => {
@@ -684,6 +727,19 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none scrollbar-none"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
+          {/* Monochrome Lock badge — shown whenever the document is in a locked state.
+              Acts as the primary visual signal that edits are disabled. */}
+          {isDocumentLocked && (
+            <span
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 border border-neutral-900 dark:border-neutral-100 shadow-sm shrink-0"
+              title={lockReason ? `Locked — ${lockReason}` : "Locked"}
+              aria-label={lockReason ? `Locked — ${lockReason}` : "Locked"}
+            >
+              <Lock className="w-3.5 h-3.5" strokeWidth={2.5} />
+              <span className="hidden sm:inline">Locked</span>
+            </span>
+          )}
+
           {/* Signature status badges — visible on all screen sizes */}
           {supportsSignatures && sessionId && hasPendingSignatures && !hasDeclined && !hasRevisionRequested && (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border">
@@ -910,7 +966,13 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
 
       {/* Live PDF Preview */}
       <div className="flex-1 overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-        <LivePDFPreview data={data} zoom={zoom} onPageCount={setPageCount} />
+        <LivePDFPreview
+          data={data}
+          zoom={zoom}
+          onPageCount={setPageCount}
+          locked={isDocumentLocked}
+          lockReason={lockReason}
+        />
       </div>
 
       {sessionId && (
