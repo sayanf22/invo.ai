@@ -3,14 +3,12 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 /**
- * Auth callback for PKCE code exchange (OAuth, magic links, email confirm).
+ * Auth callback for PKCE code exchange (OAuth, magic links, post-signup email confirm).
  *
- * After exchangeCodeForSession, we redirect to /auth/session-sync which is a
- * client-side page that reads the session from the Supabase client (which has
- * it in memory after the exchange) and then redirects to the correct page.
- *
- * This avoids the Cloudflare Workers edge runtime issue where cookies() from
- * next/headers doesn't reliably read freshly-set cookies in Server Components.
+ * After exchangeCodeForSession, we redirect directly to the intended destination
+ * with the session cookies applied to the redirect response. @supabase/ssr writes
+ * cookies in the same format the browser client reads, so the auth-provider on
+ * the client picks up the session immediately.
  */
 export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url)
