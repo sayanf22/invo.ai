@@ -506,17 +506,14 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                     <span className="font-semibold text-base">Profile Progress</span>
                     <span className="text-muted-foreground text-base font-medium">{progressPercent}%</span>
                 </div>
-                <div className="flex items-center gap-1 w-full h-2 mt-2 relative z-10">
-                    {Array.from({ length: totalSteps }).map((_, i) => (
-                        <div key={i} className="h-full flex-1 rounded-full overflow-hidden bg-muted/50">
-                            <motion.div 
-                                className="h-full bg-primary"
-                                initial={{ width: 0 }}
-                                animate={{ width: i < completedCount ? '100%' : '0%' }}
-                                transition={{ duration: 0.4, ease: "easeOut" }}
-                            />
-                        </div>
-                    ))}
+                {/* Smooth continuous progress bar */}
+                <div className="w-full h-2.5 rounded-full bg-muted/60 overflow-hidden mt-2 relative z-10">
+                    <motion.div
+                        className="h-full bg-primary rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progressPercent}%` }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
                 </div>
                 <p className="text-xs text-muted-foreground relative z-10">
                     {completedCount} of {totalSteps} steps completed
@@ -726,14 +723,19 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
             {/* ── Main Chat Panel ────────────────────────────────── */}
             <div className="flex-1 flex flex-col min-h-0 w-full rounded-2xl lg:border lg:bg-card/50 lg:shadow-sm overflow-hidden relative bg-background">
                 {/* Mobile Sticky Header */}
-                <div className="lg:hidden bg-background/80 backdrop-blur-xl border-b shadow-sm px-4 py-3 flex flex-col gap-2 shrink-0 relative z-40">
+                <div className="lg:hidden bg-background/95 backdrop-blur-xl border-b shadow-sm px-4 py-3 flex flex-col gap-2.5 shrink-0 relative z-40">
                     <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-foreground">Profile Setup</span>
+                        <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-foreground leading-tight">Profile Setup</span>
+                            <span className="text-[11px] text-muted-foreground mt-0.5">
+                                {completedCount} of {totalSteps} steps · {progressPercent}%
+                            </span>
+                        </div>
                         <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
                             <SheetTrigger asChild>
-                                <Button variant="secondary" size="sm" className="gap-2 h-8 text-xs rounded-full shadow-sm bg-background border hover:border-primary/50">
+                                <Button variant="secondary" size="sm" className="gap-1.5 h-8 text-xs rounded-full shadow-sm bg-background border hover:border-primary/50">
                                     <Eye className="w-3.5 h-3.5" />
-                                    Review Details
+                                    Review
                                 </Button>
                             </SheetTrigger>
                             <SheetContent side="right" className="w-[320px] sm:w-[400px] overflow-y-auto pt-10 px-4">
@@ -744,23 +746,22 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                             </SheetContent>
                         </Sheet>
                     </div>
-                    {/* Segmented Progress Bar */}
-                    <div className="flex items-center gap-1 w-full h-1.5 mt-1">
-                        {Array.from({ length: totalSteps }).map((_, i) => (
-                            <div key={i} className="h-full flex-1 rounded-full overflow-hidden bg-muted/50">
-                                <motion.div 
-                                    className="h-full bg-primary shadow-[0_0_8px_rgba(0,0,0,0.1)]"
-                                    initial={{ width: 0 }}
-                                    animate={{ width: i < completedCount ? '100%' : '0%' }}
-                                    transition={{ duration: 0.4, ease: "easeOut" }}
-                                />
-                            </div>
-                        ))}
+                    {/* Smooth continuous progress bar (not choppy dashes) */}
+                    <div className="w-full h-2 rounded-full bg-muted/60 overflow-hidden">
+                        <motion.div
+                            className="h-full bg-primary rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progressPercent}%` }}
+                            transition={{ duration: 0.5, ease: "easeOut" }}
+                        />
                     </div>
                 </div>
 
-                {/* Messages Area */}
-                <ScrollArea className="flex-1 p-4 lg:p-6 pb-36">
+                {/* Messages Area — pb adjusts based on overlay height (input vs Setup Complete card) */}
+                <ScrollArea className={cn(
+                    "flex-1 p-4 lg:p-6 transition-[padding] duration-300",
+                    allComplete ? "pb-64 sm:pb-56" : "pb-36"
+                )}>
                     <div className="space-y-6 max-w-3xl mx-auto">
                         <AnimatePresence initial={false}>
                             {messages.map((msg, idx) => (
@@ -820,12 +821,13 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                 </motion.div>
                             )}
                         </AnimatePresence>
-                        <div ref={scrollRef} className="h-8" />
+                        {/* Scroll target — tall enough to keep the last message visible above the overlay */}
+                        <div ref={scrollRef} className={cn(allComplete ? "h-40 sm:h-32" : "h-12")} />
                     </div>
                 </ScrollArea>
 
-                {/* Input Area / Completion State - Fixed to bottom */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 shrink-0 pointer-events-none">
+                {/* Input Area / Completion State - Fixed to bottom with safe area padding */}
+                <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-4 pb-3 sm:pb-4 pt-16 bg-gradient-to-t from-background via-background to-transparent shrink-0 pointer-events-none" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
                     <div className="max-w-3xl mx-auto pointer-events-auto">
                         <AnimatePresence mode="wait">
                             {allComplete ? (
@@ -837,11 +839,11 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                     className="relative group"
                                 >
                                     <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-transparent rounded-3xl blur-2xl transition-all duration-700 opacity-60" />
-                                    <div className="relative flex flex-col sm:flex-row items-center sm:items-start lg:items-center justify-between gap-6 p-6 sm:p-8 rounded-3xl bg-card/80 backdrop-blur-xl border border-border/50 shadow-2xl overflow-hidden">
+                                    <div className="relative flex flex-col sm:flex-row items-center sm:items-start lg:items-center justify-between gap-4 sm:gap-6 p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-card/95 backdrop-blur-xl border border-border/50 shadow-2xl overflow-hidden">
                                         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
                                         
-                                        <div className="flex flex-col sm:flex-row items-center sm:items-start lg:items-center gap-6 z-10 w-full sm:w-auto">
-                                            <div className="w-24 h-24 sm:w-20 sm:h-20 shrink-0 relative flex items-center justify-center rounded-2xl bg-gradient-to-br from-background to-muted/30 border border-border/50 shadow-inner overflow-visible">
+                                        <div className="flex flex-col sm:flex-row items-center sm:items-start lg:items-center gap-4 sm:gap-6 z-10 w-full sm:w-auto">
+                                            <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 relative flex items-center justify-center rounded-2xl bg-gradient-to-br from-background to-muted/30 border border-border/50 shadow-inner overflow-visible">
                                                 <div className="relative w-full h-full flex items-center justify-center">
                                                     <motion.svg viewBox="0 0 100 100" className="w-[130%] h-[130%] drop-shadow-md absolute">
                                                         <motion.rect 
@@ -884,7 +886,7 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                                         <Button 
                                             onClick={handleComplete} 
                                             size="lg"
-                                            className="w-full sm:w-auto gap-2 shadow-xl shadow-primary/10 transition-all hover:-translate-y-0.5 active:translate-y-0 rounded-2xl h-14 sm:h-12 px-8 font-medium shrink-0 z-10"
+                                            className="w-full sm:w-auto gap-2 shadow-xl shadow-primary/10 transition-all hover:-translate-y-0.5 active:translate-y-0 rounded-xl sm:rounded-2xl h-12 sm:h-12 px-8 font-medium shrink-0 z-10"
                                         >
                                             Proceed
                                             <ArrowRight className="w-4 h-4" />
