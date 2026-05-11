@@ -19,8 +19,17 @@ import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api
 
 import { checkCostLimit, trackUsage } from "@/lib/cost-protection"
 import { sanitizeText, sanitizeEmail, sanitizePhone } from "@/lib/sanitize"
+import { SUPPORTED_COUNTRIES as COUNTRY_LIST } from "@/lib/countries"
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
+
+// Accept any ISO 3166-1 alpha-2 country code the onboarding UI lets the user pick.
+// The whitelist was previously hard-coded to 11 countries, which silently dropped
+// any profile country outside that set. Now derived from the single source of
+// truth in `lib/countries.ts`.
+const SUPPORTED_COUNTRIES = COUNTRY_LIST.map((c) => c.code)
+const VALID_BUSINESS_TYPES = ["freelancer", "developer", "agency", "ecommerce", "professional", "other"]
+const VALID_PAYMENT_TERMS = ["immediate", "net_15", "net_30", "net_60"]
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -636,7 +645,7 @@ function interpretRequiredField(
         case "clientCountries": {
             if (["all", "all countries", "all of them", "everywhere", "all the countries"].includes(userMsg.toLowerCase())) {
                 extractedData = { clientCountries: SUPPORTED_COUNTRIES }
-                confirmMsg = "Got it, all 11 countries! ✅"
+                confirmMsg = `Got it, all ${SUPPORTED_COUNTRIES.length} countries! ✅`
             }
             break
         }
@@ -697,10 +706,8 @@ function interpretRequiredField(
 }
 
 // ── Server-side Validation ─────────────────────────────────────────────
-
-const SUPPORTED_COUNTRIES = ["IN", "US", "GB", "DE", "CA", "AU", "SG", "AE", "PH", "FR", "NL"]
-const VALID_BUSINESS_TYPES = ["freelancer", "developer", "agency", "ecommerce", "professional", "other"]
-const VALID_PAYMENT_TERMS = ["immediate", "net_15", "net_30", "net_60"]
+// (SUPPORTED_COUNTRIES, VALID_BUSINESS_TYPES, VALID_PAYMENT_TERMS are declared
+//  at the top of the file so they can be used everywhere.)
 
 // Phone number country code patterns
 const PHONE_COUNTRY_CODES: Record<string, string> = {
