@@ -1,0 +1,55 @@
+-- =====================================================
+-- COMPLIANCE KNOWLEDGE — ALL COUNTRIES EXPANSION
+-- Applied via MCP directly to Supabase 2026-05-12
+-- =====================================================
+-- This file documents the 3 migration batches applied
+-- directly via Supabase MCP. The data is already live.
+--
+-- Batch 1: compliance_knowledge_all_countries_part1_europe_remaining
+--   Albania, Andorra, Armenia, Azerbaijan, Belarus,
+--   Bosnia and Herzegovina, Georgia, Kosovo, Moldova,
+--   Monaco, Montenegro, North Macedonia, Russia (22%),
+--   Serbia, San Marino, Tajikistan, Uzbekistan
+--
+-- Batch 2: compliance_knowledge_all_countries_part2_asia_remaining
+--   Afghanistan, Bahrain (10%), Bhutan (7% new 2026),
+--   Brunei, Cambodia, Iran, Iraq, Jordan, Kazakhstan,
+--   Kuwait, Kyrgyzstan, Laos, Lebanon, Macau, Maldives,
+--   Mongolia, Myanmar, Nepal, Oman, Palestine, Qatar,
+--   Syria, Timor-Leste, Turkmenistan, Yemen
+--
+-- Batch 3: compliance_knowledge_all_countries_part3_americas_africa_oceania
+--   Bahamas, Barbados, Belize, Bolivia, Costa Rica,
+--   Cuba, Dominican Republic, Ecuador, El Salvador,
+--   Guatemala, Guyana, Haiti, Honduras, Jamaica,
+--   Nicaragua, Panama, Paraguay, Trinidad and Tobago,
+--   Venezuela, Algeria, Angola, Benin, Botswana,
+--   Burkina Faso, Burundi, Cameroon, Cabo Verde,
+--   Eswatini, Ethiopia, Gabon, Lesotho, Mauritius,
+--   Namibia, Rwanda, Senegal, Seychelles, Tunisia,
+--   Uganda, Zambia, Zimbabwe, Fiji, Papua New Guinea
+--
+-- Final state after all batches:
+--   256 rules, 154 countries, 4 document types
+--   256/256 embeddings (all rows have OpenAI embeddings)
+--
+-- Key data points verified via web search (2026-05-12):
+--   Russia: 22% (raised from 20% in Nov 2025)
+--   Bhutan: 7% GST (introduced Jan 2026 — 176th country)
+--   Bahrain: 10% (raised from 5% in Jan 2022)
+--   Finland: 25.5% (raised from 24% in Sep 2024)
+--   Slovakia: 23% (raised from 20% in Jan 2025)
+--   Estonia: 24% (raised from 22% in Jul 2025)
+--   Indonesia: 12% (raised from 11% in Jan 2025)
+--   Malaysia: Service Tax 8% (raised from 6% in Mar 2024)
+--   Israel: 18% (raised from 17% in Jan 2025)
+--   Sri Lanka: 18% (raised from 15% in Jan 2024)
+--
+-- Sources: Wikipedia List of countries by tax rates
+--   (last edited 2026-05-10), USCIB VAT rates table,
+--   vatcalc.com 2026 changes, EY Worldwide VAT Guide 2026,
+--   The Moscow Times (Russia VAT increase Nov 2025)
+-- =====================================================
+
+-- To re-apply if needed, use the individual migration names
+-- in the Supabase dashboard or via MCP apply_migration.
