@@ -1474,6 +1474,67 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
 // Split two-tone header · sidebar accent · dual signatures
 // ═══════════════════════════════════════════════════════
 
+/**
+ * Parses a plain-text contract body into structured blocks for clean
+ * PDF rendering:
+ *   - Numbered section headings ("1. Scope of Work") become bold, spaced-out
+ *     section titles.
+ *   - Lines starting with "- " become indented bullet items.
+ *   - All other lines become flowing prose paragraphs.
+ *
+ * Returns an array of blocks to render. Keeps formatting minimal — only
+ * distinguishes heading / bullet / paragraph.
+ */
+type ContractBlock =
+    | { kind: "heading"; text: string }
+    | { kind: "bullet"; text: string }
+    | { kind: "paragraph"; text: string }
+
+function parseContractBody(raw: string): ContractBlock[] {
+    const lines = raw.replace(/\r\n/g, "\n").split("\n")
+    const blocks: ContractBlock[] = []
+    let paragraphBuffer: string[] = []
+
+    const flushParagraph = () => {
+        if (paragraphBuffer.length > 0) {
+            const text = paragraphBuffer.join(" ").trim()
+            if (text) blocks.push({ kind: "paragraph", text })
+            paragraphBuffer = []
+        }
+    }
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim()
+        if (!line) {
+            flushParagraph()
+            continue
+        }
+        // Numbered heading: "1. Scope of Work" or "1) Scope of Work"
+        // Heuristic: number + . or ) + space + 2–60 chars with no terminal period
+        const headingMatch = line.match(/^(\d{1,2})[.)]\s+(.{2,80})$/)
+        if (headingMatch) {
+            const title = headingMatch[2].trim()
+            // Accept as heading if it looks like a title (no ending punctuation
+            // other than nothing) — otherwise treat as numbered list item inside
+            // a paragraph.
+            if (!/[.!?]$/.test(title)) {
+                flushParagraph()
+                blocks.push({ kind: "heading", text: `${headingMatch[1]}. ${title}` })
+                continue
+            }
+        }
+        // Bullet: starts with "- " or "• "
+        if (/^[-•]\s+/.test(line)) {
+            flushParagraph()
+            blocks.push({ kind: "bullet", text: line.replace(/^[-•]\s+/, "").trim() })
+            continue
+        }
+        paragraphBuffer.push(line)
+    }
+    flushParagraph()
+    return blocks
+}
+
 export function ContractPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
@@ -1516,13 +1577,62 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     </View>
                 </View>
 
-                {/* ── SCOPE & TERMS ── */}
-                {data.description && (
-                    <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 16, backgroundColor: c.bg, ...r(8), ...bNone(), borderLeftWidth: 4, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }}>
-                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Scope & Terms</Text>
-                        <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.7 }}>{data.description}</Text>
-                    </View>
-                )}
+                {/* ── CONTRACT BODY (parsed into headings, paragraphs, bullets) ── */}
+                {data.description && (() => {
+                    const blocks = parseContractBody(data.description)
+                    if (blocks.length === 0) return null
+                    return (
+                        <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, fontWeight: 700 }}>Scope & Terms</Text>
+                            {blocks.map((block, idx) => {
+                                if (block.kind === "heading") {
+                                    return (
+                                        <Text
+                                            key={idx}
+                                            style={{
+                                                fontSize: 10.5,
+                                                color: c.txt,
+                                                fontWeight: 700,
+                                                marginTop: idx === 0 ? 0 : 12,
+                                                marginBottom: 4,
+                                                lineHeight: 1.4,
+                                            }}
+                                        >
+                                            {block.text}
+                                        </Text>
+                                    )
+                                }
+                                if (block.kind === "bullet") {
+                                    return (
+                                        <View
+                                            key={idx}
+                                            style={{ flexDirection: "row", marginLeft: 8, marginBottom: 3, ...bNone() }}
+                                            wrap={false}
+                                        >
+                                            <Text style={{ fontSize: 10, color: c.mut, width: 12, lineHeight: 1.7 }}>•</Text>
+                                            <Text style={{ fontSize: 10, color: c.txt, flex: 1, lineHeight: 1.7 }}>
+                                                {block.text}
+                                            </Text>
+                                        </View>
+                                    )
+                                }
+                                return (
+                                    <Text
+                                        key={idx}
+                                        style={{
+                                            fontSize: 10,
+                                            color: c.txt,
+                                            lineHeight: 1.7,
+                                            marginBottom: 8,
+                                        }}
+                                    >
+                                        {block.text}
+                                    </Text>
+                                )
+                            })}
+                        </View>
+                    )
+                })()}
 
                 {/* ── DELIVERABLES TABLE ── */}
                 {hasItems && (

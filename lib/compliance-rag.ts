@@ -43,20 +43,98 @@ export interface ComplianceContext {
  * Maps country identifiers (ISO alpha-2, full names, common variants)
  * to the canonical format used in the compliance_knowledge table.
  * All keys are stored uppercase for case-insensitive lookup.
+ *
+ * The 11 countries with full RAG coverage map to their canonical
+ * compliance_knowledge keys. Every other ISO 3166-1 country is
+ * mapped to its standard English name so the AI can still generate
+ * documents for those jurisdictions — the compliance retrieval will
+ * return an empty rule set and the prompt's "CLARIFICATION QUESTION
+ * RULES" section instructs the model to ask the user for any
+ * country-specific details it needs.
  */
 export const COUNTRY_MAP: Record<string, string> = {
-  // ISO alpha-2 → compliance_knowledge table format
+  // ── 11 countries with full compliance RAG coverage ───────────────
   "IN": "India", "US": "USA", "GB": "UK", "DE": "Germany",
   "CA": "Canada", "AU": "Australia", "SG": "Singapore",
   "AE": "UAE", "PH": "Philippines", "FR": "France", "NL": "Netherlands",
   // Full names (case-insensitive lookup)
   "INDIA": "India", "USA": "USA", "UK": "UK", "GERMANY": "Germany",
   "CANADA": "Canada", "AUSTRALIA": "Australia", "SINGAPORE": "Singapore",
-  "UAE": "UAE", "PHILIPPINES": "Philippines", "FRANCE": "France",
-  "NETHERLANDS": "Netherlands",
+  "PHILIPPINES": "Philippines", "FRANCE": "France", "NETHERLANDS": "Netherlands",
   // Common variants
-  "UNITED STATES": "USA", "UNITED KINGDOM": "UK",
+  "UNITED STATES": "USA", "UNITED STATES OF AMERICA": "USA",
+  "UNITED KINGDOM": "UK", "GREAT BRITAIN": "UK", "ENGLAND": "UK",
   "UNITED ARAB EMIRATES": "UAE",
+  "DEUTSCHLAND": "Germany",
+  "NEDERLAND": "Netherlands", "HOLLAND": "Netherlands",
+
+  // ── Rest of the world (ISO 3166-1 alpha-2 → canonical English name) ──
+  // Europe
+  "AT": "Austria", "BE": "Belgium", "BG": "Bulgaria", "HR": "Croatia",
+  "CY": "Cyprus", "CZ": "Czech Republic", "DK": "Denmark", "EE": "Estonia",
+  "FI": "Finland", "GR": "Greece", "HU": "Hungary", "IS": "Iceland",
+  "IE": "Ireland", "IT": "Italy", "LV": "Latvia", "LI": "Liechtenstein",
+  "LT": "Lithuania", "LU": "Luxembourg", "MT": "Malta", "MC": "Monaco",
+  "ME": "Montenegro", "NO": "Norway", "PL": "Poland", "PT": "Portugal",
+  "RO": "Romania", "RS": "Serbia", "SK": "Slovakia", "SI": "Slovenia",
+  "ES": "Spain", "SE": "Sweden", "CH": "Switzerland", "UA": "Ukraine",
+  "AL": "Albania", "AD": "Andorra", "BY": "Belarus", "BA": "Bosnia and Herzegovina",
+  "MD": "Moldova", "MK": "North Macedonia", "SM": "San Marino", "VA": "Vatican City",
+
+  // Asia
+  "AF": "Afghanistan", "AM": "Armenia", "AZ": "Azerbaijan", "BH": "Bahrain",
+  "BD": "Bangladesh", "BT": "Bhutan", "BN": "Brunei", "KH": "Cambodia",
+  "CN": "China", "GE": "Georgia", "HK": "Hong Kong", "ID": "Indonesia",
+  "IR": "Iran", "IQ": "Iraq", "IL": "Israel", "JP": "Japan",
+  "JO": "Jordan", "KZ": "Kazakhstan", "KW": "Kuwait", "KG": "Kyrgyzstan",
+  "LA": "Laos", "LB": "Lebanon", "MO": "Macau", "MY": "Malaysia",
+  "MV": "Maldives", "MN": "Mongolia", "MM": "Myanmar", "NP": "Nepal",
+  "KP": "North Korea", "OM": "Oman", "PK": "Pakistan", "PS": "Palestine",
+  "QA": "Qatar", "SA": "Saudi Arabia", "KR": "South Korea",
+  "LK": "Sri Lanka", "SY": "Syria", "TW": "Taiwan", "TJ": "Tajikistan",
+  "TH": "Thailand", "TL": "Timor-Leste", "TR": "Turkey", "TM": "Turkmenistan",
+  "UZ": "Uzbekistan", "VN": "Vietnam", "YE": "Yemen",
+
+  // Americas
+  "AR": "Argentina", "BS": "Bahamas", "BB": "Barbados", "BZ": "Belize",
+  "BO": "Bolivia", "BR": "Brazil", "CL": "Chile", "CO": "Colombia",
+  "CR": "Costa Rica", "CU": "Cuba", "DM": "Dominica", "DO": "Dominican Republic",
+  "EC": "Ecuador", "SV": "El Salvador", "GD": "Grenada", "GT": "Guatemala",
+  "GY": "Guyana", "HT": "Haiti", "HN": "Honduras", "JM": "Jamaica",
+  "MX": "Mexico", "NI": "Nicaragua", "PA": "Panama", "PY": "Paraguay",
+  "PE": "Peru", "PR": "Puerto Rico", "KN": "Saint Kitts and Nevis",
+  "LC": "Saint Lucia", "VC": "Saint Vincent and the Grenadines",
+  "SR": "Suriname", "TT": "Trinidad and Tobago", "UY": "Uruguay",
+  "VE": "Venezuela",
+
+  // Africa
+  "DZ": "Algeria", "AO": "Angola", "BJ": "Benin", "BW": "Botswana",
+  "BF": "Burkina Faso", "BI": "Burundi", "CV": "Cabo Verde", "CM": "Cameroon",
+  "CF": "Central African Republic", "TD": "Chad", "KM": "Comoros",
+  "CG": "Congo", "CD": "DR Congo", "CI": "Ivory Coast", "DJ": "Djibouti",
+  "EG": "Egypt", "GQ": "Equatorial Guinea", "ER": "Eritrea", "SZ": "Eswatini",
+  "ET": "Ethiopia", "GA": "Gabon", "GM": "Gambia", "GH": "Ghana",
+  "GN": "Guinea", "GW": "Guinea-Bissau", "KE": "Kenya", "LS": "Lesotho",
+  "LR": "Liberia", "LY": "Libya", "MG": "Madagascar", "MW": "Malawi",
+  "ML": "Mali", "MR": "Mauritania", "MU": "Mauritius", "MA": "Morocco",
+  "MZ": "Mozambique", "NA": "Namibia", "NE": "Niger", "NG": "Nigeria",
+  "RW": "Rwanda", "ST": "Sao Tome and Principe", "SN": "Senegal",
+  "SC": "Seychelles", "SL": "Sierra Leone", "SO": "Somalia",
+  "ZA": "South Africa", "SS": "South Sudan", "SD": "Sudan", "TZ": "Tanzania",
+  "TG": "Togo", "TN": "Tunisia", "UG": "Uganda", "ZM": "Zambia",
+  "ZW": "Zimbabwe",
+
+  // Oceania
+  "NZ": "New Zealand", "FJ": "Fiji", "PG": "Papua New Guinea",
+  "WS": "Samoa", "SB": "Solomon Islands", "TO": "Tonga", "VU": "Vanuatu",
+  "KI": "Kiribati", "MH": "Marshall Islands", "FM": "Micronesia",
+  "NR": "Nauru", "PW": "Palau", "TV": "Tuvalu",
+
+  // Russia
+  "RU": "Russia",
+
+  // Uppercase full-name aliases for common variants used in profile data
+  "UAE": "UAE",
 }
 
 /**
@@ -339,13 +417,13 @@ function formatCategoryHeader(category: string): string {
 
 /**
  * Formats a single compliance rule as a line item.
- * In semantic mode, appends a similarity score annotation.
+ *
+ * Note: we no longer append [similarity: X] annotations to rule lines —
+ * the AI was occasionally echoing those brackets into document body text.
+ * Similarity ranking is preserved by the sort order in semantic mode.
  */
-function formatRuleLine(rule: ComplianceRule, mode: "deterministic" | "semantic"): string {
+function formatRuleLine(rule: ComplianceRule, _mode: "deterministic" | "semantic"): string {
   const description = rule.description ?? JSON.stringify(rule.requirement_value)
-  if (mode === "semantic" && rule.similarity !== undefined) {
-    return `- ${rule.requirement_key}: ${description} [similarity: ${rule.similarity.toFixed(4)}]`
-  }
   return `- ${rule.requirement_key}: ${description}`
 }
 

@@ -1205,18 +1205,57 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         if (docData.paymentInstructions) docData.paymentInstructions = ""
                     }
 
-                    // Strip markdown formatting from all text fields — PDF renders raw asterisks
-                    const stripMarkdown = (s: string) => s.replace(/\*\*/g, "").replace(/^#{1,6}\s+/gm, "").replace(/^[-*]\s+/gm, "• ")
+                    // Strip markdown + known artifacts from all text fields.
+                    // The PDF renderer prints text literally, so any stray
+                    // placeholder brackets, prompt annotations, or orphan
+                    // punctuation sequences would be visible to the client.
+                    const sanitizeDocText = (s: string) => {
+                        let out = s
+                        // Remove markdown markers
+                        out = out.replace(/\*\*/g, "")
+                        out = out.replace(/^#{1,6}\s+/gm, "")
+                        // Strip prompt-infrastructure annotations:
+                        //   [similarity: 0.8123], [ACTION: SHOW_LINK], [SYSTEM: ...]
+                        out = out.replace(/\[(?:similarity|ACTION|SYSTEM)\s*:[^\]]*\]/gi, "")
+                        // Strip bracketed placeholder tokens like [Client Name],
+                        // [To be provided], [Date], [Provider], [Insert ...].
+                        // Only strip when the bracket content is clearly a
+                        // placeholder (Title Case words or "to be ..." or
+                        // "insert ..."). Leave real brackets inside quoted
+                        // content alone by requiring 1–40 chars and no digits
+                        // that look like lists.
+                        out = out.replace(
+                            /\[\s*(?:to\s+be\s+[^\]]{0,40}|insert\s+[^\]]{0,40}|your\s+[^\]]{0,40}|client[^\]]{0,40}|provider[^\]]{0,40}|company[^\]]{0,40}|date|name|email|address|phone)\s*\]/gi,
+                            ""
+                        )
+                        // Strip orphan punctuation sequences left behind when
+                        // placeholders are removed, e.g. "( )", "[]", ": ;",
+                        // "(); ". Run after bracket stripping so it catches the
+                        // leftovers.
+                        out = out.replace(/\(\s*\)/g, "")
+                        out = out.replace(/\[\s*\]/g, "")
+                        out = out.replace(/\{\s*\}/g, "")
+                        out = out.replace(/[:;,]\s*[;:,]/g, (m) => m.trim().slice(0, 1))
+                        // Collapse repeated spaces and trim per-line
+                        out = out.replace(/[ \t]{2,}/g, " ")
+                        out = out.split("\n").map((l) => l.replace(/[ \t]+$/, "")).join("\n")
+                        // Collapse 3+ blank lines to a single blank line
+                        out = out.replace(/\n{3,}/g, "\n\n")
+                        // Bullet normalization: keep "- " bullets; convert
+                        // asterisk bullets to hyphens
+                        out = out.replace(/^\s*\*\s+/gm, "- ")
+                        return out.trim()
+                    }
                     const textFields = ["notes", "terms", "description", "paymentInstructions"] as const
                     for (const field of textFields) {
                         if (typeof docData[field] === "string" && docData[field]) {
-                            docData[field] = stripMarkdown(docData[field])
+                            docData[field] = sanitizeDocText(docData[field])
                         }
                     }
                     if (Array.isArray(docData.items)) {
                         for (const item of docData.items) {
                             if (typeof item.description === "string") {
-                                item.description = stripMarkdown(item.description)
+                                item.description = sanitizeDocText(item.description)
                             }
                         }
                     }

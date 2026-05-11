@@ -391,12 +391,52 @@ Required fields:
 - invoiceDate: effective date (YYYY-MM-DD)
 - fromName, fromEmail, fromAddress: provider/party A
 - toName, toEmail, toAddress: client/party B
-- description: FULL contract body — include all clauses, scope of work, deliverables, payment terms, confidentiality, termination, dispute resolution, liability, intellectual property, amendments. Write this as a complete, professional legal document with numbered sections. DO NOT include a signature block or "IN WITNESS WHEREOF" clause — the PDF template adds signature lines automatically.
+- description: FULL contract body — numbered sections in flowing prose (see CONTRACT BODY FORMATTING rules below)
 - signatureName, signatureTitle: from business profile
 - notes: any additional notes
 - terms: governing law, jurisdiction
 - design: template object
 DO NOT include items array for contracts unless the contract has specific deliverable pricing.
+
+## CRITICAL: CONTRACT BODY FORMATTING
+
+The contract body goes in the \`description\` field as plain text. The PDF renderer does NOT support markdown — it prints whatever you write literally. Follow these rules exactly:
+
+1. Write numbered sections. Format: "1. Scope of Work" on its own line, then the section body on the next line(s). Put a blank line between sections.
+2. Keep clauses as flowing prose sentences. Most sections (Scope, Payment, Confidentiality, Termination, Governing Law, Liability, IP) read best as paragraphs — not bullets.
+3. Use bullet points ONLY for genuine discrete lists (deliverables, grounds for termination, excluded services). Use a hyphen and a space at the start of each line ("- Item"). One bullet per line. No asterisks, dots, arrows, or unicode bullet characters. Do NOT bullet-point a single item.
+4. NEVER put any of these characters in the contract body:
+   - Square brackets around placeholder names like [Client Name], [Date], [To be provided], [Provider]. If a name is unknown, rewrite the sentence so it is not needed, or use the literal word "the Provider" or "the Client".
+   - Square brackets around prompt annotations like [similarity: 0.xx], [ACTION: ...], [SYSTEM: ...]. Those exist only inside the prompt infrastructure — strip them before writing.
+   - Curly braces { } or other template placeholders.
+   - Orphan punctuation sequences like "( );" "[];" ":;()". These happen when a draft has an empty field followed by its delimiter. Either fill with real content or delete the whole sentence.
+   - Markdown markers (**, *, ##, backticks).
+5. Do NOT add a signature block, "IN WITNESS WHEREOF" clause, or signature date line at the end. The PDF template renders those automatically.
+6. Typical section order (adapt to contract type): Scope of Work, Term, Payment Terms, Deliverables & Acceptance, Confidentiality, Intellectual Property, Warranties, Limitation of Liability, Termination, Governing Law, General Provisions.
+
+### GOOD contract body (clean prose, bullets only for a real list)
+1. Scope of Work
+The Provider will design and develop the Client's e-commerce website, including homepage, product catalogue, checkout, and admin dashboard, according to the specifications agreed in the project kickoff.
+
+2. Term
+This Agreement begins on the Effective Date and continues for twelve months unless terminated earlier under Section 9.
+
+3. Payment Terms
+The Client will pay the Provider a total fee of USD 12,000, invoiced in three equal instalments: on signature, on delivery of the beta release, and on final acceptance. Payment is due within thirty days of each invoice date.
+
+4. Deliverables
+The Provider will deliver:
+- A fully responsive website deployed to the Client's production domain
+- Source code and deployment guide
+- Thirty days of post-launch support
+
+5. Confidentiality
+Each party shall treat the other's non-public information as confidential and shall not disclose it to any third party without prior written consent, except as required by law.
+
+### BAD contract body (never produce output like this)
+"1. Scope [Client Name] agrees to... Services: [];() The Provider shall deliver [To be provided] [similarity: 0.72]..."
+
+Every bracketed token and every stray "[];()" is a formatting failure. Clean it up before you return.
 
 ### Proposal (documentType: "Proposal")
 Required fields:
