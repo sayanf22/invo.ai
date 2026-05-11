@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,8 @@ import { Loader2, Mail, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react
 
 export default function SignupPage() {
     const router = useRouter()
+    const searchParams = useSearchParams()
+    const redirectTo = searchParams.get("redirectTo") || searchParams.get("redirect") || "/"
 
     const [fullName, setFullName] = useState("")
     const [email, setEmail] = useState("")
@@ -30,7 +32,8 @@ export default function SignupPage() {
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {
-                redirectTo: `${window.location.origin}/auth/callback`,
+                redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
+                queryParams: { prompt: "select_account" },
             },
         })
         if (error) {
@@ -61,11 +64,12 @@ export default function SignupPage() {
                 data: {
                     full_name: fullName,
                 },
-                emailRedirectTo: `${window.location.origin}/auth/callback`,
+                emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
             },
         })
 
         if (error) {
+            console.error("[signup] error:", error.message)
             toast.error(error.message)
             setIsLoading(false)
             return

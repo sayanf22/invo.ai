@@ -41,42 +41,34 @@ export function clearAuthTokens() {
     } catch {}
 }
 
-/** Scan localStorage and cookies for corrupted Supabase tokens and remove them. */
+/** Scan localStorage for corrupted Supabase tokens and remove them.
+ *
+ * IMPORTANT: Cookies are managed by @supabase/ssr which writes them URL-encoded
+ * (e.g. values containing `%`). That's NORMAL and VALID — we must NOT treat
+ * URL-encoded cookies as corrupted. Only purge localStorage entries that fail
+ * to JSON-parse.
+ */
 export function clearCorruptedAuthTokens() {
     if (typeof window === "undefined") return
     try {
-        // Clear corrupted localStorage tokens
         Object.keys(localStorage)
-            .filter(k => k.startsWith("sb-"))
+            .filter(k => k.startsWith("sb-") && k.includes("-auth-token"))
             .forEach(k => {
                 try {
                     const val = localStorage.getItem(k)
                     if (!val) return
-                    // If the value contains URL-encoded characters, it's corrupted
-                    if (val.includes("%")) {
-                        console.warn("[auth] Removing corrupted localStorage token:", k)
-                        localStorage.removeItem(k)
-                    }
+                    // Supabase stores JSON in localStorage — validate parse succeeds.
+                    // If it doesn't parse, it's genuinely corrupted.
+                    JSON.parse(val)
                 } catch {
-                    localStorage.removeItem(k)
+                    console.warn("[auth] Removing unparseable localStorage token:", k)
+                    try { localStorage.removeItem(k) } catch {}
                 }
             })
     } catch {}
-
-    // Also clear corrupted cookies (URL-encoded % chars are invalid Base64-URL)
-    try {
-        const past = "Thu, 01 Jan 1970 00:00:00 GMT"
-        document.cookie.split(";").forEach(c => {
-            const [rawName, ...rest] = c.trim().split("=")
-            const name = rawName?.trim()
-            if (!name?.startsWith("sb-") || !name.includes("-auth-token")) return
-            const val = rest.join("=")
-            if (val && val.includes("%")) {
-                console.warn("[auth] Removing corrupted cookie token:", name)
-                document.cookie = `${name}=;path=/;expires=${past};SameSite=Lax`
-            }
-        })
-    } catch {}
+    // Do NOT touch cookies here. Cookie values are URL-encoded by NextResponse
+    // and @supabase/ssr decodes them correctly. Deleting them causes the
+    // user's valid session to vanish on every page load.
 }
 
 /** Reset the singleton Supabase client. */

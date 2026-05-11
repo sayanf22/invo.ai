@@ -37,8 +37,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 if (error) {
                     console.warn("Session load warning:", error.message)
-                    // If the token is corrupted (invalid Base64-URL), clear it and start fresh
-                    if (error.message?.includes("Base64") || error.message?.includes("base64") || error.message?.includes("invalid")) {
+                    // Only purge on true corruption (Base64/JSON parse failure).
+                    const msg = error.message || ""
+                    const isTrulyCorrupt =
+                        msg.includes("Base64") ||
+                        msg.includes("base64") ||
+                        msg.includes("JSON") ||
+                        msg.includes("parse")
+                    if (isTrulyCorrupt) {
                         clearAuthTokens()
                         resetSupabaseClient()
                     }
@@ -67,9 +73,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } catch (err: any) {
                 if (!mounted) return
                 console.warn("Session init error:", err)
-                // Clear corrupted tokens — invalid Base64-URL means localStorage has garbage
-                if (err?.message?.includes("Base64") || err?.message?.includes("base64") ||
-                    err?.message?.includes("invalid") || err?.message?.includes("%")) {
+                // Only clear tokens on TRUE corruption (unparseable Base64 payload).
+                // Do NOT key on "%" — that matches URL-encoded cookies, which are
+                // normal and valid (NextResponse URL-encodes cookie values).
+                const msg = err?.message || ""
+                const isTrulyCorrupt =
+                    msg.includes("Base64") ||
+                    msg.includes("base64") ||
+                    msg.includes("JSON") ||
+                    msg.includes("parse")
+                if (isTrulyCorrupt) {
                     clearAuthTokens()
                     resetSupabaseClient()
                 }

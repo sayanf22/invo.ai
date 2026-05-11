@@ -16,7 +16,8 @@ function LoginForm() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const { user: authUser } = useAuth()
-    const redirectTo = searchParams.get("redirect") || "/"
+    // Support both param names: middleware sets ?redirectTo=, older links use ?redirect=
+    const redirectTo = searchParams.get("redirectTo") || searchParams.get("redirect") || "/"
 
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
@@ -65,8 +66,13 @@ function LoginForm() {
             }
 
             toast.success("Welcome back!")
-            // onAuthStateChange will fire SIGNED_IN → authUser updates → useEffect navigates
-            // No need to manually redirect — React handles it
+            // Fallback: if onAuthStateChange doesn't fire within 800ms, navigate manually.
+            // This handles edge cases where the auth listener is slow or missed SIGNED_IN.
+            setTimeout(() => {
+                if (typeof window !== "undefined" && window.location.pathname.startsWith("/auth/login")) {
+                    window.location.replace(redirectTo)
+                }
+            }, 800)
         } catch (err) {
             console.error("[login] Unexpected error:", err)
             toast.error("Unable to connect. Please check your internet connection.")
