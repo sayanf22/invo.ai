@@ -58,8 +58,10 @@ export function GetSignatureModal({
   const [showSignFirst, setShowSignFirst] = useState(false)
   // Track if sender already self-signed
   const [senderAlreadySigned, setSenderAlreadySigned] = useState(false)
+  // Track if sender has a saved signature on their profile
+  const [hasSavedSignature, setHasSavedSignature] = useState(false)
 
-  // Check if sender already self-signed when modal opens for a contract
+  // Check if sender already self-signed AND if they have a saved profile signature
   useEffect(() => {
     if (!open || documentType.toLowerCase() !== "contract") return
     authFetch(`/api/signatures?sessionId=${sessionId}`)
@@ -68,6 +70,7 @@ export function GetSignatureModal({
         const sigs = d.signatures ?? []
         const hasSenderSig = sigs.some((s: any) => s.party === "Sender" && s.signed_at)
         if (hasSenderSig) setSenderAlreadySigned(true)
+        if (d.hasSavedSignature === true) setHasSavedSignature(true)
       })
       .catch(() => {})
   }, [open, documentType, sessionId])
@@ -342,6 +345,7 @@ export function GetSignatureModal({
       <SenderSignFirstModal
         open={showSignFirst}
         sessionId={sessionId}
+        hasSavedSignature={hasSavedSignature}
         onCancel={() => setShowSignFirst(false)}
         onSkip={() => { setShowSignFirst(false); handleSubmit({ preventDefault: () => {} } as any) }}
         onSigned={() => { setShowSignFirst(false); handleSubmit({ preventDefault: () => {} } as any) }}

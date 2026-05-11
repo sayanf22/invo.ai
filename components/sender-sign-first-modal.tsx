@@ -21,6 +21,8 @@ import { toast } from "sonner"
 interface SenderSignFirstModalProps {
   open: boolean
   sessionId: string
+  /** true if user already has a saved signature on their business profile */
+  hasSavedSignature?: boolean
   onSkip: () => void
   onSigned: () => void
   onCancel: () => void
@@ -31,6 +33,7 @@ type View = "prompt" | "pad" | "done"
 export function SenderSignFirstModal({
   open,
   sessionId,
+  hasSavedSignature = false,
   onSkip,
   onSigned,
   onCancel,
@@ -85,6 +88,35 @@ export function SenderSignFirstModal({
     }
   }, [signatureDataUrl, signing, sessionId, onSigned])
 
+  /**
+   * One-click self-sign using the user's saved signature
+   * (from businesses.signature_url in their profile).
+   */
+  const handleSignWithSaved = useCallback(async () => {
+    if (signing) return
+    setSigning(true)
+    try {
+      const res = await authFetch("/api/signatures/self-sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, useSaved: true }),
+      })
+      if (res.ok || res.status === 409) {
+        setView("done")
+        setTimeout(() => onSigned(), 700)
+      } else {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error || "Could not use saved signature. Draw one below instead.")
+        // Fall back to draw view so the user can still proceed
+        setView("pad")
+      }
+    } catch {
+      toast.error("Something went wrong.")
+    } finally {
+      setSigning(false)
+    }
+  }, [signing, sessionId, onSigned])
+
   if (!open || !mounted) return null
 
   return createPortal(
@@ -125,18 +157,42 @@ export function SenderSignFirstModal({
           {view === "prompt" && (
             <>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                For contracts, both parties should sign. Add your signature now to make the agreement fully enforceable by both sides.
+                {hasSavedSignature
+                  ? "For contracts, both parties should sign. Use the signature on your profile, or draw a new one."
+                  : "For contracts, both parties should sign. Add your signature now to make the agreement fully enforceable by both sides."}
               </p>
               <div className="flex flex-col gap-2">
-                {/* Add signature */}
+                {/* Primary: use saved signature (only when available) */}
+                {hasSavedSignature && (
+                  <button
+                    type="button"
+                    onClick={handleSignWithSaved}
+                    disabled={signing}
+                    className="flex items-center justify-between w-full px-3.5 py-3 rounded-xl bg-foreground text-background hover:bg-foreground/90 transition-colors text-left disabled:opacity-60"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {signing
+                        ? <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+                      <span className="text-sm font-medium">
+                        {signing ? "Signing…" : "Sign with my saved signature"}
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 opacity-60" />
+                  </button>
+                )}
+                {/* Draw a new signature */}
                 <button
                   type="button"
                   onClick={() => setView("pad")}
-                  className="flex items-center justify-between w-full px-3.5 py-3 rounded-xl border border-border bg-background hover:bg-muted/40 transition-colors text-left"
+                  disabled={signing}
+                  className="flex items-center justify-between w-full px-3.5 py-3 rounded-xl border border-border bg-background hover:bg-muted/40 transition-colors text-left disabled:opacity-60"
                 >
                   <div className="flex items-center gap-2.5">
                     <PenLine className="w-4 h-4 text-foreground/70 shrink-0" />
-                    <span className="text-sm font-medium text-foreground">Add my signature</span>
+                    <span className="text-sm font-medium text-foreground">
+                      {hasSavedSignature ? "Draw a new signature" : "Add my signature"}
+                    </span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
                 </button>
@@ -144,7 +200,8 @@ export function SenderSignFirstModal({
                 <button
                   type="button"
                   onClick={onSkip}
-                  className="flex items-center justify-between w-full px-3.5 py-3 rounded-xl border border-border/50 bg-transparent hover:bg-muted/30 transition-colors text-left"
+                  disabled={signing}
+                  className="flex items-center justify-between w-full px-3.5 py-3 rounded-xl border border-border/50 bg-transparent hover:bg-muted/30 transition-colors text-left disabled:opacity-60"
                 >
                   <span className="text-sm text-muted-foreground">Skip — send without my signature</span>
                   <ChevronRight className="w-4 h-4 text-muted-foreground/30" />

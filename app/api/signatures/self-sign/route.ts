@@ -13,6 +13,7 @@ import { createClient } from "@supabase/supabase-js"
 import { authenticateRequest, getClientIP } from "@/lib/api-auth"
 import { computeDocumentFingerprint } from "@/lib/document-fingerprint"
 import { recordAuditEvent } from "@/lib/signature-audit"
+import { getObject } from "@/lib/r2"
 import { randomUUID } from "crypto"
 
 const MAX_SIG_SIZE = 100 * 1024 // 100KB
@@ -30,10 +31,14 @@ export async function POST(request: NextRequest) {
     if (auth.error) return auth.error
 
     const body = await request.json()
-    const { sessionId, signatureDataUrl } = body
+    const { sessionId, signatureDataUrl: rawSignatureDataUrl, useSaved } = body as {
+      sessionId?: string
+      signatureDataUrl?: string | null
+      useSaved?: boolean
+    }
 
-    if (!sessionId || !signatureDataUrl) {
-      return NextResponse.json({ error: "Missing sessionId or signatureDataUrl" }, { status: 400 })
+    if (!sessionId) {
+      return NextResponse.json({ error: "Missing sessionId" }, { status: 400 })
     }
 
     // Validate UUID format
@@ -42,7 +47,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid sessionId" }, { status: 400 })
     }
 
-    // Validate signature format
+    if (!rawSignatureDataUrl && !useSaved) {
+      return NextResponse.json(
+        { error: "Missing signatureDataUrl or useSaved flag" },
+        { status: 400 }
+      )
+    }
+
+    const supabase = auth.supabase
+    const serviceSupabase = getServiceRoleClient()
+
+    // Resolve the signature source.
+    // Priority: explicit signatureDataUrl (fresh draw) → saved businesses.signature_url.
+    let signatureDataUrl: string | null = rawSignatureDataUrl ?? null
+
+    if (!signatureDataUrl && useSaved) {
+      const { data: biz } = await supabase
+        .from("businesses")
+        .select("signature_url")
+        .eq("user_id", auth.user.id)
+        .maybeSingle() as { data: { signature_url: string | null } | null }
+
+      const stored = biz?.signature_url?.trim() || ""
+      if (!stored) {
+        return NextResponse.json(
+          { error: "No saved signature found on your profile" },
+          { status: 404 }
+        )
+      }
+
+      // Resolve stored key → data URL.
+      // Supported forms:
+      //   • data:image/... (inline, use as-is)
+      //   • https://... (Supabase storage public URL → fetch bytes)
+      //   • sb:<key> (Supabase storage private key)
+      //   • r2:<key> or plain key (R2 bucket)
+      signatureDataUrl = await resolveStoredSignatureToDataUrl(stored, serviceSupabase)
+      if (!signatureDataUrl) {
+        return NextResponse.json(
+          { error: "Saved signature could not be loaded" },
+          { status: 500 }
+        )
+      }
+    }
+
+    if (!signatureDataUrl) {
+      return NextResponse.json({ error: "No signature data available" }, { status: 400 })
+    }
+
+    // Validate signature format (data URL only at this point)
     if (!signatureDataUrl.startsWith("data:image/png") && !signatureDataUrl.startsWith("data:image/jpeg")) {
       return NextResponse.json({ error: "Invalid signature format" }, { status: 400 })
     }
@@ -56,9 +109,6 @@ export async function POST(request: NextRequest) {
     if (decodedSize > MAX_SIG_SIZE) {
       return NextResponse.json({ error: "Signature image too large" }, { status: 413 })
     }
-
-    const supabase = auth.supabase
-    const serviceSupabase = getServiceRoleClient()
 
     // Verify session ownership
     const { data: session, error: sessionError } = await supabase
@@ -183,4 +233,70 @@ export async function POST(request: NextRequest) {
     console.error("[self-sign] error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
+}
+
+
+/**
+ * Resolve a stored signature URL / key to a base64 data URL.
+ *
+ * Accepts any of:
+ *   • Inline data URL (returned as-is)
+ *   • Supabase public URL (https://...)
+ *   • "sb:<key>" → Supabase storage private object
+ *   • "r2:<key>" or plain R2 object key → Cloudflare R2
+ */
+async function resolveStoredSignatureToDataUrl(
+  stored: string,
+  serviceSupabase: any
+): Promise<string | null> {
+  try {
+    // 1. Already a data URL
+    if (stored.startsWith("data:image/")) {
+      return stored
+    }
+
+    // 2. Full URL → fetch bytes
+    if (stored.startsWith("http://") || stored.startsWith("https://")) {
+      const res = await fetch(stored)
+      if (!res.ok) return null
+      const buf = new Uint8Array(await res.arrayBuffer())
+      const contentType = res.headers.get("content-type") || "image/png"
+      return bytesToDataUrl(buf, contentType)
+    }
+
+    // 3. Supabase private storage key
+    if (stored.startsWith("sb:")) {
+      const key = stored.slice(3)
+      const { data, error } = await serviceSupabase.storage
+        .from("signatures")
+        .download(key)
+      if (error || !data) return null
+      const buf = new Uint8Array(await data.arrayBuffer())
+      const contentType = data.type || "image/png"
+      return bytesToDataUrl(buf, contentType)
+    }
+
+    // 4. R2 key (with or without "r2:" prefix)
+    const r2Key = stored.startsWith("r2:") ? stored.slice(3) : stored
+    const obj = await getObject(r2Key)
+    if (!obj) return null
+    const buf = new Uint8Array(obj.body)
+    return bytesToDataUrl(buf, obj.contentType || "image/png")
+  } catch (err) {
+    console.error("[self-sign] resolveStoredSignatureToDataUrl error:", err)
+    return null
+  }
+}
+
+function bytesToDataUrl(bytes: Uint8Array, contentType: string): string {
+  let binary = ""
+  const chunkSize = 0x8000
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+  // btoa is available in Workers + Node 16+
+  const b64 = typeof btoa !== "undefined" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64")
+  const mime = contentType.startsWith("image/jpeg") ? "image/jpeg" : "image/png"
+  return `data:${mime};base64,${b64}`
 }

@@ -91,6 +91,8 @@ export function ChatSendCard({
   const [showSignFirst, setShowSignFirst] = useState(false)
   // Track if sender already self-signed (skip modal if so)
   const [senderAlreadySigned, setSenderAlreadySigned] = useState(false)
+  // Track if sender has a saved signature on their profile (skip draw step)
+  const [hasSavedSignature, setHasSavedSignature] = useState(false)
 
   // Default includePayment to true ONLY if user has a gateway connected
   useEffect(() => {
@@ -115,7 +117,7 @@ export function ChatSendCard({
     return () => cancelAnimationFrame(t)
   }, [])
 
-  // For contracts: check if sender already self-signed (skip the prompt if so)
+  // For contracts: check if sender already self-signed AND if they have a saved signature
   useEffect(() => {
     if (!isContract || !sessionId) return
     authFetch(`/api/signatures?sessionId=${sessionId}`)
@@ -124,6 +126,7 @@ export function ChatSendCard({
         const sigs = d.signatures ?? []
         const hasSenderSig = sigs.some((s: any) => s.party === "Sender" && s.signed_at)
         if (hasSenderSig) setSenderAlreadySigned(true)
+        if (d.hasSavedSignature === true) setHasSavedSignature(true)
       })
       .catch(() => {})
   }, [isContract, sessionId])
@@ -612,6 +615,7 @@ export function ChatSendCard({
     <SenderSignFirstModal
       open={showSignFirst}
       sessionId={sessionId}
+      hasSavedSignature={hasSavedSignature}
       onCancel={() => setShowSignFirst(false)}
       onSkip={() => { setShowSignFirst(false); handleSend() }}
       onSigned={() => { setShowSignFirst(false); handleSend() }}

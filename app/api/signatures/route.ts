@@ -610,7 +610,17 @@ export async function GET(request: NextRequest) {
                 return NextResponse.json({ error: "Failed to fetch signatures" }, { status: 500 })
             }
 
-            return NextResponse.json({ signatures })
+            // Also report whether user has a saved signature on their business profile
+            // — the UI uses this to skip redraws when the user already has one.
+            const { data: bizSig } = await auth.supabase
+                .from("businesses")
+                .select("signature_url")
+                .eq("user_id", auth.user.id)
+                .maybeSingle() as { data: { signature_url: string | null } | null }
+
+            const hasSavedSignature = !!(bizSig?.signature_url && String(bizSig.signature_url).trim().length > 0)
+
+            return NextResponse.json({ signatures, hasSavedSignature })
         }
 
         return NextResponse.json({ error: "Missing documentId or token parameter" }, { status: 400 })
