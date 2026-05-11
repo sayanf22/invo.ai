@@ -497,9 +497,11 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
         }))
     }
 
-    // Derived view component for the field list
-    const CollectedInfoView = () => (
-        <div className="space-y-4 pb-10">
+    // Derived view component for the field list.
+    // useCallback-ified to avoid remounting the whole tree on every parent re-render —
+    // remounts reset framer-motion animations (progress bar jumps back to 0%).
+    const CollectedInfoView = useCallback(() => (
+        <div className="space-y-4 pb-10 w-full min-w-0">
             <div className="border rounded-2xl bg-card shadow-sm p-5 space-y-3 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
                 <div className="flex items-center justify-between text-sm relative z-10">
@@ -715,13 +717,13 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
                 </AnimatePresence>
             </div>
         </div>
-    )
+    ), [progressPercent, completedCount, totalSteps, collectedData, expandedField, allComplete])
 
     return (
-        <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 h-full max-w-7xl mx-auto w-full relative">
+        <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 h-full max-w-7xl mx-auto w-full relative px-0 lg:px-6 lg:py-4">
             
             {/* ── Main Chat Panel ────────────────────────────────── */}
-            <div className="flex-1 flex flex-col min-h-0 w-full rounded-2xl lg:border lg:bg-card/50 lg:shadow-sm overflow-hidden relative bg-background">
+            <div className="flex-1 flex flex-col min-h-0 w-full lg:rounded-2xl lg:border lg:bg-card/50 lg:shadow-sm overflow-hidden relative bg-background">
                 {/* Mobile Sticky Header */}
                 <div className="lg:hidden bg-background/95 backdrop-blur-xl border-b shadow-sm px-4 py-3 flex flex-col gap-2.5 shrink-0 relative z-40">
                     <div className="flex items-center justify-between">
@@ -1010,9 +1012,11 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
             </div>
 
             {/* ── Collected Data Sidebar (Desktop) ─────────────────────────── */}
-            <div className="hidden lg:block lg:w-[320px] shrink-0">
-                <ScrollArea className="h-full pr-4">
-                    <CollectedInfoView />
+            <div className="hidden lg:block lg:w-[320px] shrink-0 min-w-0">
+                <ScrollArea className="h-full">
+                    <div className="pr-1">
+                        <CollectedInfoView />
+                    </div>
                 </ScrollArea>
             </div>
         </div>
