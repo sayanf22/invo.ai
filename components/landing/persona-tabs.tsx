@@ -263,16 +263,12 @@ export function PersonaTabs() {
                     </div>
 
                     {/* Right side: Persona-specific document preview */}
-                    <div className="w-full lg:w-1/2 relative h-[440px] lg:h-[600px] lg:-my-10 flex items-center justify-center">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(198,163,219,0.1)_0%,transparent_60%)] pointer-events-none" />
+                    <div className="w-full lg:w-1/2 relative h-auto lg:h-[600px] flex items-center justify-center">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(198,163,219,0.08)_0%,transparent_60%)] pointer-events-none" />
 
-                        <motion.div
-                            className="relative w-full max-w-[460px] aspect-[4/3]"
-                            animate={{ y: [0, -10, 0] }}
-                            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                        >
-                            {/* Document surface */}
-                            <div className="absolute inset-0 bg-[#fbf9f6] rounded-2xl shadow-2xl border-2 border-stone-200 overflow-hidden flex flex-col z-10">
+                        <div className="relative w-full max-w-[460px]">
+                            {/* Document surface — static, no floating motion */}
+                            <div className="relative bg-[#fbf9f6] rounded-2xl shadow-2xl border-2 border-stone-200 overflow-hidden flex flex-col">
                                 {/* Window chrome */}
                                 <div className="h-10 border-b border-stone-200 bg-white flex items-center px-4 justify-between shrink-0">
                                     <div className="flex gap-1.5">
@@ -287,7 +283,7 @@ export function PersonaTabs() {
                                             animate={{ opacity: 1 }}
                                             exit={{ opacity: 0 }}
                                             transition={{ duration: 0.25 }}
-                                            className="text-[10px] font-mono uppercase tracking-wider text-stone-400"
+                                            className="text-[10px] font-mono uppercase tracking-wider text-stone-400 truncate max-w-[60%]"
                                         >
                                             clorefy.com/doc · {current.preview.docType}
                                         </motion.div>
@@ -302,21 +298,21 @@ export function PersonaTabs() {
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: -8 }}
                                         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                                        className="flex-1 p-5 sm:p-7 flex flex-col gap-3.5 relative overflow-hidden"
+                                        className="p-5 sm:p-7 flex flex-col gap-3.5 min-h-[340px] sm:min-h-[400px]"
                                     >
-                                        {/* Top row: doc type + badge */}
-                                        <div className="flex justify-between items-start">
-                                            <div>
+                                        {/* Top row: doc type + badge / From */}
+                                        <div className="flex justify-between items-start gap-4">
+                                            <div className="min-w-0">
                                                 <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--landing-amber)] mb-1">
                                                     {current.preview.docType}
                                                 </div>
-                                                <div className="text-[10px] text-stone-400 font-medium">
+                                                <div className="text-[10px] text-stone-400 font-medium truncate">
                                                     {current.preview.badge}
                                                 </div>
                                             </div>
-                                            <div className="text-right">
+                                            <div className="text-right shrink-0">
                                                 <div className="text-[9px] text-stone-400 uppercase tracking-wider mb-0.5">From</div>
-                                                <div className="text-[11px] font-semibold text-stone-700 leading-tight max-w-[140px] truncate">
+                                                <div className="text-[11px] font-semibold text-stone-700 leading-tight max-w-[160px] truncate">
                                                     {current.preview.from}
                                                 </div>
                                             </div>
@@ -330,7 +326,7 @@ export function PersonaTabs() {
                                         {/* Billed to */}
                                         <div className="flex items-baseline gap-2 text-[10.5px]">
                                             <span className="text-stone-400 uppercase tracking-wider">To</span>
-                                            <span className="font-semibold text-stone-700">{current.preview.to}</span>
+                                            <span className="font-semibold text-stone-700 truncate">{current.preview.to}</span>
                                         </div>
 
                                         {/* Divider */}
@@ -349,70 +345,40 @@ export function PersonaTabs() {
                                         {/* Spacer */}
                                         <div className="flex-1" />
 
+                                        {/* Status pill — inline, no overlap */}
+                                        <div className="flex items-center gap-1.5 text-[10px] text-stone-500">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                            <span className="font-medium">{current.preview.tag}</span>
+                                        </div>
+
                                         {/* Footer: total + CTA */}
-                                        <div className="border-t border-stone-200 pt-3 flex justify-between items-center">
-                                            <div>
+                                        <div className="border-t border-stone-200 pt-3 flex justify-between items-center gap-4">
+                                            <div className="min-w-0">
                                                 <div className="text-[9px] text-stone-400 uppercase tracking-wider">
                                                     {current.preview.totalLabel}
                                                 </div>
-                                                <div className="text-[15px] sm:text-[17px] font-bold text-[#1C1A17] font-serif">
+                                                <div className="text-[15px] sm:text-[17px] font-bold text-[#1C1A17] font-serif truncate">
                                                     {current.preview.total}
                                                 </div>
                                             </div>
-                                            <div className="px-3 py-1.5 rounded-md bg-[var(--landing-amber)] text-white text-[10px] font-bold uppercase tracking-wider">
+                                            <div className="px-3 py-1.5 rounded-md bg-[var(--landing-amber)] text-white text-[10px] font-bold uppercase tracking-wider shrink-0">
                                                 Send
                                             </div>
                                         </div>
-
-                                        {/* Typing cursor */}
-                                        <motion.div
-                                            className="absolute right-7 bottom-[88px] w-[2px] h-3.5 bg-[var(--landing-amber)]"
-                                            animate={{ opacity: [1, 0, 1] }}
-                                            transition={{ duration: 1, repeat: Infinity }}
-                                        />
                                     </motion.div>
                                 </AnimatePresence>
                             </div>
 
-                            {/* Floating "Generating / Auto-drafted" tag */}
-                            <AnimatePresence mode="wait">
-                                <motion.div
-                                    key={current.id + "-tag"}
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1, y: [0, -8, 0], rotate: [0, 2, 0] }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    transition={{
-                                        opacity: { duration: 0.25 },
-                                        scale: { duration: 0.25 },
-                                        y: { duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 },
-                                        rotate: { duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 },
-                                    }}
-                                    className="absolute -right-3 top-[18%] bg-[var(--landing-dark)] text-white px-3.5 py-2 rounded-xl shadow-xl border border-stone-700 z-20 flex items-center gap-2"
-                                >
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                                    <span className="text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
-                                        {current.preview.tag}
-                                    </span>
-                                </motion.div>
-                            </AnimatePresence>
-
-                            {/* Floating status card */}
-                            <motion.div
-                                className="absolute -left-6 bottom-[22%] bg-white p-2.5 rounded-2xl shadow-xl border border-stone-200 z-20 flex items-center gap-2.5"
-                                animate={{ y: [0, 8, 0], rotate: [0, -2, 0] }}
-                                transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                            >
-                                <div className="w-7 h-7 rounded-full bg-[var(--landing-amber)]/10 flex items-center justify-center shrink-0">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--landing-amber)]">
+                            {/* Static "Saved to profile" caption — lives below the card, outside the overlap zone */}
+                            <div className="mt-4 flex items-center justify-center gap-2 text-white/70 text-[11px]">
+                                <span className="w-4 h-4 rounded-full bg-[var(--landing-amber)]/20 flex items-center justify-center shrink-0">
+                                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--landing-amber)]">
                                         <polyline points="20 6 9 17 4 12" />
                                     </svg>
-                                </div>
-                                <div className="pr-1">
-                                    <div className="text-[10px] font-semibold text-stone-700">Saved to profile</div>
-                                    <div className="text-[9px] text-stone-400">Auto-fills next time</div>
-                                </div>
-                            </motion.div>
-                        </motion.div>
+                                </span>
+                                <span className="font-medium">Saved to your profile — auto-fills the next one</span>
+                            </div>
+                        </div>
                     </div>
 
                 </div>
