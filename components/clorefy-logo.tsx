@@ -8,6 +8,7 @@ export function ClorefyLogo({ size = 72, className = "", showBeta = false }: { s
         alt="Clorefy"
         width={size}
         height={size}
+        style={{ width: size, height: size }}
         className={`rounded-lg shrink-0 ${className}`}
         priority
       />

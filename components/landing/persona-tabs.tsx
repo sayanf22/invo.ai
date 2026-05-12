@@ -489,7 +489,7 @@ export function PersonaTabs() {
                     </div>
 
                     {/* Right side: Actual platform mockup — chat + document preview */}
-                    <div className="w-full lg:w-[56%]">
+                    <div className="w-full lg:w-[56%] relative">
                         <motion.div
                             layout
                             transition={LAYOUT_SPRING}

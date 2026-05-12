@@ -17,7 +17,7 @@ export function MultiDeviceSection() {
     const yMobile = useTransform(scrollYProgress, [0, 1], [200, -200])
 
     return (
-        <section ref={containerRef} className="py-16 sm:py-24 lg:py-32 px-4 sm:px-6 overflow-hidden bg-[var(--landing-cream)]">
+        <section ref={containerRef} className="relative py-16 sm:py-24 lg:py-32 px-4 sm:px-6 overflow-hidden bg-[var(--landing-cream)]">
             <div className="max-w-7xl mx-auto text-center mb-10 sm:mb-16 lg:mb-24 relative z-10">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
