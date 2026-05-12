@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowRight, Sparkles, Brain, CreditCard } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { motion } from "framer-motion"
 
 import { FlipWords } from "@/components/ui/flip-words"
@@ -102,37 +102,15 @@ export function HeroSection() {
                         </span>
                     </motion.div>
 
-                    {/* Subtitle — automation-first, benefit-focused */}
+                    {/* Subtitle — plain English: what it is + what you get */}
                     <motion.p
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="text-[15px] sm:text-lg md:text-xl text-[#5B5550] max-w-2xl mx-auto mb-6 sm:mb-8 leading-relaxed font-medium px-2"
+                        className="text-[15px] sm:text-lg md:text-xl text-[#5B5550] max-w-2xl mx-auto mb-8 sm:mb-12 leading-relaxed font-medium px-2"
                     >
-                        One prompt. We write the document, attach your payment link, and remember every client — so the next one takes seconds.
+                        Tell Clorefy what you need. It writes the invoice, contract, or proposal for you — with your details filled in, the right tax rules applied, and a payment link ready to send.
                     </motion.p>
-
-                    {/* 3-pillar strip — AI · Memory · Payments */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.7, delay: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-8 sm:mb-12 px-2"
-                        aria-label="Platform capabilities"
-                    >
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-stone-200 bg-white/70 backdrop-blur-sm text-[12px] sm:text-[13px] font-semibold text-[#1C1A17]">
-                            <Sparkles size={13} className="text-[var(--landing-amber)]" />
-                            AI writes it
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-stone-200 bg-white/70 backdrop-blur-sm text-[12px] sm:text-[13px] font-semibold text-[#1C1A17]">
-                            <Brain size={13} className="text-[var(--landing-amber)]" />
-                            Remembers everything
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-stone-200 bg-white/70 backdrop-blur-sm text-[12px] sm:text-[13px] font-semibold text-[#1C1A17]">
-                            <CreditCard size={13} className="text-[var(--landing-amber)]" />
-                            Payments built in
-                        </span>
-                    </motion.div>
 
                     {/* CTA buttons */}
                     <motion.div
