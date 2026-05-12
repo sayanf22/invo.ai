@@ -40,7 +40,7 @@ export function AIShowcase() {
             />
 
             <div className="max-w-7xl mx-auto relative">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 sm:gap-20 items-center">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 sm:gap-16 xl:gap-20 items-center">
                     {/* ── Left content ─────────────────────────────────────────── */}
                     <motion.div
                         initial={{ opacity: 0, x: -30 }}

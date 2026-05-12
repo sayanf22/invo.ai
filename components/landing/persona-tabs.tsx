@@ -416,19 +416,19 @@ export function PersonaTabs() {
         <section className="py-12 sm:py-24 px-4 sm:px-6 lg:px-10 bg-[var(--landing-cream)]">
             <div className="max-w-[1400px] mx-auto bg-[var(--landing-dark)] rounded-[1.75rem] sm:rounded-[3.5rem] p-5 sm:p-14 lg:p-20 relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] sm:shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] border-[2px] sm:border-[3px] border-[var(--landing-dark)]">
 
-                <div className="flex flex-col lg:flex-row gap-8 lg:gap-16 items-start">
+                <div className="flex flex-col xl:flex-row gap-8 xl:gap-16 items-start">
 
                     {/* Left side: Content & Pills */}
-                    <div className="w-full lg:w-[44%] relative z-10 flex flex-col">
+                    <div className="w-full xl:w-[44%] relative z-10 flex flex-col">
                         <motion.h2
                             initial={{ opacity: 0, y: 20 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
-                            className="font-serif text-[2.5rem] leading-[1.02] sm:text-6xl lg:text-7xl font-medium text-[#F4F0EB] mb-3 sm:mb-4 tracking-tight"
+                            className="font-serif text-[2.5rem] leading-[1.02] sm:text-5xl lg:text-6xl xl:text-7xl font-medium text-[#F4F0EB] mb-3 sm:mb-4 tracking-tight"
                         >
-                            Made for the <br /> way <span className="italic text-[#c6a3db]">you</span> work
+                            Made for the way <span className="italic text-[#c6a3db]">you</span> work
                         </motion.h2>
-                        <p className="text-[var(--landing-text-muted)] text-[11px] sm:text-base font-semibold tracking-wide uppercase mb-6 sm:mb-8">
+                        <p className="text-[var(--landing-text-muted)] text-[11px] sm:text-[13px] font-semibold tracking-wide uppercase mb-6 sm:mb-8">
                             Tap a role — see the doc we draft.
                         </p>
 
@@ -489,7 +489,7 @@ export function PersonaTabs() {
                     </div>
 
                     {/* Right side: Actual platform mockup — chat + document preview */}
-                    <div className="w-full lg:w-[56%] relative">
+                    <div className="w-full xl:w-[56%] relative">
                         <motion.div
                             layout
                             transition={LAYOUT_SPRING}
@@ -518,10 +518,10 @@ export function PersonaTabs() {
                                 </div>
                             </div>
 
-                            {/* Split pane — chat hidden on mobile, document preview fills full width on mobile */}
-                            <div className="grid grid-cols-1 sm:grid-cols-[40%_60%] h-[460px] sm:h-[480px]">
-                                {/* Chat panel — desktop only */}
-                                <div className="hidden sm:flex flex-col bg-[#fbfbfa] border-r border-stone-200 min-w-0">
+                            {/* Split pane — chat hidden below md, document preview fills full width on mobile/tablet */}
+                            <div className="grid grid-cols-1 md:grid-cols-[40%_60%] h-[460px] sm:h-[480px]">
+                                {/* Chat panel — md+ only */}
+                                <div className="hidden md:flex flex-col bg-[#fbfbfa] border-r border-stone-200 min-w-0">
                                     <div className="px-3.5 py-2.5 border-b border-stone-200 flex items-center gap-2 shrink-0">
                                         <div className="w-5 h-5 rounded-full bg-[#1C1A17] flex items-center justify-center">
                                             <span className="text-white text-[9px] font-bold">C</span>
@@ -572,8 +572,8 @@ export function PersonaTabs() {
                                     </div>
                                 </div>
 
-                                {/* Mobile: compact chat prompt strip above the doc */}
-                                <div className="sm:hidden flex items-start gap-2 px-3 py-2.5 border-b border-stone-200 bg-[#fbfbfa] shrink-0">
+                                {/* Mobile/Tablet: compact chat prompt strip above the doc */}
+                                <div className="md:hidden flex items-start gap-2 px-3 py-2.5 border-b border-stone-200 bg-[#fbfbfa] shrink-0">
                                     <div className="w-5 h-5 rounded-full bg-[#1C1A17] flex items-center justify-center shrink-0 mt-0.5">
                                         <span className="text-white text-[9px] font-bold">C</span>
                                     </div>
