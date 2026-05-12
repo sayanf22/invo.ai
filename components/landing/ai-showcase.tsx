@@ -12,14 +12,21 @@ const STEPS = [
 
 export function AIShowcase() {
     const [step, setStep] = useState(0)
+    // Increments when user manually clicks a step — used to reset the auto-advance timer
+    const [userNonce, setUserNonce] = useState(0)
 
-    // Smooth 6s cycle for readability
+    // Smooth 6s cycle. Re-runs (resetting the countdown) whenever the user clicks a step.
     useEffect(() => {
         const timer = setInterval(() => {
             setStep((prev) => (prev + 1) % 3)
         }, 6000)
         return () => clearInterval(timer)
-    }, [])
+    }, [userNonce])
+
+    const goTo = (i: number) => {
+        setStep(i)
+        setUserNonce((n) => n + 1)
+    }
 
     return (
         <section className="py-16 sm:py-24 lg:py-32 px-4 sm:px-6 lg:px-10 bg-[var(--landing-cream)] overflow-hidden relative">
@@ -80,13 +87,17 @@ export function AIShowcase() {
                                 const isPast = step > i
                                 const Icon = item.icon
                                 return (
-                                    <motion.div
+                                    <motion.button
                                         key={i}
+                                        type="button"
+                                        onClick={() => goTo(i)}
+                                        aria-pressed={isActive}
+                                        aria-label={`Show step ${i + 1}: ${item.title}`}
                                         animate={{
                                             scale: isActive ? 1 : 0.985,
                                         }}
                                         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                                        className={`group relative flex gap-4 sm:gap-5 p-4 sm:p-5 rounded-2xl border transition-all duration-500 ${
+                                        className={`group relative w-full text-left flex gap-4 sm:gap-5 p-4 sm:p-5 rounded-2xl border transition-all duration-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-amber)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--landing-cream)] ${
                                             isActive
                                                 ? "bg-white border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)]"
                                                 : "bg-white/40 border-stone-200/60 hover:bg-white/70 hover:border-stone-300"
@@ -138,7 +149,7 @@ export function AIShowcase() {
                                                 transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                                             />
                                         )}
-                                    </motion.div>
+                                    </motion.button>
                                 )
                             })}
                         </div>
@@ -177,7 +188,14 @@ export function AIShowcase() {
                                     {["Prompt", "Generating", "Result"].map((label, i) => {
                                         const isActive = step === i
                                         return (
-                                            <div key={label} className="relative">
+                                            <button
+                                                key={label}
+                                                type="button"
+                                                onClick={() => goTo(i)}
+                                                aria-pressed={isActive}
+                                                aria-label={`Show ${label} step`}
+                                                className="relative cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-amber)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--landing-dark)]"
+                                            >
                                                 {isActive && (
                                                     <motion.div
                                                         layoutId="active-pill"
@@ -187,12 +205,12 @@ export function AIShowcase() {
                                                 )}
                                                 <div
                                                     className={`relative px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-xs font-bold transition-colors duration-300 ${
-                                                        isActive ? "text-[var(--landing-dark)]" : "text-white/60"
+                                                        isActive ? "text-[var(--landing-dark)]" : "text-white/60 hover:text-white/90"
                                                     }`}
                                                 >
                                                     {label}
                                                 </div>
-                                            </div>
+                                            </button>
                                         )
                                     })}
                                 </div>

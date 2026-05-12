@@ -1,8 +1,8 @@
 "use client"
 
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { useState } from "react"
-import { ArrowRight, Sparkles } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import Link from "next/link"
 
 type LineItem = { desc: string; qty: string; rate: string; amount: string }
@@ -340,27 +340,27 @@ function DocumentPreviewCard({ persona }: { persona: Persona }) {
                     {hasTable ? (
                         <>
                             {/* Table header */}
-                            <div className="grid grid-cols-[1fr_40px_60px_60px] gap-2 px-2 py-1.5 rounded-md bg-stone-50 border border-stone-200">
-                                <div className="text-[8.5px] font-bold uppercase tracking-wider text-stone-500">Description</div>
-                                <div className="text-[8.5px] font-bold uppercase tracking-wider text-stone-500 text-right">Qty</div>
-                                <div className="text-[8.5px] font-bold uppercase tracking-wider text-stone-500 text-right">Rate</div>
-                                <div className="text-[8.5px] font-bold uppercase tracking-wider text-stone-500 text-right">Amount</div>
+                            <div className="grid grid-cols-[1fr_32px_72px_80px] gap-2 px-2 py-1.5 rounded-md bg-stone-50 border border-stone-200">
+                                <div className="text-[9px] font-bold uppercase tracking-wider text-stone-500">Description</div>
+                                <div className="text-[9px] font-bold uppercase tracking-wider text-stone-500 text-right">Qty</div>
+                                <div className="text-[9px] font-bold uppercase tracking-wider text-stone-500 text-right">Rate</div>
+                                <div className="text-[9px] font-bold uppercase tracking-wider text-stone-500 text-right">Amount</div>
                             </div>
                             <div className="divide-y divide-stone-100">
                                 {d.items.map((it, idx) => (
-                                    <div key={idx} className="grid grid-cols-[1fr_40px_60px_60px] gap-2 px-2 py-1.5 items-start">
-                                        <div className="text-[10px] text-stone-700 leading-snug">{it.desc}</div>
-                                        <div className="text-[10px] text-stone-500 text-right tabular-nums">{it.qty}</div>
-                                        <div className="text-[10px] text-stone-500 text-right tabular-nums">{it.rate}</div>
-                                        <div className="text-[10px] text-stone-800 text-right tabular-nums font-medium">{it.amount}</div>
+                                    <div key={idx} className="grid grid-cols-[1fr_32px_72px_80px] gap-2 px-2 py-2 items-start">
+                                        <div className="text-[10.5px] text-stone-700 leading-snug">{it.desc}</div>
+                                        <div className="text-[10.5px] text-stone-500 text-right tabular-nums">{it.qty}</div>
+                                        <div className="text-[10.5px] text-stone-500 text-right tabular-nums">{it.rate}</div>
+                                        <div className="text-[10.5px] text-stone-800 text-right tabular-nums font-medium">{it.amount}</div>
                                     </div>
                                 ))}
                             </div>
                         </>
                     ) : (
-                        <div className="space-y-1.5 px-0.5">
+                        <div className="space-y-2 px-0.5">
                             {d.items.map((it, idx) => (
-                                <div key={idx} className="text-[10.5px] text-stone-700 leading-snug">
+                                <div key={idx} className="text-[11px] text-stone-700 leading-snug">
                                     {it.desc}
                                 </div>
                             ))}
@@ -370,24 +370,24 @@ function DocumentPreviewCard({ persona }: { persona: Persona }) {
 
                 {/* Totals / status */}
                 <div className="mt-3 pt-3 border-t border-stone-200 flex justify-end">
-                    <div className="w-full max-w-[200px] space-y-1">
+                    <div className="w-full max-w-[220px] space-y-1.5">
                         {hasTable && (
                             <>
-                                <div className="flex justify-between text-[10px] text-stone-500">
+                                <div className="flex justify-between text-[10.5px] text-stone-500">
                                     <span>Subtotal</span>
                                     <span className="tabular-nums">{d.subtotal}</span>
                                 </div>
-                                <div className="flex justify-between text-[10px] text-stone-500">
+                                <div className="flex justify-between text-[10.5px] text-stone-500">
                                     <span>{d.taxLabel}</span>
                                     <span className="tabular-nums">{d.taxAmount}</span>
                                 </div>
                             </>
                         )}
-                        <div className="flex justify-between items-baseline pt-1.5 border-t border-stone-200">
+                        <div className="flex justify-between items-baseline pt-2 border-t border-stone-200">
                             <span className="text-[9px] uppercase tracking-wider text-stone-400 font-semibold">
                                 {hasTable ? "Total" : "Status"}
                             </span>
-                            <span className="font-serif text-[13px] font-bold text-[#1C1A17] tabular-nums">{d.total}</span>
+                            <span className="font-serif text-[14px] font-bold text-[#1C1A17] tabular-nums">{d.total}</span>
                         </div>
                     </div>
                 </div>
@@ -443,21 +443,18 @@ export function PersonaTabs() {
                         </div>
 
                         {/* Persona headline + desc */}
-                        <div className="min-h-[140px]">
-                            <AnimatePresence mode="wait">
-                                <motion.div
-                                    key={active}
-                                    initial={{ opacity: 0, y: 6 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -6 }}
-                                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                                >
-                                    <h3 className="font-serif text-3xl text-white mb-3">{current.title}.</h3>
-                                    <p className="text-[var(--landing-text-muted)] text-base sm:text-lg mb-6 max-w-md leading-relaxed">
-                                        {current.desc}
-                                    </p>
-                                </motion.div>
-                            </AnimatePresence>
+                        <div className="min-h-[140px] relative">
+                            <motion.div
+                                key={active}
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                            >
+                                <h3 className="font-serif text-3xl text-white mb-3">{current.title}.</h3>
+                                <p className="text-[var(--landing-text-muted)] text-base sm:text-lg mb-6 max-w-md leading-relaxed">
+                                    {current.desc}
+                                </p>
+                            </motion.div>
 
                             <Link
                                 href="/auth/signup"
@@ -479,32 +476,27 @@ export function PersonaTabs() {
                                     <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
                                     <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
                                 </div>
-                                <AnimatePresence mode="wait">
-                                    <motion.div
-                                        key={current.id + "-url"}
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.25 }}
-                                        className="flex-1 flex justify-center"
-                                    >
-                                        <div className="text-[10.5px] font-mono text-stone-400 truncate max-w-[70%]">
-                                            clorefy.com · {current.doc.kind}
-                                        </div>
-                                    </motion.div>
-                                </AnimatePresence>
+                                <motion.div
+                                    key={current.id + "-url"}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="flex-1 flex justify-center"
+                                >
+                                    <div className="text-[10.5px] font-mono text-stone-400 truncate max-w-[70%]">
+                                        clorefy.com · {current.doc.kind}
+                                    </div>
+                                </motion.div>
                             </div>
 
                             {/* Split pane — chat left · document preview right */}
-                            <AnimatePresence mode="wait">
-                                <motion.div
-                                    key={current.id}
-                                    initial={{ opacity: 0, y: 6 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -6 }}
-                                    transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                                    className="grid grid-cols-[42%_58%] h-[380px] sm:h-[440px]"
-                                >
+                            <motion.div
+                                key={current.id}
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                                className="grid grid-cols-[40%_60%] h-[420px] sm:h-[480px]"
+                            >
                                     {/* Chat panel */}
                                     <div className="flex flex-col bg-[#fbfbfa] border-r border-stone-200 min-w-0">
                                         <div className="px-3.5 py-2.5 border-b border-stone-200 flex items-center gap-2 shrink-0">
@@ -522,9 +514,8 @@ export function PersonaTabs() {
                                                 </div>
                                             </div>
 
-                                            {/* AI thinking indicator */}
-                                            <div className="flex items-center gap-1.5 px-1">
-                                                <Sparkles size={10} className="text-[var(--landing-amber)]" />
+                                            {/* Status label — no icon */}
+                                            <div className="px-1">
                                                 <span className="text-[9.5px] font-medium text-stone-500">Drafted from your profile</span>
                                             </div>
 
@@ -553,8 +544,7 @@ export function PersonaTabs() {
                                             <DocumentPreviewCard persona={current} />
                                         </div>
                                     </div>
-                                </motion.div>
-                            </AnimatePresence>
+                            </motion.div>
                         </div>
                     </div>
 
