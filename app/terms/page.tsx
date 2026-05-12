@@ -18,7 +18,7 @@ export default function TermsPage() {
             </ul>
 
             <h2>3. Service Description</h2>
-            <p>Clorefy provides AI-powered document generation for businesses across 11 countries. Users describe their document needs in natural language, and our AI generates professionally formatted, country-specific compliant documents. The Service includes:</p>
+            <p>Clorefy provides AI-powered document generation for businesses worldwide. Users describe their document needs in natural language, and our AI generates professionally formatted, country-specific compliant documents. The Service includes:</p>
             <ul>
                 <li>AI-powered generation of invoices, contracts, quotations, and proposals</li>
                 <li>Country-specific tax compliance and formatting</li>

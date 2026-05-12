@@ -1,12 +1,12 @@
-// Countries supported by Clorefy.
+// Countries supported by Clorefy — every ISO 3166-1 country is supported.
 //
-// Countries with a rich compliance RAG profile (India, USA, UK, Germany,
-// Canada, Australia, Singapore, UAE, Philippines, France, Netherlands)
-// carry a full taxIdFormat regex so the onboarding form can validate the
-// tax ID structure. Every other country in the world is also supported —
-// those entries use a permissive "^.{3,40}$" regex so users can enter any
-// format their jurisdiction uses. The compliance knowledge base fills in
-// any country-specific document rules dynamically at generation time.
+// A small set of major markets (India, USA, UK, Germany, Canada, Australia,
+// Singapore, UAE, Philippines, France, Netherlands) carries a full
+// taxIdFormat regex so the onboarding form can validate the tax-ID
+// structure (GSTIN, EIN, VAT Reg No, etc.). Every other country in the
+// world uses a permissive "^.{3,40}$" regex so users can enter any format
+// their jurisdiction uses. The compliance_knowledge RAG fills in any
+// country-specific document rules dynamically at generation time.
 
 export interface Country {
     code: string           // ISO 3166-1 alpha-2
@@ -418,7 +418,9 @@ export function getTaxIdFieldName(countryCode: string): string {
     if (!country) return "taxId"
 
     // Field keys used in the businesses.tax_ids JSONB column for the
-    // 11 core countries. Other countries fall through to a generic key.
+    // primary-market countries (India, USA, UK, Germany, Canada,
+    // Australia, Singapore, UAE, Philippines, France, Netherlands).
+    // Other countries fall through to a generic key.
     const fieldMap: Record<string, string> = {
         IN: "gstin",
         US: "ein",

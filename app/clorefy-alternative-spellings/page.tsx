@@ -12,7 +12,7 @@ const PAGE_URL = BASE_URL + "/clorefy-alternative-spellings"
 export const metadata: Metadata = {
   title: "Clorefy Spelling & Common Misspellings — clorify, clorefi, clorfy | Clorefy",
   description:
-    "Searching for clorify, clorefi, clorfy, cloriphy, or clorafy? The correct spelling is Clorefy — the AI invoice, contract & proposal generator for 11 countries. Free to start.",
+    "Searching for clorify, clorefi, clorfy, cloriphy, or clorafy? The correct spelling is Clorefy — the AI invoice, contract & proposal generator for every country worldwide. Free to start.",
   alternates: { canonical: PAGE_URL },
   keywords: [
     "clorify", "clorefi", "clorfy", "cloriphy", "clorafy", "clorephy", "clorifly",
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Clorefy Spelling & Common Misspellings | Clorefy",
     description:
-      "Searching for clorify, clorefi, or clorfy? You found Clorefy — AI invoice, contract & proposal generator for 11 countries.",
+      "Searching for clorify, clorefi, or clorfy? You found Clorefy — AI invoice, contract & proposal generator for every country worldwide.",
     url: PAGE_URL,
     siteName: "Clorefy",
     type: "website",
@@ -64,7 +64,7 @@ export default function AlternativeSpellingsPage() {
         name: "What is Clorefy?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Clorefy is an AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals from natural language descriptions. It supports 11 countries including India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, and Netherlands with automatic tax compliance (GST, VAT, sales tax).",
+          text: "Clorefy is an AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals from natural language descriptions. It works for every country worldwide — including India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands, and beyond — with automatic tax compliance (GST, VAT, sales tax).",
         },
       },
       {
@@ -87,7 +87,7 @@ export default function AlternativeSpellingsPage() {
     url: "https://clorefy.com",
     logo: { "@type": "ImageObject", url: "https://clorefy.com/favicon.png" },
     description:
-      "AI-powered document generation platform for invoices, contracts, quotations, and proposals across 11 countries.",
+      "AI-powered document generation platform for invoices, contracts, quotations, and proposals for every country worldwide.",
     sameAs: [
       "https://twitter.com/clorefy",
       "https://linkedin.com/company/clorefy",
@@ -169,7 +169,7 @@ export default function AlternativeSpellingsPage() {
               "Contracts — service agreements, NDAs, employment contracts",
               "Quotations — price quotes, estimates, bids",
               "Proposals — business proposals, project pitches",
-              "11 countries supported: India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands",
+              "Every country worldwide supported — India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands, and beyond",
               "Export as PDF, DOCX, PNG, or JPG",
               "Digital e-signatures with audit trail",
               "Free plan — 5 documents/month, no credit card needed",
@@ -201,7 +201,7 @@ export default function AlternativeSpellingsPage() {
               },
               {
                 q: "What countries does Clorefy support?",
-                a: "Clorefy supports India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, and Netherlands — with country-specific tax compliance built in.",
+                a: "Clorefy works for every country worldwide — with country-specific tax compliance built in. Primary markets include India (GST), USA (Sales Tax), UK, Germany, France, Netherlands (VAT), Canada, Australia, Singapore, UAE, and the Philippines, with support for every other jurisdiction via our global compliance knowledge base.",
               },
             ].map(({ q, a }) => (
               <div key={q} className="border-b border-gray-200 dark:border-gray-700 pb-6 last:border-0 last:pb-0">

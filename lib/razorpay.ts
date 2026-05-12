@@ -24,7 +24,7 @@ export const PLANS = {
         yearlyPrice: 79900,   // ₹799/mo in paise
         documentsPerMonth: 50,
         messagesPerSession: 25,
-        features: ["All 4 document types", "All 9 templates", "All 11 countries", "PDF + DOCX", "30-day history"],
+        features: ["All 4 document types", "All 9 templates", "Every country worldwide", "PDF + DOCX", "30-day history"],
     },
     pro: {
         name: "Pro",
@@ -32,7 +32,7 @@ export const PLANS = {
         yearlyPrice: 199900,   // ₹1999/mo in paise
         documentsPerMonth: 150,
         messagesPerSession: 30,
-        features: ["All 4 document types", "All 9 templates", "All 11 countries", "All export formats", "1-year history", "E-signatures", "Custom branding"],
+        features: ["All 4 document types", "All 9 templates", "Every country worldwide", "All export formats", "1-year history", "E-signatures", "Custom branding"],
     },
     agency: {
         name: "Agency",

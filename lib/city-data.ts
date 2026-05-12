@@ -1,7 +1,8 @@
 ﻿/**
  * Static city data for programmatic SEO city landing pages.
- * 11 countries x 3-5 cities each = ~45 cities
- * 45 cities x 4 document types = ~180 city landing pages
+ * A curated set of major-market countries × top cities — generates a
+ * bounded number of static landing pages. The underlying app generates
+ * documents for every country worldwide; this list is a marketing subset.
  */
 
 import { CountryData, DocumentTypeData, SUPPORTED_COUNTRIES, DOCUMENT_TYPES, getCountryBySlug, getDocumentTypeBySlug, getRelatedBlogSlugs } from "@/lib/seo-data"

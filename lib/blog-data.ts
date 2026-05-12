@@ -74,7 +74,7 @@ export const blogPosts: BlogPost[] = [
 <p>AI invoice generators are ideal for freelancers, consultants, agencies, small businesses, and anyone who sends invoices regularly but doesn't want to pay for complex accounting software. If you've ever spent 20 minutes formatting an invoice in Word or Google Docs, an AI generator will change your workflow.</p>
 
 <h2>Getting Started with Clorefy</h2>
-<p>Clorefy is a free AI invoice generator that supports 11 countries, multiple currencies, and all major document types. Sign up, complete a quick onboarding chat, and start generating invoices immediately. Your business profile is saved so every future invoice auto-fills your details.</p>`
+<p>Clorefy is a free AI invoice generator that supports every country worldwide, multiple currencies, and all major document types. Sign up, complete a quick onboarding chat, and start generating invoices immediately. Your business profile is saved so every future invoice auto-fills your details.</p>`
     },
 
     // ── 2. Free Invoice Generator ─────────────────────────────────────────
@@ -394,8 +394,8 @@ export const blogPosts: BlogPost[] = [
     // ── 11. Invoice Tax Compliance ────────────────────────────────────────
     {
         slug: "invoice-tax-compliance-guide",
-        title: "Invoice Tax Compliance: GST, VAT, and Sales Tax Rules for 11 Countries",
-        description: "Navigate invoice tax compliance across India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, and Netherlands.",
+        title: "Invoice Tax Compliance: GST, VAT, and Sales Tax Rules for Every Major Country",
+        description: "Navigate invoice tax compliance worldwide — including India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands, and beyond.",
         keyword: "invoice tax compliance",
         publishedAt: "2025-08-15T00:00:00Z",
         updatedAt: "2025-12-01T00:00:00Z",
@@ -745,7 +745,7 @@ export const blogPosts: BlogPost[] = [
 <h2>Key Differences</h2>
 <p>Zoho Invoice is part of a larger ecosystem (Zoho CRM, Zoho Books). If you're already in the Zoho ecosystem, it integrates well. Clorefy is standalone and focused on speed — AI generates documents 10x faster than filling forms.</p>
 <h2>Multi-Country Support</h2>
-<p><strong>Zoho:</strong> Supports many countries but requires manual tax configuration. <strong>Clorefy:</strong> 11 countries with automatic tax compliance — GST, VAT, Sales Tax applied automatically based on your country.</p>`
+<p><strong>Zoho:</strong> Supports many countries but requires manual tax configuration. <strong>Clorefy:</strong> Every country worldwide with automatic tax compliance — GST, VAT, Sales Tax applied automatically based on your country.</p>`
     },
 
     {
@@ -763,7 +763,7 @@ export const blogPosts: BlogPost[] = [
         content: `<h2>Why Freelancers Need AI Tools</h2>
 <p>Freelancers wear every hat — designer, developer, accountant, salesperson, and admin. AI tools automate the repetitive parts so you can focus on billable work. The average freelancer saves 10-15 hours per month with the right AI tools.</p>
 <h2>AI Invoicing: Clorefy</h2>
-<p>Instead of filling out invoice templates, describe your invoice in plain text. Clorefy generates a complete, tax-compliant invoice with your branding in under 60 seconds. Supports 11 countries and 9 currencies.</p>
+<p>Instead of filling out invoice templates, describe your invoice in plain text. Clorefy generates a complete, tax-compliant invoice with your branding in under 60 seconds. Supports every country worldwide and 9+ currencies.</p>
 <h2>AI Writing: ChatGPT / Claude</h2>
 <p>For client emails, proposals, and content writing. Use AI to draft, then edit for your voice.</p>
 <h2>AI Design: Canva / Figma AI</h2>

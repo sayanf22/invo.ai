@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     alternates: { canonical: "/features" },
     openGraph: {
         title: "Clorefy Features — AI Document Generation Platform",
-        description: "AI-powered invoices, contracts, quotations, proposals. 9 templates, 11 countries, all export formats.",
+        description: "AI-powered invoices, contracts, quotations, proposals. 9 templates, every country worldwide, all export formats.",
     },
 }
 
@@ -22,7 +22,7 @@ const webPageJsonLd = {
         name: "Clorefy",
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web",
-        description: "AI-powered document generation platform for invoices, contracts, quotations, and proposals across 11 countries.",
+        description: "AI-powered document generation platform for invoices, contracts, quotations, and proposals. Compliant for every country worldwide.",
         featureList: [
             "AI-powered document generation",
             "Multi-country tax compliance",

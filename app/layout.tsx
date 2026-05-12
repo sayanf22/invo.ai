@@ -29,7 +29,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Clorefy — AI Invoice Generator, Contract Maker & Auto Payment Reminders | 11 Countries",
+    default: "Clorefy — AI Invoice Generator, Contract Maker & Auto Payment Reminders | Every Country",
     template: "%s | Clorefy",
   },
   description:
@@ -91,7 +91,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Clorefy — AI Invoice Generator with Auto Payment Reminders & Recurring Billing",
     description:
-      "Generate invoices, contracts & proposals with AI. Auto-email clients, attach payment links, chase overdue bills, run recurring billing. GST, VAT, sales tax compliant for 11 countries. Free plan available.",
+      "Generate invoices, contracts & proposals with AI. Auto-email clients, attach payment links, chase overdue bills, run recurring billing. GST, VAT, sales tax compliant for every country worldwide. Free plan available.",
     url: "https://clorefy.com",
     siteName: "Clorefy",
     locale: "en_US",
@@ -109,7 +109,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Clorefy — AI Invoice Generator with Auto Reminders",
     description:
-      "Generate invoices & contracts with AI. Auto-email clients, attach payment links, chase overdue bills. 11 countries. Free plan.",
+      "Generate invoices & contracts with AI. Auto-email clients, attach payment links, chase overdue bills. Every country worldwide. Free plan.",
     images: ["/favicon.png"],
   },
   robots: {
@@ -148,7 +148,7 @@ export default function RootLayout({
               "name": "Clorefy",
               "alternateName": ["Clorefy AI", "Clorify", "Clorefy.com"],
               "url": "https://clorefy.com",
-              "description": "AI-powered document generation platform for invoices, contracts, quotations, and proposals. Compliant across 11 countries.",
+              "description": "AI-powered document generation platform for invoices, contracts, quotations, and proposals. Compliant for every country worldwide.",
               "potentialAction": {
                 "@type": "SearchAction",
                 "target": {
@@ -178,7 +178,7 @@ export default function RootLayout({
                 "height": 512,
               },
               "image": "https://clorefy.com/favicon.png",
-              "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals. Compliant across 11 countries including India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, and Netherlands.",
+              "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals. Compliant for every country worldwide — including India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands and beyond.",
               "foundingDate": "2025",
               "numberOfEmployees": { "@type": "QuantitativeValue", "value": 1 },
               "sameAs": [
@@ -217,7 +217,7 @@ export default function RootLayout({
               "applicationCategory": "BusinessApplication",
               "applicationSubCategory": "InvoicingApplication",
               "operatingSystem": "Web, iOS, Android",
-              "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals using artificial intelligence. Compliant across 11 countries.",
+              "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals using artificial intelligence. Compliant for every country worldwide.",
               "featureList": [
                 "AI invoice generation",
                 "AI contract generation",
@@ -230,7 +230,7 @@ export default function RootLayout({
                 "DOCX export",
                 "Digital e-signatures",
                 "Multi-currency support",
-                "11 country support",
+                "Worldwide country support",
               ],
               "screenshot": "https://clorefy.com/favicon.png",
               "offers": [

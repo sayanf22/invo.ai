@@ -210,7 +210,7 @@ export function generateOrganizationSchema(sameAsUrls?: string[]): object {
     name: ORG_NAME,
     url: ORG_URL,
     logo: ORG_LOGO,
-    description: "AI-powered document generation platform for invoices, contracts, quotations, and proposals across 11 countries.",
+    description: "AI-powered document generation platform for invoices, contracts, quotations, and proposals. Compliant for every country worldwide.",
     ...(sameAsUrls && sameAsUrls.length > 0
       ? { sameAs: sameAsUrls }
       : {}),

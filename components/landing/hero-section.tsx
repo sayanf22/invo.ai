@@ -109,7 +109,7 @@ export function HeroSection() {
                         transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
                         className="text-[15px] sm:text-lg md:text-xl text-[#5B5550] max-w-xl mx-auto mb-8 sm:mb-12 leading-relaxed font-medium px-2"
                     >
-                        Compliant invoices, contracts, and proposals across 11 countries — your business details saved once, auto-filled forever.
+                        Compliant invoices, contracts, and proposals for every country worldwide — your business details saved once, auto-filled forever.
                     </motion.p>
 
                     {/* CTA buttons */}

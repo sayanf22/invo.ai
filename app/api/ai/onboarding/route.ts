@@ -66,7 +66,7 @@ Examples:
 - User says "Sayan Banik" → "Perfect, Sayan Banik! ✅ What's your email address?"
 - User says "india" → "Great, India (IN) it is! ✅ What's your business name?"
 - User says "no" (to tax) → "No worries, no tax registration noted! ✅ Which countries do your clients come from?"
-- User says "all" (for countries) → "Got it, all 11 countries! ✅ What's your preferred currency?"
+- User says "all" (for countries) → "Got it, all major markets! ✅ What's your preferred currency?"
 - User says "kolkata" (for address) → "Got it, Kolkata! ✅ Are you registered for GST/VAT/Sales Tax?"
 
 ALWAYS include the actual value in your confirmation. Never just say "Got it!" without repeating what you understood.
@@ -107,7 +107,7 @@ Examples when you asked about country:
 Examples for other fields:
 - "yes" / "yeah" / "yep" → affirmative to whatever you asked
 - "no" / "nah" / "nope" → negative to whatever you asked
-- "all" / "all countries" / "everywhere" → if asked about clientCountries, set ALL 11 countries: ["IN","US","GB","DE","CA","AU","SG","AE","PH","FR","NL"]
+- "all" / "all countries" / "everywhere" → if asked about clientCountries, set the primary-market set: ["IN","US","GB","DE","CA","AU","SG","AE","PH","FR","NL"]
 - "rupees" / "inr" → defaultCurrency: "INR"
 - "dollars" / "usd" → defaultCurrency: "USD"
 - "euros" / "eur" → defaultCurrency: "EUR"
@@ -128,7 +128,7 @@ If the user asks a question instead of giving an answer (e.g., "what does that m
 
 ## FIELDS TO COLLECT (in this order)
 1. businessType: "freelancer" | "developer" | "agency" | "ecommerce" | "professional" | "other"
-2. country: 2-letter ISO code from: IN, US, GB, DE, CA, AU, SG, AE, PH, FR, NL
+2. country: 2-letter ISO 3166-1 alpha-2 code. Primary examples: IN, US, GB, DE, CA, AU, SG, AE, PH, FR, NL — but accept ANY valid ISO country code the user mentions.
 3. businessName: company/business name — ANY text is valid here
 4. ownerName: full name — ANY name text is valid here
 5. email: valid email address
@@ -137,7 +137,7 @@ If the user asks a question instead of giving an answer (e.g., "what does that m
 8. taxRegistered: boolean — "Are you registered for GST/VAT/Sales Tax?"
 9. taxId: ONLY if taxRegistered=true. If false → auto-set taxId="" and SKIP to next field.
 10. services: What services or products do you provide? — ANY text is valid here
-11. clientCountries: array of 2-letter codes. "all" = all 11 countries.
+11. clientCountries: array of 2-letter ISO country codes. Accept any ISO 3166-1 alpha-2 code. "all" = primary-market shortcut (IN, US, GB, DE, CA, AU, SG, AE, PH, FR, NL).
 12. defaultCurrency: ONE currency code only — INR, USD, GBP, EUR, CAD, AUD, SGD, AED, PHP. Pick the FIRST one if user says multiple.
 
 After collecting all 12 fields above, ask the FINAL question:
@@ -688,7 +688,7 @@ function interpretRequiredField(
             defaultCurrency: "This is the currency you'll use on your invoices and documents. For India it's INR (₹), for USA it's USD ($), for UK it's GBP (£), for Europe it's EUR (€). Which currency do you prefer?",
             taxRegistered: "This means whether your business is registered for tax collection — like GST in India, VAT in Europe, or Sales Tax in the US. If you're not sure, you can say 'no' for now. Are you registered?",
             services: "This tells me what you actually do, like 'web design', 'marketing', or 'selling shoes'. What services or products do you offer?",
-            clientCountries: "These are the countries where your clients are located. This helps me add the right compliance info to your documents. You can say 'all' for all 11 supported countries, or list specific ones.",
+            clientCountries: "These are the countries where your clients are located. This helps me add the right compliance info to your documents. You can say 'all' to use the primary-market shortcut, or list specific countries (any country worldwide is supported).",
             businessType: "This helps me understand your business better. Options are: freelancer, developer, agency, ecommerce, professional, or other. Which fits best?",
         }
         const help = helpTexts[currentField]

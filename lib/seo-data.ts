@@ -1,6 +1,8 @@
 /**
  * Static SEO data layer for programmatic SEO pages.
- * 11 countries × 4 document types = 44 unique landing pages.
+ * A curated set of primary-market countries × document types is used for
+ * static landing-page generation. The underlying app generates documents
+ * for every country worldwide — this list is a marketing / SEO subset.
  * All data is static TypeScript — no database queries needed.
  */
 

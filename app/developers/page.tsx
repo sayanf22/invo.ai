@@ -8,7 +8,7 @@ import { useState } from "react"
 
 const plannedFeatures = [
   { icon: FileText, title: "Document Generation API", desc: "Generate invoices, contracts, quotes, and proposals via REST API with a single call." },
-  { icon: Globe, title: "Multi-country compliance", desc: "Built-in tax rules and legal requirements for all 11 supported countries, handled server-side." },
+  { icon: Globe, title: "Multi-country compliance", desc: "Built-in tax rules and legal requirements for every country worldwide, handled server-side." },
   { icon: Zap, title: "Webhooks", desc: "Real-time event notifications when documents are created, signed, or exported." },
   { icon: Code2, title: "SDKs", desc: "Official client libraries for JavaScript and Python to get you up and running fast." },
 ]

@@ -44,16 +44,14 @@ export interface ComplianceContext {
  * to the canonical format used in the compliance_knowledge table.
  * All keys are stored uppercase for case-insensitive lookup.
  *
- * The 11 countries with full RAG coverage map to their canonical
- * compliance_knowledge keys. Every other ISO 3166-1 country is
- * mapped to its standard English name so the AI can still generate
- * documents for those jurisdictions — the compliance retrieval will
- * return an empty rule set and the prompt's "CLARIFICATION QUESTION
- * RULES" section instructs the model to ask the user for any
- * country-specific details it needs.
+ * Covers every ISO 3166-1 country. The compliance_knowledge RAG holds
+ * per-country tax / invoicing / contract data — depth varies by country.
+ * For any country that has data in the RAG, the retrieval returns the
+ * rules; for countries without data yet, the AI falls back to its
+ * CLARIFICATION QUESTION RULES and asks the user for their tax details.
  */
 export const COUNTRY_MAP: Record<string, string> = {
-  // ── 11 countries with full compliance RAG coverage ───────────────
+  // ── ISO alpha-2 codes for the primary markets we ship UI for ─────
   "IN": "India", "US": "USA", "GB": "UK", "DE": "Germany",
   "CA": "Canada", "AU": "Australia", "SG": "Singapore",
   "AE": "UAE", "PH": "Philippines", "FR": "France", "NL": "Netherlands",

@@ -1,6 +1,8 @@
 ﻿/**
  * Hreflang tag generation for international SEO.
- * Supports all 11 countries with correct ISO 639-1 + ISO 3166-1 Alpha-2 locale codes.
+ * Covers the primary supported locales used by the /tools/ SEO landing
+ * pages. The underlying app still accepts every ISO 3166-1 country for
+ * document generation — the hreflang set is a curated marketing subset.
  */
 
 import { SUPPORTED_COUNTRIES } from "@/lib/seo-data"

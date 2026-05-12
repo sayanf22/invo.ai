@@ -218,7 +218,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                                     <div>
                                         <h3 className="text-lg font-bold mb-1">Generate this document in 30 seconds</h3>
                                         <p className="text-stone-400 text-sm leading-relaxed mb-4">
-                                            Clorefy uses AI to create professional invoices, contracts, and proposals from a single sentence. GST, VAT, and sales tax handled automatically for 11 countries.
+                                            Clorefy uses AI to create professional invoices, contracts, and proposals from a single sentence. GST, VAT, and sales tax handled automatically for every country worldwide.
                                         </p>
                                         <Link
                                             href="/auth/signup"
@@ -278,7 +278,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                                     </div>
                                 </div>
                                 <p className="text-xs text-stone-500 leading-relaxed">
-                                    We build AI tools that generate invoices, contracts, and proposals for 11 countries. This article is written by our team of document automation experts.
+                                    We build AI tools that generate invoices, contracts, and proposals for every country worldwide. This article is written by our team of document automation experts.
                                 </p>
                             </div>
 

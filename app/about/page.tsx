@@ -9,9 +9,9 @@ export default function AboutPage() {
             <p>Clorefy is an AI-powered document generation platform that helps businesses create professional invoices, contracts, quotations, and proposals in seconds. Instead of spending hours formatting documents manually, users simply describe what they need in plain language, and our AI generates complete, compliant documents ready for review, editing, and export.</p>
 
             <h2>What We Do</h2>
-            <p>We serve businesses of all sizes — freelancers, agencies, lawyers, sales teams, and enterprises — across 11 countries with country-specific tax compliance and legal formatting. Our platform supports:</p>
+            <p>We serve businesses of all sizes — freelancers, agencies, lawyers, sales teams, and enterprises — across every country worldwide with country-specific tax compliance and legal formatting. Our platform supports:</p>
             <ul>
-                <li><strong>Invoices</strong> with automatic tax calculations (GST, VAT, sales tax) for India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, and Netherlands</li>
+                <li><strong>Invoices</strong> with automatic tax calculations (GST, VAT, sales tax) tuned for every jurisdiction — including India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands, and every other country worldwide</li>
                 <li><strong>Contracts</strong> including service agreements, employment contracts, and NDAs</li>
                 <li><strong>Quotations</strong> for price quotes, estimates, and bids</li>
                 <li><strong>Proposals</strong> for business proposals, project proposals, and pitches</li>

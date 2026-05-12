@@ -300,7 +300,7 @@ export function ComparisonTable() {
           </h2>
 
           <p className="text-base leading-relaxed max-w-xl mx-auto" style={{ color: MUTED }}>
-            FreshBooks starts at <strong className="font-semibold" style={{ color: DARK }}>$21/mo</strong>, QuickBooks at <strong className="font-semibold" style={{ color: DARK }}>$38/mo</strong>, Bonsai at <strong className="font-semibold" style={{ color: DARK }}>$15/mo</strong> — none have AI generation or 11-country tax compliance.
+            FreshBooks starts at <strong className="font-semibold" style={{ color: DARK }}>$21/mo</strong>, QuickBooks at <strong className="font-semibold" style={{ color: DARK }}>$38/mo</strong>, Bonsai at <strong className="font-semibold" style={{ color: DARK }}>$15/mo</strong> — none have AI generation or worldwide tax compliance.
             Clorefy starts at <strong className="font-bold" style={{ color: AMBER }}>$9/mo</strong> with a free plan.
           </p>
         </motion.div>

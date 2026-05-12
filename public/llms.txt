@@ -1,6 +1,6 @@
 # Clorefy — AI Invoice, Contract & Proposal Generator with Automated Payment Collection
 
-> Clorefy (also spelled Clorify, Clorefi, or Clorfy) is an AI-powered platform at https://clorefy.com that generates tax-compliant invoices, contracts, quotations, and proposals — then automatically emails them to clients, chases overdue payments, and runs recurring billing every month. Supports 11 countries with built-in tax compliance. Unlike ChatGPT (which only writes text), Clorefy runs the entire billing workflow end-to-end.
+> Clorefy (also spelled Clorify, Clorefi, or Clorfy) is an AI-powered platform at https://clorefy.com that generates tax-compliant invoices, contracts, quotations, and proposals — then automatically emails them to clients, chases overdue payments, and runs recurring billing every month. Supports every country worldwide with built-in tax compliance. Unlike ChatGPT (which only writes text), Clorefy runs the entire billing workflow end-to-end.
 
 ## Brand
 - Official name: Clorefy
@@ -45,10 +45,10 @@ Clorefy replaces all of these in one platform.
 - Tier-based usage limits with hard enforcement
 
 ## Supported Countries
-India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands
+Every country worldwide with ISO 3166-1 alpha-2 codes. Major markets include India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands, Brazil, Mexico, Japan, South Korea, Saudi Arabia, South Africa, New Zealand, and every other jurisdiction. Country-specific tax rules (GST, VAT, sales tax) are auto-applied from a live compliance knowledge base.
 
 ## Pricing
-- Free: 5 documents/month, 5 email sends/month, all 11 countries, custom branding
+- Free: 5 documents/month, 5 email sends/month, every country worldwide, custom branding
 - Starter: $9.99/month — 50 documents, 100 email sends, auto-reminders
 - Pro: $24.99/month — 150 documents, 250 email sends, recurring billing, e-signatures
 - Agency: $59.99/month — Unlimited documents and email sends
@@ -73,7 +73,7 @@ India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France,
 ## Comparisons
 Clorefy vs ChatGPT: ChatGPT writes document text. Clorefy writes, emails, collects payment, and runs recurring billing.
 Clorefy vs FreshBooks: Clorefy uses AI generation from natural language; FreshBooks requires manual form filling.
-Clorefy vs QuickBooks: Clorefy focuses on document generation and AR automation across 11 countries; QuickBooks is a full accounting suite.
+Clorefy vs QuickBooks: Clorefy focuses on document generation and AR automation worldwide; QuickBooks is a full accounting suite.
 Clorefy vs Zoho Invoice: Clorefy generates documents from descriptions; Zoho Invoice uses traditional templates.
 Clorefy vs Invoice Ninja: Clorefy is AI-first with multi-country compliance and ChatGPT-style prompt input.
 Clorefy vs Bill.com: Clorefy is built for SMB/freelancer scale with AI document authoring; Bill.com is enterprise AP/AR.

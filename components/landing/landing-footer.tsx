@@ -153,7 +153,7 @@ export function LandingFooter() {
                 {/* Countries & Cities — single merged section */}
                 <div className="pt-8 mb-10 border-t border-black/10">
                     <h4 className="font-display text-lg text-[var(--landing-text-dark)] mb-5">
-                        Available in 11 Countries
+                        Available Worldwide
                     </h4>
                     <div className="space-y-4">
                         {countryGroups.map((country) => (

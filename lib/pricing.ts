@@ -1,5 +1,5 @@
 /**
- * Multi-currency pricing for all 11 supported countries.
+ * Multi-currency pricing for the major supported markets.
  * Prices are set manually per country to look natural (e.g., ₹999, $9.99, €8.99).
  * Razorpay always charges in INR — the displayed price is for UX only.
  * The actual charge amount is the INR price.
