@@ -518,8 +518,8 @@ export function PersonaTabs() {
                                 </div>
                             </div>
 
-                            {/* Split pane — chat hidden below md, document preview fills full width on mobile/tablet */}
-                            <div className="grid grid-cols-1 md:grid-cols-[40%_60%] h-[460px] sm:h-[480px]">
+                            {/* Split pane — stacked flex on mobile (strip + doc), 2-col grid on md+ */}
+                            <div className="flex flex-col md:grid md:grid-cols-[40%_60%] h-[460px] sm:h-[480px]">
                                 {/* Chat panel — md+ only */}
                                 <div className="hidden md:flex flex-col bg-[#fbfbfa] border-r border-stone-200 min-w-0">
                                     <div className="px-3.5 py-2.5 border-b border-stone-200 flex items-center gap-2 shrink-0">
@@ -592,7 +592,7 @@ export function PersonaTabs() {
                                 </div>
 
                                 {/* Document preview panel — full width on mobile */}
-                                <div className="bg-[#f4f3ef] p-3 sm:p-4 min-w-0 overflow-hidden relative">
+                                <div className="flex-1 min-h-0 bg-[#f4f3ef] p-3 sm:p-4 min-w-0 overflow-hidden relative">
                                     <div className="h-full rounded-lg border border-stone-200 bg-white shadow-sm overflow-hidden relative">
                                         <AnimatePresence mode="popLayout" initial={false}>
                                             <motion.div
