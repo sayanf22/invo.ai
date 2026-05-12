@@ -303,14 +303,14 @@ function DocumentPreviewCard({ persona }: { persona: Persona }) {
     return (
         <div className="h-full flex flex-col bg-white">
             {/* Page */}
-            <div className="flex-1 flex flex-col p-5 sm:p-6 min-h-0">
+            <div className="flex-1 flex flex-col p-4 sm:p-6 min-h-0">
                 {/* Doc header: brand + ref */}
-                <div className="flex items-start justify-between gap-4 pb-3 border-b border-stone-200">
+                <div className="flex items-start justify-between gap-3 pb-3 border-b border-stone-200">
                     <div className="min-w-0">
-                        <div className="text-[8.5px] font-bold uppercase tracking-[0.18em] text-stone-400 mb-1 truncate">
+                        <div className="text-[8.5px] font-bold uppercase tracking-[0.16em] text-stone-400 mb-1 truncate">
                             {d.brand}
                         </div>
-                        <div className="font-serif text-[15px] sm:text-[17px] font-bold text-[#1C1A17] tracking-tight leading-tight truncate">
+                        <div className="font-serif text-[14px] sm:text-[17px] font-bold text-[#1C1A17] tracking-tight leading-tight truncate">
                             {d.title}
                         </div>
                     </div>
@@ -322,7 +322,7 @@ function DocumentPreviewCard({ persona }: { persona: Persona }) {
                 </div>
 
                 {/* From / To */}
-                <div className="grid grid-cols-2 gap-4 mt-3">
+                <div className="grid grid-cols-2 gap-3 mt-3">
                     <div className="min-w-0">
                         <div className="text-[8.5px] uppercase tracking-wider text-stone-400 mb-1">From</div>
                         <div className="text-[11px] font-semibold text-[#1C1A17] truncate">{d.fromName}</div>
@@ -336,22 +336,22 @@ function DocumentPreviewCard({ persona }: { persona: Persona }) {
                 </div>
 
                 {/* Items table or clause list */}
-                <div className="mt-3.5 flex-1 min-h-0">
+                <div className="mt-3 flex-1 min-h-0">
                     {hasTable ? (
                         <>
-                            {/* Table header */}
-                            <div className="grid grid-cols-[1fr_32px_72px_80px] gap-2 px-2 py-1.5 rounded-md bg-stone-50 border border-stone-200">
+                            {/* Table header — responsive: hide Qty/Rate on narrow widths */}
+                            <div className="grid grid-cols-[1fr_70px] sm:grid-cols-[1fr_32px_72px_80px] gap-2 px-2 py-1.5 rounded-md bg-stone-50 border border-stone-200">
                                 <div className="text-[9px] font-bold uppercase tracking-wider text-stone-500">Description</div>
-                                <div className="text-[9px] font-bold uppercase tracking-wider text-stone-500 text-right">Qty</div>
-                                <div className="text-[9px] font-bold uppercase tracking-wider text-stone-500 text-right">Rate</div>
+                                <div className="hidden sm:block text-[9px] font-bold uppercase tracking-wider text-stone-500 text-right">Qty</div>
+                                <div className="hidden sm:block text-[9px] font-bold uppercase tracking-wider text-stone-500 text-right">Rate</div>
                                 <div className="text-[9px] font-bold uppercase tracking-wider text-stone-500 text-right">Amount</div>
                             </div>
                             <div className="divide-y divide-stone-100">
                                 {d.items.map((it, idx) => (
-                                    <div key={idx} className="grid grid-cols-[1fr_32px_72px_80px] gap-2 px-2 py-2 items-start">
+                                    <div key={idx} className="grid grid-cols-[1fr_70px] sm:grid-cols-[1fr_32px_72px_80px] gap-2 px-2 py-2 items-start">
                                         <div className="text-[10.5px] text-stone-700 leading-snug">{it.desc}</div>
-                                        <div className="text-[10.5px] text-stone-500 text-right tabular-nums">{it.qty}</div>
-                                        <div className="text-[10.5px] text-stone-500 text-right tabular-nums">{it.rate}</div>
+                                        <div className="hidden sm:block text-[10.5px] text-stone-500 text-right tabular-nums">{it.qty}</div>
+                                        <div className="hidden sm:block text-[10.5px] text-stone-500 text-right tabular-nums">{it.rate}</div>
                                         <div className="text-[10.5px] text-stone-800 text-right tabular-nums font-medium">{it.amount}</div>
                                     </div>
                                 ))}
@@ -413,10 +413,10 @@ export function PersonaTabs() {
 
     return (
         <MotionConfig reducedMotion="user">
-        <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-10 bg-[var(--landing-cream)]">
-            <div className="max-w-[1400px] mx-auto bg-[var(--landing-dark)] rounded-[2.5rem] sm:rounded-[3.5rem] p-8 sm:p-14 lg:p-20 relative overflow-hidden shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] border-[3px] border-[var(--landing-dark)]">
+        <section className="py-12 sm:py-24 px-4 sm:px-6 lg:px-10 bg-[var(--landing-cream)]">
+            <div className="max-w-[1400px] mx-auto bg-[var(--landing-dark)] rounded-[1.75rem] sm:rounded-[3.5rem] p-5 sm:p-14 lg:p-20 relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] sm:shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] border-[2px] sm:border-[3px] border-[var(--landing-dark)]">
 
-                <div className="flex flex-col lg:flex-row gap-12 lg:gap-16 items-start">
+                <div className="flex flex-col lg:flex-row gap-8 lg:gap-16 items-start">
 
                     {/* Left side: Content & Pills */}
                     <div className="w-full lg:w-[44%] relative z-10 flex flex-col">
@@ -424,22 +424,22 @@ export function PersonaTabs() {
                             initial={{ opacity: 0, y: 20 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
-                            className="font-serif text-5xl sm:text-6xl lg:text-7xl font-medium text-[#F4F0EB] mb-4 tracking-tight leading-tight"
+                            className="font-serif text-[2.5rem] leading-[1.02] sm:text-6xl lg:text-7xl font-medium text-[#F4F0EB] mb-3 sm:mb-4 tracking-tight"
                         >
                             Made for the <br /> way <span className="italic text-[#c6a3db]">you</span> work
                         </motion.h2>
-                        <p className="text-[var(--landing-text-muted)] text-sm sm:text-base font-semibold tracking-wide uppercase mb-8">
-                            Tap a role — see the document Clorefy drafts for them.
+                        <p className="text-[var(--landing-text-muted)] text-[11px] sm:text-base font-semibold tracking-wide uppercase mb-6 sm:mb-8">
+                            Tap a role — see the doc we draft.
                         </p>
 
                         {/* Persona pills — sliding active indicator via layoutId */}
-                        <div className="flex flex-wrap gap-2.5 mb-10 max-w-xl">
+                        <div className="flex flex-wrap gap-2 sm:gap-2.5 mb-6 sm:mb-10 max-w-xl">
                             {personas.map((persona, i) => (
                                 <button
                                     key={persona.id}
                                     onClick={() => setActive(i)}
                                     aria-pressed={active === i}
-                                    className={`relative px-5 py-2 rounded-full border-[1.5px] text-sm sm:text-base font-bold transition-colors duration-300 ${
+                                    className={`relative px-3.5 sm:px-5 py-1.5 sm:py-2 rounded-full border-[1.5px] text-[13px] sm:text-base font-bold transition-colors duration-300 ${
                                         active === i
                                             ? "text-[var(--landing-dark)] border-white"
                                             : "bg-transparent text-white border-white/20 hover:border-white/50"
@@ -461,7 +461,7 @@ export function PersonaTabs() {
                         <motion.div
                             layout
                             transition={LAYOUT_SPRING}
-                            className="relative min-h-[160px]"
+                            className="relative min-h-[120px] sm:min-h-[160px]"
                         >
                             <AnimatePresence mode="popLayout" initial={false}>
                                 <motion.div
@@ -471,8 +471,8 @@ export function PersonaTabs() {
                                     exit={{ opacity: 0, y: -8, filter: "blur(6px)", transition: { duration: DUR_OUT, ease: EASE } }}
                                     transition={{ duration: DUR_IN, ease: EASE, delay: 0.05 }}
                                 >
-                                    <h3 className="font-serif text-3xl text-white mb-3">{current.title}.</h3>
-                                    <p className="text-[var(--landing-text-muted)] text-base sm:text-lg mb-6 max-w-md leading-relaxed">
+                                    <h3 className="font-serif text-2xl sm:text-3xl text-white mb-2 sm:mb-3">{current.title}.</h3>
+                                    <p className="text-[var(--landing-text-muted)] text-[14px] sm:text-lg mb-5 sm:mb-6 max-w-md leading-relaxed">
                                         {current.desc}
                                     </p>
                                 </motion.div>
@@ -480,7 +480,7 @@ export function PersonaTabs() {
 
                             <Link
                                 href="/auth/signup"
-                                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#f1d0f5] text-[var(--landing-dark)] font-bold text-sm sm:text-base transition-all hover:-translate-y-0.5 active:translate-y-0.5 hover:shadow-[3px_3px_0px_0px_rgba(241,208,245,0.5)]"
+                                className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full bg-[#f1d0f5] text-[var(--landing-dark)] font-bold text-sm sm:text-base transition-all hover:-translate-y-0.5 active:translate-y-0.5 hover:shadow-[3px_3px_0px_0px_rgba(241,208,245,0.5)]"
                             >
                                 Get Started Free
                                 <ArrowRight size={16} />
@@ -493,14 +493,14 @@ export function PersonaTabs() {
                         <motion.div
                             layout
                             transition={LAYOUT_SPRING}
-                            className="relative rounded-2xl overflow-hidden bg-white border border-stone-200 shadow-2xl"
+                            className="relative rounded-xl sm:rounded-2xl overflow-hidden bg-white border border-stone-200 shadow-2xl"
                         >
                             {/* Window chrome — matches the app's split layout */}
-                            <div className="h-9 border-b border-stone-200 bg-[#fbfbfa] flex items-center px-3.5 gap-2 shrink-0">
+                            <div className="h-8 sm:h-9 border-b border-stone-200 bg-[#fbfbfa] flex items-center px-3 sm:px-3.5 gap-2 shrink-0">
                                 <div className="flex gap-1.5">
-                                    <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-                                    <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-                                    <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+                                    <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-[#ff5f57]" />
+                                    <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-[#febc2e]" />
+                                    <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-[#28c840]" />
                                 </div>
                                 <div className="flex-1 flex justify-center">
                                     <AnimatePresence mode="popLayout" initial={false}>
@@ -510,7 +510,7 @@ export function PersonaTabs() {
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -4, transition: { duration: 0.25, ease: EASE } }}
                                             transition={{ duration: 0.45, ease: EASE }}
-                                            className="text-[10.5px] font-mono text-stone-400 truncate max-w-[70%]"
+                                            className="text-[9.5px] sm:text-[10.5px] font-mono text-stone-400 truncate max-w-[80%]"
                                         >
                                             clorefy.com · {current.doc.kind}
                                         </motion.div>
@@ -518,10 +518,10 @@ export function PersonaTabs() {
                                 </div>
                             </div>
 
-                            {/* Split pane — chat left · document preview right */}
-                            <div className="grid grid-cols-[40%_60%] h-[420px] sm:h-[480px]">
-                                {/* Chat panel */}
-                                <div className="flex flex-col bg-[#fbfbfa] border-r border-stone-200 min-w-0">
+                            {/* Split pane — chat hidden on mobile, document preview fills full width on mobile */}
+                            <div className="grid grid-cols-1 sm:grid-cols-[40%_60%] h-[460px] sm:h-[480px]">
+                                {/* Chat panel — desktop only */}
+                                <div className="hidden sm:flex flex-col bg-[#fbfbfa] border-r border-stone-200 min-w-0">
                                     <div className="px-3.5 py-2.5 border-b border-stone-200 flex items-center gap-2 shrink-0">
                                         <div className="w-5 h-5 rounded-full bg-[#1C1A17] flex items-center justify-center">
                                             <span className="text-white text-[9px] font-bold">C</span>
@@ -572,7 +572,26 @@ export function PersonaTabs() {
                                     </div>
                                 </div>
 
-                                {/* Document preview panel */}
+                                {/* Mobile: compact chat prompt strip above the doc */}
+                                <div className="sm:hidden flex items-start gap-2 px-3 py-2.5 border-b border-stone-200 bg-[#fbfbfa] shrink-0">
+                                    <div className="w-5 h-5 rounded-full bg-[#1C1A17] flex items-center justify-center shrink-0 mt-0.5">
+                                        <span className="text-white text-[9px] font-bold">C</span>
+                                    </div>
+                                    <AnimatePresence mode="popLayout" initial={false}>
+                                        <motion.div
+                                            key={current.id + "-mobile-chat"}
+                                            initial={{ opacity: 0, y: 6 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -4, transition: { duration: 0.25, ease: EASE } }}
+                                            transition={{ duration: 0.45, ease: EASE }}
+                                            className="flex-1 min-w-0 text-[11px] text-stone-600 leading-snug line-clamp-2"
+                                        >
+                                            <span className="font-semibold text-stone-700">You:</span> {current.chat.prompt}
+                                        </motion.div>
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* Document preview panel — full width on mobile */}
                                 <div className="bg-[#f4f3ef] p-3 sm:p-4 min-w-0 overflow-hidden relative">
                                     <div className="h-full rounded-lg border border-stone-200 bg-white shadow-sm overflow-hidden relative">
                                         <AnimatePresence mode="popLayout" initial={false}>
