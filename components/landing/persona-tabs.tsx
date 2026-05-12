@@ -1,6 +1,6 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { motion, AnimatePresence, MotionConfig } from "framer-motion"
 import { useState } from "react"
 import { ArrowRight } from "lucide-react"
 import Link from "next/link"
@@ -405,7 +405,14 @@ export function PersonaTabs() {
     const [active, setActive] = useState(0)
     const current = personas[active]
 
+    // Shared smooth easing — long, gentle, no jitter
+    const EASE = [0.22, 1, 0.36, 1] as const
+    const DUR_IN = 0.55
+    const DUR_OUT = 0.35
+    const LAYOUT_SPRING = { type: "spring" as const, stiffness: 220, damping: 32, mass: 0.9 }
+
     return (
+        <MotionConfig reducedMotion="user">
         <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-10 bg-[var(--landing-cream)]">
             <div className="max-w-[1400px] mx-auto bg-[var(--landing-dark)] rounded-[2.5rem] sm:rounded-[3.5rem] p-8 sm:p-14 lg:p-20 relative overflow-hidden shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] border-[3px] border-[var(--landing-dark)]">
 
@@ -425,36 +432,51 @@ export function PersonaTabs() {
                             Tap a role — see the document Clorefy drafts for them.
                         </p>
 
-                        {/* Persona pills */}
+                        {/* Persona pills — sliding active indicator via layoutId */}
                         <div className="flex flex-wrap gap-2.5 mb-10 max-w-xl">
                             {personas.map((persona, i) => (
                                 <button
                                     key={persona.id}
                                     onClick={() => setActive(i)}
-                                    className={`px-5 py-2 rounded-full border-[1.5px] text-sm sm:text-base font-bold transition-all duration-300 ${
+                                    aria-pressed={active === i}
+                                    className={`relative px-5 py-2 rounded-full border-[1.5px] text-sm sm:text-base font-bold transition-colors duration-300 ${
                                         active === i
-                                            ? "bg-white text-[var(--landing-dark)] border-white shadow-[2px_2px_0px_0px_rgba(255,255,255,0.3)]"
+                                            ? "text-[var(--landing-dark)] border-white"
                                             : "bg-transparent text-white border-white/20 hover:border-white/50"
                                     }`}
                                 >
-                                    {persona.label}
+                                    {active === i && (
+                                        <motion.span
+                                            layoutId="persona-active-pill"
+                                            className="absolute inset-0 bg-white rounded-full shadow-[2px_2px_0px_0px_rgba(255,255,255,0.3)]"
+                                            transition={LAYOUT_SPRING}
+                                        />
+                                    )}
+                                    <span className="relative z-10">{persona.label}</span>
                                 </button>
                             ))}
                         </div>
 
-                        {/* Persona headline + desc */}
-                        <div className="min-h-[140px] relative">
-                            <motion.div
-                                key={active}
-                                initial={{ opacity: 0, y: 4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                            >
-                                <h3 className="font-serif text-3xl text-white mb-3">{current.title}.</h3>
-                                <p className="text-[var(--landing-text-muted)] text-base sm:text-lg mb-6 max-w-md leading-relaxed">
-                                    {current.desc}
-                                </p>
-                            </motion.div>
+                        {/* Persona headline + desc — soft cross-fade with popLayout */}
+                        <motion.div
+                            layout
+                            transition={LAYOUT_SPRING}
+                            className="relative min-h-[160px]"
+                        >
+                            <AnimatePresence mode="popLayout" initial={false}>
+                                <motion.div
+                                    key={active}
+                                    initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
+                                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                                    exit={{ opacity: 0, y: -8, filter: "blur(6px)", transition: { duration: DUR_OUT, ease: EASE } }}
+                                    transition={{ duration: DUR_IN, ease: EASE, delay: 0.05 }}
+                                >
+                                    <h3 className="font-serif text-3xl text-white mb-3">{current.title}.</h3>
+                                    <p className="text-[var(--landing-text-muted)] text-base sm:text-lg mb-6 max-w-md leading-relaxed">
+                                        {current.desc}
+                                    </p>
+                                </motion.div>
+                            </AnimatePresence>
 
                             <Link
                                 href="/auth/signup"
@@ -463,12 +485,16 @@ export function PersonaTabs() {
                                 Get Started Free
                                 <ArrowRight size={16} />
                             </Link>
-                        </div>
+                        </motion.div>
                     </div>
 
                     {/* Right side: Actual platform mockup — chat + document preview */}
                     <div className="w-full lg:w-[56%]">
-                        <div className="relative rounded-2xl overflow-hidden bg-white border border-stone-200 shadow-2xl">
+                        <motion.div
+                            layout
+                            transition={LAYOUT_SPRING}
+                            className="relative rounded-2xl overflow-hidden bg-white border border-stone-200 shadow-2xl"
+                        >
                             {/* Window chrome — matches the app's split layout */}
                             <div className="h-9 border-b border-stone-200 bg-[#fbfbfa] flex items-center px-3.5 gap-2 shrink-0">
                                 <div className="flex gap-1.5">
@@ -476,80 +502,100 @@ export function PersonaTabs() {
                                     <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
                                     <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
                                 </div>
-                                <motion.div
-                                    key={current.id + "-url"}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="flex-1 flex justify-center"
-                                >
-                                    <div className="text-[10.5px] font-mono text-stone-400 truncate max-w-[70%]">
-                                        clorefy.com · {current.doc.kind}
-                                    </div>
-                                </motion.div>
+                                <div className="flex-1 flex justify-center">
+                                    <AnimatePresence mode="popLayout" initial={false}>
+                                        <motion.div
+                                            key={current.id + "-url"}
+                                            initial={{ opacity: 0, y: 4 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -4, transition: { duration: 0.25, ease: EASE } }}
+                                            transition={{ duration: 0.45, ease: EASE }}
+                                            className="text-[10.5px] font-mono text-stone-400 truncate max-w-[70%]"
+                                        >
+                                            clorefy.com · {current.doc.kind}
+                                        </motion.div>
+                                    </AnimatePresence>
+                                </div>
                             </div>
 
                             {/* Split pane — chat left · document preview right */}
-                            <motion.div
-                                key={current.id}
-                                initial={{ opacity: 0, y: 4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                                className="grid grid-cols-[40%_60%] h-[420px] sm:h-[480px]"
-                            >
-                                    {/* Chat panel */}
-                                    <div className="flex flex-col bg-[#fbfbfa] border-r border-stone-200 min-w-0">
-                                        <div className="px-3.5 py-2.5 border-b border-stone-200 flex items-center gap-2 shrink-0">
-                                            <div className="w-5 h-5 rounded-full bg-[#1C1A17] flex items-center justify-center">
-                                                <span className="text-white text-[9px] font-bold">C</span>
-                                            </div>
-                                            <span className="text-[10.5px] font-semibold text-stone-700">Clorefy</span>
+                            <div className="grid grid-cols-[40%_60%] h-[420px] sm:h-[480px]">
+                                {/* Chat panel */}
+                                <div className="flex flex-col bg-[#fbfbfa] border-r border-stone-200 min-w-0">
+                                    <div className="px-3.5 py-2.5 border-b border-stone-200 flex items-center gap-2 shrink-0">
+                                        <div className="w-5 h-5 rounded-full bg-[#1C1A17] flex items-center justify-center">
+                                            <span className="text-white text-[9px] font-bold">C</span>
                                         </div>
+                                        <span className="text-[10.5px] font-semibold text-stone-700">Clorefy</span>
+                                    </div>
 
-                                        <div className="flex-1 overflow-hidden px-3 py-3 space-y-2.5">
-                                            {/* User prompt bubble */}
-                                            <div className="flex justify-end">
-                                                <div className="max-w-[90%] px-3 py-2 rounded-2xl rounded-br-sm bg-[#1C1A17] text-white text-[10.5px] leading-snug">
-                                                    {current.chat.prompt}
+                                    <div className="flex-1 overflow-hidden px-3 py-3 relative">
+                                        <AnimatePresence mode="popLayout" initial={false}>
+                                            <motion.div
+                                                key={current.id + "-chat"}
+                                                initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
+                                                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                                                exit={{ opacity: 0, y: -8, filter: "blur(6px)", transition: { duration: DUR_OUT, ease: EASE } }}
+                                                transition={{ duration: DUR_IN, ease: EASE, delay: 0.08 }}
+                                                className="space-y-2.5"
+                                            >
+                                                {/* User prompt bubble */}
+                                                <div className="flex justify-end">
+                                                    <div className="max-w-[90%] px-3 py-2 rounded-2xl rounded-br-sm bg-[#1C1A17] text-white text-[10.5px] leading-snug">
+                                                        {current.chat.prompt}
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Status label — no icon */}
-                                            <div className="px-1">
-                                                <span className="text-[9.5px] font-medium text-stone-500">Drafted from your profile</span>
-                                            </div>
-
-                                            {/* AI reply bubble */}
-                                            <div className="flex justify-start">
-                                                <div className="max-w-[95%] px-3 py-2 rounded-2xl rounded-bl-sm bg-white border border-stone-200 text-[10.5px] text-stone-700 leading-snug">
-                                                    {current.chat.reply}
+                                                {/* Status label */}
+                                                <div className="px-1">
+                                                    <span className="text-[9.5px] font-medium text-stone-500">Drafted from your profile</span>
                                                 </div>
-                                            </div>
-                                        </div>
 
-                                        {/* Mock input */}
-                                        <div className="px-3 py-2.5 border-t border-stone-200 shrink-0">
-                                            <div className="flex items-center gap-2 px-3 py-2 rounded-full border border-stone-200 bg-white">
-                                                <div className="flex-1 text-[10px] text-stone-400">Ask Clorefy anything…</div>
-                                                <div className="w-5 h-5 rounded-full bg-[var(--landing-amber)] flex items-center justify-center">
-                                                    <ArrowRight size={10} className="text-white" />
+                                                {/* AI reply bubble */}
+                                                <div className="flex justify-start">
+                                                    <div className="max-w-[95%] px-3 py-2 rounded-2xl rounded-bl-sm bg-white border border-stone-200 text-[10.5px] text-stone-700 leading-snug">
+                                                        {current.chat.reply}
+                                                    </div>
                                                 </div>
+                                            </motion.div>
+                                        </AnimatePresence>
+                                    </div>
+
+                                    {/* Mock input */}
+                                    <div className="px-3 py-2.5 border-t border-stone-200 shrink-0">
+                                        <div className="flex items-center gap-2 px-3 py-2 rounded-full border border-stone-200 bg-white">
+                                            <div className="flex-1 text-[10px] text-stone-400">Ask Clorefy anything…</div>
+                                            <div className="w-5 h-5 rounded-full bg-[var(--landing-amber)] flex items-center justify-center">
+                                                <ArrowRight size={10} className="text-white" />
                                             </div>
                                         </div>
                                     </div>
+                                </div>
 
-                                    {/* Document preview panel */}
-                                    <div className="bg-[#f4f3ef] p-3 sm:p-4 min-w-0 overflow-hidden">
-                                        <div className="h-full rounded-lg border border-stone-200 bg-white shadow-sm overflow-hidden">
-                                            <DocumentPreviewCard persona={current} />
-                                        </div>
+                                {/* Document preview panel */}
+                                <div className="bg-[#f4f3ef] p-3 sm:p-4 min-w-0 overflow-hidden relative">
+                                    <div className="h-full rounded-lg border border-stone-200 bg-white shadow-sm overflow-hidden relative">
+                                        <AnimatePresence mode="popLayout" initial={false}>
+                                            <motion.div
+                                                key={current.id + "-doc"}
+                                                initial={{ opacity: 0, y: 14, filter: "blur(8px)" }}
+                                                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                                                exit={{ opacity: 0, y: -10, filter: "blur(8px)", transition: { duration: DUR_OUT, ease: EASE } }}
+                                                transition={{ duration: DUR_IN + 0.05, ease: EASE, delay: 0.12 }}
+                                                className="absolute inset-0"
+                                            >
+                                                <DocumentPreviewCard persona={current} />
+                                            </motion.div>
+                                        </AnimatePresence>
                                     </div>
-                            </motion.div>
-                        </div>
+                                </div>
+                            </div>
+                        </motion.div>
                     </div>
 
                 </div>
             </div>
         </section>
+        </MotionConfig>
     )
 }
