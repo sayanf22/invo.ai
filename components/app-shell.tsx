@@ -4,7 +4,7 @@ import React from "react"
 import { useState, useCallback, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
-import { InvoLogo } from "@/components/invo-logo"
+import { ClorefyLogo } from "@/components/clorefy-logo"
 import { PromptInput } from "@/components/prompt-input"
 import { CategoryPills } from "@/components/category-pills"
 import { PromptScreen } from "@/components/prompt-screen"
@@ -705,7 +705,7 @@ export function AppShell() {
   return (
     <div className="animate-in fade-in duration-300 min-h-screen flex flex-col bg-background">
       <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
-        <InvoLogo size={36} showBeta />
+        <ClorefyLogo size={36} showBeta />
         <HamburgerMenu />
       </header>
 
@@ -725,7 +725,7 @@ export function AppShell() {
         {/* ── Hero: Centered prompt ──────────────────────── */}
         <section className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center px-4 py-12">
           <div className="flex flex-col items-center gap-6 w-full max-w-[720px]">
-            <InvoLogo size={80} />
+            <ClorefyLogo size={80} />
             <h1 className="text-[40px] md:text-[48px] font-display font-medium tracking-tight text-foreground text-center text-balance leading-tight">
               {selectedCategory ? (
                 <>{"Describe your "}<span className="font-medium relative text-amber-700 dark:text-amber-500">{selectedCategory.toLowerCase()}<span className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-amber-700/30 dark:bg-amber-500/30" /></span></>

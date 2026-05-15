@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   FileText, ScrollText, FileQuestion, Presentation,
   ClipboardList, Shield, GitMerge, ClipboardCheck,
-  Bell, ChevronRight, Lock, Sparkles,
+  Bell, ChevronRight, Lock,
 } from "lucide-react"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { useTier } from "@/hooks/use-tier"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { getDocumentTypeConfig, type DocumentType } from "@/lib/document-type-registry"
+import { AnimatePresence, motion } from "framer-motion"
 
 // ── Icon map matching document-type-registry icon names ──────────────────────
-
 const ICON_MAP: Record<string, React.ElementType> = {
   FileText,
   FileCheck: ScrollText,
@@ -26,15 +26,10 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Bell,
 }
 
-// ── Example prompts for each document type ───────────────────────────────────
-// One prompt per doc type. Free tier sees only allowed types; paid tiers see all.
-// Clicking fills the prompt input; the user reviews and presses Enter to send.
-
+// ── Example prompts for each document type ────────────────────────────────────
 interface PillPrompt {
   type: DocumentType
-  /** Short label shown in the pill (≤ 40 chars). */
   shortLabel: string
-  /** Full prompt text injected into the input on click. */
   fullPrompt: string
 }
 
@@ -86,180 +81,177 @@ const ALL_PROMPTS: PillPrompt[] = [
   },
 ]
 
-// ── Auto-rotation timing ─────────────────────────────────────────────────────
-
-/** How long each suggestion is shown before rotating (ms). */
 const ROTATION_INTERVAL_MS = 4000
-
-/** Cross-fade duration between suggestions (ms). */
-const FADE_DURATION_MS = 300
 
 interface CategoryPillsProps {
   /**
-   * Called when the suggestion pill is clicked. Receives the FULL prompt text
-   * so the parent can fill its prompt input. Parent should NOT auto-send;
-   * the user reviews and presses Enter themselves.
+   * Called when a suggestion is clicked. Receives the full prompt text
+   * to fill the parent's input. Parent should NOT auto-send —
+   * user reviews and presses Enter.
    */
   onSelect?: (prompt: string) => void
 }
 
 /**
- * Auto-rotating prompt suggestion. Shows one example prompt at a time,
- * cycles every 4 seconds. Pauses while the user is hovering. Clicking the
- * pill fills the prompt input — the user then sends manually.
- *
- * Locked types (paid-tier only) are filtered out for free users so they
- * never see a suggestion they can't use.
+ * Auto-rotating prompt suggestion carousel.
+ * - Shows ALL 9 document type prompts (locked ones navigate to /billing).
+ * - Slides horizontally when transitioning between suggestions.
+ * - Pauses auto-rotation on hover.
+ * - Clicking fills the prompt input; user sends manually.
  */
 export function CategoryPills({ onSelect }: CategoryPillsProps) {
   const { requireAuth, isLoading } = useRequireAuth()
   const { allowedDocTypes, loading: tierLoading } = useTier()
   const router = useRouter()
 
-  // Filter prompts down to the user's allowed types. While tier is loading,
-  // we show the 4 always-allowed types so the surface never sits empty.
-  const visiblePrompts = useMemo<PillPrompt[]>(() => {
-    if (tierLoading) {
-      return ALL_PROMPTS.filter((p) => ["invoice", "contract", "quote", "proposal"].includes(p.type))
-    }
-    const filtered = ALL_PROMPTS.filter((p) => allowedDocTypes.includes(p.type))
-    // Defensive fallback — never render an empty rotator.
-    return filtered.length > 0 ? filtered : ALL_PROMPTS.slice(0, 1)
-  }, [allowedDocTypes, tierLoading])
-
-  // Whether the user has the full set (used to surface a small "Upgrade for more" hint).
-  const hasAllTypes = !tierLoading && allowedDocTypes.includes("sow")
-
-  // ── Rotation state ─────────────────────────────────────────────────────────
   const [index, setIndex] = useState(0)
-  const [fading, setFading] = useState(false)
+  // direction: 1 = sliding forward (right→left), -1 = sliding backward (left→right)
+  const [direction, setDirection] = useState(1)
   const pausedRef = useRef(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Reset index if the visible list shrinks (e.g. tier downgrade).
+  // Auto-rotate every 4 seconds
   useEffect(() => {
-    if (index >= visiblePrompts.length) setIndex(0)
-  }, [visiblePrompts.length, index])
-
-  useEffect(() => {
-    if (visiblePrompts.length <= 1) return
-
     const tick = () => {
       if (pausedRef.current) return
-      setFading(true)
-      setTimeout(() => {
-        setIndex((prev) => (prev + 1) % visiblePrompts.length)
-        setFading(false)
-      }, FADE_DURATION_MS)
+      setDirection(1)
+      setIndex(prev => (prev + 1) % ALL_PROMPTS.length)
     }
-
     intervalRef.current = setInterval(tick, ROTATION_INTERVAL_MS)
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [visiblePrompts.length])
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [])
 
-  // Pause rotation while user is hovering or has focused the pill.
-  const handleMouseEnter = () => { pausedRef.current = true }
-  const handleMouseLeave = () => { pausedRef.current = false }
-
-  // Manually advance to the next suggestion (small "next" button).
   const handleNext = () => {
-    setFading(true)
-    setTimeout(() => {
-      setIndex((prev) => (prev + 1) % visiblePrompts.length)
-      setFading(false)
-    }, FADE_DURATION_MS)
+    setDirection(1)
+    setIndex(prev => (prev + 1) % ALL_PROMPTS.length)
+  }
+
+  const handleDotClick = (i: number) => {
+    setDirection(i > index ? 1 : -1)
+    setIndex(i)
   }
 
   const handleSelect = (prompt: string) => {
-    const authWrapped = requireAuth(() => {
-      onSelect?.(prompt)
-    })
-    authWrapped()
+    requireAuth(() => { onSelect?.(prompt) })()
   }
 
-  if (visiblePrompts.length === 0) return null
-
-  const current = visiblePrompts[index]
+  const current = ALL_PROMPTS[index]
   const config = getDocumentTypeConfig(current.type)
   const IconComponent = config ? (ICON_MAP[config.icon] ?? FileText) : FileText
-  const isLocked = !hasAllTypes && !allowedDocTypes.includes(current.type)
+  // A prompt is "locked" only if tier is loaded and the type isn't allowed
+  const isLocked = !tierLoading && !allowedDocTypes.includes(current.type)
+
+  // Slide variants: enter from the right, exit to the left (and vice-versa)
+  const variants = {
+    enter: (dir: number) => ({
+      x: dir > 0 ? 36 : -36,
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (dir: number) => ({
+      x: dir > 0 ? -36 : 36,
+      opacity: 0,
+    }),
+  }
 
   return (
     <div className="flex flex-col items-center gap-2 w-full">
-      {/* Try-prompt label */}
-      <p className="text-[11px] uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1.5">
-        <Sparkles className="w-3 h-3" />
+
+      {/* Section label — no star icon, just clean uppercase text */}
+      <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/40 select-none">
         Try a prompt
       </p>
 
-      {/* Single auto-rotating suggestion */}
+      {/* Sliding pill row */}
       <div
-        className="relative flex items-center justify-center w-full max-w-md"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onFocusCapture={handleMouseEnter}
-        onBlurCapture={handleMouseLeave}
+        className="flex items-center gap-2 w-full max-w-[420px]"
+        onMouseEnter={() => { pausedRef.current = true }}
+        onMouseLeave={() => { pausedRef.current = false }}
+        onFocusCapture={() => { pausedRef.current = true }}
+        onBlurCapture={() => { pausedRef.current = false }}
       >
+        {/* Clipping container so exiting pill doesn't overflow */}
+        <div className="relative flex-1 overflow-hidden">
+          <AnimatePresence mode="wait" custom={direction} initial={false}>
+            <motion.button
+              key={index}
+              custom={direction}
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+              type="button"
+              onClick={() => {
+                if (isLocked) { router.push("/billing"); return }
+                handleSelect(current.fullPrompt)
+              }}
+              disabled={isLoading}
+              title={isLocked ? `${config?.label ?? current.type} requires a paid plan` : current.fullPrompt}
+              aria-label={
+                isLocked
+                  ? `${config?.label ?? current.type} (locked) — upgrade to unlock`
+                  : `Try: ${current.fullPrompt}`
+              }
+              className={cn(
+                // Base shape
+                "flex items-center gap-2.5 w-full px-4 py-2.5 rounded-2xl border",
+                "text-[13.5px] font-medium text-left whitespace-nowrap min-h-[44px]",
+                "transition-colors duration-150",
+                // State variants
+                isLocked
+                  ? "border-dashed border-border/50 bg-card/60 text-muted-foreground hover:border-primary/20 cursor-pointer"
+                  : "border-border/70 bg-card text-foreground shadow-sm hover:border-primary/40 hover:bg-secondary/40 hover:shadow disabled:opacity-50"
+              )}
+            >
+              {/* Doc-type icon — muted color so it doesn't fight the text */}
+              <span className="w-[18px] h-[18px] flex items-center justify-center shrink-0">
+                {isLocked
+                  ? <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
+                  : <IconComponent className="w-[15px] h-[15px] text-muted-foreground/70" />
+                }
+              </span>
+              <span className="truncate">{current.shortLabel}</span>
+            </motion.button>
+          </AnimatePresence>
+        </div>
+
+        {/* Manual "next" button */}
         <button
           type="button"
-          onClick={() => {
-            if (isLocked) {
-              router.push("/billing")
-              return
-            }
-            handleSelect(current.fullPrompt)
-          }}
-          disabled={isLoading}
-          title={isLocked ? `${config?.label} requires a paid plan` : current.fullPrompt}
-          aria-label={isLocked ? `${config?.label} (locked) — upgrade to use` : `Use prompt: ${current.fullPrompt}`}
-          aria-live="polite"
+          onClick={handleNext}
+          aria-label="Next prompt suggestion"
           className={cn(
-            "flex items-center gap-2 px-5 py-3 rounded-full border text-[14px] font-medium transition-all duration-300 btn-press max-w-full",
-            "min-h-[44px]",
-            fading ? "opacity-0 translate-y-1" : "opacity-100 translate-y-0",
-            isLocked
-              ? "border-dashed border-border/60 bg-card text-muted-foreground hover:border-primary/30"
-              : "border-border/80 bg-card text-foreground shadow-sm hover:border-primary/40 hover:bg-secondary/60 hover:shadow-md disabled:opacity-50 disabled:hover:shadow-sm"
+            "w-8 h-8 rounded-xl border border-border/60 bg-card shrink-0",
+            "flex items-center justify-center",
+            "text-muted-foreground/60 hover:text-foreground hover:border-border",
+            "transition-all duration-150"
           )}
         >
-          {isLocked ? (
-            <Lock className="w-[15px] h-[15px] opacity-60 shrink-0" />
-          ) : (
-            <IconComponent className="w-[16px] h-[16px] shrink-0 text-primary" />
-          )}
-          <span className="truncate">{current.shortLabel}</span>
+          <ChevronRight className="w-3.5 h-3.5" />
         </button>
-
-        {/* Manual "next" button — also resets the rotation timer. */}
-        {visiblePrompts.length > 1 && (
-          <button
-            type="button"
-            onClick={handleNext}
-            aria-label="Show next example prompt"
-            className="ml-2 w-9 h-9 rounded-full border border-border/60 bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-secondary/60 transition-all flex items-center justify-center shrink-0"
-            title="Next example"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
       </div>
 
-      {/* Subtle progress dots — visual hint that suggestions rotate. */}
-      {visiblePrompts.length > 1 && (
-        <div className="flex items-center gap-1 mt-1" aria-hidden="true">
-          {visiblePrompts.map((_, i) => (
-            <span
-              key={i}
-              className={cn(
-                "w-1 h-1 rounded-full transition-all duration-300",
-                i === index ? "bg-primary w-2" : "bg-muted-foreground/20"
-              )}
-            />
-          ))}
-        </div>
-      )}
+      {/* Progress dots — clickable, show all 9 positions */}
+      <div className="flex items-center gap-[5px] mt-0.5" aria-hidden="true">
+        {ALL_PROMPTS.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => handleDotClick(i)}
+            className={cn(
+              "rounded-full transition-all duration-300 focus:outline-none",
+              i === index
+                ? "w-[14px] h-[4px] bg-foreground/25"
+                : "w-[4px] h-[4px] bg-muted-foreground/15 hover:bg-muted-foreground/30"
+            )}
+          />
+        ))}
+      </div>
+
     </div>
   )
 }
