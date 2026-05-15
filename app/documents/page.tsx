@@ -938,21 +938,34 @@ function DocCard({
             </button>
           )}
 
-          {/* Signature pill — for contracts/quotations/proposals */}
-          {hasSignatures && (
-            <button onClick={() => setSignatureExpanded(v => !v)}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
-                signatureExpanded
-                  ? "bg-muted text-foreground border-border"
-                  : session.status === "signed"
-                    ? "bg-foreground/5 text-foreground border-foreground/20"
-                    : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
-              )}>
-              <PenLine size={11} />
-              {session.status === "signed" ? "Signed" : "Pending"}
-            </button>
-          )}
+          {/* Signature pill — for contracts/quotations/proposals/SOW/NDA/etc */}
+          {hasSignatures && (() => {
+            // Compute the signature status: signed > cancelled > pending
+            const sigs = session.signatures ?? []
+            const hasSigned = sigs.some(s => s.signed_at && (s.signer_action !== "declined" && s.signer_action !== "revision_requested" && s.signer_action !== "cancelled"))
+            const allCancelled = sigs.length > 0 && sigs.every(s => s.signer_action === "cancelled" || (s as any).signer_action === "declined")
+            const anyCancelled = sigs.some(s => s.signer_action === "cancelled")
+
+            const sigLabel = hasSigned ? "Signed" : allCancelled ? "Cancelled" : "Pending"
+            const isSignedOrCancelled = hasSigned || allCancelled
+
+            return (
+              <button onClick={() => setSignatureExpanded(v => !v)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
+                  signatureExpanded
+                    ? "bg-muted text-foreground border-border"
+                    : hasSigned
+                      ? "bg-foreground/5 text-foreground border-foreground/20"
+                      : allCancelled
+                        ? "bg-muted text-muted-foreground border-border/50"
+                        : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
+                )}>
+                <PenLine size={11} />
+                {sigLabel}
+              </button>
+            )
+          })()}
 
           {/* Quote/Proposal response pill */}
           {session.quotationResponse && (normalisedType === "quote" || normalisedType === "proposal") && (

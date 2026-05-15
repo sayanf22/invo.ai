@@ -3,9 +3,20 @@ import { authenticateRequest } from "@/lib/api-auth"
 
 /**
  * POST /api/sessions/unlock
- * Reverts a finalized (sent) document session back to "active" so the user
- * can edit it again. Only works for sessions with status "finalized" — signed
- * or paid sessions cannot be unlocked.
+ *
+ * Reverts a sent document session back to "active" so the user can edit it again.
+ *
+ * Cancellation behavior:
+ * - Sets session status back to "active"
+ * - Cancels all PENDING signature requests for this session (signer_action='cancelled')
+ *   so the signing links become invalid immediately
+ * - Cancels all pending email reminders so the recipient doesn't receive reminders
+ *   for a document that's now in flux
+ *
+ * Hard rules:
+ * - If ANY signature has been actually signed (signed_at IS NOT NULL with no decline/revision/cancel action),
+ *   the session CANNOT be unlocked — the signed document is legally binding
+ * - "paid" sessions cannot be unlocked
  *
  * Body: { sessionId: string }
  */
@@ -18,23 +29,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "sessionId is required" }, { status: 400 })
     }
 
-    // Verify the session belongs to this user and is in a revertible state
+    // Verify the session belongs to this user
     const { data: session, error: fetchError } = await auth.supabase
         .from("document_sessions")
-        .select("id, status")
+        .select("id, status, document_type")
         .eq("id", sessionId)
         .eq("user_id", auth.user.id)
         .single()
 
     if (fetchError || !session) {
         return NextResponse.json({ error: "Session not found" }, { status: 404 })
-    }
-
-    if (session.status === "signed") {
-        return NextResponse.json(
-            { error: "Signed documents cannot be unlocked", status: session.status },
-            { status: 403 }
-        )
     }
 
     if (session.status === "paid") {
@@ -44,11 +48,34 @@ export async function POST(request: NextRequest) {
         )
     }
 
+    // ── Hard guard: refuse to unlock if any signature has been ACTUALLY signed ──
+    // Check the signatures table directly so this works whether or not session.status was
+    // updated to "signed" yet (race condition between webhook and unlock click).
+    const { data: signedSigs } = await (auth.supabase as any)
+        .from("signatures")
+        .select("id, signed_at, signer_action")
+        .eq("session_id", sessionId)
+        .not("signed_at", "is", null)
+
+    const hasActualSignature = (signedSigs ?? []).some((s: any) =>
+        s.signed_at && s.signer_action !== "declined" && s.signer_action !== "revision_requested" && s.signer_action !== "cancelled"
+    )
+
+    if (hasActualSignature || session.status === "signed") {
+        return NextResponse.json(
+            {
+                error: "This document has been signed and cannot be unlocked. Signed documents are legally binding.",
+                status: "signed",
+            },
+            { status: 403 }
+        )
+    }
+
     if (session.status === "active") {
         return NextResponse.json({ success: true, message: "Document is already editable" })
     }
 
-    // Reset status to active
+    // 1. Reset session status to "active"
     const { error: updateError } = await auth.supabase
         .from("document_sessions")
         .update({
@@ -63,9 +90,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Failed to unlock document" }, { status: 500 })
     }
 
-    // Cancel pending email reminders — the document is being edited again,
-    // so sending reminders referencing the old snapshot would confuse the recipient.
-    // User can re-enable reminders by re-sending the updated document.
+    // 2. Cancel ALL pending signature requests for this session.
+    // Pending = no signed_at AND signer_action is null (not yet declined/revisioned/cancelled).
+    // Setting signer_action='cancelled' makes the signing token return 410 Gone immediately.
+    await (auth.supabase as any)
+        .from("signatures")
+        .update({
+            signer_action: "cancelled",
+            updated_at: new Date().toISOString(),
+        })
+        .eq("session_id", sessionId)
+        .is("signed_at", null)
+        .is("signer_action", null)
+
+    // 3. Cancel pending email reminders — old reminders reference a stale snapshot
     await (auth.supabase as any)
         .from("email_schedules")
         .update({
@@ -77,5 +115,8 @@ export async function POST(request: NextRequest) {
         .eq("user_id", auth.user.id)
         .eq("status", "pending")
 
-    return NextResponse.json({ success: true, message: "Document unlocked and editable again" })
+    return NextResponse.json({
+        success: true,
+        message: "Document unlocked. Pending signing links and reminders have been cancelled.",
+    })
 }
