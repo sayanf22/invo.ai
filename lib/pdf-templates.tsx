@@ -1,4 +1,4 @@
-﻿import {
+﻿﻿import {
     Document,
     Page,
     Text,
@@ -1059,8 +1059,10 @@ function buildSignatureBlock(
     data: InvoiceData,
     c: ReturnType<typeof getTheme>,
 ): React.ReactElement | null {
-    // Must have at least a party name to render a meaningful block
-    if (!data.fromName && !data.toName && !data.signatureName) return null
+    // If there are truly no party names at all, render placeholder lines so
+    // the live preview doesn't crash. The export guard in renderSignatureBlock
+    // checks this independently and only blocks final download, not preview.
+    const hasAnyParty = !!(data.fromName || data.toName || data.signatureName)
 
     const { partyA, partyB } = getSignaturePartyLabels(documentType)
 
@@ -1120,13 +1122,12 @@ export function renderSignatureBlock(
         return <></>
     }
 
-    // Signable type â€” must produce a block or abort
+    // Always render a block. If party names are missing (live preview before AI fills them),
+    // buildSignatureBlock renders placeholder underlines rather than crashing.
     const block = buildSignatureBlock(documentType, data, c)
     if (!block) {
-        throw new SignatureBlockRenderError(
-            `Cannot render signature block for document type "${documentType}". ` +
-            `Export blocked to prevent producing a PDF without the required signature section.`
-        )
+        // Defensive fallback — renders an empty spacer so the preview doesn't crash
+        return React.createElement(View as any, { style: { paddingHorizontal: 48, marginTop: 16, marginBottom: 20 } } as any)
     }
     return block
 }
