@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
               currency: "INR",
               status: "paid",
               reference_id: "TEST-WEBHOOK-PING",
-              notes: { session_id: "test", user_id: userId, platform: "invo-ai" },
+              notes: { session_id: "test", user_id: userId, platform: "clorefy" },
             },
           },
           payment: {

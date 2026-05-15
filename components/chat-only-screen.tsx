@@ -31,7 +31,7 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { authFetch } from "@/lib/auth-fetch"
 import { useSupabase } from "@/components/auth-provider"
-import { InvoLogo } from "@/components/invo-logo"
+import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { AIInputWithLoading } from "@/components/ui/ai-input-with-loading"
 import { MarkdownMessage } from "@/components/markdown-message"
@@ -859,7 +859,7 @@ export function ChatOnlyScreen({
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
-                    <InvoLogo size={26} showBeta />
+                    <ClorefyLogo size={26} showBeta />
                     <span className="hidden sm:inline-flex items-center px-2 py-0.5 ml-1 rounded-full text-[10px] font-medium uppercase tracking-wide text-muted-foreground bg-muted border border-border/60">
                         Chat
                     </span>

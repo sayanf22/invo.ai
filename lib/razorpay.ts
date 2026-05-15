@@ -357,7 +357,7 @@ export async function createPaymentLink(params: CreatePaymentLinkParams): Promis
         notes: {
             session_id: params.sessionId ?? "",
             user_id: params.userId ?? "",
-            platform: "invo-ai",
+            platform: "clorefy",
         },
         callback_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/api/razorpay/payment-link-callback`,
         callback_method: "get",

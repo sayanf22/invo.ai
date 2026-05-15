@@ -38,9 +38,9 @@ function getDocCfg(type: string) {
 }
 
 // ── Filter definitions ────────────────────────────────────────────────────────
-// Top 6 visible types + "All" + optional "Chat"; remaining 3 under "More".
-const PRIMARY_FILTER_TYPES = ["invoice", "contract", "quote", "proposal", "sow", "nda"] as const
-const MORE_FILTER_TYPES    = ["change_order", "client_onboarding_form", "payment_followup"] as const
+// Primary row: All + Chat + top 5 doc types. Remaining 4 under "More".
+const PRIMARY_FILTER_TYPES = ["invoice", "contract", "quote", "proposal", "sow"] as const
+const MORE_FILTER_TYPES    = ["nda", "change_order", "client_onboarding_form", "payment_followup"] as const
 
 type DocTypeFilter = typeof PRIMARY_FILTER_TYPES[number] | typeof MORE_FILTER_TYPES[number]
 type FilterValue   = "all" | "chat" | DocTypeFilter
@@ -164,7 +164,7 @@ export default function HistoryPage() {
 
   // ── Filtering logic ─────────────────────────────────────────────────────────
   const sessionMatchesFilter = (s: Session): boolean => {
-    if (filter === "all")  return s.document_type !== "chat"
+    if (filter === "all")  return true  // show everything: docs + chats
     if (filter === "chat") return s.document_type === "chat"
     // Use normalizeDocumentType so "quotation" is treated as "quote"
     const normalized = normalizeDocumentType(s.document_type)
@@ -173,13 +173,13 @@ export default function HistoryPage() {
 
   const filteredGroups = groups.filter(g => g.sessions.some(sessionMatchesFilter))
 
-  const docCount = filter === "all"
-    ? groups.filter(g => g.sessions.some(s => s.document_type !== "chat")).length
-    : filteredGroups.length
+  const docCount = filteredGroups.length
 
   const countLabel = filter === "chat"
     ? `${docCount} conversation${docCount !== 1 ? "s" : ""}`
-    : `${docCount} document${docCount !== 1 ? "s" : ""}`
+    : filter === "all"
+      ? `${docCount} item${docCount !== 1 ? "s" : ""}`
+      : `${docCount} document${docCount !== 1 ? "s" : ""}`
 
   if (loading) {
     return (
@@ -219,14 +219,17 @@ export default function HistoryPage() {
           <p className="text-sm text-muted-foreground mt-0.5">{countLabel}</p>
         </div>
 
-        {/* Filter pills — top 6 types + All + More expandable section */}
+        {/* Filter pills — primary row: All + Chat + top 5 types; More expandable */}
         <div className="mb-5 space-y-2">
           {/* Primary row */}
           <div className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
             {/* "All" pill */}
             <FilterPill label="All" active={filter === "all"} onClick={() => setFilter("all")} />
 
-            {/* Top 6 type pills */}
+            {/* Chat pill — visible at top level */}
+            <FilterPill label="Chat" active={filter === "chat"} onClick={() => setFilter("chat")} />
+
+            {/* Top 5 type pills */}
             {PRIMARY_FILTER_TYPES.map(type => (
               <FilterPill
                 key={type}
@@ -263,8 +266,6 @@ export default function HistoryPage() {
                   onClick={() => setFilter(type)}
                 />
               ))}
-              {/* Chat pill lives here since it's not a document type */}
-              <FilterPill label="Chat" active={filter === "chat"} onClick={() => setFilter("chat")} />
             </div>
           )}
         </div>
@@ -274,8 +275,8 @@ export default function HistoryPage() {
             <div className="w-16 h-16 rounded-3xl bg-muted/60 flex items-center justify-center mb-4">
               <History className="w-7 h-7 text-muted-foreground/40" />
             </div>
-            <h3 className="text-base font-semibold mb-1">No documents yet</h3>
-            <p className="text-sm text-muted-foreground mb-5 max-w-xs">Create your first document and it will show up here</p>
+            <h3 className="text-base font-semibold mb-1">No history yet</h3>
+            <p className="text-sm text-muted-foreground mb-5 max-w-xs">Start a chat or create a document and it will show up here</p>
             <button
               onClick={() => router.push("/")}
               className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"

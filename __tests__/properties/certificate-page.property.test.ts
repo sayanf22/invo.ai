@@ -149,12 +149,12 @@ describe("Feature: esignature-upgrade, Property 8: Certificate page content comp
   })
 
   /**
-   * LEGAL_STATEMENT mentions Invo.ai as the platform.
+   * LEGAL_STATEMENT mentions Clorefy as the platform.
    *
    * Validates: Requirements 4.8
    */
-  it("LEGAL_STATEMENT: mentions Invo.ai as the signing platform", () => {
-    expect(LEGAL_STATEMENT).toContain("Invo.ai")
+  it("LEGAL_STATEMENT: mentions Clorefy as the signing platform", () => {
+    expect(LEGAL_STATEMENT).toContain("Clorefy")
   })
 })
 

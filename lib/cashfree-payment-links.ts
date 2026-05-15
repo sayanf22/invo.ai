@@ -83,7 +83,7 @@ export async function createCashfreePaymentLink(params: CashfreePaymentLinkParam
     link_notes: {
       session_id: params.sessionId,
       user_id: params.userId || "",
-      platform: "invo-ai",
+      platform: "clorefy",
       reference_id: params.referenceId,
     },
   }

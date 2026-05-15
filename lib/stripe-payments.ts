@@ -49,7 +49,7 @@ export async function createStripePaymentLink(params: StripePaymentLinkParams): 
     formData.append("metadata[reference_id]", params.referenceId.slice(0, 40))
     formData.append("metadata[session_id]", params.sessionId || "")
     formData.append("metadata[user_id]", params.userId || "")
-    formData.append("metadata[platform]", "invo-ai")
+    formData.append("metadata[platform]", "clorefy")
     formData.append("success_url", `${appUrl}/?payment=success&ref=${encodeURIComponent(params.referenceId)}`)
     formData.append("cancel_url", `${appUrl}/view/${params.sessionId || ""}`)
     // Expire after 24 hours (Stripe max is 24h for Checkout Sessions)
