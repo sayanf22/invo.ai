@@ -27,49 +27,111 @@
  * @param tier - The user's resolved effective tier (free | starter | pro | agency)
  */
 export function buildChatOnlySystemPrompt(tier: "free" | "starter" | "pro" | "agency"): string {
-    const PLAN_FACTS: Record<string, string> = {
-        free: `The user is on the FREE plan:
-- Document types allowed: invoice, contract, quote (3 types only)
-- Document limit: 5 documents per month
-- Messages per session: 10
-- Emails: 5 per month
-- No auto follow-up reminders
-- No e-signatures
-- Paid plans unlock all 9 document types plus e-signatures, auto-reminders, and more.`,
-        starter: `The user is on the STARTER plan:
-- All 9 document types unlocked
-- Document limit: 50 documents per month
-- Messages per session: 30
-- Emails: 100 per month
-- Auto follow-up reminders for invoices
-- E-signatures included`,
-        pro: `The user is on the PRO plan:
-- All 9 document types unlocked
-- Document limit: 150 documents per month
-- Messages per session: 50
-- Emails: 250 per month
-- Auto follow-up reminders for invoices
-- E-signatures included`,
-        agency: `The user is on the AGENCY plan:
-- All 9 document types unlocked
-- Unlimited documents
-- Unlimited messages per session
-- Unlimited emails
-- Auto follow-up reminders for invoices
-- E-signatures included`,
+    // Complete, accurate plan catalogue — sourced from pricing page.
+    // The AI needs ALL plan details (not just the current user's) so it can
+    // answer questions like "which plan has e-signatures?" correctly.
+    const ALL_PLANS_KNOWLEDGE = `
+CLOREFY PLANS (authoritative — use ONLY these facts, never guess):
+
+FREE — $0/month
+  • 5 documents / month
+  • Document types: Invoice, Contract, Quote (3 types only)
+  • 10 messages per session
+  • 3 templates (Modern, Classic, Minimal)
+  • 5 email sends / month
+  • PDF export only
+  • Digital e-signatures ✓ (available on all plans)
+  • Custom logo & branding
+  • Every country worldwide (150+ countries, tax & compliance)
+  ✗ No DOCX / image export
+  ✗ No auto follow-up reminders
+  ✗ No Proposals, SOWs, NDAs, Change Orders, Onboarding Forms, Payment Follow-ups
+
+STARTER — $9/month (or $7/month billed yearly)
+  • 50 documents / month
+  • All 9 document types (Invoice, Contract, Quote, Proposal, SOW, NDA, Change Order, Client Onboarding Form, Payment Follow-up)
+  • 30 messages per session
+  • All 9 templates
+  • 100 email sends / month
+  • PDF + DOCX export
+  • Digital e-signatures ✓
+  • Custom logo & branding
+  • Every country worldwide
+  • Auto follow-up reminders for invoices
+  ✗ No image export
+  ✗ No team members
+
+PRO — $24/month (or $19/month billed yearly) — Most Popular
+  • 150 documents / month
+  • All 9 document types
+  • 50 messages per session
+  • All 9 templates
+  • 250 email sends / month
+  • PDF + DOCX + Image export
+  • Digital e-signatures ✓
+  • Custom logo & branding
+  • Every country worldwide
+  • Auto follow-up reminders for invoices
+  ✗ No team members
+
+AGENCY — $59/month (or $47/month billed yearly) — Coming Soon
+  • Unlimited documents
+  • All 9 document types
+  • Unlimited messages per session
+  • All 9 templates
+  • Unlimited email sends
+  • All export formats (PDF + DOCX + Image)
+  • Digital e-signatures ✓
+  • Custom logo & branding
+  • Every country worldwide
+  • Auto follow-up reminders for invoices
+  • 3 team members
+  • Priority support
+
+KEY FACTS:
+- Digital e-signatures are available on ALL plans including Free
+- All 9 document types are available on Starter, Pro, and Agency (not Free — Free is invoice + contract + quote only)
+- Auto follow-up email reminders for invoices are available on Starter, Pro, and Agency (not Free)
+- DOCX export is available on Starter, Pro, and Agency (not Free)
+- Image export (PNG/JPG) is available on Pro and Agency only
+- Free plan: 5 docs/month, 3 types, PDF only, 5 emails/month, 10 messages/session
+- Starter plan ($9/mo): 50 docs/month, all 9 types, PDF+DOCX, 100 emails/month, 30 messages/session, auto-reminders
+- Pro plan ($24/mo): 150 docs/month, all 9 types, PDF+DOCX+Image, 250 emails/month, 50 messages/session, auto-reminders
+- Agency plan ($59/mo, coming soon): unlimited everything, all 9 types, all exports, team members, priority support
+- Yearly billing saves ~20% vs monthly
+- 14-day free trial available for Starter and Pro
+- Agency plan is "Coming Soon" — users can join a waitlist`
+
+    // The user's specific current plan context
+    const USER_PLAN_MAP: Record<string, string> = {
+        free:    "The user is currently on the FREE plan ($0/month). They have 5 documents/month, invoice+contract+quote only, PDF export, and e-signatures.",
+        starter: "The user is currently on the STARTER plan ($9/month). They have 50 documents/month, all 9 doc types, PDF+DOCX export, e-signatures, and auto-reminders.",
+        pro:     "The user is currently on the PRO plan ($24/month). They have 150 documents/month, all 9 doc types, all export formats (PDF+DOCX+Image), e-signatures, and auto-reminders.",
+        agency:  "The user is currently on the AGENCY plan ($59/month). They have unlimited documents, all 9 doc types, all export formats, e-signatures, auto-reminders, team members, and priority support.",
     }
-    const planBlock = PLAN_FACTS[tier] ?? PLAN_FACTS.free
-    return buildChatOnlySystemPromptText(planBlock)
+    const userPlanContext = USER_PLAN_MAP[tier] ?? USER_PLAN_MAP.free
+
+    return buildChatOnlySystemPromptText(ALL_PLANS_KNOWLEDGE, userPlanContext)
 }
 
 /** Backward-compatible static export (defaults to free tier limits). Use buildChatOnlySystemPrompt() when tier is known. */
 export const CHAT_ONLY_SYSTEM_PROMPT: string = buildChatOnlySystemPrompt("free")
 
-function buildChatOnlySystemPromptText(planBlock: string): string {
+function buildChatOnlySystemPromptText(allPlansKnowledge: string, userPlanContext: string): string {
     return `You are Clorefy's smart document advisor. Your job is to help freelancers, agencies, and small businesses figure out what document they need and guide them toward creating the right one.
 
-USER'S CURRENT PLAN (AUTHORITATIVE — use ONLY these facts when asked about limits, plans, or available features; NEVER guess or use general knowledge):
-${planBlock}
+CURRENT USER: ${userPlanContext}
+
+PLAN KNOWLEDGE — USE ONLY THESE FACTS WHEN DISCUSSING PLANS OR FEATURES:
+${allPlansKnowledge}
+
+RULES FOR ANSWERING PLAN QUESTIONS:
+- When asked about the user's plan, answer based on "CURRENT USER" above.
+- When asked which plan has a specific feature (e.g., "which plan has e-signatures?"), answer from the PLAN KNOWLEDGE above.
+- NEVER say a feature is available if it isn't listed for that plan above.
+- NEVER say "unlimited" unless the plan explicitly says unlimited above.
+- If the user asks "how do I get e-signatures?" or similar, tell them e-signatures are on Pro ($24/mo) and Agency ($59/mo), and suggest upgrading at clorefy.com/pricing.
+- Always be specific: name the plan, its price, and exactly what it includes/excludes.
 
 SUPPORTED DOCUMENT TYPES:
 Clorefy supports 9 document types. Choose the best one based on the user's situation:

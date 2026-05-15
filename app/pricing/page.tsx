@@ -33,12 +33,12 @@ const plans: PlanData[] = [
       { text: "PDF export", tip: null },
       { text: "5 email sends / month", tip: null },
       { text: "Custom logo & branding", tip: null },
+      { text: "Digital signatures", tip: "Send documents for e-signature — included on all plans" },
     ],
     missing: [
       "Proposals, SOWs, NDAs & 3 more types",
       "All 9 templates",
       "DOCX & image export",
-      "Digital signatures",
     ],
   },
   {
@@ -63,9 +63,9 @@ const plans: PlanData[] = [
       { text: "PDF + DOCX export", tip: null },
       { text: "100 email sends / month", tip: null },
       { text: "Custom logo & branding", tip: null },
+      { text: "Digital signatures", tip: "Send documents for e-signature — included on all plans" },
     ],
     missing: [
-      "Digital signatures",
       "Image export",
       "Team members",
     ],
