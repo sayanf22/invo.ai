@@ -1,4 +1,4 @@
-﻿﻿import {
+﻿﻿﻿import {
     Document,
     Page,
     Text,
@@ -1127,7 +1127,7 @@ export function renderSignatureBlock(
     const block = buildSignatureBlock(documentType, data, c)
     if (!block) {
         // Defensive fallback — renders an empty spacer so the preview doesn't crash
-        return React.createElement(View as any, { style: { paddingHorizontal: 48, marginTop: 16, marginBottom: 20 } } as any)
+        return <View style={{ paddingHorizontal: 48, marginTop: 16, marginBottom: 20 }} />
     }
     return block
 }
