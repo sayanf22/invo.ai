@@ -3,7 +3,7 @@ import { streamGenerateDocument, buildPrompt, DUAL_MODE_SYSTEM_PROMPT, type AIGe
 import { streamBedrockChat, streamBedrockChatWithHistory, callBedrockBrief, ORCHESTRATOR_SYSTEM_PROMPT, BUSINESS_PROFILE_COMMENTARY_PROMPT, COMPLIANCE_COMMENTARY_PROMPT, RAG_VALIDATION_PROMPT, PRE_GENERATION_BRIEF_PROMPT, CORRECTION_INSTRUCTION_PROMPT, type BedrockChatMessage } from "@/lib/bedrock"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 import { classifyIntent, detectMismatch, type DocumentType as IntentDocumentType } from "@/lib/intent-router"
-import { CHAT_ONLY_SYSTEM_PROMPT } from "@/lib/chat-only-prompts"
+import { buildChatOnlySystemPrompt } from "@/lib/chat-only-prompts"
 
 import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
                             if (bedrockKey && bedrockKey.length > 10) {
                                 sendEvent({ type: "activity", action: "think", label: "Thinking", detail: "Clorefy Advisor" })
                                 let bedrockFailed = false
-                                for await (const chunk of streamBedrockChatWithHistory(CHAT_ONLY_SYSTEM_PROMPT, historyMessages, bedrockKey, 1500)) {
+                                for await (const chunk of streamBedrockChatWithHistory(buildChatOnlySystemPrompt(userTier), historyMessages, bedrockKey, 1500)) {
                                     if (chunk.type === "error") {
                                         console.error("Bedrock chat-only failed, falling back:", chunk.data)
                                         bedrockFailed = true
@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
                                     const fallbackBody: AIGenerationRequest = {
                                         ...body,
                                         documentType: "chat",
-                                        prompt: `[SYSTEM: ${CHAT_ONLY_SYSTEM_PROMPT}]\n\n${historyText ? `CONVERSATION HISTORY:\n${historyText}\n\n` : ""}USER: ${cleanedPrompt}`,
+                                        prompt: `[SYSTEM: ${buildChatOnlySystemPrompt(userTier)}]\n\n${historyText ? `CONVERSATION HISTORY:\n${historyText}\n\n` : ""}USER: ${cleanedPrompt}`,
                                     }
                                     for await (const chunk of streamGenerateDocument(fallbackBody, deepseekKey)) {
                                         sendEvent(chunk)
@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
                                 const fallbackBody: AIGenerationRequest = {
                                     ...body,
                                     documentType: "chat",
-                                    prompt: `[SYSTEM: ${CHAT_ONLY_SYSTEM_PROMPT}]\n\n${historyText ? `CONVERSATION HISTORY:\n${historyText}\n\n` : ""}USER: ${cleanedPrompt}`,
+                                    prompt: `[SYSTEM: ${buildChatOnlySystemPrompt(userTier)}]\n\n${historyText ? `CONVERSATION HISTORY:\n${historyText}\n\n` : ""}USER: ${cleanedPrompt}`,
                                 }
                                 for await (const chunk of streamGenerateDocument(fallbackBody, deepseekKey)) {
                                     sendEvent(chunk)

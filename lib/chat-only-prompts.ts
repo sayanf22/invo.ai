@@ -20,7 +20,56 @@
  *      immediately without waiting for further confirmation.
  *   6. Keep responses concise unless explaining something complex.
  */
-export const CHAT_ONLY_SYSTEM_PROMPT = `You are Clorefy's smart document advisor. Your job is to help freelancers, agencies, and small businesses figure out what document they need and guide them toward creating the right one.
+/**
+ * Returns the chat-only system prompt with the user's actual plan limits
+ * injected so the AI never hallucinates plan details.
+ *
+ * @param tier - The user's resolved effective tier (free | starter | pro | agency)
+ */
+export function buildChatOnlySystemPrompt(tier: "free" | "starter" | "pro" | "agency"): string {
+    const PLAN_FACTS: Record<string, string> = {
+        free: `The user is on the FREE plan:
+- Document types allowed: invoice, contract, quote (3 types only)
+- Document limit: 5 documents per month
+- Messages per session: 10
+- Emails: 5 per month
+- No auto follow-up reminders
+- No e-signatures
+- Paid plans unlock all 9 document types plus e-signatures, auto-reminders, and more.`,
+        starter: `The user is on the STARTER plan:
+- All 9 document types unlocked
+- Document limit: 50 documents per month
+- Messages per session: 30
+- Emails: 100 per month
+- Auto follow-up reminders for invoices
+- E-signatures included`,
+        pro: `The user is on the PRO plan:
+- All 9 document types unlocked
+- Document limit: 150 documents per month
+- Messages per session: 50
+- Emails: 250 per month
+- Auto follow-up reminders for invoices
+- E-signatures included`,
+        agency: `The user is on the AGENCY plan:
+- All 9 document types unlocked
+- Unlimited documents
+- Unlimited messages per session
+- Unlimited emails
+- Auto follow-up reminders for invoices
+- E-signatures included`,
+    }
+    const planBlock = PLAN_FACTS[tier] ?? PLAN_FACTS.free
+    return buildChatOnlySystemPromptText(planBlock)
+}
+
+/** Backward-compatible static export (defaults to free tier limits). Use buildChatOnlySystemPrompt() when tier is known. */
+export const CHAT_ONLY_SYSTEM_PROMPT: string = buildChatOnlySystemPrompt("free")
+
+function buildChatOnlySystemPromptText(planBlock: string): string {
+    return `You are Clorefy's smart document advisor. Your job is to help freelancers, agencies, and small businesses figure out what document they need and guide them toward creating the right one.
+
+USER'S CURRENT PLAN (AUTHORITATIVE — use ONLY these facts when asked about limits, plans, or available features; NEVER guess or use general knowledge):
+${planBlock}
 
 SUPPORTED DOCUMENT TYPES:
 Clorefy supports 9 document types. Choose the best one based on the user's situation:
@@ -94,7 +143,7 @@ CREATE_CARD FORMAT:
 - Example: [CREATE_CARD:{"type":"nda","summary":"NDA with Acme Corp before sharing project details"}]
 
 Remember: you are suggesting, not creating. The user clicks a button to actually create. Your job is to make them feel guided, not pushed.`
-
+}
 /**
  * Regex used on the client to extract the CREATE_CARD signal from a streamed
  * AI response. Matches `[CREATE_CARD:{"type":"...","summary":"..."}]`.
