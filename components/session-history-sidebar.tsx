@@ -69,7 +69,7 @@ interface SessionHistorySidebarProps {
 const PRIMARY_FILTER_TYPES = ["invoice", "contract", "quote", "proposal", "sow", "nda"] as const
 
 /** "More" overflow types */
-const MORE_FILTER_TYPES = ["change_order", "client_onboarding_form", "payment_followup", "recurring_invoice"] as const
+const MORE_FILTER_TYPES = ["change_order", "client_onboarding_form", "payment_followup"] as const
 
 type FilterValue = "all" | "chat" | (typeof ALL_DOCUMENT_TYPES)[number]
 

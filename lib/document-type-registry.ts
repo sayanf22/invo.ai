@@ -1,8 +1,12 @@
 /**
  * Centralized document type registry.
- * Single source of truth for all 10 supported document types and their metadata.
+ * Single source of truth for all 9 supported document types and their metadata.
  * All modules (intent classifier, tier system, UI, PDF templates, etc.) should
  * import from here rather than hardcoding type metadata.
+ *
+ * Note: Recurring invoices are NOT a separate document type. Any regular
+ * invoice can be made recurring via the `recurring_invoices` table and the
+ * RecurringPanel UI on the invoice editor.
  */
 
 // ─── Type Definitions ─────────────────────────────────────────────────────────
@@ -17,7 +21,6 @@ export const ALL_DOCUMENT_TYPES = [
   "nda",
   "client_onboarding_form",
   "payment_followup",
-  "recurring_invoice",
 ] as const
 
 export type DocumentType = (typeof ALL_DOCUMENT_TYPES)[number]
@@ -199,23 +202,6 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
       supports_recurring: false,
     },
     validParentTypes: ["invoice"],
-  },
-
-  recurring_invoice: {
-    type: "recurring_invoice",
-    label: "Recurring Invoice",
-    description:
-      "An invoice set up to automatically recur on a weekly, monthly, or custom schedule for ongoing services.",
-    icon: "RefreshCw",
-    color: "text-indigo-600",
-    bgColor: "bg-indigo-50",
-    capabilities: {
-      supports_signature: false,
-      supports_payment_link: true,
-      supports_linking: true,
-      supports_recurring: true,
-    },
-    validParentTypes: [],
   },
 }
 

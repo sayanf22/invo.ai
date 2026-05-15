@@ -62,7 +62,7 @@ export function PDFDownloadButton({
                 .replace(/[\s-]+/g, "_")
                 .replace(/[^a-zA-Z0-9_]/g, "")
 
-            // Generate QR code for payment-supporting types (invoice, recurring_invoice)
+            // Generate QR code for payment-supporting types (e.g. invoice)
             let paymentQrCode: string | null = null
             const supportsPaymentLink = typeConfig?.capabilities.supports_payment_link === true
             const shouldEmbedPaymentLink = cleanedData.showPaymentLinkInPdf !== false // default true
@@ -168,17 +168,6 @@ export function PDFDownloadButton({
                     blob = await pdf(
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         <templates.PaymentFollowupPDF data={cleanedData as any} logoUrl={logoUrl} />
-                    ).toBlob()
-                    break
-
-                case "recurring_invoice":
-                    nameSegment =
-                        cleanedData.invoiceNumber ||
-                        (cleanedData as any).referenceNumber ||
-                        "recurring-invoice"
-                    blob = await pdf(
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        <templates.RecurringInvoicePDF data={cleanedData as any} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />
                     ).toBlob()
                     break
 

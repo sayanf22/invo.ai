@@ -29,7 +29,7 @@ export async function generateDocumentImage(
 
   // Pick the correct React component for each document type.
   // All new types (sow, change_order, nda, client_onboarding_form,
-  // payment_followup, recurring_invoice) have dedicated PDF templates.
+  // payment_followup) have dedicated PDF templates.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let element: any
 
@@ -82,13 +82,6 @@ export async function generateDocumentImage(
     case "payment_followup":
       element = React.createElement(
         templates.PaymentFollowupPDF as React.ComponentType<{ data: unknown; logoUrl?: string | null }>,
-        { data: cleanedData, logoUrl }
-      )
-      break
-
-    case "recurring_invoice":
-      element = React.createElement(
-        templates.RecurringInvoicePDF as React.ComponentType<{ data: unknown; logoUrl?: string | null; paymentQrCode?: string | null }>,
         { data: cleanedData, logoUrl }
       )
       break

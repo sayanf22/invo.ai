@@ -61,8 +61,8 @@ export function classifyIntent(prompt: string): "document" | "chat" {
 export type IntentRoute = "document-explicit" | "chat" | "ambiguous"
 
 /**
- * All 10 canonical document types supported by the platform.
- * Requirements: 3.1–3.11
+ * All 9 canonical document types supported by the platform.
+ * Requirements: 3.1–3.10
  */
 export type DocumentType =
   | "invoice"
@@ -74,7 +74,6 @@ export type DocumentType =
   | "nda"
   | "client_onboarding_form"
   | "payment_followup"
-  | "recurring_invoice"
 
 /**
  * A single ranked suggestion returned by `classifyIntentFull`.
@@ -141,7 +140,7 @@ const TYPE_KEYWORDS: Array<{ type: DocumentType; pattern: RegExp }> = [
   // ── Existing types (quotation → quote) ──────────────────────────────────
   {
     type: "invoice",
-    pattern: /\b(invoice|bill|receipt|billing|amount owed|services rendered)\b/i,
+    pattern: /\b(invoice|bill|receipt|billing|amount owed|services rendered|recurring|monthly invoice|weekly billing|subscription billing|repeat invoice|monthly billing)\b/i,
   },
   {
     type: "quote",
@@ -181,11 +180,6 @@ const TYPE_KEYWORDS: Array<{ type: DocumentType; pattern: RegExp }> = [
     type: "payment_followup",
     pattern:
       /\b(reminder|follow.?up|overdue|payment reminder|past due|outstanding|unpaid)\b/i,
-  },
-  {
-    type: "recurring_invoice",
-    pattern:
-      /\b(recurring|monthly invoice|weekly billing|subscription billing|repeat invoice|monthly billing)\b/i,
   },
 ]
 

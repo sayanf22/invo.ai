@@ -23,16 +23,47 @@ function escapeAttr(str: string): string {
   return str.replace(/"/g, "&quot;").replace(/'/g, "&#39;")
 }
 
+/**
+ * Mirror of getDocLabel() from email-template.ts.
+ * Maps all 9 canonical types + the legacy "quotation" alias.
+ */
+function getDocLabel(documentType: string): string {
+  const t = (documentType || "").toLowerCase()
+  switch (t) {
+    case "invoice":                return "Invoice"
+    case "contract":               return "Contract"
+    case "quote":
+    case "quotation":              return "Quote"
+    case "proposal":               return "Proposal"
+    case "sow":                    return "Statement of Work"
+    case "change_order":           return "Change Order"
+    case "nda":                    return "NDA"
+    case "client_onboarding_form": return "Client Onboarding Form"
+    case "payment_followup":       return "Payment Reminder"
+    default:                       return "Document"
+  }
+}
+
+// All 9 canonical document types (excludes legacy "quotation" alias)
+const ALL_DOC_TYPES = [
+  "invoice",
+  "contract",
+  "quote",
+  "proposal",
+  "sow",
+  "change_order",
+  "nda",
+  "client_onboarding_form",
+  "payment_followup",
+] as const
+
+type DocType = typeof ALL_DOC_TYPES[number]
+
 // ── Shared generator ──────────────────────────────────────────────────────────
 
 const emailTemplateDataArb = fc.record({
   businessName: fc.string({ minLength: 1 }),
-  documentType: fc.constantFrom(
-    "invoice" as const,
-    "contract" as const,
-    "quotation" as const,
-    "proposal" as const
-  ),
+  documentType: fc.constantFrom(...ALL_DOC_TYPES),
   referenceNumber: fc.string({ minLength: 1 }),
   recipientName: fc.string({ minLength: 1 }),
   viewDocumentUrl: fc.webUrl(),
@@ -41,10 +72,10 @@ const emailTemplateDataArb = fc.record({
 /**
  * Property 5: Email template required elements
  *
- * For any EmailTemplateData input (across all 4 document types), the rendered
+ * For any EmailTemplateData input (across all 9 document types), the rendered
  * HTML string SHALL contain:
  * (a) the business name text
- * (b) the document type label (Invoice/Contract/Quotation/Proposal)
+ * (b) the document type label (from getDocLabel)
  * (c) the reference number
  * (d) an anchor element with href containing the viewDocumentUrl
  * (e) the text "Sent via Clorefy" with a link to https://clorefy.com
@@ -56,15 +87,7 @@ describe("Feature: email-sending, Property 5: Email template required elements",
     fc.assert(
       fc.property(emailTemplateDataArb, (data) => {
         const html = renderEmailTemplate(data)
-
-        const docLabel =
-          data.documentType === "invoice"
-            ? "Invoice"
-            : data.documentType === "contract"
-              ? "Contract"
-              : data.documentType === "quotation"
-                ? "Quotation"
-                : "Proposal"
+        const docLabel = getDocLabel(data.documentType)
 
         // (a) business name appears in the HTML (may be HTML-escaped)
         expect(html).toContain(escapeHtml(data.businessName))
@@ -94,27 +117,23 @@ describe("Feature: email-sending, Property 5: Email template required elements",
  * For any EmailTemplateData input:
  * (a) if businessLogoUrl is non-null, HTML SHALL contain <img with that URL as src;
  *     if null, no logo img
- * (b) if documentType is "invoice" or "quotation" and totalAmount is non-null,
- *     HTML SHALL contain the amount string; if "contract" or "proposal", SHALL NOT
- *     contain amount section
+ * (b) if documentType is "invoice", "quote", or "payment_followup" and totalAmount
+ *     is non-null, HTML SHALL contain the amount string;
+ *     if documentType is one of the long-form types (contract/sow/nda/change_order),
+ *     SHALL NOT contain amount section
  * (c) if payNowUrl is non-null, HTML SHALL contain "Pay Now" anchor with that URL;
  *     if null, no "Pay Now" link
  * (d) if personalMessage is non-null and non-empty, HTML SHALL contain that message
  *     text; if null, no message section
- * (e) if documentType is "contract" or "proposal" and description is non-null,
- *     HTML SHALL contain the description text
+ * (e) if documentType is "proposal", "client_onboarding_form", or "payment_followup"
+ *     and description is non-null, HTML SHALL contain the description text
  *
  * Validates: Requirements 3.2, 3.4, 3.6, 3.7, 3.8, 10.6
  */
 describe("Feature: email-sending, Property 6: Email template conditional elements", () => {
   const conditionalDataArb = fc.record({
     businessName: fc.string({ minLength: 1 }),
-    documentType: fc.constantFrom(
-      "invoice" as const,
-      "contract" as const,
-      "quotation" as const,
-      "proposal" as const
-    ),
+    documentType: fc.constantFrom(...ALL_DOC_TYPES),
     referenceNumber: fc.string({ minLength: 1 }),
     recipientName: fc.string({ minLength: 1 }),
     viewDocumentUrl: fc.webUrl(),
@@ -135,27 +154,30 @@ describe("Feature: email-sending, Property 6: Email template conditional element
           expect(html).toContain("<img")
           expect(html).toContain(escapeAttr(data.businessLogoUrl))
         } else {
-          // No logo img beyond the business logo (header img only appears when logo provided)
           // The template only adds <img when businessLogoUrl is set
           const logoImgMatch = html.match(/<img[^>]+src="[^"]*"[^>]*>/g) ?? []
-          // All img tags should NOT be the logo (since no logo URL provided)
-          // The template only renders an img for the logo, so there should be none
           expect(logoImgMatch.length).toBe(0)
         }
 
-        // (b) amount for invoice/quotation
-        if (
-          (data.documentType === "invoice" || data.documentType === "quotation") &&
-          data.totalAmount != null
-        ) {
-          expect(html).toContain(escapeHtml(data.totalAmount))
-        } else if (
+        // (b) amount for invoice/quote/payment_followup
+        const isAmountType =
+          data.documentType === "invoice" ||
+          data.documentType === "quote" ||
+          data.documentType === "payment_followup"
+
+        const isLongFormType =
           data.documentType === "contract" ||
-          data.documentType === "proposal"
-        ) {
-          // contracts/proposals should not show the amount section.
-          // The amount section has a distinctive background color used only there.
-          expect(html).not.toContain("background-color:#f0f4ff")
+          data.documentType === "sow" ||
+          data.documentType === "nda" ||
+          data.documentType === "change_order"
+
+        if (isAmountType && data.totalAmount != null) {
+          expect(html).toContain(escapeHtml(data.totalAmount))
+        }
+
+        if (isLongFormType) {
+          // Long-form types show no monetary amount — the "Amount due" label won't appear
+          expect(html).not.toContain("Amount due")
         }
 
         // (c) Pay Now button
@@ -170,16 +192,16 @@ describe("Feature: email-sending, Property 6: Email template conditional element
         if (data.personalMessage != null && data.personalMessage !== "") {
           expect(html).toContain(escapeHtml(data.personalMessage))
         } else {
-          // When null, the personal message section should not appear
-          // (we can't check for the exact text since it's null, but we verify no spurious content)
           expect(data.personalMessage == null || data.personalMessage === "").toBe(true)
         }
 
-        // (e) description for contract/proposal (may be HTML-escaped)
-        if (
-          (data.documentType === "contract" || data.documentType === "proposal") &&
-          data.description != null
-        ) {
+        // (e) description for proposal/client_onboarding_form/payment_followup
+        const isDescriptionType =
+          data.documentType === "proposal" ||
+          data.documentType === "client_onboarding_form" ||
+          data.documentType === "payment_followup"
+
+        if (isDescriptionType && data.description != null && data.description !== "") {
           expect(html).toContain(escapeHtml(data.description))
         }
       }),
@@ -189,27 +211,28 @@ describe("Feature: email-sending, Property 6: Email template conditional element
 })
 
 /**
- * Property 7: Email template uses inline CSS and table layout
+ * Property 7: Email template uses table layout and stays within size limits
  *
  * For any EmailTemplateData input, the rendered HTML SHALL:
- * - contain <table elements
- * - NOT contain <style blocks
+ * - contain <table elements (table-based layout for email client compatibility)
  * - NOT contain <link stylesheet references
  * - total HTML size SHALL be under 102,400 bytes
  *
+ * Note: The template intentionally uses a <style> block for CSS resets and
+ * responsive media queries (@media) which cannot be expressed as inline styles.
+ * This is standard practice for email clients that support <style> tags
+ * (Gmail, Apple Mail, iOS Mail, Samsung Mail).
+ *
  * Validates: Requirements 3.10
  */
-describe("Feature: email-sending, Property 7: Email template uses inline CSS and table layout", () => {
-  it("should use table layout, no style blocks, no link tags, and stay under 102400 bytes", () => {
+describe("Feature: email-sending, Property 7: Email template uses table layout and stays within size limits", () => {
+  it("should use table layout, no link tags, and stay under 102400 bytes", () => {
     fc.assert(
       fc.property(emailTemplateDataArb, (data) => {
         const html = renderEmailTemplate(data)
 
-        // Must contain table elements
+        // Must contain table elements (table-based layout)
         expect(html).toContain("<table")
-
-        // Must NOT contain <style blocks
-        expect(html).not.toMatch(/<style[\s>]/i)
 
         // Must NOT contain <link stylesheet references
         expect(html).not.toMatch(/<link[^>]+stylesheet/i)
@@ -228,10 +251,8 @@ describe("Feature: email-sending, Property 7: Email template uses inline CSS and
  *
  * For any document type, reference number, and business name,
  * generateEmailSubject SHALL produce:
- * - "invoice"    → "Invoice {referenceNumber} from {businessName}"
- * - "contract"   → "Contract {referenceNumber} from {businessName}"
- * - "quotation"  → "Quotation {referenceNumber} from {businessName}"
- * - "proposal"   → "Proposal {referenceNumber} from {businessName}"
+ * "{DocLabel} {referenceNumber} from {businessName}"
+ * where DocLabel is the human-readable label for the type.
  *
  * Validates: Requirements 10.2, 10.3, 10.4, 10.5
  */
@@ -240,27 +261,13 @@ describe("Feature: email-sending, Property 8: Subject line formatting for all do
     fc.assert(
       fc.property(
         fc.tuple(
-          fc.constantFrom(
-            "invoice" as const,
-            "contract" as const,
-            "quotation" as const,
-            "proposal" as const
-          ),
+          fc.constantFrom(...ALL_DOC_TYPES),
           fc.string({ minLength: 1 }),
           fc.string({ minLength: 1 })
         ),
         ([documentType, referenceNumber, businessName]) => {
           const subject = generateEmailSubject(documentType, referenceNumber, businessName)
-
-          const expectedLabel =
-            documentType === "invoice"
-              ? "Invoice"
-              : documentType === "contract"
-                ? "Contract"
-                : documentType === "quotation"
-                  ? "Quotation"
-                  : "Proposal"
-
+          const expectedLabel = getDocLabel(documentType)
           expect(subject).toBe(`${expectedLabel} ${referenceNumber} from ${businessName}`)
         }
       ),

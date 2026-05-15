@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit-log"
 import { checkEmailLimit, incrementEmailCount, getFollowUpSchedule } from "@/lib/cost-protection"
 import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 import { createClient } from "@supabase/supabase-js"
+import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 
 interface SendDocumentRequest {
   sessionId: string
@@ -123,7 +124,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    const documentType = session.document_type as "invoice" | "contract" | "quotation" | "proposal"
+    // The raw type from the DB. Could be any of the 9 canonical types or
+    // the legacy "quotation" alias. Normalize once for capability lookups,
+    // but keep `documentType` (raw value) for downstream routing/templates.
+    const documentType = session.document_type as string
+    const normalizedType = normalizeDocumentType(documentType) ?? documentType
+    const typeCapabilities = getDocumentTypeConfig(normalizedType)?.capabilities ?? null
     const context = (session.context ?? {}) as Record<string, unknown>
 
     // Extract fields from context
@@ -254,9 +260,17 @@ export async function POST(request: NextRequest) {
       ? sanitizeText(body.subject).slice(0, 200)
       : generateEmailSubject(documentType, referenceNumber, businessName)
 
-    // 10b. For contracts/quotations/proposals, look up signing token to include Sign button
+    // 10b. For signable documents (contract, quotation, proposal, sow, nda,
+    // change_order), look up signing token to include Sign button. Capability
+    // is registry-driven so adding signable types only requires registry changes.
     let signingUrl: string | null = null
-    if (documentType === "contract" || documentType === "quotation" || documentType === "proposal") {
+    const isSignableType =
+      typeCapabilities?.supports_signature === true ||
+      // proposal isn't in registry as signable but historically supports the
+      // "request signature" workflow on quotes/proposals; preserve that.
+      normalizedType === "proposal" ||
+      normalizedType === "quote"
+    if (isSignableType) {
       const { data: sigRow } = await supabase
         .from("signatures")
         .select("token")

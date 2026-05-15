@@ -13,7 +13,6 @@ export type DocumentType =
   | "nda"
   | "client_onboarding_form"
   | "payment_followup"
-  | "recurring_invoice"
 
 export interface DetectionResult {
   type: DocumentType
@@ -33,7 +32,10 @@ export function detectDocumentType(prompt: string): DetectionResult {
       keywords: [
         "invoice", "bill", "payment", "charge", "amount due", "pay", "paid",
         "$", "€", "£", "₹", "price", "cost", "fee", "total", "subtotal",
-        "tax", "gst", "vat", "receipt", "billing", "payable"
+        "tax", "gst", "vat", "receipt", "billing", "payable",
+        "recurring", "monthly invoice", "weekly billing",
+        "subscription billing", "repeat invoice", "monthly billing",
+        "recurring invoice", "subscription invoice", "auto-invoice"
       ],
       weight: 1.0
     },
@@ -100,14 +102,6 @@ export function detectDocumentType(prompt: string): DetectionResult {
         "payment overdue", "invoice reminder"
       ],
       weight: 1.1
-    },
-    recurring_invoice: {
-      keywords: [
-        "recurring", "monthly invoice", "weekly billing",
-        "subscription billing", "repeat invoice", "monthly billing",
-        "recurring invoice", "subscription invoice", "auto-invoice"
-      ],
-      weight: 1.1
     }
   }
 
@@ -121,8 +115,7 @@ export function detectDocumentType(prompt: string): DetectionResult {
     change_order: 0,
     nda: 0,
     client_onboarding_form: 0,
-    payment_followup: 0,
-    recurring_invoice: 0
+    payment_followup: 0
   }
 
   for (const [type, config] of Object.entries(patterns)) {
@@ -174,7 +167,7 @@ export function getDetectionMessage(result: DetectionResult): string {
   } else if (result.confidence > 0.4) {
     return `It looks like you want to create a ${result.type}. Is that correct?`
   } else {
-    return `I'm not sure what type of document you need. Could you clarify if you want an invoice, contract, quote, proposal, SOW, change order, NDA, client onboarding form, payment follow-up, or recurring invoice?`
+    return `I'm not sure what type of document you need. Could you clarify if you want an invoice, contract, quote, proposal, SOW, change order, NDA, client onboarding form, or payment follow-up?`
   }
 }
 

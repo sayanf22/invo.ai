@@ -174,7 +174,7 @@ export function validateDocumentForExport(data: InvoiceData): string[] {
       return []
     }
 
-    // Legacy InvoiceData types (invoice, contract, quote, quotation, proposal, recurring_invoice)
+    // Legacy InvoiceData types (invoice, contract, quote, quotation, proposal)
     default: {
       const missing: string[] = []
       if (!data.fromName?.trim()) missing.push("Your name / company (From)")
@@ -755,7 +755,7 @@ function InlineSignaturePad({
  * Top-level dispatch for `EditorPanel`. For the 6 newer document types (sow,
  * change_order, nda, client_onboarding_form, payment_followup) we render a
  * purpose-built editor. For everything else (invoice, contract, quote,
- * quotation, proposal, recurring_invoice) we fall through to the legacy
+ * quotation, proposal) we fall through to the legacy
  * layout in `LegacyEditorPanel`.
  *
  * Each branch renders a different component, so React unmounts/remounts when
@@ -1589,7 +1589,7 @@ function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps)
                 </p>
               )}
 
-              {/* Payment link options — only for invoice and recurring_invoice */}
+              {/* Payment link options — only for document types that support payment links (e.g. invoice) */}
               {supportsPaymentLink && (
                 <div className="rounded-xl border border-border bg-background p-3 space-y-3">
                   <p className="text-xs font-semibold text-foreground">Payment Link & QR</p>
@@ -2029,7 +2029,7 @@ function SOWEditor({ data, onChange, documentStatus }: EditorPanelProps) {
   return (
     <TypedEditorShell title="SOW Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800/40">
             <p className="text-xs font-semibold text-cyan-800 dark:text-cyan-300">Statement of Work</p>
             <p className="text-[11px] text-cyan-700 dark:text-cyan-400 mt-0.5">Detailed scope, deliverables and milestones — typically issued under a parent contract.</p>
@@ -2037,15 +2037,31 @@ function SOWEditor({ data, onChange, documentStatus }: EditorPanelProps) {
           <Field id="sow-title" label="Title" value={title} onChange={(v) => onChange({ title: v } as Partial<InvoiceData>)} placeholder="e.g. Website Redesign — Statement of Work" disabled={isPaid} />
           <Field id="sow-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="SOW-0001" disabled={isPaid} />
           <SelectField id="sow-currency" label="Currency" value={data.currency} onChange={(v) => onChange({ currency: v })} options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol} ${c.code}` }))} disabled={isPaid} />
+          <button
+            type="button"
+            onClick={() => setOpenStep(2)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={2} title="Parties" isComplete={data.fromName.trim().length > 0 && data.toName.trim().length > 0} isOpen={openStep === 2} onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}>
-        <PartiesBlock data={data} onChange={onChange} disabled={isPaid} fromLabel="Service Provider" toLabel="Client" />
+        <div className="flex flex-col gap-3">
+          <PartiesBlock data={data} onChange={onChange} disabled={isPaid} fromLabel="Service Provider" toLabel="Client" />
+          <button
+            type="button"
+            onClick={() => setOpenStep(3)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
+        </div>
       </Step>
 
       <Step number={3} title="Scope & Deliverables" isComplete={scopeItems.length > 0 && projectOverview.trim().length > 0} isOpen={openStep === 3} onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}>
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Project Overview</label>
             <textarea
@@ -2153,11 +2169,18 @@ function SOWEditor({ data, onChange, documentStatus }: EditorPanelProps) {
               <Plus className="w-3.5 h-3.5" /> Add deliverable
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => setOpenStep(4)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={4} title="Milestones" isComplete={milestones.length > 0} isOpen={openStep === 4} onToggle={() => setOpenStep(openStep === 4 ? 0 : 4)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {milestones.map((m, i) => (
             <div key={m.id} className="rounded-xl border border-border bg-background p-3 space-y-2">
               <div className="flex items-center gap-2">
@@ -2205,6 +2228,13 @@ function SOWEditor({ data, onChange, documentStatus }: EditorPanelProps) {
               disabled={isPaid}
             />
           </div>
+          <button
+            type="button"
+            onClick={() => setOpenStep(5)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
@@ -2258,7 +2288,7 @@ function ChangeOrderEditor({ data, onChange, documentStatus }: EditorPanelProps)
   return (
     <TypedEditorShell title="Change Order Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40">
             <p className="text-xs font-semibold text-orange-800 dark:text-orange-300">Change Order</p>
             <p className="text-[11px] text-orange-700 dark:text-orange-400 mt-0.5">Amendment to an existing SOW or contract.</p>
@@ -2266,11 +2296,18 @@ function ChangeOrderEditor({ data, onChange, documentStatus }: EditorPanelProps)
           <Field id="co-number" label="Change Order #" value={changeOrderNumber} onChange={(v) => onChange({ changeOrderNumber: v, invoiceNumber: v } as Partial<InvoiceData>)} placeholder="CO-001" disabled={isPaid} />
           <Field id="co-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="REF-0001" disabled={isPaid} />
           <SelectField id="co-currency" label="Currency" value={data.currency} onChange={(v) => onChange({ currency: v })} options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol} ${c.code}` }))} disabled={isPaid} />
+          <button
+            type="button"
+            onClick={() => setOpenStep(2)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={2} title="Parent Reference" isComplete={!!parentDocumentId} isOpen={openStep === 2} onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-muted/40 border border-border">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Linked Document (read-only)</p>
             <p className="text-sm font-medium text-foreground">
@@ -2284,11 +2321,18 @@ function ChangeOrderEditor({ data, onChange, documentStatus }: EditorPanelProps)
             The parent reference is set when this change order is created from a parent SOW/contract. To link a different parent, regenerate the change order from the parent document.
           </p>
           <PartiesBlock data={data} onChange={onChange} disabled={isPaid} fromLabel="Service Provider" toLabel="Client" />
+          <button
+            type="button"
+            onClick={() => setOpenStep(3)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={3} title="Changes" isComplete={additions.length + removals.length + modifications.length > 0} isOpen={openStep === 3} onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}>
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Description / Reason</label>
             <textarea
@@ -2375,11 +2419,18 @@ function ChangeOrderEditor({ data, onChange, documentStatus }: EditorPanelProps)
               <Plus className="w-3.5 h-3.5" /> Add modification
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => setOpenStep(4)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={4} title="Impact" isComplete={timelineImpact.trim().length > 0} isOpen={openStep === 4} onToggle={() => setOpenStep(openStep === 4 ? 0 : 4)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Timeline Impact</label>
             <textarea
@@ -2392,6 +2443,13 @@ function ChangeOrderEditor({ data, onChange, documentStatus }: EditorPanelProps)
             />
           </div>
           <Field id="co-effective" label="Effective Date" value={data.invoiceDate} onChange={(v) => onChange({ invoiceDate: v })} type="date" disabled={isPaid} />
+          <button
+            type="button"
+            onClick={() => setOpenStep(5)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
@@ -2439,17 +2497,24 @@ function NDAEditor({ data, onChange, documentStatus }: EditorPanelProps) {
   return (
     <TypedEditorShell title="NDA Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/40">
             <p className="text-xs font-semibold text-slate-800 dark:text-slate-300">Non-Disclosure Agreement</p>
             <p className="text-[11px] text-slate-700 dark:text-slate-400 mt-0.5">Protects confidential information shared between parties.</p>
           </div>
           <Field id="nda-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="NDA-0001" disabled={isPaid} />
+          <button
+            type="button"
+            onClick={() => setOpenStep(2)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={2} title="Parties" isComplete={parties.length >= 2 && parties.every((p) => p.name.trim().length > 0)} isOpen={openStep === 2} onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {parties.map((p, i) => (
             <div key={i} className="rounded-xl border border-border bg-background p-3 space-y-2">
               <div className="flex items-center gap-2">
@@ -2476,11 +2541,18 @@ function NDAEditor({ data, onChange, documentStatus }: EditorPanelProps) {
               <Plus className="w-3.5 h-3.5" /> Add party
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setOpenStep(3)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={3} title="Confidential Information" isComplete={confidentialInfoDefinition.trim().length > 0} isOpen={openStep === 3} onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Definition of Confidential Information</label>
             <textarea
@@ -2494,11 +2566,18 @@ function NDAEditor({ data, onChange, documentStatus }: EditorPanelProps) {
           </div>
           <StringArrayEditor label="Obligations" values={obligations} onChange={(next) => onChange({ obligations: next } as Partial<InvoiceData>)} placeholder="e.g. Use the information only for the stated purpose" disabled={isPaid} />
           <StringArrayEditor label="Exclusions" values={exclusions} onChange={(next) => onChange({ exclusions: next } as Partial<InvoiceData>)} placeholder="e.g. Information already in the public domain" disabled={isPaid} />
+          <button
+            type="button"
+            onClick={() => setOpenStep(4)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={4} title="Terms & Duration" isComplete={obligations.length > 0 && termStart.length > 0} isOpen={openStep === 4} onToggle={() => setOpenStep(openStep === 4 ? 0 : 4)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-2">
             <Field id="nda-term-start" label="Term Start" value={termStart} onChange={(v) => onChange({ termStart: v, invoiceDate: v } as Partial<InvoiceData>)} type="date" disabled={isPaid} />
             <Field id="nda-term-duration" label="Duration" value={String(termDuration)} onChange={(v) => onChange({ termDuration: Number(v) || 0 } as Partial<InvoiceData>)} type="number" disabled={isPaid} />
@@ -2508,6 +2587,13 @@ function NDAEditor({ data, onChange, documentStatus }: EditorPanelProps) {
             { value: "years", label: "Years" },
           ]} disabled={isPaid} />
           <Field id="nda-law" label="Governing Law" value={governingLaw} onChange={(v) => onChange({ governingLaw: v } as Partial<InvoiceData>)} placeholder="e.g. State of California, USA" disabled={isPaid} />
+          <button
+            type="button"
+            onClick={() => setOpenStep(5)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
@@ -2551,17 +2637,24 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPa
   return (
     <TypedEditorShell title="Onboarding Form Builder" totalSteps={4} completedSteps={completed} isPaid={isPaid}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800/40">
             <p className="text-xs font-semibold text-teal-800 dark:text-teal-300">Client Onboarding Form</p>
             <p className="text-[11px] text-teal-700 dark:text-teal-400 mt-0.5">Intake form to collect structured client details and project requirements.</p>
           </div>
           <Field id="cof-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="ONB-0001" disabled={isPaid} />
+          <button
+            type="button"
+            onClick={() => setOpenStep(2)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={2} title="Client Details" isComplete={data.toName.trim().length > 0} isOpen={openStep === 2} onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div className="space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">From (You)</p>
             <Field id="cof-from-name" label="Name / Company" value={data.fromName} onChange={(v) => onChange({ fromName: v })} disabled={isPaid} />
@@ -2592,11 +2685,18 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPa
             <Field id="cof-timeline" label="Timeline Preference" value={timelinePreference} onChange={(v) => onChange({ timelinePreference: v } as Partial<InvoiceData>)} optional placeholder="e.g. 6 weeks" disabled={isPaid} />
             <Field id="cof-budget" label="Budget Range" value={budgetRange} onChange={(v) => onChange({ budgetRange: v } as Partial<InvoiceData>)} optional placeholder="e.g. $5-10k" disabled={isPaid} />
           </div>
+          <button
+            type="button"
+            onClick={() => setOpenStep(3)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={3} title="Questions" isComplete={customQuestions.length > 0 || requirements.length > 0} isOpen={openStep === 3} onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}>
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           <StringArrayEditor label="Requirements" values={requirements} onChange={(next) => onChange({ requirements: next } as Partial<InvoiceData>)} placeholder="e.g. Mobile-responsive design" disabled={isPaid} />
           <div className="border-t border-border pt-3 space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Custom Questions</p>
@@ -2635,6 +2735,13 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPa
               <Plus className="w-3.5 h-3.5" /> Add question
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => setOpenStep(4)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
@@ -2691,17 +2798,24 @@ function PaymentFollowupEditor({ data, onChange, documentStatus }: EditorPanelPr
   return (
     <TypedEditorShell title="Payment Follow-up Builder" totalSteps={4} completedSteps={completed} isPaid={isPaid}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40">
             <p className="text-xs font-semibold text-rose-800 dark:text-rose-300">Payment Follow-up</p>
             <p className="text-[11px] text-rose-700 dark:text-rose-400 mt-0.5">Reminder for an unpaid invoice — references the original invoice details.</p>
           </div>
           <Field id="pf-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="REM-0001" disabled={isPaid} />
+          <button
+            type="button"
+            onClick={() => setOpenStep(2)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={2} title="Invoice Reference" isComplete={!!linkedInvoiceId} isOpen={openStep === 2} onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div className="px-3 py-3 rounded-xl bg-muted/40 border border-border space-y-1.5">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Linked Invoice (read-only)</p>
             <p className="text-sm font-medium text-foreground">
@@ -2729,11 +2843,18 @@ function PaymentFollowupEditor({ data, onChange, documentStatus }: EditorPanelPr
             The invoice link is set automatically when this follow-up is generated from a parent invoice. To target a different invoice, regenerate from that invoice.
           </p>
           <PartiesBlock data={data} onChange={onChange} disabled={isPaid} />
+          <button
+            type="button"
+            onClick={() => setOpenStep(3)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 
       <Step number={3} title="Reminder Settings" isComplete={!!reminderTone} isOpen={openStep === 3} onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tone</label>
             <div className="grid grid-cols-3 gap-2">
@@ -2758,6 +2879,13 @@ function PaymentFollowupEditor({ data, onChange, documentStatus }: EditorPanelPr
               {reminderTone === "urgent" && "Strong language. Reserve for significantly overdue invoices."}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setOpenStep(4)}
+            className="text-xs font-medium text-primary hover:underline self-end mt-1"
+          >
+            Next step
+          </button>
         </div>
       </Step>
 

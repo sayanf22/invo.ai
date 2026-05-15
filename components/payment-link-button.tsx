@@ -194,7 +194,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
     const supportsPaymentLink = docConfig?.capabilities.supports_payment_link === true
     // Payment Follow-up: display the linked invoice's payment link but do NOT create new ones
     const isPaymentFollowup = normalizedType === "payment_followup"
-    // isInvoice controls the "fetch existing link" flow — applies to invoice + recurring_invoice
+    // isInvoice controls the "fetch existing link" flow — applies to any payment-supporting type
     // but NOT payment_followup (that type reads paymentLinkUrl from its own context)
     const isInvoice = supportsPaymentLink && !isPaymentFollowup
 

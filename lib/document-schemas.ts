@@ -183,23 +183,12 @@ export const paymentFollowupSchema = z.object({
 
 export type PaymentFollowupData = z.infer<typeof paymentFollowupSchema>
 
-// ─── Recurring Invoice Context Schema ─────────────────────────────────────────
-
-export const recurringInvoiceContextSchema = z.object({
-  recurrenceFrequency: z.enum(["weekly", "biweekly", "monthly", "quarterly", "annually"]),
-  recurrenceStartDate: z.string(),
-  recurrenceEndDate: z.string().optional(),
-  maxOccurrences: z.number().optional(),
-  autoSend: z.boolean().default(true),
-})
-
-export type RecurringInvoiceContext = z.infer<typeof recurringInvoiceContextSchema>
-
 // ─── Union Type ───────────────────────────────────────────────────────────────
 
 /**
  * Union of all document data shapes.
- * InvoiceData covers: invoice, quote, and recurring_invoice document types.
+ * InvoiceData covers: invoice and quote document types. (Recurring is a
+ * setting on a regular invoice, not a separate document type.)
  */
 export type AnyDocumentData =
   | InvoiceData

@@ -106,11 +106,11 @@ export async function POST(request: NextRequest) {
 
         // SECURITY: Validate document type against whitelist
         // 'chat' is a valid pseudo-type for chat-only advisory mode.
-        // All 10 canonical document types + legacy 'quotation' alias + 'chat' are valid.
+        // All 9 canonical document types + legacy 'quotation' alias + 'chat' are valid.
         const VALID_DOC_TYPES = [
             "invoice", "contract", "quote", "quotation", "proposal",
             "sow", "change_order", "nda", "client_onboarding_form",
-            "payment_followup", "recurring_invoice", "chat",
+            "payment_followup", "chat",
         ]
         const normalizedDocType = body.documentType.toLowerCase().trim()
         if (!VALID_DOC_TYPES.includes(normalizedDocType)) {
@@ -494,7 +494,6 @@ export async function POST(request: NextRequest) {
                             : docTypeLower === "nda" ? "NDA"
                             : docTypeLower === "client_onboarding_form" ? "COF"
                             : docTypeLower === "payment_followup" ? "PF"
-                            : docTypeLower === "recurring_invoice" ? "RINV"
                             : "INV"
 
                         const { count } = await auth.supabase
@@ -672,15 +671,15 @@ export async function POST(request: NextRequest) {
                     }
 
                     // ── 4b. Type-specific Zod schema validation (new document types) ──
-                    // For SOW, Change Order, NDA, Client Onboarding Form, Payment Follow-up,
-                    // and Recurring Invoice, validate the generated JSON against the correct
-                    // Zod schema. Validation is lenient — optional fields may be absent.
-                    // Only reject if CRITICAL required fields are missing. On failure, retry
-                    // generation once with a correction hint, then accept the second attempt
-                    // even if imperfect (the document is still usable).
+                    // For SOW, Change Order, NDA, Client Onboarding Form, and Payment Follow-up,
+                    // validate the generated JSON against the correct Zod schema. Validation is
+                    // lenient — optional fields may be absent. Only reject if CRITICAL required
+                    // fields are missing. On failure, retry generation once with a correction
+                    // hint, then accept the second attempt even if imperfect (the document is
+                    // still usable).
                     if (modelCompletedSuccessfully && completeResponseData && isDocGeneration) {
                         const schemaDocType = (body.documentType || "invoice").toLowerCase().trim()
-                        const SCHEMA_VALIDATED_TYPES = ["sow", "change_order", "nda", "client_onboarding_form", "payment_followup", "recurring_invoice"]
+                        const SCHEMA_VALIDATED_TYPES = ["sow", "change_order", "nda", "client_onboarding_form", "payment_followup"]
                         if (SCHEMA_VALIDATED_TYPES.includes(schemaDocType)) {
                             try {
                                 const {
@@ -689,7 +688,6 @@ export async function POST(request: NextRequest) {
                                     ndaSchema,
                                     clientOnboardingFormSchema,
                                     paymentFollowupSchema,
-                                    recurringInvoiceContextSchema,
                                 } = await import("@/lib/document-schemas")
 
                                 // Critical fields — if ANY of these are missing, validation fails
@@ -700,7 +698,6 @@ export async function POST(request: NextRequest) {
                                     nda: ["parties", "confidentialInfoDefinition", "obligations", "governingLaw"],
                                     client_onboarding_form: ["clientName", "projectName", "fromName"],
                                     payment_followup: ["invoiceNumber", "invoiceAmount", "fromName", "toName", "reminderTone"],
-                                    recurring_invoice: ["recurrenceFrequency", "recurrenceStartDate"],
                                 }
 
                                 // Build a lenient (partial) schema per type — all fields become
@@ -712,9 +709,6 @@ export async function POST(request: NextRequest) {
                                     nda: ndaSchema.partial(),
                                     client_onboarding_form: clientOnboardingFormSchema.partial(),
                                     payment_followup: paymentFollowupSchema.partial(),
-                                    // recurring_invoice validates ONLY the context sub-object;
-                                    // the base invoice fields are validated via the invoice path
-                                    recurring_invoice: recurringInvoiceContextSchema.partial(),
                                 }
                                 const partialSchema = schemaMap[schemaDocType]
                                 const criticalFields = CRITICAL_FIELDS[schemaDocType] ?? []
@@ -722,22 +716,15 @@ export async function POST(request: NextRequest) {
                                 /**
                                  * Lenient validate:
                                  * 1. Parse JSON, extract document object.
-                                 * 2. For recurring_invoice: look for context sub-object first.
-                                 * 3. Run partial safeParse (all fields optional).
-                                 * 4. Check critical fields exist and are non-empty.
+                                 * 2. Run partial safeParse (all fields optional).
+                                 * 3. Check critical fields exist and are non-empty.
                                  * Returns { ok: true } or { ok: false, issues, criticalMissing }.
                                  */
                                 const validateAndExtract = (raw: string): { ok: true } | { ok: false; issues: any; criticalMissing: string[] } => {
                                     try {
                                         const parsed = JSON.parse(raw)
                                         const docObj = parsed.document || parsed
-
-                                        // For recurring_invoice, also attempt to validate the
-                                        // recurrence context — it may be nested under a key like
-                                        // "recurrenceContext", "context", or at top level.
-                                        const targetObj = schemaDocType === "recurring_invoice"
-                                            ? (docObj.recurrenceContext ?? docObj.context ?? docObj)
-                                            : docObj
+                                        const targetObj = docObj
 
                                         // Lenient parse — unknown/extra fields stripped, missing allowed
                                         const result = partialSchema.safeParse(targetObj)

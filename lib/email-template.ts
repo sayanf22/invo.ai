@@ -1,7 +1,9 @@
 export interface EmailTemplateData {
   businessName: string
   businessLogoUrl?: string | null
-  documentType: "invoice" | "contract" | "quotation" | "proposal"
+  /** Raw document type from DB. Could be any of the 9 canonical types or
+   *  the legacy "quotation" alias. The renderer normalizes internally. */
+  documentType: string
   referenceNumber: string
   recipientName: string
   totalAmount?: string | null
@@ -14,17 +16,33 @@ export interface EmailTemplateData {
   signingUrl?: string | null
 }
 
+/**
+ * Display label for a document type. Maps "quotation" to "Quote" and
+ * provides labels for all 9 canonical types. Falls back to "Document".
+ */
+function getDocLabel(documentType: string): string {
+  const t = (documentType || "").toLowerCase()
+  switch (t) {
+    case "invoice":               return "Invoice"
+    case "contract":              return "Contract"
+    case "quote":
+    case "quotation":             return "Quote"
+    case "proposal":              return "Proposal"
+    case "sow":                   return "Statement of Work"
+    case "change_order":          return "Change Order"
+    case "nda":                   return "NDA"
+    case "client_onboarding_form": return "Client Onboarding Form"
+    case "payment_followup":      return "Payment Reminder"
+    default:                      return "Document"
+  }
+}
+
 export function generateEmailSubject(
   documentType: string,
   referenceNumber: string,
   businessName: string
 ): string {
-  const label =
-    documentType === "invoice" ? "Invoice"
-    : documentType === "contract" ? "Contract"
-    : documentType === "quotation" ? "Quotation"
-    : "Proposal"
-  return `${label} ${referenceNumber} from ${businessName}`
+  return `${getDocLabel(documentType)} ${referenceNumber} from ${businessName}`
 }
 
 /**
@@ -40,31 +58,46 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
     personalMessage, viewDocumentUrl, payNowUrl, signingUrl,
   } = data
 
-  const docLabel =
-    documentType === "invoice" ? "Invoice"
-    : documentType === "contract" ? "Contract"
-    : documentType === "quotation" ? "Quotation"
-    : "Proposal"
+  // Normalize doc type once for all conditional logic below.
+  const t = (documentType || "").toLowerCase()
+  const isInvoice = t === "invoice"
+  const isContract = t === "contract"
+  const isQuote = t === "quote" || t === "quotation"
+  const isProposal = t === "proposal"
+  const isSow = t === "sow"
+  const isChangeOrder = t === "change_order"
+  const isNda = t === "nda"
+  const isOnboarding = t === "client_onboarding_form"
+  const isPaymentFollowup = t === "payment_followup"
 
-  const showAmount = (documentType === "invoice" || documentType === "quotation") && totalAmount != null && totalAmount !== ""
-  // For contracts: never show the full description (it's the entire contract body — too long)
-  // For proposals: show a truncated excerpt (max 200 chars)
-  const rawDescription = (documentType === "contract" || documentType === "proposal") && description != null && description !== ""
+  const docLabel = getDocLabel(documentType)
+
+  // Show monetary amount for types that track a total: invoice, quote, payment follow-up
+  const showAmount = (isInvoice || isQuote || isPaymentFollowup) && totalAmount != null && totalAmount !== ""
+
+  // For contracts/SOWs/NDAs/Change Orders: the "description" is the legal body — far too long for an email card.
+  // For proposals/onboarding/payment follow-ups: a short excerpt is helpful.
+  const isLongFormBody = isContract || isSow || isNda || isChangeOrder
+  const rawDescription = !isLongFormBody && description != null && description !== ""
     ? description
     : null
-  const showDescription = rawDescription !== null && documentType === "proposal"
+  const showDescription = rawDescription !== null && (isProposal || isOnboarding || isPaymentFollowup)
   const truncatedDescription = rawDescription
     ? rawDescription.length > 200 ? rawDescription.slice(0, 197) + "…" : rawDescription
     : null
 
-  // Contract-specific body copy — short and professional
-  const bodyText = documentType === "contract"
-    ? `Please review the contract and sign when ready.`
-    : documentType === "proposal"
-    ? `Please review the proposal at your convenience.`
-    : documentType === "quotation"
-    ? `Please review the quotation. Let us know if you have any questions.`
-    : `Please find your invoice attached.`
+  // Body copy — short, type-appropriate.
+  const bodyText =
+    isInvoice          ? `Please find your invoice attached.`
+  : isContract         ? `Please review the contract and sign when ready.`
+  : isQuote            ? `Please review the quote. Let us know if you have any questions.`
+  : isProposal         ? `Please review the proposal at your convenience.`
+  : isSow              ? `Please review this Statement of Work and sign to confirm scope.`
+  : isChangeOrder      ? `Please review this change order and sign to approve the changes.`
+  : isNda              ? `Please review the NDA and sign to acknowledge.`
+  : isOnboarding       ? `Please complete this onboarding form so we can get started.`
+  : isPaymentFollowup  ? `Friendly reminder about your outstanding invoice.`
+  : `Please review the document attached.`
 
   const showPersonalMessage = personalMessage != null && personalMessage !== ""
   const showPayNow = payNowUrl != null && payNowUrl !== ""

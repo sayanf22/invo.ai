@@ -8,9 +8,17 @@ import { PromptInputBox } from "@/components/ui/ai-prompt-box"
 interface PromptInputProps {
   onSubmit?: (prompt: string, file?: File) => void
   placeholder?: string
+  /**
+   * Optional text to pre-fill the input with. Each change of `prefillNonce`
+   * pushes this into the underlying textarea. Used by example-prompt pills
+   * to populate the input — does NOT auto-send.
+   */
+  prefillValue?: string
+  /** Bump to trigger a re-fill, even when `prefillValue` is unchanged. */
+  prefillNonce?: number
 }
 
-export function PromptInput({ onSubmit, placeholder }: PromptInputProps) {
+export function PromptInput({ onSubmit, placeholder, prefillValue, prefillNonce }: PromptInputProps) {
   const { isAuthenticated, requireAuth, isLoading } = useRequireAuth()
 
   const wrappedSubmit = requireAuth((...args: unknown[]) => {
@@ -33,6 +41,8 @@ export function PromptInput({ onSubmit, placeholder }: PromptInputProps) {
           placeholder ||
           "Describe your document... e.g. Create an invoice for web design services"
         }
+        prefillValue={prefillValue}
+        prefillNonce={prefillNonce}
       />
       <p className="text-center text-[13px] text-muted-foreground mt-3">
         {isAuthenticated ? (

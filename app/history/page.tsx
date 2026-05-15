@@ -38,9 +38,9 @@ function getDocCfg(type: string) {
 }
 
 // ── Filter definitions ────────────────────────────────────────────────────────
-// Top 6 visible types + "All" + optional "Chat"; remaining 4 under "More".
+// Top 6 visible types + "All" + optional "Chat"; remaining 3 under "More".
 const PRIMARY_FILTER_TYPES = ["invoice", "contract", "quote", "proposal", "sow", "nda"] as const
-const MORE_FILTER_TYPES    = ["change_order", "client_onboarding_form", "payment_followup", "recurring_invoice"] as const
+const MORE_FILTER_TYPES    = ["change_order", "client_onboarding_form", "payment_followup"] as const
 
 type DocTypeFilter = typeof PRIMARY_FILTER_TYPES[number] | typeof MORE_FILTER_TYPES[number]
 type FilterValue   = "all" | "chat" | DocTypeFilter

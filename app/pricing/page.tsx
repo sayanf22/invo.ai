@@ -26,7 +26,7 @@ const plans: PlanData[] = [
     comingSoon: false,
     features: [
       { text: "5 documents / month", tip: null },
-      { text: "Invoice + Contract", tip: null },
+      { text: "Invoice + Contract + Quote", tip: null },
       { text: "10 messages per session", tip: null },
       { text: "3 templates", tip: "Modern, Classic, Minimal" },
       { text: "Every country worldwide", tip: "Tax and compliance rules for 150+ countries" },
@@ -35,7 +35,7 @@ const plans: PlanData[] = [
       { text: "Custom logo & branding", tip: null },
     ],
     missing: [
-      "Quotations & Proposals",
+      "Proposals, SOWs, NDAs & 3 more types",
       "All 9 templates",
       "DOCX & image export",
       "Digital signatures",
@@ -56,7 +56,7 @@ const plans: PlanData[] = [
     comingSoon: false,
     features: [
       { text: "50 documents / month", tip: null },
-      { text: "All 4 document types", tip: "Invoice, Contract, Quote, Proposal" },
+      { text: "All 9 document types", tip: "Invoice, Contract, Quote, Proposal, SOW, NDA, Change Order, Onboarding Form, Payment Reminder" },
       { text: "30 messages per session", tip: null },
       { text: "All 9 templates", tip: null },
       { text: "Every country worldwide", tip: "Tax and compliance rules for 150+ countries" },
@@ -85,7 +85,7 @@ const plans: PlanData[] = [
     comingSoon: false,
     features: [
       { text: "150 documents / month", tip: null },
-      { text: "All 4 document types", tip: null },
+      { text: "All 9 document types", tip: null },
       { text: "50 messages per session", tip: null },
       { text: "All 9 templates", tip: null },
       { text: "Every country worldwide", tip: "Tax and compliance rules for 150+ countries" },
@@ -114,7 +114,7 @@ const plans: PlanData[] = [
     comingSoon: true,
     features: [
       { text: "Unlimited documents", tip: null },
-      { text: "All 4 document types", tip: null },
+      { text: "All 9 document types", tip: null },
       { text: "Unlimited messages per session", tip: null },
       { text: "All 9 templates", tip: null },
       { text: "Every country worldwide", tip: "Tax and compliance rules for 150+ countries" },
@@ -159,14 +159,14 @@ const pricingPlans: PricingPlan[] = [
     name: "Free",
     price: 0,
     currency: "USD",
-    description: "5 documents/month, Invoice + Contract, every country worldwide, PDF export. No credit card required.",
+    description: "5 documents/month, Invoice + Contract + Quote, every country worldwide, PDF export. No credit card required.",
     billingPeriod: "P1M",
   },
   {
     name: "Starter",
     price: 9,
     currency: "USD",
-    description: "50 documents/month, all 4 document types, all 9 templates, PDF + DOCX export, 30-day history.",
+    description: "50 documents/month, all 9 document types, all 9 templates, PDF + DOCX export, 30-day history.",
     billingPeriod: "P1M",
   },
   {

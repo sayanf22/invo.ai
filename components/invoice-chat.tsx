@@ -1188,7 +1188,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             : t === "nda" ? "Nda"
                             : t === "client_onboarding_form" ? "Client_onboarding_form"
                             : t === "payment_followup" ? "Payment_followup"
-                            : t === "recurring_invoice" ? "Recurring_invoice"
                             : docData.documentType
                     }
 

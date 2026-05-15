@@ -1,4 +1,4 @@
-import {
+﻿import {
     Document,
     Page,
     Text,
@@ -16,11 +16,10 @@ import type {
     NDAData,
     ClientOnboardingFormData,
     PaymentFollowupData,
-    RecurringInvoiceContext,
 } from "@/lib/document-schemas"
 import type React from "react"
 
-// ─── Signature Block Error ─────────────────────────────────────────────────
+// â”€â”€â”€ Signature Block Error â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Thrown when a signable document type cannot produce a signature block.
 // The PDF export flow catches this to prevent producing an unsigned PDF.
 
@@ -31,16 +30,16 @@ export class SignatureBlockRenderError extends Error {
     }
 }
 
-// ─── Font Registration ───
+// â”€â”€â”€ Font Registration â”€â”€â”€
 // Local static WOFF fonts from @fontsource packages (copied to public/fonts/).
-// These are weight-specific static files — NOT variable fonts.
+// These are weight-specific static files â€” NOT variable fonts.
 // @react-pdf/renderer embeds them into the PDF so pdfjs renders crisp text
 // instead of ugly bitmap fallbacks from built-in Type1 fonts.
 
 // Disable hyphenation for cleaner text rendering in PDFs
 Font.registerHyphenationCallback(word => [word])
 
-// Inter — clean sans-serif (default for most templates)
+// Inter â€” clean sans-serif (default for most templates)
 Font.register({
     family: "Inter",
     fonts: [
@@ -49,7 +48,7 @@ Font.register({
     ],
 })
 
-// Lora — elegant serif
+// Lora â€” elegant serif
 Font.register({
     family: "Lora",
     fonts: [
@@ -58,7 +57,7 @@ Font.register({
     ],
 })
 
-// Roboto Mono — monospace
+// Roboto Mono â€” monospace
 Font.register({
     family: "Roboto Mono",
     fonts: [
@@ -67,29 +66,29 @@ Font.register({
     ],
 })
 
-// ─── Font mapping ───
+// â”€â”€â”€ Font mapping â”€â”€â”€
 function getFontFamily(data: InvoiceData): { font: string; fontB: string } {
     const f = data.design?.font || "Inter"
     switch (f) {
-        // Serif fonts → Lora
+        // Serif fonts â†’ Lora
         case "Playfair":
         case "Lora":
         case "Times-Roman":
             return { font: "Lora", fontB: "Lora" }
-        // Monospace fonts → Roboto Mono
+        // Monospace fonts â†’ Roboto Mono
         case "Roboto Mono":
         case "Courier":
             return { font: "Roboto Mono", fontB: "Roboto Mono" }
-        // Sans-serif fonts → Inter
+        // Sans-serif fonts â†’ Inter
         default:
             return { font: "Inter", fontB: "Inter" }
     }
 }
 
-// ─── Shared Utilities ───
+// â”€â”€â”€ Shared Utilities â”€â”€â”€
 
 function fmt(amount: number, currency: string = "USD"): string {
-    // ASCII-safe currency symbols only — avoids needing special Unicode fonts.
+    // ASCII-safe currency symbols only â€” avoids needing special Unicode fonts.
     // Characters like $, A$, R are in basic Latin and render in any PDF font.
     const symbols: Record<string, string> = {
         USD: "$", EUR: "EUR", GBP: "GBP", INR: "Rs.", JPY: "JPY",
@@ -101,14 +100,14 @@ function fmt(amount: number, currency: string = "USD"): string {
     return `${s} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-// Currency font style — no special font needed since we use ASCII-safe symbols.
+// Currency font style â€” no special font needed since we use ASCII-safe symbols.
 // These are empty objects so the spread (...CF / ...CFB) is a no-op and the
 // Text element inherits the template's own font family.
 const CF = {} as const
 const CFB = { fontWeight: 700 as const } as const
 
 function fmtDate(d: string | undefined): string {
-    if (!d) return "—"
+    if (!d) return "â€”"
     try {
         return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
     } catch { return d }
@@ -137,7 +136,7 @@ export function getTpl(data: InvoiceData): Tpl {
 
 interface Props { data: InvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }
 
-// ─── Payment Link Section (Invoice only) ───────────────────────────────────
+// â”€â”€â”€ Payment Link Section (Invoice only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Renders a "Pay Now" section with a clickable URL + QR code.
 // Industry standard: Stripe, Zoho, FreshBooks all embed payment links in PDFs.
 function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn, bTopFn }: {
@@ -194,7 +193,7 @@ function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn,
                     textDecoration: "none",
                 }}>
                     <Text style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>
-                        Pay Now →
+                        Pay Now â†’
                     </Text>
                 </Link>
                 {/* Short URL as text fallback */}
@@ -203,7 +202,7 @@ function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn,
                 </Text>
                 {data.paymentLinkStatus === "partially_paid" && (
                     <Text style={{ fontSize: 8, color: "#d97706", marginTop: 4, fontWeight: 700 }}>
-                        Partial payment received — balance still due
+                        Partial payment received â€” balance still due
                     </Text>
                 )}
             </View>
@@ -229,7 +228,7 @@ function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn,
     )
 }
 
-// ─── Theme palettes per template ───
+// â”€â”€â”€ Theme palettes per template â”€â”€â”€
 export function getTheme(tpl: Tpl, data: InvoiceData) {
     const { font, fontB } = getFontFamily(data)
     const base = {
@@ -263,7 +262,7 @@ function r(n: number) {
     return { borderTopLeftRadius: n, borderTopRightRadius: n, borderBottomRightRadius: n, borderBottomLeftRadius: n, ...bNone() }
 }
 
-// Helper: safe border — always specify ALL 4 sides for width, color, AND style
+// Helper: safe border â€” always specify ALL 4 sides for width, color, AND style
 // react-pdf's resolveBorderShorthand crashes when any border property is partially specified
 function bw(top: number, right: number, bottom: number, left: number) {
     return { borderTopWidth: top, borderRightWidth: right, borderBottomWidth: bottom, borderLeftWidth: left }
@@ -275,7 +274,7 @@ function bs(top: string, right: string, bottom: string, left: string) {
     return { borderTopStyle: top as any, borderRightStyle: right as any, borderBottomStyle: bottom as any, borderLeftStyle: left as any }
 }
 
-// Shorthand helpers — always include width + color + style for all 4 sides
+// Shorthand helpers â€” always include width + color + style for all 4 sides
 function bBottom(w: number, color: string) {
     return { ...bw(0, 0, w, 0), ...bc("transparent", "transparent", color, "transparent"), ...bs("solid", "solid", "solid", "solid") }
 }
@@ -293,7 +292,7 @@ function bNone() {
     return { ...bw(0, 0, 0, 0), ...bc("transparent", "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
 }
 
-// Helper: render a single item row — Amount always shows full price (qty × rate)
+// Helper: render a single item row â€” Amount always shows full price (qty Ã— rate)
 function ItemRow({ item, i, data, c, CF, CFB, tRow, tRowAlt, cD, cQ, cR, cA }: {
     item: any; i: number; data: InvoiceData; c: any; CF: any; CFB: any;
     tRow: any; tRowAlt: any; cD: any; cQ: any; cR: any; cA: any;
@@ -332,7 +331,7 @@ function getItemDiscountTotal(data: InvoiceData): number {
 }
 
 
-// ─── Logo helper for PDF headers ───
+// â”€â”€â”€ Logo helper for PDF headers â”€â”€â”€
 function PdfLogo({ url, show, shape, size: sizeProp }: { url?: string | null; show?: boolean; shape?: "rounded" | "circle"; size?: number }) {
     if (!url || show === false) return null
     const size = Math.max(24, Math.min(96, sizeProp ?? 44))
@@ -358,7 +357,7 @@ function PdfLogo({ url, show, shape, size: sizeProp }: { url?: string | null; sh
     )
 }
 
-// ─── Document Config ───────────────────────────────────────────────────────
+// â”€â”€â”€ Document Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Configuration-driven layout differentiation per document type.
 // Each config specifies labels, section flags, table columns, and date fields
 // so shared section components can render the correct layout for each type.
@@ -497,7 +496,7 @@ export function getDocumentConfig(documentType: string): DocumentConfig {
     }
 }
 
-// ─── HeaderSection (shared internal component) ─────────────────────────────
+// â”€â”€â”€ HeaderSection (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Renders document title, reference number, logo, and optional status badge.
 // Each document type has a unique decorative accent per theme variant.
 
@@ -513,7 +512,7 @@ function HeaderSection({ data, logoUrl, tpl, c, config }: HeaderSectionProps) {
     const refNumber = data.referenceNumber || data.invoiceNumber || config.refPrefix + "-0000"
     const docType = config.title // "INVOICE" | "CONTRACT" | "QUOTATION" | "PROPOSAL"
 
-    // ── Bold theme: full-width colored header ──
+    // â”€â”€ Bold theme: full-width colored header â”€â”€
     if (tpl === "bold") {
         // Bold accent shapes vary by document type
         const boldShapeStyle = (() => {
@@ -549,7 +548,7 @@ function HeaderSection({ data, logoUrl, tpl, c, config }: HeaderSectionProps) {
         )
     }
 
-    // ── Modern / Classic / Other themes: decorative accents + standard header ──
+    // â”€â”€ Modern / Classic / Other themes: decorative accents + standard header â”€â”€
 
     // Decorative accent elements rendered before the header content
     const renderAccent = () => {
@@ -643,7 +642,7 @@ function HeaderSection({ data, logoUrl, tpl, c, config }: HeaderSectionProps) {
     const titleFontSize = tpl === "classic" ? (docType === "CONTRACT" ? 24 : 26) : (docType === "CONTRACT" || docType === "QUOTE" || docType === "QUOTATION" ? 28 : 30)
     const titleLetterSpacing = tpl === "classic" ? 0 : (docType === "QUOTE" || docType === "QUOTATION" ? 1.5 : docType === "CONTRACT" ? 1 : 2)
 
-    // Header wrapper horizontal padding — Contract uses paddingHorizontal: 48 always
+    // Header wrapper horizontal padding â€” Contract uses paddingHorizontal: 48 always
     const hPadding = (docType === "CONTRACT" || docType === "QUOTE" || docType === "QUOTATION" || docType === "PROPOSAL") ? 48 : 0
 
     return (
@@ -663,7 +662,7 @@ function HeaderSection({ data, logoUrl, tpl, c, config }: HeaderSectionProps) {
                     <Text style={{ fontSize: titleFontSize, color: c.pri, letterSpacing: titleLetterSpacing, ...bold(c) }}>{docType}</Text>
                     <Text style={{ fontSize: 10, color: c.mut, marginTop: 4 }}>{refNumber}</Text>
                 </View>
-                {/* Status badge — only for Invoice */}
+                {/* Status badge â€” only for Invoice */}
                 {config.showStatusBadge && (
                     <View style={{ backgroundColor: c.acc, paddingHorizontal: 12, paddingVertical: 5, ...r(14), ...bNone() }}>
                         <Text style={{ fontSize: 9, color: c.pri, ...bold(c) }}>{data.status === "paid" ? "PAID" : "DRAFT"}</Text>
@@ -674,7 +673,7 @@ function HeaderSection({ data, logoUrl, tpl, c, config }: HeaderSectionProps) {
     )
 }
 
-// ─── DateStrip (shared internal component) ─────────────────────────────────
+// â”€â”€â”€ DateStrip (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Renders date fields from config.dateFields in a horizontal row.
 // Style varies by theme: modern (bg + rounded), classic (transparent + bottom border),
 // bold (left border accent on each item).
@@ -694,7 +693,7 @@ function DateStrip({ data, tpl, c, config }: DateStripProps) {
     // For Invoice: uses a single strip container with bg color (modern pattern)
     // For Contract/Quotation/Proposal: uses a row with individual items
     if (isInvoice) {
-        // Invoice date strip — matches existing s.dStrip / s.dItem pattern
+        // Invoice date strip â€” matches existing s.dStrip / s.dItem pattern
         return (
             <View style={{
                 flexDirection: "row",
@@ -725,7 +724,7 @@ function DateStrip({ data, tpl, c, config }: DateStripProps) {
         )
     }
 
-    // Contract / Quotation / Proposal date strip — matches existing s.dRow / s.dItem pattern
+    // Contract / Quotation / Proposal date strip â€” matches existing s.dRow / s.dItem pattern
     return (
         <View style={{
             flexDirection: "row",
@@ -754,7 +753,7 @@ function DateStrip({ data, tpl, c, config }: DateStripProps) {
     )
 }
 
-// ─── PartyBlocks (shared internal component) ───────────────────────────────
+// â”€â”€â”€ PartyBlocks (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Renders two-column party info using config.fromLabel and config.toLabel.
 // Style varies by theme: bold (bg color blocks), modern (accent underline on labels),
 // classic (bottom border on labels).
@@ -829,7 +828,7 @@ function PartyBlocks({ data, tpl, c, config }: PartyBlocksProps) {
     )
 }
 
-// ─── ItemTable (shared internal component) ─────────────────────────────────
+// â”€â”€â”€ ItemTable (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Renders the line-item table with document-specific column headers and optional section title.
 // Uses config.tableColumns for headers, config.tableSectionTitle for optional title,
 // config.tableHeaderUsesAccent for Proposal accent background, config.skipEmptyItems for filtering.
@@ -884,7 +883,7 @@ function ItemTable({ data, tpl, c, config, styles }: ItemTableProps) {
     )
 }
 
-// ─── TotalsBox (shared internal component) ──────────────────────────────────
+// â”€â”€â”€ TotalsBox (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Renders the financial summary: Subtotal, Discounts, Tax, Shipping, Grand Total.
 // Grand total label comes from config.grandTotalLabel.
 
@@ -948,7 +947,7 @@ function TotalsBox({ data, c, config, styles }: TotalsBoxProps) {
     )
 }
 
-// ─── SignatureRow (shared internal component) ───────────────────────────────
+// â”€â”€â”€ SignatureRow (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Renders dual signature blocks for Contract, Quotation, and Proposal.
 // Handles sender drawn signature, client signature image, "Electronically Signed" fallback.
 
@@ -998,7 +997,7 @@ function SignatureRow({ data, c, styles }: SignatureRowProps) {
     )
 }
 
-// ─── Signature Display Mode (testable pure function) ────────────────────────
+// â”€â”€â”€ Signature Display Mode (testable pure function) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Extracts the signature display mode selection logic from SignatureRow into a
 // pure function so it can be property-tested independently.
 
@@ -1027,10 +1026,10 @@ export function getSignatureDisplayMode(data: InvoiceData): { partyA: SignatureD
     return { partyA, partyB }
 }
 
-// ─── Signature Block Helpers ───────────────────────────────────────────────
+// â”€â”€â”€ Signature Block Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // buildSignatureBlock: returns a React element for the signature block based on type,
 // or null if the type's data doesn't support it. Used by renderSignatureBlock.
-// renderSignatureBlock: fail-closed — throws SignatureBlockRenderError if a signable
+// renderSignatureBlock: fail-closed â€” throws SignatureBlockRenderError if a signable
 // type cannot produce a signature block rather than returning an empty element.
 
 /**
@@ -1089,7 +1088,7 @@ function buildSignatureBlock(
                         <Image src={party.sig} style={{ width: 160, height: 52, marginBottom: 4, ...bNone() }} />
                     ) : party.electronic ? (
                         <View style={{ height: 52, marginBottom: 4, justifyContent: "center", ...bNone() }}>
-                            <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                            <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>âœ“ Electronically Signed</Text>
                         </View>
                     ) : (
                         <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
@@ -1117,11 +1116,11 @@ export function renderSignatureBlock(
 ): React.ReactElement {
     const config = getDocumentTypeConfig(documentType)
     if (!config?.capabilities.supports_signature) {
-        // Non-signable type — no block needed, proceed normally
+        // Non-signable type â€” no block needed, proceed normally
         return <></>
     }
 
-    // Signable type — must produce a block or abort
+    // Signable type â€” must produce a block or abort
     const block = buildSignatureBlock(documentType, data, c)
     if (!block) {
         throw new SignatureBlockRenderError(
@@ -1132,7 +1131,7 @@ export function renderSignatureBlock(
     return block
 }
 
-// ─── NotesSection (shared internal component) ───────────────────────────────
+// â”€â”€â”€ NotesSection (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Renders Notes and Terms & Conditions blocks.
 
 interface NotesSectionProps {
@@ -1171,7 +1170,7 @@ function NotesSection({ data, c, tpl, config }: NotesSectionProps) {
     )
 }
 
-// ─── FooterBar (shared internal component) ──────────────────────────────────
+// â”€â”€â”€ FooterBar (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Renders the page footer with "Generated by Clorefy" and page numbers.
 
 interface FooterBarProps {
@@ -1204,11 +1203,11 @@ function FooterBar({ tpl, c, config }: FooterBarProps) {
     )
 }
 
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // THEME-SPECIFIC HEADER RENDERER
 // Each of the 9 themes gets a genuinely different structural layout.
 // Called by all 4 document templates with their own title/content.
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 interface DocHeaderProps {
     tpl: Tpl
@@ -1225,7 +1224,7 @@ interface DocHeaderProps {
 
 function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHeader }: DocHeaderProps) {
     switch (tpl) {
-        // ── 1. MODERN: Full-bleed colored header, decorative circles ──
+        // â”€â”€ 1. MODERN: Full-bleed colored header, decorative circles â”€â”€
         case "modern":
             return (
                 <View style={{ ...bNone() }}>
@@ -1245,7 +1244,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                 </View>
             )
 
-        // ── 2. CLASSIC: White header, thick left border, double rule ──
+        // â”€â”€ 2. CLASSIC: White header, thick left border, double rule â”€â”€
         case "classic":
             return (
                 <View style={{ paddingHorizontal: 48, paddingTop: 40, paddingBottom: 20, ...bNone() }}>
@@ -1263,7 +1262,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                 </View>
             )
 
-        // ── 3. BOLD: Dark full-width header, large typography, angled bottom ──
+        // â”€â”€ 3. BOLD: Dark full-width header, large typography, angled bottom â”€â”€
         case "bold":
             return (
                 <View style={{ ...bNone() }}>
@@ -1286,7 +1285,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                 </View>
             )
 
-        // ── 4. MINIMAL: Ultra-clean, no color, pure typography ──
+        // â”€â”€ 4. MINIMAL: Ultra-clean, no color, pure typography â”€â”€
         case "minimal":
             return (
                 <View style={{ paddingHorizontal: 48, paddingTop: 48, paddingBottom: 28, ...bNone() }}>
@@ -1304,7 +1303,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                 </View>
             )
 
-        // ── 5. ELEGANT: Centered logo above title, decorative divider ──
+        // â”€â”€ 5. ELEGANT: Centered logo above title, decorative divider â”€â”€
         case "elegant":
             return (
                 <View style={{ paddingHorizontal: 48, paddingTop: 28, paddingBottom: 16, ...bNone() }}>
@@ -1313,7 +1312,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                         <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
                         <Text style={{ fontSize: 26, color: c.pri, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", marginBottom: 3 }}>{title}</Text>
                         <Text style={{ fontSize: 9, color: c.mut, letterSpacing: 1 }}>{refNum}</Text>
-                        {/* Decorative divider: line · dot · line */}
+                        {/* Decorative divider: line Â· dot Â· line */}
                         <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, width: 200, ...bNone() }}>
                             <View style={{ flex: 1, height: 1, backgroundColor: c.pri, ...bNone() }} />
                             <View style={{ width: 5, height: 5, ...r(3), backgroundColor: c.pri, marginHorizontal: 6, ...bNone() }} />
@@ -1328,7 +1327,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                 </View>
             )
 
-        // ── 6. CORPORATE: Dark navy left sidebar + white right panel ──
+        // â”€â”€ 6. CORPORATE: Dark navy left sidebar + white right panel â”€â”€
         case "corporate":
             return (
                 <View style={{ flexDirection: "row", ...bNone() }}>
@@ -1346,7 +1345,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                 </View>
             )
 
-        // ── 7. CREATIVE: Diagonal accent band, asymmetric layout ──
+        // â”€â”€ 7. CREATIVE: Diagonal accent band, asymmetric layout â”€â”€
         case "creative":
             return (
                 <View style={{ ...bNone() }}>
@@ -1371,7 +1370,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                 </View>
             )
 
-        // ── 8. WARM: Warm-toned header with rounded card sections ──
+        // â”€â”€ 8. WARM: Warm-toned header with rounded card sections â”€â”€
         case "warm":
             return (
                 <View style={{ ...bNone() }}>
@@ -1394,7 +1393,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                 </View>
             )
 
-        // ── 9. GEOMETRIC: Teal color blocks, geometric accent ──
+        // â”€â”€ 9. GEOMETRIC: Teal color blocks, geometric accent â”€â”€
         case "geometric":
             return (
                 <View style={{ ...bNone() }}>
@@ -1425,10 +1424,10 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
     }
 }
 
-// ═══════════════════════════════════════════════════════
-// INVOICE PDF — Modern payment-focused layout
-// Full-bleed header · prominent amount-due callout · clean table
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// INVOICE PDF â€” Modern payment-focused layout
+// Full-bleed header Â· prominent amount-due callout Â· clean table
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
     const tpl = getTpl(data)
@@ -1457,10 +1456,10 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER (theme-specific layout) ── */}
+                {/* â”€â”€ HEADER (theme-specific layout) â”€â”€ */}
                 <DocHeader tpl={tpl} c={c} title="INVOICE" refNum={data.invoiceNumber || "INV-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
 
-                {/* ── DATE STRIP ── */}
+                {/* â”€â”€ DATE STRIP â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: tpl === "classic" || tpl === "minimal" ? "transparent" : c.bg, marginBottom: 4, ...bNone() }}>
                     {[
                         { label: "Issue Date", value: fmtDate(data.invoiceDate) },
@@ -1474,10 +1473,10 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                     ))}
                 </View>
 
-                {/* ── DIVIDER ── */}
+                {/* â”€â”€ DIVIDER â”€â”€ */}
                 <View style={{ height: 1, backgroundColor: c.bdr, marginHorizontal: 48, marginBottom: 20, ...bNone() }} />
 
-                {/* ── PARTY BLOCKS ── */}
+                {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 24, ...bNone() }} wrap={false}>
                     <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
                         <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>From</Text>
@@ -1497,7 +1496,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                     </View>
                 </View>
 
-                {/* ── ITEMS TABLE ── */}
+                {/* â”€â”€ ITEMS TABLE â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
                     {/* Table header */}
                     <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
@@ -1532,7 +1531,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                     })}
                 </View>
 
-                {/* ── TOTALS ── */}
+                {/* â”€â”€ TOTALS â”€â”€ */}
                 <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                     <View style={{ width: 240, ...bNone() }}>
                         {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
@@ -1563,7 +1562,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                     </View>
                 </View>
 
-                {/* ── PAYMENT INFO ── */}
+                {/* â”€â”€ PAYMENT INFO â”€â”€ */}
                 {(data.paymentInstructions || data.paymentMethod) && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: c.bg, ...r(8), ...bNone() }} wrap={false}>
                         <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>Payment Information</Text>
@@ -1572,12 +1571,12 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                     </View>
                 )}
 
-                {/* ── PAYMENT LINK ── */}
+                {/* â”€â”€ PAYMENT LINK â”€â”€ */}
                 <View style={{ marginHorizontal: 48, ...bNone() }}>
                     <PaymentSection data={data} paymentQrCode={paymentQrCode} c={c} bold={bold} bNoneFn={bNone} bAllFn={bAll} bTopFn={bTop} />
                 </View>
 
-                {/* ── NOTES & TERMS ── */}
+                {/* â”€â”€ NOTES & TERMS â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
@@ -1587,7 +1586,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
                 </View> : null}
 
-                {/* ── FOOTER ── */}
+                {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bTop(1, c.bdr), ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
                     <Text style={{ fontSize: 8, color: c.mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
@@ -1598,10 +1597,10 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
 }
 
 
-// ═══════════════════════════════════════════════════════
-// CONTRACT PDF — Formal legal-document layout
-// Split two-tone header · sidebar accent · dual signatures
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CONTRACT PDF â€” Formal legal-document layout
+// Split two-tone header Â· sidebar accent Â· dual signatures
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * Parses a plain-text contract body into structured blocks for clean
@@ -1611,7 +1610,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
  *   - Lines starting with "- " become indented bullet items.
  *   - All other lines become flowing prose paragraphs.
  *
- * Returns an array of blocks to render. Keeps formatting minimal — only
+ * Returns an array of blocks to render. Keeps formatting minimal â€” only
  * distinguishes heading / bullet / paragraph.
  */
 type ContractBlock =
@@ -1639,12 +1638,12 @@ function parseContractBody(raw: string): ContractBlock[] {
             continue
         }
         // Numbered heading: "1. Scope of Work" or "1) Scope of Work"
-        // Heuristic: number + . or ) + space + 2–60 chars with no terminal period
+        // Heuristic: number + . or ) + space + 2â€“60 chars with no terminal period
         const headingMatch = line.match(/^(\d{1,2})[.)]\s+(.{2,80})$/)
         if (headingMatch) {
             const title = headingMatch[2].trim()
             // Accept as heading if it looks like a title (no ending punctuation
-            // other than nothing) — otherwise treat as numbered list item inside
+            // other than nothing) â€” otherwise treat as numbered list item inside
             // a paragraph.
             if (!/[.!?]$/.test(title)) {
                 flushParagraph()
@@ -1652,10 +1651,10 @@ function parseContractBody(raw: string): ContractBlock[] {
                 continue
             }
         }
-        // Bullet: starts with "- " or "• "
-        if (/^[-•]\s+/.test(line)) {
+        // Bullet: starts with "- " or "â€¢ "
+        if (/^[-â€¢]\s+/.test(line)) {
             flushParagraph()
-            blocks.push({ kind: "bullet", text: line.replace(/^[-•]\s+/, "").trim() })
+            blocks.push({ kind: "bullet", text: line.replace(/^[-â€¢]\s+/, "").trim() })
             continue
         }
         paragraphBuffer.push(line)
@@ -1687,26 +1686,26 @@ export function ContractPDF({ data, logoUrl }: Props) {
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER (theme-specific layout) ── */}
+                {/* â”€â”€ HEADER (theme-specific layout) â”€â”€ */}
                 <DocHeader tpl={tpl} c={c} title="CONTRACT" refNum={data.referenceNumber || data.invoiceNumber || "CTR-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
 
-                {/* ── PARTY BLOCKS ── */}
+                {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 24, ...bNone() }} wrap={false}>
                     <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
-                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party A — Provider</Text>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party A â€” Provider</Text>
                         <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
                         {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
                         {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
                     </View>
                     <View style={{ flex: 1, ...bNone() }}>
-                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party B — Client</Text>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party B â€” Client</Text>
                         <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
                         {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
                         {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
                     </View>
                 </View>
 
-                {/* ── CONTRACT BODY (parsed into headings, paragraphs, bullets) ── */}
+                {/* â”€â”€ CONTRACT BODY (parsed into headings, paragraphs, bullets) â”€â”€ */}
                 {data.description && (() => {
                     const blocks = parseContractBody(data.description)
                     if (blocks.length === 0) return null
@@ -1738,7 +1737,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                                             style={{ flexDirection: "row", marginLeft: 8, marginBottom: 3, ...bNone() }}
                                             wrap={false}
                                         >
-                                            <Text style={{ fontSize: 10, color: c.mut, width: 12, lineHeight: 1.7 }}>•</Text>
+                                            <Text style={{ fontSize: 10, color: c.mut, width: 12, lineHeight: 1.7 }}>â€¢</Text>
                                             <Text style={{ fontSize: 10, color: c.txt, flex: 1, lineHeight: 1.7 }}>
                                                 {block.text}
                                             </Text>
@@ -1763,7 +1762,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     )
                 })()}
 
-                {/* ── DELIVERABLES TABLE ── */}
+                {/* â”€â”€ DELIVERABLES TABLE â”€â”€ */}
                 {hasItems && (
                     <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Deliverables & Pricing</Text>
@@ -1790,7 +1789,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {/* ── TOTAL VALUE ── */}
+                {/* â”€â”€ TOTAL VALUE â”€â”€ */}
                 {total > 0 && (
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 24, ...bNone() }} wrap={false}>
                         <View style={{ width: 240, ...bNone() }}>
@@ -1810,12 +1809,12 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {/* ── SIGNATURE BLOCKS ── */}
+                {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 {data.showSignatureFields !== false && (
                     renderSignatureBlock("contract", data, c)
                 )}
 
-                {/* ── NOTES ── */}
+                {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
@@ -1825,7 +1824,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
                 </View> : null}
 
-                {/* ── FOOTER ── */}
+                {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
                     <Text style={{ fontSize: 8, color: c.mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
@@ -1836,11 +1835,11 @@ export function ContractPDF({ data, logoUrl }: Props) {
 }
 
 
-// ═══════════════════════════════════════════════════════
-// QUOTE / QUOTATION PDF — Clean estimate-focused layout
-// Accent banner header · validity callout · pricing table
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// QUOTE / QUOTATION PDF â€” Clean estimate-focused layout
+// Accent banner header Â· validity callout Â· pricing table
 // Exported as both QuotePDF (canonical) and QuotationPDF (legacy alias)
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function QuotationPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
@@ -1862,10 +1861,10 @@ export function QuotationPDF({ data, logoUrl }: Props) {
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER (theme-specific layout) ── */}
+                {/* â”€â”€ HEADER (theme-specific layout) â”€â”€ */}
                 <DocHeader tpl={tpl} c={c} title="QUOTE" refNum={data.referenceNumber || data.invoiceNumber || "QUO-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
 
-                {/* ── DATE STRIP ── */}
+                {/* â”€â”€ DATE STRIP â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: tpl === "classic" || tpl === "minimal" ? "transparent" : c.bg, marginBottom: 4, ...bNone() }}>
                     {[
                         { label: "Quote Date", value: fmtDate(data.invoiceDate) },
@@ -1879,10 +1878,10 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                     ))}
                 </View>
 
-                {/* ── DIVIDER ── */}
+                {/* â”€â”€ DIVIDER â”€â”€ */}
                 <View style={{ height: 1, backgroundColor: c.bdr, marginHorizontal: 48, marginBottom: 20, ...bNone() }} />
 
-                {/* ── PARTY BLOCKS ── */}
+                {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                     <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
                         <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>From</Text>
@@ -1900,14 +1899,14 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                     </View>
                 </View>
 
-                {/* ── DESCRIPTION BOX ── */}
+                {/* â”€â”€ DESCRIPTION BOX â”€â”€ */}
                 {data.description && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: c.bg, ...r(8), ...bNone() }}>
                         <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.6 }}>{data.description}</Text>
                     </View>
                 )}
 
-                {/* ── ITEMS TABLE ── */}
+                {/* â”€â”€ ITEMS TABLE â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
                     <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
                         <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Item / Service</Text></View>
@@ -1940,7 +1939,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                     })}
                 </View>
 
-                {/* ── TOTALS ── */}
+                {/* â”€â”€ TOTALS â”€â”€ */}
                 <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                     <View style={{ width: 240, ...bNone() }}>
                         {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
@@ -1966,7 +1965,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                     </View>
                 </View>
 
-                {/* ── SIGNATURE BLOCKS ── */}
+                {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 {data.showSignatureFields !== false && (
                     <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 8, marginBottom: 20, ...bNone() }} wrap={false}>
                         {[
@@ -1979,7 +1978,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                                     <Image src={party.sig} style={{ width: 160, height: 52, marginBottom: 4, ...bNone() }} />
                                 ) : (party as any).electronic ? (
                                     <View style={{ height: 52, marginBottom: 4, justifyContent: "center", ...bNone() }}>
-                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>âœ“ Electronically Signed</Text>
                                     </View>
                                 ) : (
                                     <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
@@ -1991,7 +1990,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {/* ── NOTES ── */}
+                {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
@@ -2001,7 +2000,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
                 </View> : null}
 
-                {/* ── FOOTER ── */}
+                {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
                     <Text style={{ fontSize: 8, color: c.mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
@@ -2015,10 +2014,10 @@ export function QuotationPDF({ data, logoUrl }: Props) {
 export const QuotePDF = QuotationPDF
 
 
-// ═══════════════════════════════════════════════════════
-// PROPOSAL PDF — Persuasive presentation-style layout
-// Bold cover header · executive summary card · CTA box
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// PROPOSAL PDF â€” Persuasive presentation-style layout
+// Bold cover header Â· executive summary card Â· CTA box
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function ProposalPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
@@ -2045,10 +2044,10 @@ export function ProposalPDF({ data, logoUrl }: Props) {
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER (theme-specific layout) ── */}
+                {/* â”€â”€ HEADER (theme-specific layout) â”€â”€ */}
                 <DocHeader tpl={tpl} c={c} title="PROPOSAL" refNum={data.referenceNumber || data.invoiceNumber || "PROP-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
 
-                {/* ── PREPARED BY / FOR ── */}
+                {/* â”€â”€ PREPARED BY / FOR â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
                     <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
                         <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared By</Text>
@@ -2066,7 +2065,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     </View>
                 </View>
 
-                {/* ── EXECUTIVE SUMMARY ── */}
+                {/* â”€â”€ EXECUTIVE SUMMARY â”€â”€ */}
                 {data.description && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Executive Summary</Text>
@@ -2076,7 +2075,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {/* ── BUDGET BREAKDOWN TABLE ── */}
+                {/* â”€â”€ BUDGET BREAKDOWN TABLE â”€â”€ */}
                 {hasItems && (
                     <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Budget Breakdown</Text>
@@ -2104,7 +2103,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {/* ── TOTAL INVESTMENT ── */}
+                {/* â”€â”€ TOTAL INVESTMENT â”€â”€ */}
                 {total > 0 && (
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                         <View style={{ width: 260, ...bNone() }}>
@@ -2128,13 +2127,13 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {/* ── NEXT STEPS CTA ── */}
+                {/* â”€â”€ NEXT STEPS CTA â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 18, backgroundColor: c.acc, ...r(8), ...bNone(), borderLeftWidth: 5, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }} wrap={false}>
                     <Text style={{ fontSize: 11, color: c.pri, fontWeight: 700, marginBottom: 6 }}>Next Steps</Text>
                     <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.5 }}>{data.paymentInstructions || "To proceed with this proposal, please sign and return this document. We look forward to working with you."}</Text>
                 </View>
 
-                {/* ── SIGNATURE BLOCKS ── */}
+                {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 {data.showSignatureFields !== false && (
                     <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                         {[
@@ -2147,7 +2146,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                                     <Image src={party.sig} style={{ width: 160, height: 52, marginBottom: 4, ...bNone() }} />
                                 ) : (party as any).electronic ? (
                                     <View style={{ height: 52, marginBottom: 4, justifyContent: "center", ...bNone() }}>
-                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>âœ“ Electronically Signed</Text>
                                     </View>
                                 ) : (
                                     <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
@@ -2159,7 +2158,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {/* ── NOTES ── */}
+                {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
@@ -2169,7 +2168,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
                 </View> : null}
 
-                {/* ── FOOTER ── */}
+                {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
                     <Text style={{ fontSize: 8, color: c.mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
@@ -2180,9 +2179,9 @@ export function ProposalPDF({ data, logoUrl }: Props) {
 }
 
 
-// ═══════════════════════════════════════════════════════
-// RECEIPT PDF — Pixel-perfect Cloudflare receipt clone
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// RECEIPT PDF â€” Pixel-perfect Cloudflare receipt clone
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function ReceiptPDF({ data, logoUrl }: Props) {
     const c = getTheme("receipt", data)
@@ -2198,29 +2197,29 @@ export function ReceiptPDF({ data, logoUrl }: Props) {
 
     const s = StyleSheet.create({
         page: { paddingTop: 0, paddingBottom: 44, paddingHorizontal: 48, fontSize: 9, fontFamily: c.font, backgroundColor: "#fff" },
-        // ── Orange bar at very top ──
+        // â”€â”€ Orange bar at very top â”€â”€
         orangeBar: { position: "absolute", top: 0, left: 0, right: 0, height: 4, backgroundColor: c.pri },
-        // ── Gray rule under orange bar ──
+        // â”€â”€ Gray rule under orange bar â”€â”€
         topRule: { marginTop: 30, paddingBottom: 16, ...thinLine },
-        // ── Header row: title left, logo right ──
+        // â”€â”€ Header row: title left, logo right â”€â”€
         headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginTop: 16, marginBottom: 14 },
         title: { fontSize: 22, color: "#000", ...bold(c) },
-        // ── Metadata ──
+        // â”€â”€ Metadata â”€â”€
         metaBlock: { marginBottom: 14 },
         metaRow: { flexDirection: "row", marginBottom: 2.5 },
         metaLabel: { fontSize: 8, color: "#6b7280", width: 82 },
         metaValue: { fontSize: 8, color: "#000", ...bold(c) },
-        // ── Address row ──
+        // â”€â”€ Address row â”€â”€
         addrRow: { flexDirection: "row", marginBottom: 0, paddingBottom: 14, ...thinLine },
         addrLeft: { flex: 1, paddingRight: 20 },
         addrRight: { flex: 1 },
         addrName: { fontSize: 9, color: "#000", ...bold(c), marginBottom: 1 },
         addrText: { fontSize: 8, color: "#374151", lineHeight: 1.5 },
         billTo: { fontSize: 8, color: "#374151", ...bold(c), marginBottom: 2 },
-        // ── Total callout ──
+        // â”€â”€ Total callout â”€â”€
         totalBlock: { paddingTop: 14, paddingBottom: 14, ...thinLine },
         totalText: { fontSize: 14, color: "#000", ...bold(c) },
-        // ── Items table ──
+        // â”€â”€ Items table â”€â”€
         tableWrap: { marginTop: 10 },
         tableHead: { flexDirection: "row", paddingBottom: 6, ...thinLine },
         tableRow: { flexDirection: "row", paddingVertical: 7, ...thinLine },
@@ -2232,7 +2231,7 @@ export function ReceiptPDF({ data, logoUrl }: Props) {
         th: { fontSize: 7, color: "#9ca3af", letterSpacing: 0.2 },
         td: { fontSize: 8, color: "#374151" },
         tdB: { fontSize: 8, color: "#000", ...bold(c) },
-        // ── Summary (right-aligned, compact) ──
+        // â”€â”€ Summary (right-aligned, compact) â”€â”€
         sumOuter: { flexDirection: "row", justifyContent: "flex-end", marginTop: 6, marginBottom: 16 },
         sumInner: { width: 200 },
         sumRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2.5 },
@@ -2244,7 +2243,7 @@ export function ReceiptPDF({ data, logoUrl }: Props) {
         sumPaidRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, ...thinLineTop, marginTop: 1 },
         sumPaidLabel: { fontSize: 8.5, color: "#000", ...bold(c) },
         sumPaidVal: { fontSize: 8.5, color: "#000", ...bold(c) },
-        // ── Payment history ──
+        // â”€â”€ Payment history â”€â”€
         payBlock: { marginTop: 6, marginBottom: 14 },
         payTitle: { fontSize: 12, color: "#000", ...bold(c), marginBottom: 10 },
         payHead: { flexDirection: "row", paddingBottom: 5, ...thinLine },
@@ -2253,11 +2252,11 @@ export function ReceiptPDF({ data, logoUrl }: Props) {
         payC2: { width: 80, textAlign: "center" },
         payC3: { width: 72, textAlign: "right" },
         payC4: { width: 72, textAlign: "right" },
-        // ── Notes / Terms ──
+        // â”€â”€ Notes / Terms â”€â”€
         noteBlock: { marginBottom: 10 },
         noteLabel: { fontSize: 8, color: "#374151", marginBottom: 2 },
         noteText: { fontSize: 8, color: "#6b7280", lineHeight: 1.5 },
-        // ── Footer ──
+        // â”€â”€ Footer â”€â”€
         footer: { position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 48, paddingVertical: 12, flexDirection: "row", justifyContent: "space-between" },
         footerText: { fontSize: 7, color: "#9ca3af" },
     })
@@ -2412,7 +2411,7 @@ export function ReceiptPDF({ data, logoUrl }: Props) {
                             {data.referenceNumber ? <View style={s.payC4}><Text style={{ ...s.th, textAlign: "right" }}>Receipt number</Text></View> : null}
                         </View>
                         <View style={s.payRow}>
-                            <View style={s.payC1}><Text style={s.td}>{data.paymentMethod || "—"}</Text></View>
+                            <View style={s.payC1}><Text style={s.td}>{data.paymentMethod || "â€”"}</Text></View>
                             <View style={s.payC2}><Text style={{ ...s.td, textAlign: "center" }}>{fmtDate(data.invoiceDate)}</Text></View>
                             <View style={s.payC3}><Text style={{ ...s.tdB, textAlign: "right" }}>{fmt(total, data.currency)}</Text></View>
                             {data.referenceNumber ? <View style={s.payC4}><Text style={{ ...s.td, textAlign: "right" }}>{data.referenceNumber}</Text></View> : null}
@@ -2453,10 +2452,10 @@ export function ReceiptPDF({ data, logoUrl }: Props) {
     )
 }
 
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-// PAYMENT RECEIPT PDF — Clorefy subscription receipt
-// ═══════════════════════════════════════════════════════
+// PAYMENT RECEIPT PDF â€” Clorefy subscription receipt
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export interface PaymentReceiptData {
     paymentId: string
@@ -2548,7 +2547,7 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                 <View style={s.headerRow} wrap={false}>
                     <View>
                         <Text style={s.title}>Receipt</Text>
-                        <Text style={s.subtitle}>Clorefy — AI Document Platform</Text>
+                        <Text style={s.subtitle}>Clorefy â€” AI Document Platform</Text>
                         <View style={s.paidBadge}>
                             <Text style={s.paidText}>PAID</Text>
                         </View>
@@ -2596,8 +2595,8 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                     </View>
                     <View style={s.tableRow} wrap={false}>
                         <View style={s.colDesc}>
-                            <Text style={s.td}>Clorefy {planLabel} Plan — {cycleLabel}</Text>
-                            <Text style={s.tdSub}>Subscription · {dateDisplay}</Text>
+                            <Text style={s.td}>Clorefy {planLabel} Plan â€” {cycleLabel}</Text>
+                            <Text style={s.tdSub}>Subscription Â· {dateDisplay}</Text>
                         </View>
                         <View style={s.colAmt}>
                             <Text style={s.tdB}>{amountDisplay}</Text>
@@ -2631,7 +2630,7 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                 </View>
 
                 <View style={s.footer} fixed>
-                    <Text style={s.footerText}>Clorefy — clorefy.com</Text>
+                    <Text style={s.footerText}>Clorefy â€” clorefy.com</Text>
                     <Text style={s.footerText}>Official payment receipt</Text>
                 </View>
             </Page>
@@ -2640,10 +2639,10 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
 }
 
 
-// ═══════════════════════════════════════════════════════
-// SOW PDF — Statement of Work document
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// SOW PDF â€” Statement of Work document
 // Structured sections: overview, scope, deliverables, milestones
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | null }) {
     // Use a fixed "corporate" theme for SOW (cyan accent)
@@ -2666,7 +2665,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER ── */}
+                {/* â”€â”€ HEADER â”€â”€ */}
                 <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
                     <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
@@ -2699,7 +2698,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                     <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
                 </View>
 
-                {/* ── PARTY BLOCKS ── */}
+                {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
                     <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
                         <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Provider</Text>
@@ -2717,7 +2716,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
 
                 <View style={{ height: 1, backgroundColor: bdr, marginHorizontal: 48, marginBottom: 20, ...bNone() }} />
 
-                {/* ── PROJECT OVERVIEW ── */}
+                {/* â”€â”€ PROJECT OVERVIEW â”€â”€ */}
                 {data.projectOverview && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Project Overview</Text>
@@ -2725,7 +2724,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                     </View>
                 )}
 
-                {/* ── SCOPE OF WORK ── */}
+                {/* â”€â”€ SCOPE OF WORK â”€â”€ */}
                 {data.scopeItems.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Scope of Work</Text>
@@ -2765,7 +2764,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                     </View>
                 )}
 
-                {/* ── DELIVERABLES ── */}
+                {/* â”€â”€ DELIVERABLES â”€â”€ */}
                 {data.deliverables.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Deliverables</Text>
@@ -2777,14 +2776,14 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                         {data.deliverables.map((d, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
                                 <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{d.description}</Text></View>
-                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "center" }}>{d.dueDate ? fmtDate(d.dueDate) : "—"}</Text></View>
-                                <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{d.acceptanceCriteria || "—"}</Text></View>
+                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "center" }}>{d.dueDate ? fmtDate(d.dueDate) : "â€”"}</Text></View>
+                                <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{d.acceptanceCriteria || "â€”"}</Text></View>
                             </View>
                         ))}
                     </View>
                 )}
 
-                {/* ── MILESTONES ── */}
+                {/* â”€â”€ MILESTONES â”€â”€ */}
                 {data.milestones.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Milestones</Text>
@@ -2797,26 +2796,26 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
                                 <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, fontWeight: 700 }}>{m.name}</Text></View>
                                 <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "center" }}>{fmtDate(m.date)}</Text></View>
-                                <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{m.description || "—"}</Text></View>
+                                <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{m.description || "â€”"}</Text></View>
                             </View>
                         ))}
                     </View>
                 )}
 
-                {/* ── ASSUMPTIONS ── */}
+                {/* â”€â”€ ASSUMPTIONS â”€â”€ */}
                 {data.assumptions.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Assumptions</Text>
                         {data.assumptions.map((a, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
-                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>•</Text>
+                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>â€¢</Text>
                                 <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{a}</Text>
                             </View>
                         ))}
                     </View>
                 )}
 
-                {/* ── NOTES / TERMS ── */}
+                {/* â”€â”€ NOTES / TERMS â”€â”€ */}
                 {data.notes ? (
                     <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                         <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
@@ -2830,7 +2829,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                     </View>
                 ) : null}
 
-                {/* ── SIGNATURE BLOCKS ── */}
+                {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
                     {[
                         { label: "Client Signature", name: data.toName, title: null as string | null },
@@ -2845,7 +2844,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                     ))}
                 </View>
 
-                {/* ── FOOTER ── */}
+                {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: mut }}>Generated by Clorefy</Text>
                     <Text style={{ fontSize: 8, color: mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
@@ -2856,9 +2855,9 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
 }
 
 
-// ═══════════════════════════════════════════════════════
-// CHANGE ORDER PDF — Amendment to SOW or Contract
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CHANGE ORDER PDF â€” Amendment to SOW or Contract
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoUrl?: string | null }) {
     const pri = "#c2410c"    // orange-700
@@ -2877,7 +2876,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER ── */}
+                {/* â”€â”€ HEADER â”€â”€ */}
                 <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
                     <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
@@ -2912,7 +2911,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                     <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
                 </View>
 
-                {/* ── PARTY BLOCKS ── */}
+                {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 16, ...bNone() }} wrap={false}>
                     <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
                         <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Provider</Text>
@@ -2928,7 +2927,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                     </View>
                 </View>
 
-                {/* ── PARENT DOCUMENT REFERENCE ── */}
+                {/* â”€â”€ PARENT DOCUMENT REFERENCE â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 12, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
                     <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontWeight: 700 }}>Reference</Text>
                     <Text style={{ fontSize: 10, color: txt }}>
@@ -2940,13 +2939,13 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                     </Text>
                 </View>
 
-                {/* ── DESCRIPTION ── */}
+                {/* â”€â”€ DESCRIPTION â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                     <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Description of Change</Text>
                     <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.description}</Text>
                 </View>
 
-                {/* ── ADDITIONS ── */}
+                {/* â”€â”€ ADDITIONS â”€â”€ */}
                 {data.additions.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: "#16a34a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Additions</Text>
@@ -2957,13 +2956,13 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                         {data.additions.map((a, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
                                 <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{a.description}</Text></View>
-                                <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, textAlign: "right", fontWeight: 700 }}>{a.cost != null ? fmt(a.cost, currency) : "—"}</Text></View>
+                                <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, textAlign: "right", fontWeight: 700 }}>{a.cost != null ? fmt(a.cost, currency) : "â€”"}</Text></View>
                             </View>
                         ))}
                     </View>
                 )}
 
-                {/* ── REMOVALS ── */}
+                {/* â”€â”€ REMOVALS â”€â”€ */}
                 {data.removals.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: "#dc2626", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Removals</Text>
@@ -2974,13 +2973,13 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                         {data.removals.map((rem, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: "#fff5f5" } : {}) }} wrap={false}>
                                 <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{rem.description}</Text></View>
-                                <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: "#dc2626", textAlign: "right", fontWeight: 700 }}>{rem.costReduction != null ? `-${fmt(rem.costReduction, currency)}` : "—"}</Text></View>
+                                <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: "#dc2626", textAlign: "right", fontWeight: 700 }}>{rem.costReduction != null ? `-${fmt(rem.costReduction, currency)}` : "â€”"}</Text></View>
                             </View>
                         ))}
                     </View>
                 )}
 
-                {/* ── MODIFICATIONS ── */}
+                {/* â”€â”€ MODIFICATIONS â”€â”€ */}
                 {data.modifications.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Modifications</Text>
@@ -2994,14 +2993,14 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                                 <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: mut, lineHeight: 1.5 }}>{mod.original}</Text></View>
                                 <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: txt, lineHeight: 1.5 }}>{mod.revised}</Text></View>
                                 <View style={{ width: 90, ...bNone() }}><Text style={{ fontSize: 9, color: mod.costImpact != null && mod.costImpact < 0 ? "#dc2626" : "#16a34a", textAlign: "right", fontWeight: 700 }}>
-                                    {mod.costImpact != null ? `${mod.costImpact >= 0 ? "+" : ""}${fmt(mod.costImpact, currency)}` : "—"}
+                                    {mod.costImpact != null ? `${mod.costImpact >= 0 ? "+" : ""}${fmt(mod.costImpact, currency)}` : "â€”"}
                                 </Text></View>
                             </View>
                         ))}
                     </View>
                 )}
 
-                {/* ── COST IMPACT SUMMARY ── */}
+                {/* â”€â”€ COST IMPACT SUMMARY â”€â”€ */}
                 {data.costImpact && (
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                         <View style={{ width: 260, ...bNone() }}>
@@ -3024,7 +3023,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                     </View>
                 )}
 
-                {/* ── TIMELINE IMPACT ── */}
+                {/* â”€â”€ TIMELINE IMPACT â”€â”€ */}
                 {data.timelineImpact && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 12, backgroundColor: acc, ...r(8), ...bNone(), borderLeftWidth: 4, borderLeftColor: pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }} wrap={false}>
                         <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Timeline Impact</Text>
@@ -3032,7 +3031,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                     </View>
                 )}
 
-                {/* ── NOTES / TERMS ── */}
+                {/* â”€â”€ NOTES / TERMS â”€â”€ */}
                 {data.notes ? (
                     <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                         <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
@@ -3046,7 +3045,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                     </View>
                 ) : null}
 
-                {/* ── SIGNATURE BLOCKS ── */}
+                {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
                     {[
                         { label: "Client Signature", name: data.toName },
@@ -3060,7 +3059,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                     ))}
                 </View>
 
-                {/* ── FOOTER ── */}
+                {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: mut }}>Generated by Clorefy</Text>
                     <Text style={{ fontSize: 8, color: mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
@@ -3071,10 +3070,10 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
 }
 
 
-// ═══════════════════════════════════════════════════════
-// NDA PDF — Non-Disclosure Agreement
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// NDA PDF â€” Non-Disclosure Agreement
 // Professional legal layout with structured sections
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | null }) {
     const pri = "#475569"    // slate-600
@@ -3092,7 +3091,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER ── */}
+                {/* â”€â”€ HEADER â”€â”€ */}
                 <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
                     <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
@@ -3121,7 +3120,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                     <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
                 </View>
 
-                {/* ── PARTIES TABLE ── */}
+                {/* â”€â”€ PARTIES TABLE â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }}>
                     <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Parties</Text>
                     <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
@@ -3141,19 +3140,19 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                                 </Text>
                             </View>
                             <View style={{ flex: 2, ...bNone() }}>
-                                <Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{party.address || "—"}</Text>
+                                <Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{party.address || "â€”"}</Text>
                             </View>
                         </View>
                     ))}
                 </View>
 
-                {/* ── CONFIDENTIAL INFORMATION DEFINITION ── */}
+                {/* â”€â”€ CONFIDENTIAL INFORMATION DEFINITION â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                     <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Definition of Confidential Information</Text>
                     <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.confidentialInfoDefinition}</Text>
                 </View>
 
-                {/* ── OBLIGATIONS ── */}
+                {/* â”€â”€ OBLIGATIONS â”€â”€ */}
                 {data.obligations.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Obligations</Text>
@@ -3166,20 +3165,20 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                     </View>
                 )}
 
-                {/* ── EXCLUSIONS ── */}
+                {/* â”€â”€ EXCLUSIONS â”€â”€ */}
                 {data.exclusions.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Exclusions</Text>
                         {data.exclusions.map((e, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
-                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>•</Text>
+                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>â€¢</Text>
                                 <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{e}</Text>
                             </View>
                         ))}
                     </View>
                 )}
 
-                {/* ── TERM & DURATION ── */}
+                {/* â”€â”€ TERM & DURATION â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
                     <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Term & Duration</Text>
                     <View style={{ flexDirection: "row", ...bNone() }}>
@@ -3198,7 +3197,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                     </View>
                 </View>
 
-                {/* ── REMEDIES ── */}
+                {/* â”€â”€ REMEDIES â”€â”€ */}
                 {data.remedies && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Remedies</Text>
@@ -3206,7 +3205,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                     </View>
                 )}
 
-                {/* ── NOTES / TERMS ── */}
+                {/* â”€â”€ NOTES / TERMS â”€â”€ */}
                 {data.notes ? (
                     <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                         <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
@@ -3220,7 +3219,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                     </View>
                 ) : null}
 
-                {/* ── SIGNATURE BLOCKS ── */}
+                {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
                     {[
                         { label: "Disclosing Party Signature", name: data.fromName },
@@ -3234,7 +3233,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                     ))}
                 </View>
 
-                {/* ── FOOTER ── */}
+                {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: mut }}>Generated by Clorefy</Text>
                     <Text style={{ fontSize: 8, color: mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
@@ -3245,10 +3244,10 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 }
 
 
-// ═══════════════════════════════════════════════════════
-// CLIENT ONBOARDING FORM PDF — Intake form document
-// Clean intake layout — no signature blocks needed
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CLIENT ONBOARDING FORM PDF â€” Intake form document
+// Clean intake layout â€” no signature blocks needed
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboardingFormData; logoUrl?: string | null }) {
     const pri = "#0f766e"    // teal-700
@@ -3266,7 +3265,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER ── */}
+                {/* â”€â”€ HEADER â”€â”€ */}
                 <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
                     <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
@@ -3294,15 +3293,15 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                     <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
                 </View>
 
-                {/* ── CLIENT DETAILS ── */}
+                {/* â”€â”€ CLIENT DETAILS â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 16, padding: 16, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
                     <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, fontWeight: 700 }}>Client Details</Text>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", ...bNone() }}>
                         {[
                             { label: "Name", value: data.clientName },
-                            { label: "Email", value: data.clientEmail || "—" },
-                            { label: "Phone", value: data.clientPhone || "—" },
-                            { label: "Address", value: data.clientAddress || "—" },
+                            { label: "Email", value: data.clientEmail || "â€”" },
+                            { label: "Phone", value: data.clientPhone || "â€”" },
+                            { label: "Address", value: data.clientAddress || "â€”" },
                         ].map((field, i) => (
                             <View key={i} style={{ width: "50%", marginBottom: 10, ...bNone() }}>
                                 <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>{field.label}</Text>
@@ -3312,7 +3311,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                     </View>
                 </View>
 
-                {/* ── PROJECT DETAILS ── */}
+                {/* â”€â”€ PROJECT DETAILS â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
                     <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, fontWeight: 700 }}>Project Details</Text>
                     <View style={{ marginBottom: 10, ...bNone() }}>
@@ -3341,7 +3340,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                     </View>
                 </View>
 
-                {/* ── REQUIREMENTS ── */}
+                {/* â”€â”€ REQUIREMENTS â”€â”€ */}
                 {data.requirements.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Requirements</Text>
@@ -3354,7 +3353,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                     </View>
                 )}
 
-                {/* ── CUSTOM Q&A ── */}
+                {/* â”€â”€ CUSTOM Q&A â”€â”€ */}
                 {data.customQuestions.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Additional Information</Text>
@@ -3367,7 +3366,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                     </View>
                 )}
 
-                {/* ── NOTES ── */}
+                {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? (
                     <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                         <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
@@ -3375,7 +3374,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                     </View>
                 ) : null}
 
-                {/* ── FOOTER ── */}
+                {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: mut }}>Generated by Clorefy</Text>
                     <Text style={{ fontSize: 8, color: mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
@@ -3386,10 +3385,10 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
 }
 
 
-// ═══════════════════════════════════════════════════════
-// PAYMENT FOLLOWUP PDF — Payment reminder document
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// PAYMENT FOLLOWUP PDF â€” Payment reminder document
 // Attention-grabbing reminder with tone indicator
-// ═══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupData; logoUrl?: string | null }) {
     // Tone-based color scheme
@@ -3415,7 +3414,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* ── HEADER ── */}
+                {/* â”€â”€ HEADER â”€â”€ */}
                 <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
                     <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
@@ -3445,7 +3444,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                     <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
                 </View>
 
-                {/* ── DAYS OVERDUE BANNER (if overdue) ── */}
+                {/* â”€â”€ DAYS OVERDUE BANNER (if overdue) â”€â”€ */}
                 {isOverdue && (
                     <View style={{ marginHorizontal: 48, marginTop: 16, padding: 12, backgroundColor: acc, ...r(8), ...bNone(), borderLeftWidth: 4, borderLeftColor: pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }} wrap={false}>
                         <Text style={{ fontSize: 11, color: pri, fontWeight: 700 }}>
@@ -3457,7 +3456,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                     </View>
                 )}
 
-                {/* ── INVOICE REFERENCE ── */}
+                {/* â”€â”€ INVOICE REFERENCE â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginTop: 16, marginBottom: 16, padding: 14, backgroundColor: bg, ...r(8), ...bNone() }} wrap={false}>
                     <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Invoice Reference</Text>
                     <View style={{ flexDirection: "row", ...bNone() }}>
@@ -3476,7 +3475,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                     </View>
                 </View>
 
-                {/* ── FROM / TO ── */}
+                {/* â”€â”€ FROM / TO â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                     <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
                         <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>From</Text>
@@ -3492,7 +3491,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                     </View>
                 </View>
 
-                {/* ── MESSAGE ── */}
+                {/* â”€â”€ MESSAGE â”€â”€ */}
                 {data.customMessage && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 16, backgroundColor: bg, ...r(8), ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Message</Text>
@@ -3500,7 +3499,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                     </View>
                 )}
 
-                {/* ── PAYMENT LINK ── */}
+                {/* â”€â”€ PAYMENT LINK â”€â”€ */}
                 {data.paymentLinkUrl && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 14, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Pay Online</Text>
@@ -3519,7 +3518,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                             textDecoration: "none",
                             ...bNone(),
                         }}>
-                            <Text style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>Pay Now →</Text>
+                            <Text style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>Pay Now â†’</Text>
                         </Link>
                         <Text style={{ fontSize: 8, color: mut, marginTop: 6, textDecoration: "underline" }}>
                             {data.paymentLinkUrl}
@@ -3527,7 +3526,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                     </View>
                 )}
 
-                {/* ── NOTES ── */}
+                {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? (
                     <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                         <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
@@ -3535,7 +3534,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                     </View>
                 ) : null}
 
-                {/* ── FOOTER ── */}
+                {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: mut }}>Generated by Clorefy</Text>
                     <Text style={{ fontSize: 8, color: mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
@@ -3545,223 +3544,3 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
     )
 }
 
-
-// ═══════════════════════════════════════════════════════
-// RECURRING INVOICE PDF — Invoice with recurrence banner
-// Extends InvoicePDF with a recurrence schedule banner at top
-// ═══════════════════════════════════════════════════════
-
-export interface RecurringInvoiceData extends Omit<import("@/lib/invoice-types").InvoiceData, "documentType"> {
-    documentType: "recurring_invoice"
-    recurrenceFrequency: RecurringInvoiceContext["recurrenceFrequency"]
-    recurrenceStartDate: string
-    recurrenceEndDate?: string
-    maxOccurrences?: number
-    autoSend?: boolean
-}
-
-/**
- * RecurringInvoicePDF — Accepts either InvoiceData (with optional recurrence fields)
- * or the more specific RecurringInvoiceData. Renders a recurrence schedule banner
- * above the standard invoice content.
- */
-export function RecurringInvoicePDF({ data, logoUrl, paymentQrCode }: { data: InvoiceData | RecurringInvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }) {
-    const tpl = getTpl(data as any)
-    const c = getTheme(tpl, data as any)
-    const { sub, disc, tax, total } = calc(data as any)
-
-    const frequencyLabels: Record<string, string> = {
-        weekly: "Weekly",
-        biweekly: "Every 2 Weeks",
-        monthly: "Monthly",
-        quarterly: "Quarterly",
-        annually: "Annually",
-    }
-    const recurrenceFrequency = data.recurrenceFrequency ?? ""
-    const recurrenceStartDate = data.recurrenceStartDate ?? ""
-    const recurrenceEndDate = data.recurrenceEndDate
-    const maxOccurrences = (data as RecurringInvoiceData).maxOccurrences
-    const autoSend = (data as RecurringInvoiceData).autoSend
-    const freqLabel = frequencyLabels[recurrenceFrequency] || recurrenceFrequency || "Recurring"
-
-    return (
-        <Document>
-            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
-
-                {/* ── RECURRENCE SCHEDULE BANNER ── */}
-                <View style={{ backgroundColor: "#4338ca", paddingHorizontal: 48, paddingVertical: 12, ...bNone() }} wrap={false}>
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
-                        <View style={{ ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 2, fontWeight: 700 }}>Recurring Invoice</Text>
-                            <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{freqLabel} billing cycle</Text>
-                        </View>
-                        <View style={{ flexDirection: "row", ...bNone() }}>
-                            <View style={{ alignItems: "center", marginRight: 20, ...bNone() }}>
-                                <Text style={{ fontSize: 7, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>Start Date</Text>
-                                <Text style={{ fontSize: 9.5, color: "#fff", fontWeight: 700 }}>{fmtDate(recurrenceStartDate)}</Text>
-                            </View>
-                            {recurrenceEndDate && (
-                                <View style={{ alignItems: "center", marginRight: 20, ...bNone() }}>
-                                    <Text style={{ fontSize: 7, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>End Date</Text>
-                                    <Text style={{ fontSize: 9.5, color: "#fff", fontWeight: 700 }}>{fmtDate(recurrenceEndDate)}</Text>
-                                </View>
-                            )}
-                            {maxOccurrences != null && (
-                                <View style={{ alignItems: "center", marginRight: 20, ...bNone() }}>
-                                    <Text style={{ fontSize: 7, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>Max Occ.</Text>
-                                    <Text style={{ fontSize: 9.5, color: "#fff", fontWeight: 700 }}>{maxOccurrences}x</Text>
-                                </View>
-                            )}
-                            <View style={{ backgroundColor: autoSend !== false ? "#16a34a" : "#6b7280", paddingHorizontal: 10, paddingVertical: 4, ...r(20), alignSelf: "center", ...bNone() }}>
-                                <Text style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>
-                                    {autoSend !== false ? "AUTO-SEND ON" : "AUTO-SEND OFF"}
-                                </Text>
-                            </View>
-                        </View>
-                    </View>
-                </View>
-
-                {/* ── INVOICE HEADER ── */}
-                <DocHeader
-                    tpl={tpl}
-                    c={c}
-                    title="INVOICE"
-                    refNum={data.invoiceNumber || "INV-0000"}
-                    logoUrl={logoUrl}
-                    data={data as any}
-                    rightContent={(
-                        <>
-                            <View style={{ backgroundColor: "rgba(255,255,255,0.15)", paddingHorizontal: 12, paddingVertical: 5, ...r(20), marginBottom: 10, ...bNone() }}>
-                                <Text style={{ fontSize: 9, color: "#fff", fontWeight: 700, letterSpacing: 1 }}>RECURRING</Text>
-                            </View>
-                            <Text style={{ fontSize: 22, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
-                            <Text style={{ fontSize: 8.5, color: "rgba(255,255,255,0.6)", marginTop: 3 }}>Due {fmtDate(data.dueDate)}</Text>
-                        </>
-                    )}
-                />
-
-                {/* ── DATE STRIP ── */}
-                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: c.bg, marginBottom: 4, ...bNone() }}>
-                    {[
-                        { label: "Issue Date", value: fmtDate(data.invoiceDate) },
-                        { label: "Due Date", value: fmtDate(data.dueDate) },
-                        { label: "Payment Terms", value: data.paymentTerms || "Net 30" },
-                        { label: "Frequency", value: freqLabel },
-                    ].map((item, i) => (
-                        <View key={i} style={{ flex: 1, paddingLeft: i > 0 ? 16 : 0, ...bNone(), ...(i > 0 ? { borderLeftWidth: 1, borderLeftColor: c.bdr, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any } : {}) }}>
-                            <Text style={{ fontSize: 7.5, color: c.mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>{item.label}</Text>
-                            <Text style={{ fontSize: 11, color: c.txt, fontWeight: 700 }}>{item.value}</Text>
-                        </View>
-                    ))}
-                </View>
-
-                {/* ── DIVIDER ── */}
-                <View style={{ height: 1, backgroundColor: c.bdr, marginHorizontal: 48, marginBottom: 20, ...bNone() }} />
-
-                {/* ── PARTY BLOCKS ── */}
-                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 24, ...bNone() }} wrap={false}>
-                    <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
-                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>From</Text>
-                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
-                        {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
-                        {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
-                        {data.fromPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromPhone}</Text> : null}
-                    </View>
-                    <View style={{ flex: 1, backgroundColor: c.bg, ...r(8), padding: 14, ...bNone() }}>
-                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Bill To</Text>
-                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
-                        {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
-                        {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
-                        {data.toPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toPhone}</Text> : null}
-                    </View>
-                </View>
-
-                {/* ── ITEMS TABLE ── */}
-                <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
-                    <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
-                        <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
-                        <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
-                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Rate</Text></View>
-                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
-                    </View>
-                    {data.items.map((item, i) => {
-                        const gross = item.quantity * item.rate
-                        const hasDisc = item.discount && item.discount > 0
-                        const discAmt = hasDisc ? gross * (item.discount! / 100) : 0
-                        const lineTotal = gross - discAmt
-                        return (
-                            <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}) }} wrap={false}>
-                                <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
-                                <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
-                                <View style={{ width: 80, ...bNone() }}>
-                                    {hasDisc ? (
-                                        <>
-                                            <Text style={{ fontSize: 8, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
-                                            <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
-                                        </>
-                                    ) : (
-                                        <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
-                                    )}
-                                </View>
-                            </View>
-                        )
-                    })}
-                </View>
-
-                {/* ── TOTALS ── */}
-                <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
-                    <View style={{ width: 240, ...bNone() }}>
-                        {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
-                            <Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text>
-                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(sub, data.currency)}</Text>
-                        </View>}
-                        {getItemDiscountTotal(data as any) > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
-                            <Text style={{ fontSize: 10, color: c.mut }}>Item Discounts</Text>
-                            <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(getItemDiscountTotal(data as any), data.currency)}</Text>
-                        </View>}
-                        {!!data.discountValue && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
-                            <Text style={{ fontSize: 10, color: c.mut }}>Discount{data.discountType === "percent" ? ` (${data.discountValue}%)` : ""}</Text>
-                            <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(disc, data.currency)}</Text>
-                        </View>}
-                        {!!data.taxRate && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
-                            <Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text>
-                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(tax, data.currency)}</Text>
-                        </View>}
-                        {!!data.shippingFee && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
-                            <Text style={{ fontSize: 10, color: c.mut }}>Shipping</Text>
-                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(data.shippingFee, data.currency)}</Text>
-                        </View>}
-                        <View style={{ backgroundColor: c.pri, ...r(8), padding: 14, marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
-                            <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>Total Due</Text>
-                            <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
-                        </View>
-                    </View>
-                </View>
-
-                {/* ── PAYMENT LINK ── */}
-                {data.paymentLink && data.showPaymentLinkInPdf !== false && (
-                    <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
-                        <PaymentSection data={data as any} paymentQrCode={paymentQrCode} c={c} bold={bold} bNoneFn={bNone} bAllFn={bAll} bTopFn={bTop} />
-                    </View>
-                )}
-
-                {/* ── NOTES & TERMS ── */}
-                {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
-                </View> : null}
-                {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
-                </View> : null}
-
-                {/* ── FOOTER ── */}
-                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
-                    <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
-                    <Text style={{ fontSize: 8, color: c.mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
-                </View>
-            </Page>
-        </Document>
-    )
-}

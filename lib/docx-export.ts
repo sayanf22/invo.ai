@@ -648,101 +648,6 @@ function generatePaymentFollowupDocx(data: PaymentFollowupData): Document {
   return assembleDoc(title, "Payment Follow-up", children)
 }
 
-// ─── Recurring Invoice DOCX ────────────────────────────────────────────────
-
-function generateRecurringInvoiceDocx(data: InvoiceData): Document {
-  const recurrence = data as any
-  const currency = data.currency || "USD"
-  const { subtotal, discountAmount, taxAmount, shipping, total } = calcTotals(data)
-
-  const frequencyLabels: Record<string, string> = {
-    weekly: "Weekly", biweekly: "Every 2 Weeks", monthly: "Monthly",
-    quarterly: "Quarterly", annually: "Annually",
-  }
-  const freqLabel = frequencyLabels[recurrence.recurrenceFrequency] || recurrence.recurrenceFrequency || "Monthly"
-
-  const refNumber = data.invoiceNumber || data.referenceNumber || ""
-  const title = `Recurring Invoice${refNumber ? ` — ${refNumber}` : ""}`
-
-  const fromLines = [data.fromName, data.fromEmail, data.fromPhone, data.fromAddress].filter(Boolean) as string[]
-  const toLines = [data.toName, data.toEmail, data.toPhone, data.toAddress].filter(Boolean) as string[]
-
-  const hasItems = Array.isArray(data.items) && data.items.length > 0
-
-  const children: (Paragraph | Table)[] = [
-    new Paragraph({
-      heading: HeadingLevel.HEADING_1,
-      spacing: { after: 120 },
-      children: [new TextRun({ text: title, bold: true, size: 36, font: "Calibri", color: "1A1A1A" })],
-    }),
-
-    // Recurrence schedule
-    sectionHeading("Recurrence Schedule"),
-    labelValue("Frequency", freqLabel),
-    labelValue("Start Date", recurrence.recurrenceStartDate || "—"),
-    ...(recurrence.recurrenceEndDate ? [labelValue("End Date", recurrence.recurrenceEndDate)] : []),
-    ...(recurrence.maxOccurrences != null ? [labelValue("Max Occurrences", String(recurrence.maxOccurrences))] : []),
-    labelValue("Auto-Send", recurrence.autoSend !== false ? "Yes" : "No"),
-    separator(),
-
-    partiesTable("From", fromLines, "Bill To", toLines),
-    separator(),
-
-    labelValue("Issue Date", (data as any).invoiceDate || "—"),
-    labelValue("Due Date", data.dueDate || "—"),
-    labelValue("Payment Terms", data.paymentTerms || "—"),
-    separator(),
-
-    ...(hasItems ? [
-      new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new TableRow({
-            tableHeader: true,
-            children: [
-              cell("Description", { bold: true, shade: true, width: 50 }),
-              cell("Qty", { bold: true, shade: true, align: AlignmentType.CENTER, width: 10 }),
-              cell("Rate", { bold: true, shade: true, align: AlignmentType.RIGHT, width: 20 }),
-              cell("Amount", { bold: true, shade: true, align: AlignmentType.RIGHT, width: 20 }),
-            ],
-          }),
-          ...(data.items || []).map(item => {
-            const qty = Number(item.quantity) || 0
-            const rate = Number(item.rate) || 0
-            const disc = item.discount ? rate * qty * (Number(item.discount) / 100) : 0
-            const amount = qty * rate - disc
-            return new TableRow({
-              children: [
-                cell(item.description || "", { width: 50 }),
-                cell(String(qty), { align: AlignmentType.CENTER, width: 10 }),
-                cell(fmtMoney(rate, currency), { align: AlignmentType.RIGHT, width: 20 }),
-                cell(fmtMoney(amount, currency), { align: AlignmentType.RIGHT, width: 20 }),
-              ],
-            })
-          }),
-        ],
-      }),
-      separator(),
-
-      // Totals
-      new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { after: 60 }, children: [new TextRun({ text: `Subtotal: ${fmtMoney(subtotal, currency)}`, size: 20, font: "Calibri" })] }),
-      ...(discountAmount > 0 ? [new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { after: 60 }, children: [new TextRun({ text: `Discount: -${fmtMoney(discountAmount, currency)}`, size: 20, font: "Calibri" })] })] : []),
-      ...(taxAmount > 0 ? [new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { after: 60 }, children: [new TextRun({ text: `Tax (${data.taxRate}%): ${fmtMoney(taxAmount, currency)}`, size: 20, font: "Calibri" })] })] : []),
-      ...(shipping > 0 ? [new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { after: 60 }, children: [new TextRun({ text: `Shipping: ${fmtMoney(shipping, currency)}`, size: 20, font: "Calibri" })] })] : []),
-      new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { after: 60 }, children: [new TextRun({ text: `Total Due: ${fmtMoney(total, currency)}`, bold: true, size: 24, font: "Calibri" })] }),
-      separator(),
-    ] : []),
-
-    ...(data.notes ? [sectionHeading("Notes"), bodyText(data.notes), separator()] : []),
-    ...(data.terms ? [sectionHeading("Terms & Conditions"), bodyText(data.terms), separator()] : []),
-
-    new Paragraph({ spacing: { after: 400 } }),
-    docFooter(),
-  ]
-
-  return assembleDoc(title, "Recurring Invoice", children)
-}
-
 // ─── Public API ────────────────────────────────────────────────────────────
 
 /**
@@ -770,9 +675,6 @@ export async function generateDocx(data: InvoiceData): Promise<Blob> {
       break
     case "payment_followup":
       doc = generatePaymentFollowupDocx(data as unknown as PaymentFollowupData)
-      break
-    case "recurring_invoice":
-      doc = generateRecurringInvoiceDocx(data)
       break
     default:
       // invoice, contract, quote, quotation, proposal, receipt — all use InvoiceData

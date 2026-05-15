@@ -571,8 +571,14 @@ export function AppShell() {
     return prompt
   }, [])
 
-  const handleCategorySelect = useCallback((category: string) => {
-    setSelectedCategory(category)
+  // Example-prompt pills fill the input box (do NOT auto-send).
+  // The user reviews/edits the prompt and presses Enter to submit.
+  const [pillPrefill, setPillPrefill] = useState<string | undefined>(undefined)
+  const [pillPrefillNonce, setPillPrefillNonce] = useState(0)
+
+  const handlePillSelect = useCallback((prompt: string) => {
+    setPillPrefill(prompt)
+    setPillPrefillNonce(n => n + 1)
   }, [])
 
   // Persist active session to localStorage AND update URL so refresh restores the correct session
@@ -730,6 +736,8 @@ export function AppShell() {
             <div className="w-full mt-2">
               <PromptInput
                 onSubmit={handlePromptSubmit}
+                prefillValue={pillPrefill}
+                prefillNonce={pillPrefillNonce}
                 placeholder={
                   selectedCategory
                     ? `Describe your ${selectedCategory.toLowerCase()}... e.g., "${
@@ -743,7 +751,7 @@ export function AppShell() {
               />
             </div>
             <div className="mt-2">
-              <CategoryPills onSelect={handleCategorySelect} selectedCategory={selectedCategory} />
+              <CategoryPills onSelect={handlePillSelect} />
             </div>
           </div>
         </section>

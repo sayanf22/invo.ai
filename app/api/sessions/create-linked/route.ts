@@ -30,8 +30,8 @@ function mapParentContext(parentContext: Record<string, any>, targetType: string
     if (parentContext.fromAddress) mapped.fromAddress = parentContext.fromAddress
     if (parentContext.fromPhone) mapped.fromPhone = parentContext.fromPhone
 
-    // Carry over items for invoice/quote/recurring_invoice targets
-    if ((targetType === "invoice" || targetType === "quote" || targetType === "quotation" || targetType === "recurring_invoice") && Array.isArray(parentContext.items)) {
+    // Carry over items for invoice/quote targets
+    if ((targetType === "invoice" || targetType === "quote" || targetType === "quotation") && Array.isArray(parentContext.items)) {
         mapped.items = parentContext.items.map((item: any, i: number) => ({
             id: `linked-${Date.now()}-${i}`,
             description: item.description || "",

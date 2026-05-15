@@ -222,6 +222,17 @@ interface PromptInputBoxProps {
   placeholder?: string
   className?: string
   disabled?: boolean
+  /**
+   * Optional value to pre-fill the input with. Combined with `prefillNonce`,
+   * each change of the nonce pushes `prefillValue` into the input. The user
+   * can then review/edit before sending — we never auto-submit.
+   */
+  prefillValue?: string
+  /**
+   * Increment this to trigger a re-fill with `prefillValue` even when the
+   * value hasn't changed (e.g. user clicks the same example pill twice).
+   */
+  prefillNonce?: number
 }
 
 export const PromptInputBox = React.forwardRef(
@@ -232,9 +243,18 @@ export const PromptInputBox = React.forwardRef(
       placeholder = "Describe your document... e.g. Create an invoice for web design services",
       className,
       disabled = false,
+      prefillValue,
+      prefillNonce,
     } = props
 
     const [input, setInput] = React.useState("")
+
+    // When the parent bumps `prefillNonce`, fill the input with `prefillValue`.
+    // Intentionally does NOT auto-send — user reviews then presses Enter.
+    React.useEffect(() => {
+      if (prefillNonce === undefined) return
+      setInput(prefillValue ?? "")
+    }, [prefillNonce, prefillValue])
     const [stagedFile, setStagedFile] = React.useState<File | null>(null)
     const fileInputId = React.useId()
 
