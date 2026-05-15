@@ -7,9 +7,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
 import { incrementDocumentCount, checkDocumentLimit, checkDocumentTypeAllowed } from "@/lib/cost-protection"
-import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
+import { resolveEffectiveTier } from "@/lib/cost-protection"
+import { normalizeDocumentType, getDocumentTypeConfig, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 
-const VALID_TYPES = ["invoice", "contract", "quotation", "proposal"]
+// All 10 canonical types (plus legacy alias "quotation" which normalizes to "quote")
+const VALID_TYPES = [...ALL_DOCUMENT_TYPES, "quotation"] as string[]
 
 // Maps data from parent document context to seed the new document
 function mapParentContext(parentContext: Record<string, any>, targetType: string): Record<string, any> {
@@ -28,8 +30,8 @@ function mapParentContext(parentContext: Record<string, any>, targetType: string
     if (parentContext.fromAddress) mapped.fromAddress = parentContext.fromAddress
     if (parentContext.fromPhone) mapped.fromPhone = parentContext.fromPhone
 
-    // Carry over items for invoice/quotation targets
-    if ((targetType === "invoice" || targetType === "quotation") && Array.isArray(parentContext.items)) {
+    // Carry over items for invoice/quote/recurring_invoice targets
+    if ((targetType === "invoice" || targetType === "quote" || targetType === "quotation" || targetType === "recurring_invoice") && Array.isArray(parentContext.items)) {
         mapped.items = parentContext.items.map((item: any, i: number) => ({
             id: `linked-${Date.now()}-${i}`,
             description: item.description || "",
@@ -103,10 +105,13 @@ export async function POST(request: NextRequest) {
 
         if (!VALID_TYPES.includes(targetDocumentType)) {
             return NextResponse.json(
-                { success: false, error: "Invalid target document type" },
+                { success: false, error: `Invalid target document type. Must be one of: ${ALL_DOCUMENT_TYPES.join(", ")}` },
                 { status: 400 }
             )
         }
+
+        // Normalize the target type (handles "quotation" → "quote")
+        const normalizedTargetType = normalizeDocumentType(targetDocumentType) ?? targetDocumentType
 
         // Fetch user tier from subscriptions table, default to "free"
         const { data: subscription } = await (auth.supabase as any)
@@ -117,7 +122,7 @@ export async function POST(request: NextRequest) {
         const userTier = resolveEffectiveTier(subscription as any)
 
         // Check document type is allowed for this tier
-        const typeError = checkDocumentTypeAllowed(targetDocumentType, userTier)
+        const typeError = checkDocumentTypeAllowed(normalizedTargetType, userTier)
         if (typeError) return typeError
 
         // Check document limit for this tier
@@ -143,6 +148,23 @@ export async function POST(request: NextRequest) {
             ? parent.context as Record<string, any>
             : {}
 
+        const parentType = normalizeDocumentType(parent.document_type)
+
+        // Validate that the parent type is allowed for this child type
+        const childConfig = getDocumentTypeConfig(normalizedTargetType)
+        if (childConfig && childConfig.validParentTypes.length > 0) {
+            if (!parentType || !childConfig.validParentTypes.includes(parentType)) {
+                const allowed = childConfig.validParentTypes.join(", ")
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: `Invalid parent type. ${childConfig.label} can only link to: ${allowed}. Parent is "${parent.document_type}".`,
+                    },
+                    { status: 400 }
+                )
+            }
+        }
+
         // Determine chain_id: use parent's chain_id, or parent's own id if it's the root
         const chainId = parent.chain_id || parent.id
 
@@ -158,18 +180,55 @@ export async function POST(request: NextRequest) {
         const clientName = extractClientName(parentContext) || parent.client_name
 
         // Map parent context to seed data for the new document
-        const seedContext = mapParentContext(parentContext, targetDocumentType)
+        const seedContext = mapParentContext(parentContext, normalizedTargetType)
 
         // Store the parent's document type so the AI knows the chain origin
         // This is used in the stream route to correctly label the "Context from previous [type]" block
         seedContext._parentDocumentType = (parent.document_type || parentContext.documentType || "document").toLowerCase()
+
+        // ── Parent document reference for SOW, Change Order, Payment Follow-up ──
+        const typesWithParentRef = ["sow", "change_order", "payment_followup"]
+        if (typesWithParentRef.includes(normalizedTargetType)) {
+            seedContext.parent_document_id = parent.id
+        }
+
+        // For SOW: store the parent contract ID
+        if (normalizedTargetType === "sow") {
+            seedContext.parentContractId = parent.id
+        }
+
+        // For Change Order: store parent document type (sow | contract)
+        if (normalizedTargetType === "change_order") {
+            if (parentType === "sow" || parentType === "contract") {
+                seedContext.parentDocumentType = parentType
+            }
+        }
+
+        // Auto-populate Payment Follow-up fields from linked invoice
+        if (normalizedTargetType === "payment_followup" && parentType === "invoice") {
+            seedContext.linkedInvoiceId = parent.id
+            if (parentContext.invoiceNumber) seedContext.invoiceNumber = parentContext.invoiceNumber
+            if (parentContext.total != null) seedContext.invoiceAmount = parentContext.total
+            if (parentContext.currency) seedContext.invoiceCurrency = parentContext.currency
+            if (parentContext.dueDate) seedContext.dueDate = parentContext.dueDate
+            if (parentContext.paymentLinkUrl) seedContext.paymentLinkUrl = parentContext.paymentLinkUrl
+
+            // Compute days overdue from dueDate
+            if (parentContext.dueDate) {
+                const due = new Date(parentContext.dueDate)
+                const today = new Date()
+                const msPerDay = 1000 * 60 * 60 * 24
+                const daysOverdue = Math.floor((today.getTime() - due.getTime()) / msPerDay)
+                seedContext.daysOverdue = Math.max(0, daysOverdue)
+            }
+        }
 
         // Create the new linked session
         const { data: newSession, error: createError } = await auth.supabase
             .from("document_sessions")
             .insert({
                 user_id: auth.user.id,
-                document_type: targetDocumentType,
+                document_type: normalizedTargetType,
                 status: "active",
                 context: seedContext,
                 chain_id: chainId,

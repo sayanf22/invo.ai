@@ -14,6 +14,7 @@ import type { InvoiceData } from "@/lib/invoice-types"
 import { getInitialInvoiceData } from "@/lib/invoice-types"
 import { cn } from "@/lib/utils"
 import { useMediaQuery } from "@/hooks/use-media-query"
+import { useSupabase } from "@/components/auth-provider"
 
 type MobileTab = "chat" | "edit" | "preview"
 const TAB_INDEX: Record<MobileTab, number> = { chat: 0, edit: 1, preview: 2 }
@@ -21,17 +22,22 @@ const TAB_INDEX: Record<MobileTab, number> = { chat: 0, edit: 1, preview: 2 }
 interface PromptScreenProps {
   onBack: () => void
   onSessionChange?: (sessionId: string) => void
+  /** Called when the user selects a chat-type session from history. */
+  onChatSessionSelect?: (sessionId: string) => void
   initialCategory?: string
   initialPrompt?: string
   selectedSessionId?: string
+  isAnimating?: boolean
 }
 
 export function PromptScreen({
   onBack,
   onSessionChange,
+  onChatSessionSelect,
   initialCategory,
   initialPrompt,
   selectedSessionId: initialSessionId,
+  isAnimating,
 }: PromptScreenProps) {
   const [data, setData] = useState<InvoiceData>(() => {
     const init = getInitialInvoiceData()
@@ -48,6 +54,7 @@ export function PromptScreen({
 
   // ── Single InvoiceChat: render only for mobile OR desktop, never both ──
   const isDesktop = useMediaQuery("(min-width: 768px)")
+  const supabase = useSupabase()
 
   // Called when InvoiceChat starts a new session (new conversation button)
   const handleChatSessionChange = useCallback((sessionId: string) => {
@@ -75,14 +82,31 @@ export function PromptScreen({
     })
   }, [])
 
-  const handleSessionSelect = useCallback((sessionId: string) => {
+  const handleSessionSelect = useCallback(async (sessionId: string) => {
+    // Check if this is a chat-only session — if so, route to ChatOnlyScreen
+    // instead of loading it into the split-screen.
+    if (onChatSessionSelect) {
+      try {
+        const { data } = await supabase
+          .from("document_sessions")
+          .select("document_type")
+          .eq("id", sessionId)
+          .single()
+        if (data?.document_type === "chat") {
+          onChatSessionSelect(sessionId)
+          return
+        }
+      } catch {
+        // On error, fall through to normal behavior
+      }
+    }
     // Reset data to clean state — the new session's context will be loaded by InvoiceChat
     setData(prev => ({ ...getInitialInvoiceData(), design: prev.design }))
     setInvoiceLocked(false)
     setSelectedSessionId(sessionId)
     // Bubble up so AppShell can update the URL
     onSessionChange?.(sessionId)
-  }, [onSessionChange])
+  }, [onChatSessionSelect, onSessionChange, supabase])
 
   const [paymentLinkCancelledAt, setPaymentLinkCancelledAt] = useState<number>(0)
   // Stable no-op function for signaling cancellation to InvoiceChat
@@ -248,7 +272,7 @@ export function PromptScreen({
             </div>
 
             <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col">
-              <EditorPanel data={data} onChange={handleChange} />
+              {mobileTab === "edit" && <EditorPanel data={data} onChange={handleChange} />}
             </div>
 
             <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col">
@@ -266,8 +290,14 @@ export function PromptScreen({
         </div>
 
         {/* ── DESKTOP: chat+editor left panel ── */}
-        <div className="hidden md:flex w-[420px] lg:w-[460px] bg-card shrink-0 flex-col relative z-10"
+        <div
+          className={cn(
+            "hidden md:flex bg-card shrink-0 flex-col relative z-10",
+            "transition-all duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)]",
+            !isAnimating && "w-[420px] lg:w-[460px]"
+          )}
           style={{
+            width: isAnimating ? "100%" : undefined,
             borderRight: "1px solid hsl(var(--border) / 0.6)",
             boxShadow: "2px 0 20px -4px rgba(0,0,0,0.1)",
           }}
@@ -286,13 +316,22 @@ export function PromptScreen({
               "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
               showEditor ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 pointer-events-none"
             )}>
-              <EditorPanel data={data} onChange={handleChange} />
+              {showEditor && <EditorPanel data={data} onChange={handleChange} />}
             </div>
           </div>
         </div>
 
         {/* ── DESKTOP: preview panel ── */}
-        <div className="hidden md:flex flex-1 bg-background overflow-hidden flex-col transition-opacity duration-300">
+        <div
+          className={cn(
+            "hidden md:flex flex-1 bg-background overflow-hidden flex-col",
+            "transition-all duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)]"
+          )}
+          style={{
+            opacity: isAnimating ? 0 : 1,
+            transform: isAnimating ? "translateX(40px)" : "translateX(0)",
+          }}
+        >
           <DocumentPreview
             data={data}
             onChange={invoiceLocked ? undefined : handleChange}

@@ -8,7 +8,10 @@ import {
   CheckCircle2, Clock, XCircle, Link2, ExternalLink,
   RefreshCw, ChevronDown, ChevronUp, CreditCard, Mail,
   BellOff, Repeat2, Bell, PenLine, Trash2, Search, CalendarDays, X,
+  FileCheck, FileQuestion, Presentation, ClipboardList, GitMerge,
+  Shield, ClipboardCheck, type LucideIcon,
 } from "lucide-react"
+import { getDocumentTypeConfig, normalizeDocumentType, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -20,6 +23,21 @@ import { authFetch } from "@/lib/auth-fetch"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { MarkAsPaidButton } from "@/components/mark-as-paid-button"
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
+
+// ── Document Type Icon Map ────────────────────────────────────────────────────
+// Resolves registry icon string names to Lucide React components.
+const DOC_TYPE_ICON_MAP: Record<string, LucideIcon> = {
+  FileText,
+  FileCheck,
+  FileQuestion,
+  Presentation,
+  ClipboardList,
+  GitMerge,
+  Shield,
+  ClipboardCheck,
+  Bell,
+  RefreshCw,
+}
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -745,8 +763,16 @@ function DocCard({
   const docType = (session.document_type || "invoice").toLowerCase()
   const ctx = session.context || {}
 
+  // Resolve display metadata from registry (handles "quotation" → "quote")
+  const normalisedType = normalizeDocumentType(docType)
+  const typeConfig = normalisedType ? getDocumentTypeConfig(normalisedType) : null
+  const typeLabel = typeConfig?.label ?? (docType.charAt(0).toUpperCase() + docType.slice(1))
+  const typeColor = typeConfig?.color ?? "text-muted-foreground"
+  const typeBgColor = typeConfig?.bgColor ?? "bg-muted/70"
+  const TypeIcon = typeConfig ? (DOC_TYPE_ICON_MAP[typeConfig.icon] ?? FileText) : FileText
+
   const title = ctx.invoiceNumber || ctx.referenceNumber || session.client_name ||
-    `${docType.charAt(0).toUpperCase() + docType.slice(1)}`
+    typeLabel
 
   const total = (() => {
     if (!ctx.items || !Array.isArray(ctx.items) || ctx.items.length === 0) return null
@@ -769,17 +795,15 @@ function DocCard({
   const showMarkAsPaid = docType === "invoice" && !isGatewayPaid && localStatus !== "paid"
   const showManualPaidBadge = docType === "invoice" && (isManuallyPaid || localStatus === "paid") && !isGatewayPaid
 
-  // Monochromatic type label
-  const typeLabel = docType.charAt(0).toUpperCase() + docType.slice(1)
-
   return (
     <div className="rounded-2xl border border-border/40 bg-card overflow-hidden group">
       {/* Main row */}
       <div className="px-4 py-3.5">
         {/* Header row: type pill + title + actions */}
         <div className="flex items-start gap-3">
-          {/* Type badge — monochromatic */}
-          <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-muted/70 text-muted-foreground shrink-0 mt-0.5">
+          {/* Type badge — uses registry color/bg */}
+          <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5", typeBgColor, typeColor)}>
+            <TypeIcon size={11} />
             {typeLabel}
           </span>
           
@@ -930,8 +954,8 @@ function DocCard({
             </button>
           )}
 
-          {/* Quotation/Proposal response pill */}
-          {session.quotationResponse && (docType === "quotation" || docType === "proposal") && (
+          {/* Quote/Proposal response pill */}
+          {session.quotationResponse && (normalisedType === "quote" || normalisedType === "proposal") && (
             <span className={cn(
               "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
               session.quotationResponse.response_type === "accepted"
@@ -1395,9 +1419,9 @@ export default function MyDocumentsPage() {
         schedules: s._schedules ?? [],
       }))
 
-      // Fetch quotation responses for quotation sessions
+      // Fetch quotation responses for quote/quotation sessions
       const quotationSessionIds = withContent
-        .filter((s: any) => s.document_type === "quotation")
+        .filter((s: any) => normalizeDocumentType(s.document_type) === "quote")
         .map((s: any) => s.id)
 
       let quotationResponseMap: Record<string, { response_type: string }> = {}
@@ -1438,9 +1462,12 @@ export default function MyDocumentsPage() {
         }
       }
 
-      // Fetch signatures for signature-supporting document types
+      // Fetch signatures for signature-supporting document types (from registry)
       const signatureSessionIds = withContent
-        .filter((s: any) => ["contract", "quotation", "proposal"].includes(s.document_type))
+        .filter((s: any) => {
+          const cfg = getDocumentTypeConfig(normalizeDocumentType(s.document_type) ?? "")
+          return cfg?.capabilities.supports_signature ?? false
+        })
         .map((s: any) => s.id)
 
       let signatureMap: Record<string, SignatureRecord[]> = {}
@@ -1497,17 +1524,19 @@ export default function MyDocumentsPage() {
 
       let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
       let filePrefix: string
-      const docType = (session.document_type || "invoice").toLowerCase()
+      const rawDocType = (session.document_type || "invoice").toLowerCase()
+      // Normalize so legacy "quotation" and canonical "quote" share the same branch
+      const docType = normalizeDocumentType(rawDocType) ?? rawDocType
 
       switch (docType) {
         case "contract": PdfComponent = templates.ContractPDF; filePrefix = cleanedData.referenceNumber || "contract"; break
-        case "quotation": PdfComponent = templates.QuotationPDF; filePrefix = cleanedData.referenceNumber || "quotation"; break
+        case "quote": PdfComponent = templates.QuotationPDF; filePrefix = cleanedData.referenceNumber || "quote"; break
         case "proposal": PdfComponent = templates.ProposalPDF; filePrefix = cleanedData.referenceNumber || "proposal"; break
         default: PdfComponent = templates.InvoicePDF; filePrefix = cleanedData.invoiceNumber || "invoice"; break
       }
 
-      // Load signature images for signed documents (contracts/quotations/proposals)
-      if (["contract", "quotation", "proposal"].includes(docType) && session.status === "signed") {
+      // Load signature images for signed documents (contracts/quotes/proposals)
+      if (["contract", "quote", "proposal"].includes(docType) && session.status === "signed") {
         try {
           const { data: sigs } = await (supabase as any)
             .from("signatures")
@@ -1598,13 +1627,19 @@ export default function MyDocumentsPage() {
     }
   }, [])
 
-  // Filter options with counts
+  // Filter options with counts — driven by registry so all 10 types appear when present
   const filterOptions = [
     { key: "all", label: "All", count: sessions.length },
-    { key: "invoice", label: "Invoices", count: sessions.filter(s => s.document_type === "invoice").length },
-    { key: "contract", label: "Contracts", count: sessions.filter(s => s.document_type === "contract").length },
-    { key: "quotation", label: "Quotations", count: sessions.filter(s => s.document_type === "quotation").length },
-    { key: "proposal", label: "Proposals", count: sessions.filter(s => s.document_type === "proposal").length },
+    ...ALL_DOCUMENT_TYPES.map(type => {
+      const cfg = getDocumentTypeConfig(type)
+      const label = cfg?.label ?? (type.charAt(0).toUpperCase() + type.slice(1))
+      return {
+        key: type,
+        label: label + "s",
+        // "quotation" records are stored as the legacy type; normalise on compare
+        count: sessions.filter(s => normalizeDocumentType(s.document_type) === type).length,
+      }
+    }),
     { key: "paid", label: "Paid", count: sessions.filter(s => s.payment?.status === "paid" || s.status === "paid").length },
     { key: "pending", label: "Pending", count: sessions.filter(s => s.payment?.status === "created" || (s.document_type === "invoice" && !s.payment && s.status !== "paid")).length },
   ].filter(f => f.key === "all" || f.count > 0)
@@ -1641,8 +1676,10 @@ export default function MyDocumentsPage() {
         if (!(s.payment?.status === "paid" || s.status === "paid")) return false
       } else if (filter === "pending") {
         if (s.payment?.status !== "created") return false
-      } else if (s.document_type !== filter) {
-        return false
+      } else {
+        // Normalise the session's document_type so "quotation" matches "quote"
+        const normalised = normalizeDocumentType(s.document_type)
+        if (normalised !== filter) return false
       }
     }
 

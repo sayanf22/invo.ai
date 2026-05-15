@@ -46,6 +46,7 @@ async function buildPdfBlob(data: InvoiceData): Promise<Blob> {
   let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }>
   switch (docType) {
     case "contract": PdfComponent = templates.ContractPDF; break
+    case "quote":
     case "quotation": PdfComponent = templates.QuotationPDF; break
     case "proposal": PdfComponent = templates.ProposalPDF; break
     case "receipt": PdfComponent = templates.ReceiptPDF; break
@@ -437,8 +438,8 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
         </div>
       )}
 
-      {/* Accept / Reject / Need Changes — for quotations and proposals */}
-      {sessionId && (documentType === "quotation" || documentType === "proposal") && docData.allowClientResponse !== false && (
+      {/* Accept / Reject / Need Changes — for quotes and proposals */}
+      {sessionId && (documentType === "quotation" || documentType === "quote" || documentType === "proposal") && docData.allowClientResponse !== false && (
         <div className="max-w-2xl mx-auto px-4 py-4">
           {!responseStatus ? (
             <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">

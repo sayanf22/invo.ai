@@ -145,7 +145,7 @@ export default async function PayPage({ params }: PageProps) {
 
   // Fetch existing quotation/proposal response (so the client sees their previous answer on re-open)
   let existingResponse: "accepted" | "declined" | "changes_requested" | null = null
-  if (session.document_type === "quotation" || session.document_type === "proposal") {
+  if (session.document_type === "quotation" || session.document_type === "quote" || session.document_type === "proposal") {
     const { data: qr } = await (supabase as any)
       .from("quotation_responses")
       .select("response_type")

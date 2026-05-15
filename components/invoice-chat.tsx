@@ -628,7 +628,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         const DOC_TYPE_KEYWORDS: Record<string, string[]> = {
             invoice:   ["invoice", "invoices"],
             contract:  ["contract", "contracts", "agreement", "agreements"],
-            quotation: ["quotation", "quotations", "quote", "quotes", "estimate", "estimates"],
+            quote:     ["quotation", "quotations", "quote", "quotes", "estimate", "estimates"],
             proposal:  ["proposal", "proposals", "pitch", "pitches"],
         }
         const CREATE_VERBS = /\b(create|make|generate|build|write|draft|produce|give me|i need|i want)\b/i
@@ -643,7 +643,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     // Check if the target type is allowed for this user's tier
                     // We check the upgrade info from the session context
                     const isRestrictedType = upgradeInfo?.errorType === "type_restriction" ||
-                        (targetType === "quotation" || targetType === "proposal")
+                        (targetType === "quote" || targetType === "proposal")
 
                     // We'll let the server enforce — but give a helpful message
                     const guidanceMsg = `This is a **${currentLabel}** session — I can only generate ${currentLabel}s here.\n\n**To create a ${targetLabel}:**\n1. Click the **New Doc** button below (after generating a document) or the **+** button in the top bar\n2. Select **${targetLabel}** as the document type\n3. Ask me the same thing there\n\nYour ${currentLabel} is safe and unchanged. 👍`
@@ -1181,8 +1181,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         const t = docData.documentType.toLowerCase()
                         docData.documentType = t === "invoice" ? "Invoice"
                             : t === "contract" ? "Contract"
-                            : t === "quotation" ? "Quotation"
+                            : t === "quotation" || t === "quote" ? "Quote"
                             : t === "proposal" ? "Proposal"
+                            : t === "sow" ? "Sow"
+                            : t === "change_order" ? "Change_order"
+                            : t === "nda" ? "Nda"
+                            : t === "client_onboarding_form" ? "Client_onboarding_form"
+                            : t === "payment_followup" ? "Payment_followup"
+                            : t === "recurring_invoice" ? "Recurring_invoice"
                             : docData.documentType
                     }
 

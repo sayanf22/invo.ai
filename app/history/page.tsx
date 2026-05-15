@@ -5,17 +5,58 @@ import { useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
-import { History, FileText, Link2, ChevronRight, ArrowRight, ScrollText, ClipboardList, Lightbulb, ChevronDown, ArrowLeft, Trash2 } from "lucide-react"
+import {
+  History, FileText, FileCheck, FileQuestion, Presentation, ClipboardList,
+  GitMerge, Shield, ClipboardCheck, Bell, RefreshCw,
+  Link2, ChevronRight, ArrowRight, ChevronDown, ArrowLeft, Trash2, MessageSquare, ChevronUp
+} from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { cn } from "@/lib/utils"
 import { authFetch } from "@/lib/auth-fetch"
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
+import { getDocumentTypeConfig, normalizeDocumentType, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 
+// ── Icon lookup map (icon name string → Lucide component) ─────────────────────
+const ICON_MAP: Record<string, React.ComponentType<any>> = {
+  FileText, FileCheck, FileQuestion, Presentation, ClipboardList,
+  GitMerge, Shield, ClipboardCheck, Bell, RefreshCw,
+}
+
+// ── Doc config helper ─────────────────────────────────────────────────────────
+// "chat" is not in the registry; all other types go through it.
+const CHAT_CFG  = { label: "Chat",     icon: MessageSquare, color: "text-muted-foreground", bg: "bg-muted" }
+const FALLBACK  = { label: "Document", icon: FileText,       color: "text-muted-foreground", bg: "bg-muted" }
+
+function getDocCfg(type: string) {
+  if (type === "chat") return CHAT_CFG
+  const reg = getDocumentTypeConfig(type)      // handles "quotation" → "quote" internally
+  if (!reg) return FALLBACK
+  const icon = ICON_MAP[reg.icon] ?? FileText
+  return { label: reg.label, icon, color: reg.color, bg: reg.bgColor }
+}
+
+// ── Filter definitions ────────────────────────────────────────────────────────
+// Top 6 visible types + "All" + optional "Chat"; remaining 4 under "More".
+const PRIMARY_FILTER_TYPES = ["invoice", "contract", "quote", "proposal", "sow", "nda"] as const
+const MORE_FILTER_TYPES    = ["change_order", "client_onboarding_form", "payment_followup", "recurring_invoice"] as const
+
+type DocTypeFilter = typeof PRIMARY_FILTER_TYPES[number] | typeof MORE_FILTER_TYPES[number]
+type FilterValue   = "all" | "chat" | DocTypeFilter
+
+// Human-readable label for a filter value
+function filterLabel(f: FilterValue): string {
+  if (f === "all")  return "All"
+  if (f === "chat") return "Chat"
+  return getDocumentTypeConfig(f)?.label ?? f
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface Session {
   id: string
   document_type: string
+  title: string | null
   status: string
   created_at: string | null
   updated_at: string | null
@@ -31,25 +72,16 @@ interface SessionGroup {
   latestDate: string
 }
 
-const DOC_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
-  invoice:   { label: "Invoice",   icon: FileText,      color: "text-blue-600",    bg: "bg-blue-50" },
-  contract:  { label: "Contract",  icon: ScrollText,    color: "text-emerald-600", bg: "bg-emerald-50" },
-  quotation: { label: "Quotation", icon: ClipboardList, color: "text-amber-600",   bg: "bg-amber-50" },
-  proposal:  { label: "Proposal",  icon: Lightbulb,     color: "text-purple-600",  bg: "bg-purple-50" },
-}
-const fallback = { label: "Document", icon: FileText, color: "text-muted-foreground", bg: "bg-muted" }
-
-const FILTERS = ["All", "Invoice", "Contract", "Quotation", "Proposal"] as const
-type Filter = typeof FILTERS[number]
-
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function HistoryPage() {
-  const router = useRouter()
-  const goBack = useSafeBack("/")
+  const router   = useRouter()
+  const goBack   = useSafeBack("/")
   const supabase = useSupabase()
-  const user = useUser()
-  const [groups, setGroups] = useState<SessionGroup[]>([])
+  const user     = useUser()
+  const [groups, setGroups]   = useState<SessionGroup[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<Filter>("All")
+  const [filter, setFilter]   = useState<FilterValue>("all")
+  const [showMore, setShowMore] = useState(false)
 
   // Delete state — lifted to page level so one dialog serves all cards
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
@@ -92,7 +124,10 @@ export default function HistoryPage() {
         grouped.push({ chainId, clientName, sessions: chainSessions, latestDate })
       }
       for (const s of standalone) {
-        grouped.push({ chainId: null, clientName: s.client_name || s.context?.toName || null, sessions: [s], latestDate: s.updated_at || s.created_at || "" })
+        const displayName = s.document_type === "chat"
+          ? (s.title || "Chat conversation")
+          : (s.client_name || s.context?.toName || s.title || null)
+        grouped.push({ chainId: null, clientName: displayName, sessions: [s], latestDate: s.updated_at || s.created_at || "" })
       }
       grouped.sort((a, b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime())
       setGroups(grouped)
@@ -127,9 +162,24 @@ export default function HistoryPage() {
     }
   }, [pendingDeleteId])
 
-  const filteredGroups = filter === "All"
-    ? groups
-    : groups.filter(g => g.sessions.some(s => s.document_type.toLowerCase() === filter.toLowerCase()))
+  // ── Filtering logic ─────────────────────────────────────────────────────────
+  const sessionMatchesFilter = (s: Session): boolean => {
+    if (filter === "all")  return s.document_type !== "chat"
+    if (filter === "chat") return s.document_type === "chat"
+    // Use normalizeDocumentType so "quotation" is treated as "quote"
+    const normalized = normalizeDocumentType(s.document_type)
+    return normalized === filter
+  }
+
+  const filteredGroups = groups.filter(g => g.sessions.some(sessionMatchesFilter))
+
+  const docCount = filter === "all"
+    ? groups.filter(g => g.sessions.some(s => s.document_type !== "chat")).length
+    : filteredGroups.length
+
+  const countLabel = filter === "chat"
+    ? `${docCount} conversation${docCount !== 1 ? "s" : ""}`
+    : `${docCount} document${docCount !== 1 ? "s" : ""}`
 
   if (loading) {
     return (
@@ -166,28 +216,57 @@ export default function HistoryPage() {
       <div className="max-w-2xl mx-auto px-4 pt-6 pb-20">
         <div className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">History</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {groups.length} document{groups.length !== 1 ? "s" : ""}
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">{countLabel}</p>
         </div>
 
-        {/* Filter pills */}
-        <div className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-0.5">
-          {FILTERS.map(f => (
+        {/* Filter pills — top 6 types + All + More expandable section */}
+        <div className="mb-5 space-y-2">
+          {/* Primary row */}
+          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
+            {/* "All" pill */}
+            <FilterPill label="All" active={filter === "all"} onClick={() => setFilter("all")} />
+
+            {/* Top 6 type pills */}
+            {PRIMARY_FILTER_TYPES.map(type => (
+              <FilterPill
+                key={type}
+                label={filterLabel(type)}
+                active={filter === type}
+                onClick={() => setFilter(type)}
+              />
+            ))}
+
+            {/* More toggle */}
             <button
-              key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => setShowMore(v => !v)}
               className={cn(
-                "px-4 py-2 rounded-2xl text-sm font-semibold whitespace-nowrap transition-all duration-200 border",
-                filter === f
-                  ? "bg-primary text-primary-foreground border-primary shadow-md"
-                  : "bg-card text-foreground border-border hover:bg-secondary shadow-sm"
+                "flex items-center gap-1 px-4 py-2 rounded-2xl text-sm font-semibold whitespace-nowrap transition-all duration-200 border shrink-0",
+                showMore
+                  ? "bg-secondary text-foreground border-border"
+                  : "bg-card text-muted-foreground border-border hover:bg-secondary shadow-sm"
               )}
-              style={filter === f ? { boxShadow: "0 2px 8px hsl(var(--primary)/0.3)" } : { boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+              style={{ boxShadow: showMore ? undefined : "0 1px 3px rgba(0,0,0,0.06)" }}
             >
-              {f}
+              More
+              {showMore ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
-          ))}
+          </div>
+
+          {/* Expanded row — remaining 4 types */}
+          {showMore && (
+            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5 pl-0 animate-in fade-in slide-in-from-top-1 duration-200">
+              {MORE_FILTER_TYPES.map(type => (
+                <FilterPill
+                  key={type}
+                  label={filterLabel(type)}
+                  active={filter === type}
+                  onClick={() => setFilter(type)}
+                />
+              ))}
+              {/* Chat pill lives here since it's not a document type */}
+              <FilterPill label="Chat" active={filter === "chat"} onClick={() => setFilter("chat")} />
+            </div>
+          )}
         </div>
 
         {filteredGroups.length === 0 ? (
@@ -236,8 +315,25 @@ export default function HistoryPage() {
   )
 }
 
-// ── Chain Group ───────────────────────────────────────────────────────────────
+// ── Filter Pill ───────────────────────────────────────────────────────────────
+function FilterPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "px-4 py-2 rounded-2xl text-sm font-semibold whitespace-nowrap transition-all duration-200 border shrink-0",
+        active
+          ? "bg-primary text-primary-foreground border-primary shadow-md"
+          : "bg-card text-foreground border-border hover:bg-secondary shadow-sm"
+      )}
+      style={active ? { boxShadow: "0 2px 8px hsl(var(--primary)/0.3)" } : { boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+    >
+      {label}
+    </button>
+  )
+}
 
+// ── Chain Group ───────────────────────────────────────────────────────────────
 function ChainGroup({ group, onOpen, onRequestDelete }: {
   group: SessionGroup
   onOpen: (s: Session) => void
@@ -269,7 +365,7 @@ function ChainGroup({ group, onOpen, onRequestDelete }: {
             <span className="text-xs text-muted-foreground">{group.sessions.length} docs</span>
             <div className="flex items-center gap-0.5 ml-0.5">
               {docTypes.map(t => {
-                const cfg = DOC_CONFIG[t] || fallback
+                const cfg = getDocCfg(t)
                 return <span key={t} className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>{cfg.label}</span>
               })}
             </div>
@@ -285,7 +381,7 @@ function ChainGroup({ group, onOpen, onRequestDelete }: {
         <div className="overflow-hidden">
           <div className={cn("transition-opacity duration-200 border-t border-border/50", expanded ? "opacity-100" : "opacity-0")}>
             {group.sessions.map((session) => {
-              const cfg = DOC_CONFIG[session.document_type] || fallback
+              const cfg = getDocCfg(session.document_type)
               const Icon = cfg.icon
               const isProtected = session.status === "paid" || session.status === "signed"
 
@@ -300,7 +396,7 @@ function ChainGroup({ group, onOpen, onRequestDelete }: {
                       <Icon className={cn("w-4 h-4", cfg.color)} strokeWidth={1.5} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{session.context?.toName || session.client_name || "Untitled"}</p>
+                      <p className="text-sm font-medium truncate">{session.context?.toName || session.client_name || session.title || "Untitled"}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {cfg.label} · {session.created_at ? format(new Date(session.created_at), "MMM dd, h:mm a") : ""}
                       </p>
@@ -329,16 +425,17 @@ function ChainGroup({ group, onOpen, onRequestDelete }: {
 }
 
 // ── Single Card ───────────────────────────────────────────────────────────────
-
 function SingleCard({ session, clientName, onOpen, onRequestDelete }: {
   session: Session
   clientName: string | null
   onOpen: (s: Session) => void
   onRequestDelete: (id: string) => void
 }) {
-  const cfg = DOC_CONFIG[session.document_type] || fallback
+  const cfg  = getDocCfg(session.document_type)
   const Icon = cfg.icon
-  const title = clientName || session.context?.toName || "Untitled"
+  const title = session.document_type === "chat"
+    ? (session.title || "Chat conversation")
+    : (clientName || session.context?.toName || session.title || "Untitled")
   const date = session.updated_at || session.created_at
   const isProtected = session.status === "paid" || session.status === "signed"
 

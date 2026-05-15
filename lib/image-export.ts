@@ -26,23 +26,86 @@ export async function generateDocumentImage(
   const templates = await import("@/lib/pdf-templates")
 
   const docType = (cleanedData.documentType || "").toLowerCase()
-  let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
+
+  // Pick the correct React component for each document type.
+  // All new types (sow, change_order, nda, client_onboarding_form,
+  // payment_followup, recurring_invoice) have dedicated PDF templates.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let element: any
 
   switch (docType) {
-    case "contract": PdfComponent = templates.ContractPDF; break
-    case "quotation": PdfComponent = templates.QuotationPDF; break
-    case "proposal": PdfComponent = templates.ProposalPDF; break
-    case "receipt": PdfComponent = templates.ReceiptPDF; break
+    case "contract":
+      element = React.createElement(templates.ContractPDF, { data: cleanedData, logoUrl })
+      break
+
+    case "quote":
+    case "quotation":
+      element = React.createElement(templates.QuotationPDF, { data: cleanedData, logoUrl })
+      break
+
+    case "proposal":
+      element = React.createElement(templates.ProposalPDF, { data: cleanedData, logoUrl })
+      break
+
+    case "receipt":
+      element = React.createElement(templates.ReceiptPDF, { data: cleanedData, logoUrl })
+      break
+
+    case "sow":
+      element = React.createElement(
+        templates.SOWPDF as React.ComponentType<{ data: unknown; logoUrl?: string | null }>,
+        { data: cleanedData, logoUrl }
+      )
+      break
+
+    case "change_order":
+      element = React.createElement(
+        templates.ChangeOrderPDF as React.ComponentType<{ data: unknown; logoUrl?: string | null }>,
+        { data: cleanedData, logoUrl }
+      )
+      break
+
+    case "nda":
+      element = React.createElement(
+        templates.NDAPDF as React.ComponentType<{ data: unknown; logoUrl?: string | null }>,
+        { data: cleanedData, logoUrl }
+      )
+      break
+
+    case "client_onboarding_form":
+      element = React.createElement(
+        templates.ClientOnboardingFormPDF as React.ComponentType<{ data: unknown; logoUrl?: string | null }>,
+        { data: cleanedData, logoUrl }
+      )
+      break
+
+    case "payment_followup":
+      element = React.createElement(
+        templates.PaymentFollowupPDF as React.ComponentType<{ data: unknown; logoUrl?: string | null }>,
+        { data: cleanedData, logoUrl }
+      )
+      break
+
+    case "recurring_invoice":
+      element = React.createElement(
+        templates.RecurringInvoicePDF as React.ComponentType<{ data: unknown; logoUrl?: string | null; paymentQrCode?: string | null }>,
+        { data: cleanedData, logoUrl }
+      )
+      break
+
     default:
-      PdfComponent = (cleanedData.design?.layout === "receipt" || cleanedData.design?.templateId === "receipt")
-        ? templates.ReceiptPDF
-        : templates.InvoicePDF
+      // Fallback: invoice (also handles undefined / unknown types)
+      {
+        const InvoiceLike =
+          cleanedData.design?.layout === "receipt" ||
+          cleanedData.design?.templateId === "receipt"
+            ? templates.ReceiptPDF
+            : templates.InvoicePDF
+        element = React.createElement(InvoiceLike, { data: cleanedData, logoUrl })
+      }
       break
   }
 
-  // Use React.createElement instead of JSX so this file doesn't need .tsx extension
-  // Cast to any to satisfy @react-pdf/renderer's DocumentProps type constraint
-  const element = React.createElement(PdfComponent, { data: cleanedData, logoUrl }) as any
   const pdfBlob = await pdf(element).toBlob()
   const pdfArrayBuffer = await pdfBlob.arrayBuffer()
 

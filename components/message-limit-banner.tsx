@@ -4,9 +4,9 @@ import { FileText, ScrollText, ClipboardList, Lightbulb, AlertTriangle } from "l
 import { cn } from "@/lib/utils"
 
 const DOC_OPTIONS: Record<string, { label: string; icon: React.ElementType }> = {
-    invoice: { label: "Invoice", icon: FileText },
+    invoice:  { label: "Invoice",  icon: FileText },
     contract: { label: "Contract", icon: ScrollText },
-    quotation: { label: "Quotation", icon: ClipboardList },
+    quote:    { label: "Quote",    icon: ClipboardList },
     proposal: { label: "Proposal", icon: Lightbulb },
 }
 

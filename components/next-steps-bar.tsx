@@ -7,10 +7,10 @@ import type { InvoiceData } from "@/lib/invoice-types"
 import { useTier } from "@/hooks/use-tier"
 
 const DOC_OPTIONS: Record<string, { label: string; icon: React.ElementType }> = {
-    invoice:   { label: "Invoice",   icon: FileText },
-    contract:  { label: "Contract",  icon: ScrollText },
-    quotation: { label: "Quotation", icon: ClipboardList },
-    proposal:  { label: "Proposal",  icon: Lightbulb },
+    invoice:  { label: "Invoice",  icon: FileText },
+    contract: { label: "Contract", icon: ScrollText },
+    quote:    { label: "Quote",    icon: ClipboardList },
+    proposal: { label: "Proposal", icon: Lightbulb },
 }
 
 interface NextStepsBarProps {

@@ -756,8 +756,9 @@ function localFallback(invoiceData: InvoiceData, documentType: string): string {
   switch (documentType.toLowerCase()) {
     case "invoice":
       return `${greeting}\n\nPlease find your invoice${refText}${formatted ? ` for ${formatted}` : ""}${dueText} attached.\n\nKindly review the details and process the payment at your earliest convenience. Please don't hesitate to reach out if you have any questions.\n\nThank you for your business.\n\nBest regards,\n${senderName}`
+    case "quote":
     case "quotation":
-      return `${greeting}\n\nPlease find your quotation${refText}${formatted ? ` totalling ${formatted}` : ""} attached.\n\nThis quote is valid for 30 days. Let us know if you'd like to proceed or have any questions.\n\nBest regards,\n${senderName}`
+      return `${greeting}\n\nPlease find your quote${refText}${formatted ? ` totalling ${formatted}` : ""} attached.\n\nThis quote is valid for 30 days. Let us know if you'd like to proceed or have any questions.\n\nBest regards,\n${senderName}`
     case "contract":
       return `${greeting}\n\nPlease find the contract${refText} attached for your review.\n\nKindly review the terms and sign at your earliest convenience. Feel free to reach out with any questions.\n\nBest regards,\n${senderName}`
     default:

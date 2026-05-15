@@ -3,7 +3,17 @@
  * Analyzes user prompts to automatically detect document type
  */
 
-export type DocumentType = "invoice" | "contract" | "quotation" | "proposal"
+export type DocumentType =
+  | "invoice"
+  | "contract"
+  | "quote"
+  | "proposal"
+  | "sow"
+  | "change_order"
+  | "nda"
+  | "client_onboarding_form"
+  | "payment_followup"
+  | "recurring_invoice"
 
 export interface DetectionResult {
   type: DocumentType
@@ -18,7 +28,7 @@ export function detectDocumentType(prompt: string): DetectionResult {
   const lowerPrompt = prompt.toLowerCase()
 
   // Define keyword patterns with weights
-  const patterns = {
+  const patterns: Record<DocumentType, { keywords: string[]; weight: number }> = {
     invoice: {
       keywords: [
         "invoice", "bill", "payment", "charge", "amount due", "pay", "paid",
@@ -27,7 +37,7 @@ export function detectDocumentType(prompt: string): DetectionResult {
       ],
       weight: 1.0
     },
-    quotation: {
+    quote: {
       keywords: [
         "quotation", "quote", "price quote", "pricing", "estimate",
         "cost estimate", "price list", "rate card", "bid",
@@ -39,8 +49,7 @@ export function detectDocumentType(prompt: string): DetectionResult {
       keywords: [
         "contract", "service agreement", "employment", "hire", "work agreement",
         "terms of service", "freelance agreement", "consulting agreement",
-        "contractor agreement", "scope of work", "sow", "deliverables",
-        "project agreement", "engagement"
+        "contractor agreement", "project agreement", "engagement"
       ],
       weight: 1.0
     },
@@ -51,6 +60,54 @@ export function detectDocumentType(prompt: string): DetectionResult {
         "solution proposal", "offer", "submission"
       ],
       weight: 0.8
+    },
+    sow: {
+      keywords: [
+        "statement of work", "sow", "deliverables", "milestones",
+        "timeline", "phases", "project scope", "scope of work",
+        "acceptance criteria", "work breakdown"
+      ],
+      weight: 1.1
+    },
+    change_order: {
+      keywords: [
+        "change order", "amendment", "scope change", "modification",
+        "revision", "addendum", "extra work", "change request",
+        "scope amendment"
+      ],
+      weight: 1.2
+    },
+    nda: {
+      keywords: [
+        "nda", "non-disclosure", "confidentiality", "confidential",
+        "secret", "proprietary", "non disclosure agreement",
+        "confidentiality agreement"
+      ],
+      weight: 1.2
+    },
+    client_onboarding_form: {
+      keywords: [
+        "onboarding", "intake", "client details", "questionnaire",
+        "client form", "project requirements", "intake form",
+        "onboarding form", "client intake", "new client"
+      ],
+      weight: 1.0
+    },
+    payment_followup: {
+      keywords: [
+        "reminder", "follow up", "overdue", "payment reminder",
+        "past due", "outstanding", "unpaid", "follow-up",
+        "payment overdue", "invoice reminder"
+      ],
+      weight: 1.1
+    },
+    recurring_invoice: {
+      keywords: [
+        "recurring", "monthly invoice", "weekly billing",
+        "subscription billing", "repeat invoice", "monthly billing",
+        "recurring invoice", "subscription invoice", "auto-invoice"
+      ],
+      weight: 1.1
     }
   }
 
@@ -58,8 +115,14 @@ export function detectDocumentType(prompt: string): DetectionResult {
   const scores: Record<DocumentType, number> = {
     invoice: 0,
     contract: 0,
-    quotation: 0,
-    proposal: 0
+    quote: 0,
+    proposal: 0,
+    sow: 0,
+    change_order: 0,
+    nda: 0,
+    client_onboarding_form: 0,
+    payment_followup: 0,
+    recurring_invoice: 0
   }
 
   for (const [type, config] of Object.entries(patterns)) {
@@ -111,22 +174,31 @@ export function getDetectionMessage(result: DetectionResult): string {
   } else if (result.confidence > 0.4) {
     return `It looks like you want to create a ${result.type}. Is that correct?`
   } else {
-    return `I'm not sure what type of document you need. Could you clarify if you want an invoice, contract, quotation, or proposal?`
+    return `I'm not sure what type of document you need. Could you clarify if you want an invoice, contract, quote, proposal, SOW, change order, NDA, client onboarding form, payment follow-up, or recurring invoice?`
   }
 }
 
 /**
  * Examples for testing:
- * 
+ *
  * detectDocumentType("Create an invoice for $1500 web design work")
  * → { type: "invoice", confidence: 0.85, reasoning: "..." }
- * 
+ *
  * detectDocumentType("Get me a price quote for 50 custom t-shirts")
- * → { type: "quotation", confidence: 0.95, reasoning: "..." }
- * 
+ * → { type: "quote", confidence: 0.95, reasoning: "..." }
+ *
  * detectDocumentType("I need a service agreement for freelance work")
  * → { type: "contract", confidence: 0.80, reasoning: "..." }
- * 
+ *
  * detectDocumentType("Create a business proposal for the new project")
  * → { type: "proposal", confidence: 0.75, reasoning: "..." }
+ *
+ * detectDocumentType("Write a statement of work with deliverables and milestones")
+ * → { type: "sow", confidence: 0.90, reasoning: "..." }
+ *
+ * detectDocumentType("I need an NDA to protect confidential information")
+ * → { type: "nda", confidence: 0.90, reasoning: "..." }
+ *
+ * detectDocumentType("Send a payment reminder for the overdue invoice")
+ * → { type: "payment_followup", confidence: 0.85, reasoning: "..." }
  */

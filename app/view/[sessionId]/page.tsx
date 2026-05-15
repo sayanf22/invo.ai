@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
+import { normalizeDocumentType } from "@/lib/document-type-registry"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -61,6 +62,7 @@ async function buildPdfBlob(data: InvoiceData, paymentQrCode?: string | null): P
   let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }>
   switch (docType) {
     case "contract": PdfComponent = templates.ContractPDF; break
+    case "quote":
     case "quotation": PdfComponent = templates.QuotationPDF; break
     case "proposal": PdfComponent = templates.ProposalPDF; break
     case "receipt": PdfComponent = templates.ReceiptPDF; break
@@ -384,7 +386,8 @@ export default function ViewDocumentPage() {
             if (pay) setPayment(pay as PaymentInfo)
 
             // Check for existing quotation response (authenticated user)
-            if (session.document_type === 'quotation') {
+            // Normalize so both "quote" and legacy "quotation" trigger the lookup
+            if (normalizeDocumentType(session.document_type) === 'quote') {
               const { data: existingResponse } = await (supabase as any)
                 .from('quotation_responses')
                 .select('response_type, responded_at')
@@ -697,8 +700,8 @@ export default function ViewDocumentPage() {
         </div>
       </div>
 
-      {/* Quotation response buttons — shown below PDF viewer for quotation documents */}
-      {docData?.documentType === 'quotation' && (
+      {/* Quote response buttons — shown below PDF viewer for quote documents (handles legacy "quotation" too) */}
+      {normalizeDocumentType(docData?.documentType ?? '') === 'quote' && (
         <div className="max-w-4xl mx-auto px-2 sm:px-4 py-4">
           {quotationResponse ? (
             <div className={cn(

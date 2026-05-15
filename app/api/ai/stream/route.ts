@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server"
 import { streamGenerateDocument, buildPrompt, DUAL_MODE_SYSTEM_PROMPT, type AIGenerationRequest } from "@/lib/deepseek"
-import { streamBedrockChat, callBedrockBrief, ORCHESTRATOR_SYSTEM_PROMPT, BUSINESS_PROFILE_COMMENTARY_PROMPT, COMPLIANCE_COMMENTARY_PROMPT, RAG_VALIDATION_PROMPT, PRE_GENERATION_BRIEF_PROMPT, CORRECTION_INSTRUCTION_PROMPT } from "@/lib/bedrock"
+import { streamBedrockChat, streamBedrockChatWithHistory, callBedrockBrief, ORCHESTRATOR_SYSTEM_PROMPT, BUSINESS_PROFILE_COMMENTARY_PROMPT, COMPLIANCE_COMMENTARY_PROMPT, RAG_VALIDATION_PROMPT, PRE_GENERATION_BRIEF_PROMPT, CORRECTION_INSTRUCTION_PROMPT, type BedrockChatMessage } from "@/lib/bedrock"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
-import { classifyIntent } from "@/lib/intent-router"
+import { classifyIntent, detectMismatch, type DocumentType as IntentDocumentType } from "@/lib/intent-router"
+import { CHAT_ONLY_SYSTEM_PROMPT } from "@/lib/chat-only-prompts"
 
 import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
@@ -20,6 +21,10 @@ export async function POST(request: NextRequest) {
 
         const body: AIGenerationRequest = await request.json()
 
+        // Detect chat-only mode early — these sessions bypass quota and use
+        // a different system prompt path further down.
+        const isChatOnlyMode = (body.documentType || "").toLowerCase() === "chat"
+
         // Fetch user tier from subscriptions table (needed for all limit checks)
         const { data: sub } = await (auth.supabase as any)
             .from("subscriptions")
@@ -28,19 +33,24 @@ export async function POST(request: NextRequest) {
             .single()
         const userTier = resolveEffectiveTier(sub as any)
 
-        // SECURITY: Cost protection - check monthly document limit with actual tier
-        const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
-        if (costError) return costError
+        // Chat-only mode skips all tier gates — chat conversations are free.
+        // Quota is consumed only at promotion time (/api/sessions/promote).
+        if (!isChatOnlyMode) {
+            // SECURITY: Cost protection - check monthly document limit with actual tier
+            const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
+            if (costError) return costError
 
-        // SECURITY: Document type restriction — free tier only gets invoice + contract
-        // This is the server-side enforcement — the frontend check is just UX
-        const docTypeToCheck = (body.documentType || "invoice").toLowerCase()
-        const typeError = checkDocumentTypeAllowed(docTypeToCheck, userTier)
-        if (typeError) return typeError
+            // SECURITY: Document type restriction — free tier only gets invoice + contract
+            // This is the server-side enforcement — the frontend check is just UX
+            const docTypeToCheck = (body.documentType || "invoice").toLowerCase()
+            const typeError = checkDocumentTypeAllowed(docTypeToCheck, userTier)
+            if (typeError) return typeError
+        }
 
         // Check per-session message limit (if sessionId provided)
+        // Chat-only sessions have no message cap — limit applies only to typed sessions.
         const sessionId = (body as any).sessionId
-        if (sessionId) {
+        if (sessionId && !isChatOnlyMode) {
             const limitError = await checkMessageLimit(auth.supabase, auth.user.id, sessionId, userTier)
             if (limitError) return limitError
 
@@ -95,10 +105,20 @@ export async function POST(request: NextRequest) {
         }
 
         // SECURITY: Validate document type against whitelist
-        const VALID_DOC_TYPES = ["invoice", "contract", "quotation", "proposal"]
+        // 'chat' is a valid pseudo-type for chat-only advisory mode.
+        // All 10 canonical document types + legacy 'quotation' alias + 'chat' are valid.
+        const VALID_DOC_TYPES = [
+            "invoice", "contract", "quote", "quotation", "proposal",
+            "sow", "change_order", "nda", "client_onboarding_form",
+            "payment_followup", "recurring_invoice", "chat",
+        ]
         const normalizedDocType = body.documentType.toLowerCase().trim()
         if (!VALID_DOC_TYPES.includes(normalizedDocType)) {
             body.documentType = "invoice" // Default to invoice for invalid types
+        }
+        // Normalize legacy "quotation" → "quote" so downstream logic uses canonical type
+        if (normalizedDocType === "quotation") {
+            body.documentType = "quote"
         }
 
         // SECURITY: Clear any client-sent businessContext (fetched server-side inside stream)
@@ -139,6 +159,106 @@ export async function POST(request: NextRequest) {
                     const bedrockKey = process.env.amazon_beadrocl_key
                         || (typeof globalThis !== "undefined" ? (globalThis as any).amazon_beadrocl_key : "")
                         || ""
+
+                    // ── 0b. Chat-only mode short-circuit ────────────────────────
+                    // When documentType === 'chat', this is a pre-document advisory
+                    // conversation. No compliance, no orchestration, no JSON —
+                    // just a conversational response using the chat-only system
+                    // prompt. The AI may include a [CREATE_CARD:{...}] signal at
+                    // the end of its response when the user confirms they want
+                    // to create a document.
+                    if (isChatOnlyMode) {
+                        try {
+                            // Build multi-turn message history for Kimi K2.5.
+                            // conversationHistory contains all prior turns; the current
+                            // user message is in body.prompt (already sanitized above).
+                            const historyMessages: BedrockChatMessage[] = [
+                                ...(body.conversationHistory || []).map(m => ({
+                                    role: m.role as "user" | "assistant",
+                                    content: m.content,
+                                })),
+                                { role: "user" as const, content: cleanedPrompt },
+                            ]
+
+                            // Use Kimi K2.5 via Bedrock if available (preferred — fast, context-aware).
+                            // Fall back to DeepSeek if Bedrock key is missing or fails.
+                            if (bedrockKey && bedrockKey.length > 10) {
+                                sendEvent({ type: "activity", action: "think", label: "Thinking", detail: "Clorefy Advisor" })
+                                let bedrockFailed = false
+                                for await (const chunk of streamBedrockChatWithHistory(CHAT_ONLY_SYSTEM_PROMPT, historyMessages, bedrockKey, 1500)) {
+                                    if (chunk.type === "error") {
+                                        console.error("Bedrock chat-only failed, falling back:", chunk.data)
+                                        bedrockFailed = true
+                                        break
+                                    }
+                                    sendEvent(chunk)
+                                    if (chunk.type === "complete") break
+                                }
+                                if (bedrockFailed) {
+                                    sendEvent({ type: "activity", action: "think", label: "Thinking", detail: "Clorefy" })
+                                    // DeepSeek fallback: inject system prompt + history into the prompt
+                                    const historyText = historyMessages.slice(0, -1)
+                                        .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+                                        .join("\n")
+                                    const fallbackBody: AIGenerationRequest = {
+                                        ...body,
+                                        documentType: "chat",
+                                        prompt: `[SYSTEM: ${CHAT_ONLY_SYSTEM_PROMPT}]\n\n${historyText ? `CONVERSATION HISTORY:\n${historyText}\n\n` : ""}USER: ${cleanedPrompt}`,
+                                    }
+                                    for await (const chunk of streamGenerateDocument(fallbackBody, deepseekKey)) {
+                                        sendEvent(chunk)
+                                        if (chunk.type === "complete") break
+                                        if (chunk.type === "error") break
+                                    }
+                                }
+                            } else {
+                                sendEvent({ type: "activity", action: "think", label: "Thinking", detail: "Clorefy" })
+                                const historyText = historyMessages.slice(0, -1)
+                                    .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+                                    .join("\n")
+                                const fallbackBody: AIGenerationRequest = {
+                                    ...body,
+                                    documentType: "chat",
+                                    prompt: `[SYSTEM: ${CHAT_ONLY_SYSTEM_PROMPT}]\n\n${historyText ? `CONVERSATION HISTORY:\n${historyText}\n\n` : ""}USER: ${cleanedPrompt}`,
+                                }
+                                for await (const chunk of streamGenerateDocument(fallbackBody, deepseekKey)) {
+                                    sendEvent(chunk)
+                                    if (chunk.type === "complete") break
+                                    if (chunk.type === "error") break
+                                }
+                            }
+                        } catch (err) {
+                            console.error("Chat-only mode error:", err instanceof Error ? err.message : err)
+                            sendEvent({ type: "error", data: "Chat mode temporarily unavailable. Please try again." })
+                        }
+                        // Chat-only mode never consumes quota, never increments usage,
+                        // never runs compliance validation. Close the stream.
+                        return
+                    }
+
+                    // ── 0c. Mismatch pre-flight (typed sessions only) ──────────
+                    // If the user's prompt asks for a document type that does not
+                    // fit their stated goal (e.g., a contract for a payment),
+                    // emit a mismatch-redirect event and close the stream. The
+                    // client routes to the chat-only screen with the AI's
+                    // redirect message.
+                    if (intentType === "document") {
+                        const requestedType = (body.documentType || "invoice").toLowerCase() as IntentDocumentType
+                        if (requestedType === "invoice" || requestedType === "contract" || requestedType === "quote" || requestedType === "proposal") {
+                            const mismatch = detectMismatch(cleanedPrompt, requestedType)
+                            if (mismatch) {
+                                const initialMessage = `I see you want to create a ${mismatch.requestedType} here, but ${mismatch.reason} Want me to create a ${mismatch.suggestedType} instead?\n\n[CREATE_CARD:{"type":"${mismatch.suggestedType}","summary":"Suggested ${mismatch.suggestedType} based on your request"}]`
+                                sendEvent({
+                                    type: "mismatch-redirect",
+                                    requestedType: mismatch.requestedType,
+                                    suggestedType: mismatch.suggestedType,
+                                    reason: mismatch.reason,
+                                    initialMessage,
+                                })
+                                return
+                            }
+                        }
+                    }
 
                     // Orchestration gate: only in Thinking Mode + document intent + valid Bedrock key
                     const shouldOrchestrate = body.thinkingMode === "thinking" && intentType === "document" && bedrockKey && bedrockKey.length > 10
@@ -366,7 +486,16 @@ export async function POST(request: NextRequest) {
                     if (intentType === "document") {
                     try {
                         const docTypeLower = (body.documentType || "invoice").toLowerCase()
-                        const prefix = docTypeLower === "quotation" ? "QUO" : docTypeLower === "contract" ? "CTR" : docTypeLower === "proposal" ? "PROP" : "INV"
+                        const prefix = docTypeLower === "quotation" || docTypeLower === "quote" ? "QUO"
+                            : docTypeLower === "contract" ? "CTR"
+                            : docTypeLower === "proposal" ? "PROP"
+                            : docTypeLower === "sow" ? "SOW"
+                            : docTypeLower === "change_order" ? "CO"
+                            : docTypeLower === "nda" ? "NDA"
+                            : docTypeLower === "client_onboarding_form" ? "COF"
+                            : docTypeLower === "payment_followup" ? "PF"
+                            : docTypeLower === "recurring_invoice" ? "RINV"
+                            : "INV"
 
                         const { count } = await auth.supabase
                             .from("document_sessions")
@@ -538,6 +667,151 @@ export async function POST(request: NextRequest) {
                                     break
                                 }
                                 if (chunk.type === "error") break
+                            }
+                        }
+                    }
+
+                    // ── 4b. Type-specific Zod schema validation (new document types) ──
+                    // For SOW, Change Order, NDA, Client Onboarding Form, Payment Follow-up,
+                    // and Recurring Invoice, validate the generated JSON against the correct
+                    // Zod schema. Validation is lenient — optional fields may be absent.
+                    // Only reject if CRITICAL required fields are missing. On failure, retry
+                    // generation once with a correction hint, then accept the second attempt
+                    // even if imperfect (the document is still usable).
+                    if (modelCompletedSuccessfully && completeResponseData && isDocGeneration) {
+                        const schemaDocType = (body.documentType || "invoice").toLowerCase().trim()
+                        const SCHEMA_VALIDATED_TYPES = ["sow", "change_order", "nda", "client_onboarding_form", "payment_followup", "recurring_invoice"]
+                        if (SCHEMA_VALIDATED_TYPES.includes(schemaDocType)) {
+                            try {
+                                const {
+                                    sowSchema,
+                                    changeOrderSchema,
+                                    ndaSchema,
+                                    clientOnboardingFormSchema,
+                                    paymentFollowupSchema,
+                                    recurringInvoiceContextSchema,
+                                } = await import("@/lib/document-schemas")
+
+                                // Critical fields — if ANY of these are missing, validation fails
+                                // and we retry. Other missing fields are treated as optional.
+                                const CRITICAL_FIELDS: Record<string, string[]> = {
+                                    sow: ["projectOverview", "scopeItems", "fromName", "toName"],
+                                    change_order: ["description", "fromName", "toName", "effectiveDate"],
+                                    nda: ["parties", "confidentialInfoDefinition", "obligations", "governingLaw"],
+                                    client_onboarding_form: ["clientName", "projectName", "fromName"],
+                                    payment_followup: ["invoiceNumber", "invoiceAmount", "fromName", "toName", "reminderTone"],
+                                    recurring_invoice: ["recurrenceFrequency", "recurrenceStartDate"],
+                                }
+
+                                // Build a lenient (partial) schema per type — all fields become
+                                // optional for the purpose of AI output validation. We then
+                                // manually check only the critical fields are non-null/non-empty.
+                                const schemaMap: Record<string, import("zod").ZodTypeAny> = {
+                                    sow: sowSchema.partial(),
+                                    change_order: changeOrderSchema.partial(),
+                                    nda: ndaSchema.partial(),
+                                    client_onboarding_form: clientOnboardingFormSchema.partial(),
+                                    payment_followup: paymentFollowupSchema.partial(),
+                                    // recurring_invoice validates ONLY the context sub-object;
+                                    // the base invoice fields are validated via the invoice path
+                                    recurring_invoice: recurringInvoiceContextSchema.partial(),
+                                }
+                                const partialSchema = schemaMap[schemaDocType]
+                                const criticalFields = CRITICAL_FIELDS[schemaDocType] ?? []
+
+                                /**
+                                 * Lenient validate:
+                                 * 1. Parse JSON, extract document object.
+                                 * 2. For recurring_invoice: look for context sub-object first.
+                                 * 3. Run partial safeParse (all fields optional).
+                                 * 4. Check critical fields exist and are non-empty.
+                                 * Returns { ok: true } or { ok: false, issues, criticalMissing }.
+                                 */
+                                const validateAndExtract = (raw: string): { ok: true } | { ok: false; issues: any; criticalMissing: string[] } => {
+                                    try {
+                                        const parsed = JSON.parse(raw)
+                                        const docObj = parsed.document || parsed
+
+                                        // For recurring_invoice, also attempt to validate the
+                                        // recurrence context — it may be nested under a key like
+                                        // "recurrenceContext", "context", or at top level.
+                                        const targetObj = schemaDocType === "recurring_invoice"
+                                            ? (docObj.recurrenceContext ?? docObj.context ?? docObj)
+                                            : docObj
+
+                                        // Lenient parse — unknown/extra fields stripped, missing allowed
+                                        const result = partialSchema.safeParse(targetObj)
+                                        if (!result.success) {
+                                            return {
+                                                ok: false,
+                                                issues: result.error.errors,
+                                                criticalMissing: [],
+                                            }
+                                        }
+
+                                        // Check critical fields on the parsed data
+                                        const missing: string[] = []
+                                        for (const field of criticalFields) {
+                                            const val = (result.data as any)[field]
+                                            const isEmpty =
+                                                val === undefined ||
+                                                val === null ||
+                                                val === "" ||
+                                                (Array.isArray(val) && val.length === 0)
+                                            if (isEmpty) missing.push(field)
+                                        }
+
+                                        if (missing.length > 0) {
+                                            return { ok: false, issues: `Missing critical fields`, criticalMissing: missing }
+                                        }
+
+                                        return { ok: true }
+                                    } catch (e: any) {
+                                        return { ok: false, issues: e?.message || String(e), criticalMissing: [] }
+                                    }
+                                }
+
+                                const firstTry = validateAndExtract(completeResponseData)
+                                if (!firstTry.ok) {
+                                    // Build a human-readable summary of what's wrong
+                                    const criticalSummary = firstTry.criticalMissing.length > 0
+                                        ? `Critical fields missing: ${firstTry.criticalMissing.join(", ")}`
+                                        : Array.isArray(firstTry.issues)
+                                            ? firstTry.issues.map((i: any) => `${i.path?.join(".") || "?"}: ${i.message}`).join("; ")
+                                            : String(firstTry.issues)
+
+                                    sendEvent({ type: "activity", action: "validate", label: "Schema validation — retrying", detail: "Fixing structure" })
+
+                                    const retryBody: typeof body = {
+                                        ...body,
+                                        prompt: `[SYSTEM: The previous ${schemaDocType} document was missing required fields: ${criticalSummary}. Please regenerate and ensure ALL required fields are present. Return the corrected document in full.]\n\n${body.prompt}`,
+                                        conversationHistory: [],
+                                        currentData: undefined,
+                                    }
+                                    let retryData: string | null = null
+                                    for await (const chunk of streamGenerateDocument(retryBody, deepseekKey)) {
+                                        if (chunk.type === "complete") {
+                                            retryData = chunk.data as string || null
+                                            break
+                                        }
+                                        if (chunk.type === "error") break
+                                    }
+                                    if (retryData) {
+                                        const secondTry = validateAndExtract(retryData)
+                                        if (secondTry.ok) {
+                                            completeResponseData = retryData
+                                            sendEvent({ type: "complete", data: retryData })
+                                            sendEvent({ type: "activity", action: "validate", label: "Schema validation", detail: "Passed" })
+                                        } else {
+                                            // Second attempt still failed — use first result (document is
+                                            // still partially usable), but log server-side for diagnostics
+                                            console.error(`[schema-validation] ${schemaDocType} failed twice:`, secondTry.issues, "criticalMissing:", secondTry.criticalMissing)
+                                        }
+                                    }
+                                }
+                            } catch (schemaErr) {
+                                console.error("[schema-validation] Import or validation error:", schemaErr instanceof Error ? schemaErr.message : schemaErr)
+                                // Non-fatal — continue with the generated document as-is
                             }
                         }
                     }

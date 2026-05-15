@@ -108,6 +108,13 @@ export interface InvoiceData {
   signatureImages?: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }>
   signedAt?: string  // ISO timestamp — set when doc is signed but image unavailable
 
+  // Recurrence (recurring_invoice type only)
+  recurrenceFrequency?: "weekly" | "biweekly" | "monthly" | "quarterly" | "annually"
+  recurrenceStartDate?: string  // ISO date string
+  recurrenceEndDate?: string    // ISO date string, optional
+  maxOccurrences?: number
+  autoSend?: boolean
+
   // Design & Branding
   design?: {
     templateId: string

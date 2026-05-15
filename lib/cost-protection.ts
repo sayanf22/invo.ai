@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "./database.types"
+import { ALL_DOCUMENT_TYPES, normalizeDocumentType } from "@/lib/document-type-registry"
 
 // ─── Tier Definitions ─────────────────────────────────────────────────────────
 
@@ -70,25 +71,25 @@ const TIER_LIMITS: Record<UserTier, TierLimits> = {
         documentsPerMonth: 5,
         messagesPerSession: 10,
         emailsPerMonth: 5,       // 1 email per document — matches doc limit
-        allowedDocTypes: ["invoice", "contract"],
+        allowedDocTypes: ["invoice", "contract", "quote"],
     },
     starter: {
         documentsPerMonth: 50,
         messagesPerSession: 30,
         emailsPerMonth: 100,     // 2× doc limit — allows resends + follow-ups
-        allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
+        allowedDocTypes: [...ALL_DOCUMENT_TYPES],
     },
     pro: {
         documentsPerMonth: 150,
         messagesPerSession: 50,
         emailsPerMonth: 250,     // comfortable for follow-ups across all docs
-        allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
+        allowedDocTypes: [...ALL_DOCUMENT_TYPES],
     },
     agency: {
         documentsPerMonth: 0,    // unlimited
         messagesPerSession: 0,   // unlimited
         emailsPerMonth: 0,       // unlimited
-        allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
+        allowedDocTypes: [...ALL_DOCUMENT_TYPES],
     },
 }
 
@@ -430,22 +431,37 @@ export function getMinPaymentLinkLifetimeDays(tier: UserTier): number {
 
 /**
  * Check if user's tier allows the requested document type.
+ * 
+ * Invoice invariant: "invoice" is always accessible regardless of tier,
+ * providing a hard short-circuit before consulting allowedDocTypes to
+ * ensure this can never be denied by configuration drift.
  */
 export function checkDocumentTypeAllowed(
     docType: string,
     userTier: UserTier = "free"
 ): NextResponse | null {
-    const limits = TIER_LIMITS[userTier]
-    const normalizedType = docType.toLowerCase()
+    const normalized = normalizeDocumentType(docType) ?? docType.toLowerCase()
 
-    if (!limits.allowedDocTypes.includes(normalizedType)) {
+    // Invariant: invoice is always accessible regardless of tier
+    if (normalized === "invoice") return null
+
+    const limits = TIER_LIMITS[userTier]
+
+    if (!limits.allowedDocTypes.includes(normalized)) {
+        const typeLabel = normalized.charAt(0).toUpperCase() + normalized.slice(1)
+        const upgradeMessage = userTier === "free"
+            ? `${typeLabel}s are available on Starter and above. Your Free plan includes invoices, contracts, and quotes.`
+            : `${typeLabel}s are not available on your current plan.`
+
         return NextResponse.json(
             {
                 error: "Document type not available on your plan",
-                requestedType: normalizedType,
+                requestedType: normalized,
                 allowedTypes: limits.allowedDocTypes,
                 tier: userTier,
-                message: `Upgrade to Starter to create ${normalizedType}s`,
+                message: upgradeMessage,
+                // Distinguish type restriction from quota exhaustion
+                restrictionType: "document_type",
             },
             { status: 403 }
         )

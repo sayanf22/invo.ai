@@ -9,6 +9,27 @@ import {
     Link,
 } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
+import { getDocumentTypeConfig } from "@/lib/document-type-registry"
+import type {
+    SOWData,
+    ChangeOrderData,
+    NDAData,
+    ClientOnboardingFormData,
+    PaymentFollowupData,
+    RecurringInvoiceContext,
+} from "@/lib/document-schemas"
+import type React from "react"
+
+// ─── Signature Block Error ─────────────────────────────────────────────────
+// Thrown when a signable document type cannot produce a signature block.
+// The PDF export flow catches this to prevent producing an unsigned PDF.
+
+export class SignatureBlockRenderError extends Error {
+    constructor(message: string) {
+        super(message)
+        this.name = "SignatureBlockRenderError"
+    }
+}
 
 // ─── Font Registration ───
 // Local static WOFF fonts from @fontsource packages (copied to public/fonts/).
@@ -398,9 +419,10 @@ export function getDocumentConfig(documentType: string): DocumentConfig {
                 hasNextStepsCTA: false,
                 skipEmptyItems: true,
             }
+        case "quote":
         case "quotation":
             return {
-                title: "QUOTATION",
+                title: "QUOTE",
                 refPrefix: "QUO",
                 showStatusBadge: false,
                 dateFields: [
@@ -502,6 +524,7 @@ function HeaderSection({ data, logoUrl, tpl, c, config }: HeaderSectionProps) {
                 case "CONTRACT":
                     // Circle overlay
                     return { position: "absolute" as const, top: 20, right: 60, width: 70, height: 70, ...r(35), backgroundColor: "rgba(255,255,255,0.1)" }
+                case "QUOTE":
                 case "QUOTATION":
                     // Curved shape (top-right)
                     return { position: "absolute" as const, top: 0, right: 0, width: 120, height: 90, backgroundColor: c.priDk, ...r(0), borderBottomLeftRadius: 50, opacity: 0.5 }
@@ -520,7 +543,7 @@ function HeaderSection({ data, logoUrl, tpl, c, config }: HeaderSectionProps) {
                     <View style={{ position: "absolute", top: 55, right: 95, width: 40, height: 40, ...r(20), backgroundColor: "rgba(255,255,255,0.1)" }} />
                 )}
                 <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                <Text style={{ fontSize: docType === "INVOICE" || docType === "PROPOSAL" ? 32 : 30, color: "#fff", letterSpacing: docType === "INVOICE" || docType === "PROPOSAL" ? 2 : docType === "QUOTATION" ? 1.5 : 1, ...bold(c) }}>{docType}</Text>
+                <Text style={{ fontSize: docType === "INVOICE" || docType === "PROPOSAL" ? 32 : 30, color: "#fff", letterSpacing: docType === "INVOICE" || docType === "PROPOSAL" ? 2 : docType === "QUOTE" || docType === "QUOTATION" ? 1.5 : 1, ...bold(c) }}>{docType}</Text>
                 <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>{refNumber}</Text>
             </View>
         )
@@ -575,6 +598,7 @@ function HeaderSection({ data, logoUrl, tpl, c, config }: HeaderSectionProps) {
                 // Other themes use modern accent pattern (left sidebar)
                 return <View style={{ position: "absolute", top: 0, left: 0, width: 6, height: "100%" as any, backgroundColor: c.pri }} fixed />
 
+            case "QUOTE":
             case "QUOTATION":
                 if (tpl === "modern") {
                     // Corner accent (top-left square)
@@ -616,11 +640,11 @@ function HeaderSection({ data, logoUrl, tpl, c, config }: HeaderSectionProps) {
     }
 
     // Title font size and letter spacing vary by document type and theme
-    const titleFontSize = tpl === "classic" ? (docType === "CONTRACT" ? 24 : 26) : (docType === "CONTRACT" || docType === "QUOTATION" ? 28 : 30)
-    const titleLetterSpacing = tpl === "classic" ? 0 : (docType === "QUOTATION" ? 1.5 : docType === "CONTRACT" ? 1 : 2)
+    const titleFontSize = tpl === "classic" ? (docType === "CONTRACT" ? 24 : 26) : (docType === "CONTRACT" || docType === "QUOTE" || docType === "QUOTATION" ? 28 : 30)
+    const titleLetterSpacing = tpl === "classic" ? 0 : (docType === "QUOTE" || docType === "QUOTATION" ? 1.5 : docType === "CONTRACT" ? 1 : 2)
 
     // Header wrapper horizontal padding — Contract uses paddingHorizontal: 48 always
-    const hPadding = (docType === "CONTRACT" || docType === "QUOTATION" || docType === "PROPOSAL") ? 48 : 0
+    const hPadding = (docType === "CONTRACT" || docType === "QUOTE" || docType === "QUOTATION" || docType === "PROPOSAL") ? 48 : 0
 
     return (
         <>
@@ -1001,6 +1025,111 @@ export function getSignatureDisplayMode(data: InvoiceData): { partyA: SignatureD
     }
 
     return { partyA, partyB }
+}
+
+// ─── Signature Block Helpers ───────────────────────────────────────────────
+// buildSignatureBlock: returns a React element for the signature block based on type,
+// or null if the type's data doesn't support it. Used by renderSignatureBlock.
+// renderSignatureBlock: fail-closed — throws SignatureBlockRenderError if a signable
+// type cannot produce a signature block rather than returning an empty element.
+
+/**
+ * Get type-specific party labels for signature blocks.
+ * - NDA:           "Disclosing Party" / "Receiving Party"
+ * - SOW / Change Order: "Client" / "Provider"
+ * - Contract / others: "Party A" / "Party B"
+ */
+export function getSignaturePartyLabels(documentType: string): { partyA: string; partyB: string } {
+    const type = documentType.toLowerCase()
+    if (type === "nda") {
+        return { partyA: "Disclosing Party", partyB: "Receiving Party" }
+    }
+    if (type === "sow" || type === "change_order") {
+        return { partyA: "Client", partyB: "Provider" }
+    }
+    return { partyA: "Party A", partyB: "Party B" }
+}
+
+/**
+ * Build the signature block JSX for a document.
+ * Returns the element if buildable, or null if data is insufficient.
+ * This is extracted so renderSignatureBlock can apply fail-closed logic.
+ */
+function buildSignatureBlock(
+    documentType: string,
+    data: InvoiceData,
+    c: ReturnType<typeof getTheme>,
+): React.ReactElement | null {
+    // Must have at least a party name to render a meaningful block
+    if (!data.fromName && !data.toName && !data.signatureName) return null
+
+    const { partyA, partyB } = getSignaturePartyLabels(documentType)
+
+    return (
+        <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
+            {[
+                {
+                    label: `${partyA} Signature`,
+                    name: data.signatureName || data.fromName,
+                    title: data.signatureTitle,
+                    sig: data.showSenderSignature !== false ? data.senderSignatureDataUrl : null,
+                    electronic: false,
+                },
+                {
+                    label: `${partyB} Signature`,
+                    name: data.toName,
+                    title: null,
+                    sig: data.signatureImages?.[0]?.imageDataUrl || null,
+                    electronic: !data.signatureImages?.[0]?.imageDataUrl && (!!data.signedAt || (data.signatureImages && data.signatureImages.length > 0)),
+                },
+            ].map((party, i) => (
+                <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
+                    <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
+                    {party.sig ? (
+                        <Image src={party.sig} style={{ width: 160, height: 52, marginBottom: 4, ...bNone() }} />
+                    ) : party.electronic ? (
+                        <View style={{ height: 52, marginBottom: 4, justifyContent: "center", ...bNone() }}>
+                            <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
+                        </View>
+                    ) : (
+                        <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
+                    )}
+                    <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
+                    {party.title ? <Text style={{ fontSize: 9, color: c.mut }}>{party.title}</Text> : null}
+                </View>
+            ))}
+        </View>
+    )
+}
+
+/**
+ * Fail-closed signature block rendering.
+ *
+ * - For non-signable types: returns an empty fragment (no block needed).
+ * - For signable types: returns the signature block element OR throws
+ *   SignatureBlockRenderError if the block cannot be built.
+ *   This ensures a PDF is never exported without its required signature section.
+ */
+export function renderSignatureBlock(
+    documentType: string,
+    data: InvoiceData,
+    c: ReturnType<typeof getTheme>,
+): React.ReactElement {
+    const config = getDocumentTypeConfig(documentType)
+    if (!config?.capabilities.supports_signature) {
+        // Non-signable type — no block needed, proceed normally
+        return <></>
+    }
+
+    // Signable type — must produce a block or abort
+    const block = buildSignatureBlock(documentType, data, c)
+    if (!block) {
+        throw new SignatureBlockRenderError(
+            `Cannot render signature block for document type "${documentType}". ` +
+            `Export blocked to prevent producing a PDF without the required signature section.`
+        )
+    }
+    return block
 }
 
 // ─── NotesSection (shared internal component) ───────────────────────────────
@@ -1683,27 +1812,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
 
                 {/* ── SIGNATURE BLOCKS ── */}
                 {data.showSignatureFields !== false && (
-                    <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
-                        {[
-                            { label: "Party A Signature", name: data.signatureName || data.fromName, title: data.signatureTitle, sig: data.showSenderSignature !== false ? data.senderSignatureDataUrl : null },
-                            { label: "Party B Signature", name: data.toName, title: null, sig: data.signatureImages?.[0]?.imageDataUrl || null, electronic: !data.signatureImages?.[0]?.imageDataUrl && (!!data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) },
-                        ].map((party, i) => (
-                            <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
-                                <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
-                                {party.sig ? (
-                                    <Image src={party.sig} style={{ width: 160, height: 52, marginBottom: 4, ...bNone() }} />
-                                ) : (party as any).electronic ? (
-                                    <View style={{ height: 52, marginBottom: 4, justifyContent: "center", ...bNone() }}>
-                                        <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>✓ Electronically Signed</Text>
-                                    </View>
-                                ) : (
-                                    <View style={{ height: 52, marginBottom: 4, ...bBottom(1, c.mut), ...bNone(), borderBottomWidth: 1, borderBottomColor: c.mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
-                                )}
-                                <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
-                                {party.title ? <Text style={{ fontSize: 9, color: c.mut }}>{party.title}</Text> : null}
-                            </View>
-                        ))}
-                    </View>
+                    renderSignatureBlock("contract", data, c)
                 )}
 
                 {/* ── NOTES ── */}
@@ -1728,8 +1837,9 @@ export function ContractPDF({ data, logoUrl }: Props) {
 
 
 // ═══════════════════════════════════════════════════════
-// QUOTATION PDF — Clean estimate-focused layout
+// QUOTE / QUOTATION PDF — Clean estimate-focused layout
 // Accent banner header · validity callout · pricing table
+// Exported as both QuotePDF (canonical) and QuotationPDF (legacy alias)
 // ═══════════════════════════════════════════════════════
 
 export function QuotationPDF({ data, logoUrl }: Props) {
@@ -1753,7 +1863,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
                 {/* ── HEADER (theme-specific layout) ── */}
-                <DocHeader tpl={tpl} c={c} title="QUOTATION" refNum={data.referenceNumber || data.invoiceNumber || "QUO-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
+                <DocHeader tpl={tpl} c={c} title="QUOTE" refNum={data.referenceNumber || data.invoiceNumber || "QUO-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
 
                 {/* ── DATE STRIP ── */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: tpl === "classic" || tpl === "minimal" ? "transparent" : c.bg, marginBottom: 4, ...bNone() }}>
@@ -1900,6 +2010,9 @@ export function QuotationPDF({ data, logoUrl }: Props) {
         </Document>
     )
 }
+
+/** QuotePDF is the canonical export. QuotationPDF is retained as a legacy alias. */
+export const QuotePDF = QuotationPDF
 
 
 // ═══════════════════════════════════════════════════════
@@ -2526,3 +2639,1129 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
     )
 }
 
+
+// ═══════════════════════════════════════════════════════
+// SOW PDF — Statement of Work document
+// Structured sections: overview, scope, deliverables, milestones
+// ═══════════════════════════════════════════════════════
+
+export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | null }) {
+    // Use a fixed "corporate" theme for SOW (cyan accent)
+    const pri = "#0e7490"    // cyan-700
+    const priDk = "#155e75"  // cyan-800
+    const acc = "#cffafe"    // cyan-100
+    const bg = "#f0fdfa"     // teal-50
+    const txt = "#1e293b"
+    const mut = "#64748b"
+    const bdr = "#d1d5db"
+    const font = "Inter"
+
+    const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
+    const thinLineTop = { ...bw(1, 0, 0, 0), ...bc(bdr, "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
+
+    const includedItems = data.scopeItems.filter(s => s.included)
+    const excludedItems = data.scopeItems.filter(s => !s.included)
+
+    return (
+        <Document>
+            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
+
+                {/* ── HEADER ── */}
+                <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
+                    <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                        <View style={{ ...bNone() }}>
+                            {logoUrl && (
+                                <View style={{ width: 44, height: 44, marginBottom: 8, overflow: "hidden", ...r(8), ...bNone() }}>
+                                    <Image src={logoUrl} style={{ width: 44, height: 44, objectFit: "cover" as any }} />
+                                </View>
+                            )}
+                            <Text style={{ fontSize: 32, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>STATEMENT OF WORK</Text>
+                            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+                                {data.referenceNumber ? `SOW-${data.referenceNumber}` : "SOW"}
+                            </Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective Date</Text>
+                            <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700, marginBottom: 10 }}>{fmtDate(data.effectiveDate)}</Text>
+                            {data.endDate && (
+                                <>
+                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>End Date</Text>
+                                    <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>{fmtDate(data.endDate)}</Text>
+                                </>
+                            )}
+                        </View>
+                    </View>
+                </View>
+                {/* Accent bars */}
+                <View style={{ flexDirection: "row", ...bNone() }}>
+                    <View style={{ flex: 2, height: 5, backgroundColor: priDk, ...bNone() }} />
+                    <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
+                </View>
+
+                {/* ── PARTY BLOCKS ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
+                    <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Provider</Text>
+                        <Text style={{ fontSize: 12, color: txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                        {data.fromAddress ? <Text style={{ fontSize: 9, color: mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                        {data.fromEmail ? <Text style={{ fontSize: 9, color: mut }}>{data.fromEmail}</Text> : null}
+                    </View>
+                    <View style={{ flex: 1, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Client</Text>
+                        <Text style={{ fontSize: 12, color: txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                        {data.toAddress ? <Text style={{ fontSize: 9, color: mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                        {data.toEmail ? <Text style={{ fontSize: 9, color: mut }}>{data.toEmail}</Text> : null}
+                    </View>
+                </View>
+
+                <View style={{ height: 1, backgroundColor: bdr, marginHorizontal: 48, marginBottom: 20, ...bNone() }} />
+
+                {/* ── PROJECT OVERVIEW ── */}
+                {data.projectOverview && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Project Overview</Text>
+                        <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.projectOverview}</Text>
+                    </View>
+                )}
+
+                {/* ── SCOPE OF WORK ── */}
+                {data.scopeItems.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Scope of Work</Text>
+
+                        {includedItems.length > 0 && (
+                            <View style={{ marginBottom: 12, ...bNone() }}>
+                                <Text style={{ fontSize: 8, color: "#16a34a", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6, fontWeight: 700 }}>Included</Text>
+                                {/* Table header */}
+                                <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
+                                    <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Item</Text></View>
+                                    <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
+                                </View>
+                                {includedItems.map((item, i) => (
+                                    <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
+                                        <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, fontWeight: 700 }}>{item.title}</Text></View>
+                                        <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9, color: mut, lineHeight: 1.5 }}>{item.description}</Text></View>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
+                        {excludedItems.length > 0 && (
+                            <View style={{ ...bNone() }}>
+                                <Text style={{ fontSize: 8, color: "#dc2626", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6, fontWeight: 700 }}>Excluded</Text>
+                                <View style={{ flexDirection: "row", backgroundColor: "#6b7280", ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
+                                    <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Item</Text></View>
+                                    <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
+                                </View>
+                                {excludedItems.map((item, i) => (
+                                    <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: "#f9fafb" } : {}) }} wrap={false}>
+                                        <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, fontWeight: 700 }}>{item.title}</Text></View>
+                                        <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9, color: mut, lineHeight: 1.5 }}>{item.description}</Text></View>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+                    </View>
+                )}
+
+                {/* ── DELIVERABLES ── */}
+                {data.deliverables.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Deliverables</Text>
+                        <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
+                            <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
+                            <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Due Date</Text></View>
+                            <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Acceptance Criteria</Text></View>
+                        </View>
+                        {data.deliverables.map((d, i) => (
+                            <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
+                                <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{d.description}</Text></View>
+                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "center" }}>{d.dueDate ? fmtDate(d.dueDate) : "—"}</Text></View>
+                                <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{d.acceptanceCriteria || "—"}</Text></View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── MILESTONES ── */}
+                {data.milestones.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Milestones</Text>
+                        <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
+                            <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Milestone</Text></View>
+                            <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Date</Text></View>
+                            <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Description</Text></View>
+                        </View>
+                        {data.milestones.map((m, i) => (
+                            <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
+                                <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, fontWeight: 700 }}>{m.name}</Text></View>
+                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "center" }}>{fmtDate(m.date)}</Text></View>
+                                <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{m.description || "—"}</Text></View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── ASSUMPTIONS ── */}
+                {data.assumptions.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Assumptions</Text>
+                        {data.assumptions.map((a, i) => (
+                            <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
+                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>•</Text>
+                                <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{a}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── NOTES / TERMS ── */}
+                {data.notes ? (
+                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                    </View>
+                ) : null}
+                {data.terms ? (
+                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
+                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                    </View>
+                ) : null}
+
+                {/* ── SIGNATURE BLOCKS ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
+                    {[
+                        { label: "Client Signature", name: data.toName, title: null as string | null },
+                        { label: "Provider Signature", name: data.signatureName || data.fromName, title: data.signatureTitle as string | null },
+                    ].map((party, i) => (
+                        <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
+                            <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
+                            <Text style={{ fontSize: 10, color: txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
+                            {party.title ? <Text style={{ fontSize: 9, color: mut }}>{party.title}</Text> : null}
+                        </View>
+                    ))}
+                </View>
+
+                {/* ── FOOTER ── */}
+                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
+                    <Text style={{ fontSize: 8, color: mut }}>Generated by Clorefy</Text>
+                    <Text style={{ fontSize: 8, color: mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+                </View>
+            </Page>
+        </Document>
+    )
+}
+
+
+// ═══════════════════════════════════════════════════════
+// CHANGE ORDER PDF — Amendment to SOW or Contract
+// ═══════════════════════════════════════════════════════
+
+export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoUrl?: string | null }) {
+    const pri = "#c2410c"    // orange-700
+    const priDk = "#9a3412"  // orange-800
+    const acc = "#ffedd5"    // orange-100
+    const bg = "#fff7ed"     // orange-50
+    const txt = "#1e293b"
+    const mut = "#64748b"
+    const bdr = "#d1d5db"
+    const font = "Inter"
+
+    const currency = data.currency || "USD"
+    const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
+
+    return (
+        <Document>
+            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
+
+                {/* ── HEADER ── */}
+                <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
+                    <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                        <View style={{ ...bNone() }}>
+                            {logoUrl && (
+                                <View style={{ width: 44, height: 44, marginBottom: 8, overflow: "hidden", ...r(8), ...bNone() }}>
+                                    <Image src={logoUrl} style={{ width: 44, height: 44, objectFit: "cover" as any }} />
+                                </View>
+                            )}
+                            <Text style={{ fontSize: 32, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>CHANGE ORDER</Text>
+                            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+                                {data.changeOrderNumber ? `CO-${data.changeOrderNumber}` : (data.referenceNumber || "CO")}
+                            </Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective Date</Text>
+                            <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700, marginBottom: 10 }}>{fmtDate(data.effectiveDate)}</Text>
+                            {data.costImpact && (
+                                <>
+                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Cost Impact</Text>
+                                    <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>
+                                        {data.costImpact.difference >= 0 ? "+" : ""}{fmt(data.costImpact.difference, currency)}
+                                    </Text>
+                                </>
+                            )}
+                        </View>
+                    </View>
+                </View>
+                {/* Accent bars */}
+                <View style={{ flexDirection: "row", ...bNone() }}>
+                    <View style={{ flex: 2, height: 5, backgroundColor: priDk, ...bNone() }} />
+                    <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
+                </View>
+
+                {/* ── PARTY BLOCKS ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 16, ...bNone() }} wrap={false}>
+                    <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Provider</Text>
+                        <Text style={{ fontSize: 12, color: txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                        {data.fromAddress ? <Text style={{ fontSize: 9, color: mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                        {data.fromEmail ? <Text style={{ fontSize: 9, color: mut }}>{data.fromEmail}</Text> : null}
+                    </View>
+                    <View style={{ flex: 1, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Client</Text>
+                        <Text style={{ fontSize: 12, color: txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                        {data.toAddress ? <Text style={{ fontSize: 9, color: mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                        {data.toEmail ? <Text style={{ fontSize: 9, color: mut }}>{data.toEmail}</Text> : null}
+                    </View>
+                </View>
+
+                {/* ── PARENT DOCUMENT REFERENCE ── */}
+                <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 12, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
+                    <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontWeight: 700 }}>Reference</Text>
+                    <Text style={{ fontSize: 10, color: txt }}>
+                        This change order amends{" "}
+                        <Text style={{ fontWeight: 700 }}>
+                            {data.parentDocumentType === "sow" ? "Statement of Work" : "Contract"}
+                        </Text>
+                        {" "}(ID: {data.parentDocumentId})
+                    </Text>
+                </View>
+
+                {/* ── DESCRIPTION ── */}
+                <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Description of Change</Text>
+                    <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.description}</Text>
+                </View>
+
+                {/* ── ADDITIONS ── */}
+                {data.additions.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: "#16a34a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Additions</Text>
+                        <View style={{ flexDirection: "row", backgroundColor: "#16a34a", ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
+                            <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
+                            <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Cost</Text></View>
+                        </View>
+                        {data.additions.map((a, i) => (
+                            <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
+                                <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{a.description}</Text></View>
+                                <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, textAlign: "right", fontWeight: 700 }}>{a.cost != null ? fmt(a.cost, currency) : "—"}</Text></View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── REMOVALS ── */}
+                {data.removals.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: "#dc2626", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Removals</Text>
+                        <View style={{ flexDirection: "row", backgroundColor: "#dc2626", ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
+                            <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
+                            <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Cost Reduction</Text></View>
+                        </View>
+                        {data.removals.map((rem, i) => (
+                            <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: "#fff5f5" } : {}) }} wrap={false}>
+                                <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{rem.description}</Text></View>
+                                <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: "#dc2626", textAlign: "right", fontWeight: 700 }}>{rem.costReduction != null ? `-${fmt(rem.costReduction, currency)}` : "—"}</Text></View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── MODIFICATIONS ── */}
+                {data.modifications.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Modifications</Text>
+                        <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
+                            <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Original</Text></View>
+                            <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Revised</Text></View>
+                            <View style={{ width: 90, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Cost Impact</Text></View>
+                        </View>
+                        {data.modifications.map((mod, i) => (
+                            <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
+                                <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: mut, lineHeight: 1.5 }}>{mod.original}</Text></View>
+                                <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: txt, lineHeight: 1.5 }}>{mod.revised}</Text></View>
+                                <View style={{ width: 90, ...bNone() }}><Text style={{ fontSize: 9, color: mod.costImpact != null && mod.costImpact < 0 ? "#dc2626" : "#16a34a", textAlign: "right", fontWeight: 700 }}>
+                                    {mod.costImpact != null ? `${mod.costImpact >= 0 ? "+" : ""}${fmt(mod.costImpact, currency)}` : "—"}
+                                </Text></View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── COST IMPACT SUMMARY ── */}
+                {data.costImpact && (
+                    <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                        <View style={{ width: 260, ...bNone() }}>
+                            <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Cost Impact Summary</Text>
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                                <Text style={{ fontSize: 10, color: mut }}>Original Total</Text>
+                                <Text style={{ fontSize: 10, color: txt, fontWeight: 700 }}>{fmt(data.costImpact.originalTotal, currency)}</Text>
+                            </View>
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                                <Text style={{ fontSize: 10, color: mut }}>Change</Text>
+                                <Text style={{ fontSize: 10, color: data.costImpact.difference >= 0 ? "#16a34a" : "#dc2626", fontWeight: 700 }}>
+                                    {data.costImpact.difference >= 0 ? "+" : ""}{fmt(data.costImpact.difference, currency)}
+                                </Text>
+                            </View>
+                            <View style={{ backgroundColor: pri, ...r(8), padding: 14, marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
+                                <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>New Total</Text>
+                                <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(data.costImpact.newTotal, currency)}</Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
+
+                {/* ── TIMELINE IMPACT ── */}
+                {data.timelineImpact && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 12, backgroundColor: acc, ...r(8), ...bNone(), borderLeftWidth: 4, borderLeftColor: pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }} wrap={false}>
+                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Timeline Impact</Text>
+                        <Text style={{ fontSize: 10, color: txt, lineHeight: 1.6 }}>{data.timelineImpact}</Text>
+                    </View>
+                )}
+
+                {/* ── NOTES / TERMS ── */}
+                {data.notes ? (
+                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                    </View>
+                ) : null}
+                {data.terms ? (
+                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
+                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                    </View>
+                ) : null}
+
+                {/* ── SIGNATURE BLOCKS ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
+                    {[
+                        { label: "Client Signature", name: data.toName },
+                        { label: "Provider Signature", name: data.signatureName || data.fromName },
+                    ].map((party, i) => (
+                        <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
+                            <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
+                            <Text style={{ fontSize: 10, color: txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
+                        </View>
+                    ))}
+                </View>
+
+                {/* ── FOOTER ── */}
+                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
+                    <Text style={{ fontSize: 8, color: mut }}>Generated by Clorefy</Text>
+                    <Text style={{ fontSize: 8, color: mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+                </View>
+            </Page>
+        </Document>
+    )
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NDA PDF — Non-Disclosure Agreement
+// Professional legal layout with structured sections
+// ═══════════════════════════════════════════════════════
+
+export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | null }) {
+    const pri = "#475569"    // slate-600
+    const priDk = "#334155"  // slate-700
+    const acc = "#f1f5f9"    // slate-100
+    const bg = "#f8fafc"     // slate-50
+    const txt = "#1e293b"
+    const mut = "#64748b"
+    const bdr = "#d1d5db"
+    const font = "Inter"
+
+    const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
+
+    return (
+        <Document>
+            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
+
+                {/* ── HEADER ── */}
+                <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
+                    <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                        <View style={{ ...bNone() }}>
+                            {logoUrl && (
+                                <View style={{ width: 44, height: 44, marginBottom: 8, overflow: "hidden", ...r(8), ...bNone() }}>
+                                    <Image src={logoUrl} style={{ width: 44, height: 44, objectFit: "cover" as any }} />
+                                </View>
+                            )}
+                            <Text style={{ fontSize: 28, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>NON-DISCLOSURE AGREEMENT</Text>
+                            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+                                {data.referenceNumber ? `NDA-${data.referenceNumber}` : "NDA"}
+                            </Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective Date</Text>
+                            <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700, marginBottom: 10 }}>{fmtDate(data.termStart)}</Text>
+                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Duration</Text>
+                            <Text style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{data.termDuration} {data.termUnit}</Text>
+                        </View>
+                    </View>
+                </View>
+                {/* Accent bars */}
+                <View style={{ flexDirection: "row", ...bNone() }}>
+                    <View style={{ flex: 2, height: 5, backgroundColor: priDk, ...bNone() }} />
+                    <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
+                </View>
+
+                {/* ── PARTIES TABLE ── */}
+                <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }}>
+                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Parties</Text>
+                    <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
+                        <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Name</Text></View>
+                        <View style={{ width: 90, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Role</Text></View>
+                        <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Address</Text></View>
+                    </View>
+                    {data.parties.map((party, i) => (
+                        <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: acc } : {}) }} wrap={false}>
+                            <View style={{ flex: 2, ...bNone() }}>
+                                <Text style={{ fontSize: 9.5, color: txt, fontWeight: 700 }}>{party.name}</Text>
+                                {party.representative ? <Text style={{ fontSize: 8.5, color: mut }}>{party.representative}</Text> : null}
+                            </View>
+                            <View style={{ width: 90, ...bNone() }}>
+                                <Text style={{ fontSize: 9, color: mut, textTransform: "capitalize" }}>
+                                    {party.role === "disclosing" ? "Disclosing" : party.role === "receiving" ? "Receiving" : "Mutual"}
+                                </Text>
+                            </View>
+                            <View style={{ flex: 2, ...bNone() }}>
+                                <Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{party.address || "—"}</Text>
+                            </View>
+                        </View>
+                    ))}
+                </View>
+
+                {/* ── CONFIDENTIAL INFORMATION DEFINITION ── */}
+                <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Definition of Confidential Information</Text>
+                    <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.confidentialInfoDefinition}</Text>
+                </View>
+
+                {/* ── OBLIGATIONS ── */}
+                {data.obligations.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Obligations</Text>
+                        {data.obligations.map((o, i) => (
+                            <View key={i} style={{ flexDirection: "row", marginBottom: 5, ...bNone() }} wrap={false}>
+                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7, fontWeight: 700 }}>{i + 1}.</Text>
+                                <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{o}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── EXCLUSIONS ── */}
+                {data.exclusions.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Exclusions</Text>
+                        {data.exclusions.map((e, i) => (
+                            <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
+                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>•</Text>
+                                <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{e}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── TERM & DURATION ── */}
+                <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
+                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Term & Duration</Text>
+                    <View style={{ flexDirection: "row", ...bNone() }}>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Start Date</Text>
+                            <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{fmtDate(data.termStart)}</Text>
+                        </View>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Duration</Text>
+                            <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{data.termDuration} {data.termUnit}</Text>
+                        </View>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Governing Law</Text>
+                            <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{data.governingLaw}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* ── REMEDIES ── */}
+                {data.remedies && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Remedies</Text>
+                        <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.remedies}</Text>
+                    </View>
+                )}
+
+                {/* ── NOTES / TERMS ── */}
+                {data.notes ? (
+                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                    </View>
+                ) : null}
+                {data.terms ? (
+                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
+                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                    </View>
+                ) : null}
+
+                {/* ── SIGNATURE BLOCKS ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
+                    {[
+                        { label: "Disclosing Party Signature", name: data.fromName },
+                        { label: "Receiving Party Signature", name: data.toName },
+                    ].map((party, i) => (
+                        <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
+                            <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
+                            <Text style={{ fontSize: 10, color: txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
+                        </View>
+                    ))}
+                </View>
+
+                {/* ── FOOTER ── */}
+                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
+                    <Text style={{ fontSize: 8, color: mut }}>Generated by Clorefy</Text>
+                    <Text style={{ fontSize: 8, color: mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+                </View>
+            </Page>
+        </Document>
+    )
+}
+
+
+// ═══════════════════════════════════════════════════════
+// CLIENT ONBOARDING FORM PDF — Intake form document
+// Clean intake layout — no signature blocks needed
+// ═══════════════════════════════════════════════════════
+
+export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboardingFormData; logoUrl?: string | null }) {
+    const pri = "#0f766e"    // teal-700
+    const priDk = "#115e59"  // teal-800
+    const acc = "#ccfbf1"    // teal-100
+    const bg = "#f0fdfa"     // teal-50
+    const txt = "#1e293b"
+    const mut = "#64748b"
+    const bdr = "#d1d5db"
+    const font = "Inter"
+
+    const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
+
+    return (
+        <Document>
+            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
+
+                {/* ── HEADER ── */}
+                <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
+                    <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                        <View style={{ ...bNone() }}>
+                            {logoUrl && (
+                                <View style={{ width: 44, height: 44, marginBottom: 8, overflow: "hidden", ...r(8), ...bNone() }}>
+                                    <Image src={logoUrl} style={{ width: 44, height: 44, objectFit: "cover" as any }} />
+                                </View>
+                            )}
+                            <Text style={{ fontSize: 30, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>CLIENT ONBOARDING FORM</Text>
+                            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+                                {data.referenceNumber ? `ONB-${data.referenceNumber}` : "ONB"}
+                            </Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Prepared By</Text>
+                            <Text style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{data.fromName}</Text>
+                            {data.fromEmail ? <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{data.fromEmail}</Text> : null}
+                        </View>
+                    </View>
+                </View>
+                {/* Accent bars */}
+                <View style={{ flexDirection: "row", ...bNone() }}>
+                    <View style={{ flex: 2, height: 5, backgroundColor: priDk, ...bNone() }} />
+                    <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
+                </View>
+
+                {/* ── CLIENT DETAILS ── */}
+                <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 16, padding: 16, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
+                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, fontWeight: 700 }}>Client Details</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", ...bNone() }}>
+                        {[
+                            { label: "Name", value: data.clientName },
+                            { label: "Email", value: data.clientEmail || "—" },
+                            { label: "Phone", value: data.clientPhone || "—" },
+                            { label: "Address", value: data.clientAddress || "—" },
+                        ].map((field, i) => (
+                            <View key={i} style={{ width: "50%", marginBottom: 10, ...bNone() }}>
+                                <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>{field.label}</Text>
+                                <Text style={{ fontSize: 10, color: txt }}>{field.value}</Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+
+                {/* ── PROJECT DETAILS ── */}
+                <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
+                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, fontWeight: 700 }}>Project Details</Text>
+                    <View style={{ marginBottom: 10, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4, fontWeight: 700 }}>Project Name</Text>
+                        <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{data.projectName}</Text>
+                    </View>
+                    {data.projectDescription && (
+                        <View style={{ marginBottom: 10, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4, fontWeight: 700 }}>Description</Text>
+                            <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.projectDescription}</Text>
+                        </View>
+                    )}
+                    <View style={{ flexDirection: "row", ...bNone() }}>
+                        {data.timelinePreference && (
+                            <View style={{ flex: 1, marginRight: 16, ...bNone() }}>
+                                <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4, fontWeight: 700 }}>Timeline Preference</Text>
+                                <Text style={{ fontSize: 10, color: txt }}>{data.timelinePreference}</Text>
+                            </View>
+                        )}
+                        {data.budgetRange && (
+                            <View style={{ flex: 1, ...bNone() }}>
+                                <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4, fontWeight: 700 }}>Budget Range</Text>
+                                <Text style={{ fontSize: 10, color: txt }}>{data.budgetRange}</Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+
+                {/* ── REQUIREMENTS ── */}
+                {data.requirements.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Requirements</Text>
+                        {data.requirements.map((req, i) => (
+                            <View key={i} style={{ flexDirection: "row", marginBottom: 5, ...bNone() }} wrap={false}>
+                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7, fontWeight: 700 }}>{i + 1}.</Text>
+                                <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{req}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── CUSTOM Q&A ── */}
+                {data.customQuestions.length > 0 && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Additional Information</Text>
+                        {data.customQuestions.map((qa, i) => (
+                            <View key={i} style={{ marginBottom: 12, padding: 12, backgroundColor: bg, ...r(8), ...bNone() }} wrap={false}>
+                                <Text style={{ fontSize: 9, color: pri, fontWeight: 700, marginBottom: 4 }}>Q: {qa.question}</Text>
+                                <Text style={{ fontSize: 10, color: txt, lineHeight: 1.6 }}>A: {qa.answer}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* ── NOTES ── */}
+                {data.notes ? (
+                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                    </View>
+                ) : null}
+
+                {/* ── FOOTER ── */}
+                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
+                    <Text style={{ fontSize: 8, color: mut }}>Generated by Clorefy</Text>
+                    <Text style={{ fontSize: 8, color: mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+                </View>
+            </Page>
+        </Document>
+    )
+}
+
+
+// ═══════════════════════════════════════════════════════
+// PAYMENT FOLLOWUP PDF — Payment reminder document
+// Attention-grabbing reminder with tone indicator
+// ═══════════════════════════════════════════════════════
+
+export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupData; logoUrl?: string | null }) {
+    // Tone-based color scheme
+    const toneColors = {
+        polite: { pri: "#2563eb", acc: "#dbeafe", bg: "#eff6ff" },
+        firm:   { pri: "#d97706", acc: "#fef3c7", bg: "#fffbeb" },
+        urgent: { pri: "#dc2626", acc: "#fee2e2", bg: "#fff5f5" },
+    }
+    const tone = toneColors[data.reminderTone] || toneColors.polite
+    const pri = tone.pri
+    const acc = tone.acc
+    const bg = tone.bg
+    const priDk = pri
+    const txt = "#1e293b"
+    const mut = "#64748b"
+    const bdr = "#d1d5db"
+    const font = "Inter"
+
+    const toneLabel = data.reminderTone.charAt(0).toUpperCase() + data.reminderTone.slice(1)
+    const isOverdue = data.daysOverdue > 0
+
+    return (
+        <Document>
+            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
+
+                {/* ── HEADER ── */}
+                <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
+                    <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
+                        <View style={{ ...bNone() }}>
+                            {logoUrl && (
+                                <View style={{ width: 44, height: 44, marginBottom: 8, overflow: "hidden", ...r(8), ...bNone() }}>
+                                    <Image src={logoUrl} style={{ width: 44, height: 44, objectFit: "cover" as any }} />
+                                </View>
+                            )}
+                            <Text style={{ fontSize: 32, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>PAYMENT FOLLOW-UP</Text>
+                            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+                                {data.referenceNumber ? `REM-${data.referenceNumber}` : "REM"}
+                            </Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", ...bNone() }}>
+                            <View style={{ backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 12, paddingVertical: 6, ...r(20), marginBottom: 10, ...bNone() }}>
+                                <Text style={{ fontSize: 9, color: "#fff", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{toneLabel}</Text>
+                            </View>
+                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Amount Due</Text>
+                            <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(data.invoiceAmount, data.invoiceCurrency)}</Text>
+                        </View>
+                    </View>
+                </View>
+                {/* Accent bars */}
+                <View style={{ flexDirection: "row", ...bNone() }}>
+                    <View style={{ flex: 2, height: 5, backgroundColor: priDk, ...bNone() }} />
+                    <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
+                </View>
+
+                {/* ── DAYS OVERDUE BANNER (if overdue) ── */}
+                {isOverdue && (
+                    <View style={{ marginHorizontal: 48, marginTop: 16, padding: 12, backgroundColor: acc, ...r(8), ...bNone(), borderLeftWidth: 4, borderLeftColor: pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }} wrap={false}>
+                        <Text style={{ fontSize: 11, color: pri, fontWeight: 700 }}>
+                            {data.daysOverdue} {data.daysOverdue === 1 ? "day" : "days"} overdue
+                        </Text>
+                        <Text style={{ fontSize: 9, color: mut, marginTop: 2 }}>
+                            This invoice was due on {fmtDate(data.dueDate)}.
+                        </Text>
+                    </View>
+                )}
+
+                {/* ── INVOICE REFERENCE ── */}
+                <View style={{ marginHorizontal: 48, marginTop: 16, marginBottom: 16, padding: 14, backgroundColor: bg, ...r(8), ...bNone() }} wrap={false}>
+                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Invoice Reference</Text>
+                    <View style={{ flexDirection: "row", ...bNone() }}>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Invoice Number</Text>
+                            <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{data.invoiceNumber}</Text>
+                        </View>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Amount</Text>
+                            <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{fmt(data.invoiceAmount, data.invoiceCurrency)}</Text>
+                        </View>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Due Date</Text>
+                            <Text style={{ fontSize: 11, color: isOverdue ? pri : txt, fontWeight: 700 }}>{fmtDate(data.dueDate)}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* ── FROM / TO ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                    <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>From</Text>
+                        <Text style={{ fontSize: 12, color: txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                        {data.fromAddress ? <Text style={{ fontSize: 9, color: mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                        {data.fromEmail ? <Text style={{ fontSize: 9, color: mut }}>{data.fromEmail}</Text> : null}
+                    </View>
+                    <View style={{ flex: 1, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>To</Text>
+                        <Text style={{ fontSize: 12, color: txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                        {data.toAddress ? <Text style={{ fontSize: 9, color: mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                        {data.toEmail ? <Text style={{ fontSize: 9, color: mut }}>{data.toEmail}</Text> : null}
+                    </View>
+                </View>
+
+                {/* ── MESSAGE ── */}
+                {data.customMessage && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 16, backgroundColor: bg, ...r(8), ...bNone() }}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Message</Text>
+                        <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.customMessage}</Text>
+                    </View>
+                )}
+
+                {/* ── PAYMENT LINK ── */}
+                {data.paymentLinkUrl && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 14, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
+                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Pay Online</Text>
+                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.4, marginBottom: 8 }}>
+                            Click the link below to pay securely online.
+                        </Text>
+                        <Link src={data.paymentLinkUrl} style={{
+                            display: "flex",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: pri,
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
+                            ...r(6),
+                            alignSelf: "flex-start" as any,
+                            textDecoration: "none",
+                            ...bNone(),
+                        }}>
+                            <Text style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>Pay Now →</Text>
+                        </Link>
+                        <Text style={{ fontSize: 8, color: mut, marginTop: 6, textDecoration: "underline" }}>
+                            {data.paymentLinkUrl}
+                        </Text>
+                    </View>
+                )}
+
+                {/* ── NOTES ── */}
+                {data.notes ? (
+                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                    </View>
+                ) : null}
+
+                {/* ── FOOTER ── */}
+                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
+                    <Text style={{ fontSize: 8, color: mut }}>Generated by Clorefy</Text>
+                    <Text style={{ fontSize: 8, color: mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+                </View>
+            </Page>
+        </Document>
+    )
+}
+
+
+// ═══════════════════════════════════════════════════════
+// RECURRING INVOICE PDF — Invoice with recurrence banner
+// Extends InvoicePDF with a recurrence schedule banner at top
+// ═══════════════════════════════════════════════════════
+
+export interface RecurringInvoiceData extends Omit<import("@/lib/invoice-types").InvoiceData, "documentType"> {
+    documentType: "recurring_invoice"
+    recurrenceFrequency: RecurringInvoiceContext["recurrenceFrequency"]
+    recurrenceStartDate: string
+    recurrenceEndDate?: string
+    maxOccurrences?: number
+    autoSend?: boolean
+}
+
+/**
+ * RecurringInvoicePDF — Accepts either InvoiceData (with optional recurrence fields)
+ * or the more specific RecurringInvoiceData. Renders a recurrence schedule banner
+ * above the standard invoice content.
+ */
+export function RecurringInvoicePDF({ data, logoUrl, paymentQrCode }: { data: InvoiceData | RecurringInvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }) {
+    const tpl = getTpl(data as any)
+    const c = getTheme(tpl, data as any)
+    const { sub, disc, tax, total } = calc(data as any)
+
+    const frequencyLabels: Record<string, string> = {
+        weekly: "Weekly",
+        biweekly: "Every 2 Weeks",
+        monthly: "Monthly",
+        quarterly: "Quarterly",
+        annually: "Annually",
+    }
+    const recurrenceFrequency = data.recurrenceFrequency ?? ""
+    const recurrenceStartDate = data.recurrenceStartDate ?? ""
+    const recurrenceEndDate = data.recurrenceEndDate
+    const maxOccurrences = (data as RecurringInvoiceData).maxOccurrences
+    const autoSend = (data as RecurringInvoiceData).autoSend
+    const freqLabel = frequencyLabels[recurrenceFrequency] || recurrenceFrequency || "Recurring"
+
+    return (
+        <Document>
+            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
+
+                {/* ── RECURRENCE SCHEDULE BANNER ── */}
+                <View style={{ backgroundColor: "#4338ca", paddingHorizontal: 48, paddingVertical: 12, ...bNone() }} wrap={false}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
+                        <View style={{ ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 2, fontWeight: 700 }}>Recurring Invoice</Text>
+                            <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{freqLabel} billing cycle</Text>
+                        </View>
+                        <View style={{ flexDirection: "row", ...bNone() }}>
+                            <View style={{ alignItems: "center", marginRight: 20, ...bNone() }}>
+                                <Text style={{ fontSize: 7, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>Start Date</Text>
+                                <Text style={{ fontSize: 9.5, color: "#fff", fontWeight: 700 }}>{fmtDate(recurrenceStartDate)}</Text>
+                            </View>
+                            {recurrenceEndDate && (
+                                <View style={{ alignItems: "center", marginRight: 20, ...bNone() }}>
+                                    <Text style={{ fontSize: 7, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>End Date</Text>
+                                    <Text style={{ fontSize: 9.5, color: "#fff", fontWeight: 700 }}>{fmtDate(recurrenceEndDate)}</Text>
+                                </View>
+                            )}
+                            {maxOccurrences != null && (
+                                <View style={{ alignItems: "center", marginRight: 20, ...bNone() }}>
+                                    <Text style={{ fontSize: 7, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>Max Occ.</Text>
+                                    <Text style={{ fontSize: 9.5, color: "#fff", fontWeight: 700 }}>{maxOccurrences}x</Text>
+                                </View>
+                            )}
+                            <View style={{ backgroundColor: autoSend !== false ? "#16a34a" : "#6b7280", paddingHorizontal: 10, paddingVertical: 4, ...r(20), alignSelf: "center", ...bNone() }}>
+                                <Text style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>
+                                    {autoSend !== false ? "AUTO-SEND ON" : "AUTO-SEND OFF"}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+
+                {/* ── INVOICE HEADER ── */}
+                <DocHeader
+                    tpl={tpl}
+                    c={c}
+                    title="INVOICE"
+                    refNum={data.invoiceNumber || "INV-0000"}
+                    logoUrl={logoUrl}
+                    data={data as any}
+                    rightContent={(
+                        <>
+                            <View style={{ backgroundColor: "rgba(255,255,255,0.15)", paddingHorizontal: 12, paddingVertical: 5, ...r(20), marginBottom: 10, ...bNone() }}>
+                                <Text style={{ fontSize: 9, color: "#fff", fontWeight: 700, letterSpacing: 1 }}>RECURRING</Text>
+                            </View>
+                            <Text style={{ fontSize: 22, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+                            <Text style={{ fontSize: 8.5, color: "rgba(255,255,255,0.6)", marginTop: 3 }}>Due {fmtDate(data.dueDate)}</Text>
+                        </>
+                    )}
+                />
+
+                {/* ── DATE STRIP ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: c.bg, marginBottom: 4, ...bNone() }}>
+                    {[
+                        { label: "Issue Date", value: fmtDate(data.invoiceDate) },
+                        { label: "Due Date", value: fmtDate(data.dueDate) },
+                        { label: "Payment Terms", value: data.paymentTerms || "Net 30" },
+                        { label: "Frequency", value: freqLabel },
+                    ].map((item, i) => (
+                        <View key={i} style={{ flex: 1, paddingLeft: i > 0 ? 16 : 0, ...bNone(), ...(i > 0 ? { borderLeftWidth: 1, borderLeftColor: c.bdr, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any } : {}) }}>
+                            <Text style={{ fontSize: 7.5, color: c.mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>{item.label}</Text>
+                            <Text style={{ fontSize: 11, color: c.txt, fontWeight: 700 }}>{item.value}</Text>
+                        </View>
+                    ))}
+                </View>
+
+                {/* ── DIVIDER ── */}
+                <View style={{ height: 1, backgroundColor: c.bdr, marginHorizontal: 48, marginBottom: 20, ...bNone() }} />
+
+                {/* ── PARTY BLOCKS ── */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 24, ...bNone() }} wrap={false}>
+                    <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>From</Text>
+                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
+                        {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
+                        {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
+                        {data.fromPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromPhone}</Text> : null}
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: c.bg, ...r(8), padding: 14, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Bill To</Text>
+                        <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
+                        {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
+                        {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
+                        {data.toPhone ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toPhone}</Text> : null}
+                    </View>
+                </View>
+
+                {/* ── ITEMS TABLE ── */}
+                <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
+                    <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
+                        <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
+                        <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
+                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Rate</Text></View>
+                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
+                    </View>
+                    {data.items.map((item, i) => {
+                        const gross = item.quantity * item.rate
+                        const hasDisc = item.discount && item.discount > 0
+                        const discAmt = hasDisc ? gross * (item.discount! / 100) : 0
+                        const lineTotal = gross - discAmt
+                        return (
+                            <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}) }} wrap={false}>
+                                <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
+                                <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
+                                <View style={{ width: 80, ...bNone() }}>
+                                    {hasDisc ? (
+                                        <>
+                                            <Text style={{ fontSize: 8, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
+                                            <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                        </>
+                                    ) : (
+                                        <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                    )}
+                                </View>
+                            </View>
+                        )
+                    })}
+                </View>
+
+                {/* ── TOTALS ── */}
+                <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                    <View style={{ width: 240, ...bNone() }}>
+                        {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text>
+                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(sub, data.currency)}</Text>
+                        </View>}
+                        {getItemDiscountTotal(data as any) > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Item Discounts</Text>
+                            <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(getItemDiscountTotal(data as any), data.currency)}</Text>
+                        </View>}
+                        {!!data.discountValue && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Discount{data.discountType === "percent" ? ` (${data.discountValue}%)` : ""}</Text>
+                            <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(disc, data.currency)}</Text>
+                        </View>}
+                        {!!data.taxRate && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text>
+                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(tax, data.currency)}</Text>
+                        </View>}
+                        {!!data.shippingFee && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.mut }}>Shipping</Text>
+                            <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(data.shippingFee, data.currency)}</Text>
+                        </View>}
+                        <View style={{ backgroundColor: c.pri, ...r(8), padding: 14, marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
+                            <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>Total Due</Text>
+                            <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* ── PAYMENT LINK ── */}
+                {data.paymentLink && data.showPaymentLinkInPdf !== false && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
+                        <PaymentSection data={data as any} paymentQrCode={paymentQrCode} c={c} bold={bold} bNoneFn={bNone} bAllFn={bAll} bTopFn={bTop} />
+                    </View>
+                )}
+
+                {/* ── NOTES & TERMS ── */}
+                {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                </View> : null}
+                {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                </View> : null}
+
+                {/* ── FOOTER ── */}
+                <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
+                    <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
+                    <Text style={{ fontSize: 8, color: c.mut }} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+                </View>
+            </Page>
+        </Document>
+    )
+}

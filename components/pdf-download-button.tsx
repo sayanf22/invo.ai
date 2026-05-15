@@ -7,7 +7,11 @@ import { Download, Loader2 } from "lucide-react"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
+import { getDocumentTypeConfig } from "@/lib/document-type-registry"
 import { toast } from "sonner"
+
+/** Signable document types — PDF export must include signature blocks */
+const SIGNABLE_TYPES = new Set(["contract", "nda", "sow", "change_order"])
 
 interface PDFDownloadButtonProps {
     data: InvoiceData
@@ -50,60 +54,159 @@ export function PDFDownloadButton({
             // Resolve logo URL from R2 key before PDF generation
             const logoUrl = await resolveLogoUrl(cleanedData.fromLogo)
 
-            // Generate QR code for payment link (invoices only, when enabled)
+            const docType = (cleanedData.documentType || "").toLowerCase()
+            const typeConfig = getDocumentTypeConfig(docType) || getDocumentTypeConfig("invoice")
+
+            // Build the document type label prefix for the filename (spaces → underscores)
+            const labelPrefix = (typeConfig?.label || "Document")
+                .replace(/[\s-]+/g, "_")
+                .replace(/[^a-zA-Z0-9_]/g, "")
+
+            // Generate QR code for payment-supporting types (invoice, recurring_invoice)
             let paymentQrCode: string | null = null
-            const isInvoice = (cleanedData.documentType || "").toLowerCase() === "invoice" ||
-                (!cleanedData.documentType)
+            const supportsPaymentLink = typeConfig?.capabilities.supports_payment_link === true
             const shouldEmbedPaymentLink = cleanedData.showPaymentLinkInPdf !== false // default true
-            if (isInvoice && shouldEmbedPaymentLink && cleanedData.paymentLink &&
+            if (
+                supportsPaymentLink &&
+                shouldEmbedPaymentLink &&
+                cleanedData.paymentLink &&
                 cleanedData.paymentLinkStatus !== "paid" &&
                 cleanedData.paymentLinkStatus !== "expired" &&
-                cleanedData.paymentLinkStatus !== "cancelled") {
+                cleanedData.paymentLinkStatus !== "cancelled"
+            ) {
                 paymentQrCode = await generateQRCode(cleanedData.paymentLink)
             }
 
-            // Dynamically import templates
+            // Dynamically import all templates
             const templates = await import("@/lib/pdf-templates")
 
-            // Select the correct PDF component based on document type
-            let PdfComponent: React.ComponentType<{ data: typeof data; logoUrl?: string | null; paymentQrCode?: string | null }>
-            let filePrefix: string
+            let blob: Blob
+            let nameSegment: string
 
-            switch ((cleanedData.documentType || "").toLowerCase()) {
+            switch (docType) {
                 case "contract":
-                    PdfComponent = templates.ContractPDF
-                    filePrefix = cleanedData.referenceNumber || cleanedData.invoiceNumber || "contract"
+                    nameSegment = cleanedData.referenceNumber || cleanedData.invoiceNumber || "contract"
+                    blob = await pdf(
+                        <templates.ContractPDF data={cleanedData} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />
+                    ).toBlob()
                     break
+
+                case "quote":
                 case "quotation":
-                    PdfComponent = templates.QuotationPDF
-                    filePrefix = cleanedData.referenceNumber || cleanedData.invoiceNumber || "quotation"
+                    nameSegment = cleanedData.referenceNumber || cleanedData.invoiceNumber || "quote"
+                    blob = await pdf(
+                        <templates.QuotationPDF data={cleanedData} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />
+                    ).toBlob()
                     break
+
                 case "proposal":
-                    PdfComponent = templates.ProposalPDF
-                    filePrefix = cleanedData.referenceNumber || cleanedData.invoiceNumber || "proposal"
+                    nameSegment = cleanedData.referenceNumber || cleanedData.invoiceNumber || "proposal"
+                    blob = await pdf(
+                        <templates.ProposalPDF data={cleanedData} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />
+                    ).toBlob()
                     break
+
                 case "receipt":
-                    PdfComponent = templates.ReceiptPDF
-                    filePrefix = cleanedData.invoiceNumber || "receipt"
+                    nameSegment = cleanedData.invoiceNumber || "receipt"
+                    blob = await pdf(
+                        <templates.ReceiptPDF data={cleanedData} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />
+                    ).toBlob()
                     break
-                default:
-                    PdfComponent = (cleanedData.design?.layout === "receipt" || cleanedData.design?.templateId === "receipt")
-                        ? templates.ReceiptPDF
-                        : templates.InvoicePDF
-                    filePrefix = cleanedData.invoiceNumber || "invoice"
+
+                // ── New document types ──────────────────────────────────────────
+
+                case "sow":
+                    nameSegment =
+                        (cleanedData as any).referenceNumber ||
+                        cleanedData.toName ||
+                        "sow"
+                    blob = await pdf(
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        <templates.SOWPDF data={cleanedData as any} logoUrl={logoUrl} />
+                    ).toBlob()
                     break
+
+                case "change_order":
+                    nameSegment =
+                        (cleanedData as any).referenceNumber ||
+                        cleanedData.toName ||
+                        "change-order"
+                    blob = await pdf(
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        <templates.ChangeOrderPDF data={cleanedData as any} logoUrl={logoUrl} />
+                    ).toBlob()
+                    break
+
+                case "nda":
+                    nameSegment =
+                        (cleanedData as any).referenceNumber ||
+                        cleanedData.toName ||
+                        "nda"
+                    blob = await pdf(
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        <templates.NDAPDF data={cleanedData as any} logoUrl={logoUrl} />
+                    ).toBlob()
+                    break
+
+                case "client_onboarding_form":
+                    nameSegment =
+                        (cleanedData as any).referenceNumber ||
+                        cleanedData.toName ||
+                        "onboarding"
+                    blob = await pdf(
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        <templates.ClientOnboardingFormPDF data={cleanedData as any} logoUrl={logoUrl} />
+                    ).toBlob()
+                    break
+
+                case "payment_followup":
+                    nameSegment =
+                        (cleanedData as any).referenceNumber ||
+                        (cleanedData as any).invoiceNumber ||
+                        cleanedData.toName ||
+                        "followup"
+                    blob = await pdf(
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        <templates.PaymentFollowupPDF data={cleanedData as any} logoUrl={logoUrl} />
+                    ).toBlob()
+                    break
+
+                case "recurring_invoice":
+                    nameSegment =
+                        cleanedData.invoiceNumber ||
+                        (cleanedData as any).referenceNumber ||
+                        "recurring-invoice"
+                    blob = await pdf(
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        <templates.RecurringInvoicePDF data={cleanedData as any} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />
+                    ).toBlob()
+                    break
+
+                // ── Default: invoice ────────────────────────────────────────────
+                default: {
+                    nameSegment = cleanedData.invoiceNumber || "invoice"
+                    const DefaultPDF =
+                        cleanedData.design?.layout === "receipt" ||
+                        cleanedData.design?.templateId === "receipt"
+                            ? templates.ReceiptPDF
+                            : templates.InvoicePDF
+                    blob = await pdf(
+                        <DefaultPDF data={cleanedData} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />
+                    ).toBlob()
+                    break
+                }
             }
 
-            // Generate the PDF blob
-            const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />).toBlob()
+            // Sanitise name segment for use in filename
+            const sanitizedName = nameSegment.replace(/[/\\:*?"<>|]/g, "_")
+            const dateStr = new Date().toISOString().split("T")[0]
+            const downloadFilename = filename || `${labelPrefix}_${sanitizedName}_${dateStr}.pdf`
 
-            // Create download link with timestamp to avoid caching
+            // Trigger browser download
             const url = URL.createObjectURL(blob)
             const link = document.createElement("a")
             link.href = url
-            link.download =
-                filename ||
-                `${filePrefix}_${new Date().toISOString().split("T")[0]}.pdf`
+            link.download = downloadFilename
             document.body.appendChild(link)
             link.click()
             document.body.removeChild(link)
@@ -112,7 +215,26 @@ export function PDFDownloadButton({
             toast.success("PDF downloaded successfully!")
         } catch (error) {
             console.error("PDF generation error:", error)
-            toast.error("Failed to generate PDF. Please try again.")
+            const docType = (data.documentType || "").toLowerCase()
+            // Fail-closed: descriptive error when signature block cannot be rendered (422 equivalent)
+            if (error instanceof Error && error.name === "SignatureBlockRenderError") {
+                const isSignable = SIGNABLE_TYPES.has(docType)
+                const typeLabel = getDocumentTypeConfig(docType)?.label || "document"
+                if (isSignable) {
+                    toast.error(
+                        `PDF export blocked: the ${typeLabel} signature section could not be rendered. ` +
+                        `Please ensure all party names and required fields are filled in, then try again.`,
+                        { duration: 7000 }
+                    )
+                } else {
+                    toast.error(
+                        `PDF export blocked: the signature section could not be rendered. ` +
+                        `Please check your document data and try again.`
+                    )
+                }
+            } else {
+                toast.error("Failed to generate PDF. Please try again.")
+            }
         } finally {
             setIsGenerating(false)
         }

@@ -1,17 +1,27 @@
 /**
  * Document Type Detection API
- * Server-side endpoint to detect document type from user prompt
- * SECURITY: All detection logic runs on backend, never exposed to client
+ *
+ * Detects document type from a user prompt and also decides the routing
+ * for the chat-first document flow:
+ *   - `route: "direct-create"` — prompt is explicit, route straight to the
+ *     split-screen with the detected type.
+ *   - `route: "chat-only"` — prompt is a question, ambiguous, or a mismatch.
+ *     Route to the new chat-only screen first.
+ *
+ * SECURITY: All detection logic runs on backend (pure regex, no AI call).
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
 import { sanitizeText } from "@/lib/sanitize"
 import { detectDocumentType, getDetectionMessage } from "@/lib/server/document-type-detector"
+import { classifyIntentFull, detectMismatch, type DocumentType } from "@/lib/intent-router"
 import { checkCostLimit, resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 
 interface DetectTypeRequest {
     prompt: string
+    /** Currently-selected category pill (e.g., "Invoice"), if any. */
+    selectedCategory?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -60,18 +70,55 @@ export async function POST(request: NextRequest) {
             ? sanitizedPrompt.slice(0, 1000)
             : sanitizedPrompt
 
-        // Detect document type (server-side only)
+        // Sanitize optional selectedCategory
+        const selectedCategory = typeof body.selectedCategory === "string"
+            ? body.selectedCategory.slice(0, 50)
+            : undefined
+
+        // ── Core classification ──
+        // Keep the legacy detector for backward compatibility (returns type + confidence + reasoning).
         const detection = detectDocumentType(detectionPrompt)
         const message = getDetectionMessage(detection)
 
+        // The new full classifier decides the route and picks a suggested type
+        // using both the prompt text and the selected category pill.
+        const intent = classifyIntentFull(detectionPrompt, selectedCategory)
+
+        // Resolve the final type: prefer the full classifier's suggestion when
+        // present, else fall back to the legacy detector.
+        const finalType = intent.suggestedType ?? detection.type
+
+        // ── Mismatch check ──
+        // If the classifier thinks the user wants a specific type, see if that
+        // type actually fits their goal. A contract-for-payment should
+        // redirect to chat-only with a "did you mean invoice?" suggestion.
+        const mismatch = detectMismatch(detectionPrompt, finalType as DocumentType)
+
+        const route: "direct-create" | "chat-only" =
+            mismatch ? "chat-only" : intent.route === "document-explicit" ? "direct-create" : "chat-only"
+
         return NextResponse.json({
             success: true,
-            type: detection.type,
+            type: finalType,
             confidence: detection.confidence,
             reasoning: detection.reasoning,
-            message: message
+            message,
+            route,
+            intent: {
+                route: intent.route,
+                suggestedType: intent.suggestedType,
+                confidence: intent.confidence,
+                /** Ranked suggestions for disambiguation (Requirement 3.3a) */
+                suggestions: intent.suggestions,
+            },
+            mismatch: mismatch
+                ? {
+                      requestedType: mismatch.requestedType,
+                      suggestedType: mismatch.suggestedType,
+                      reason: mismatch.reason,
+                  }
+                : undefined,
         })
-
     } catch (error) {
         console.error("Document type detection error:", error)
         return NextResponse.json(

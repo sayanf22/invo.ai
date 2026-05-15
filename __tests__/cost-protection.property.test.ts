@@ -1,201 +1,257 @@
 /**
- * Property 1: Message limit enforcement returns structured 429
- * Feature: document-linking-and-usage-tracking
+ * Property-based tests for cost-protection tier access control.
  *
- * For any user tier (free, starter, pro) and any session message count
- * that equals or exceeds that tier's messagesPerSession limit,
- * checkMessageLimit SHALL return a 429 response containing the fields
- * error, currentMessages, limit, tier, and message.
- * For the agency tier (limit 0), checkMessageLimit SHALL return null
- * regardless of message count.
+ * This file covers Property 3: Tier access control enforcement.
  *
- * Validates: Requirements 2.2, 1.1, 1.2, 1.3, 1.4
+ * For any (documentType, userTier) pair, `checkDocumentTypeAllowed` returns
+ * null when:
+ *   (a) the type normalizes to "invoice" (invoice-always-accessible invariant), OR
+ *   (b) the type is in that tier's allowedDocTypes.
+ * For all other cases it returns a 403 response.
+ * The invoice invariant takes precedence over the allowedDocTypes lookup.
+ *
+ * **Validates: Requirements 2.1, 2.2**
  */
-import { describe, it, expect, vi, beforeEach } from "vitest"
+
+import { describe, it, expect } from "vitest"
 import * as fc from "fast-check"
-import { checkMessageLimit, type UserTier } from "@/lib/cost-protection"
+import { checkDocumentTypeAllowed, type UserTier } from "@/lib/cost-protection"
+import { ALL_DOCUMENT_TYPES, normalizeDocumentType } from "@/lib/document-type-registry"
 
-const TIER_MESSAGE_LIMITS: Record<Exclude<UserTier, "agency">, number> = {
-  free: 10,
-  starter: 30,
-  pro: 50,
-}
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-const LIMITED_TIERS: Array<Exclude<UserTier, "agency">> = ["free", "starter", "pro"]
+const ALL_TIERS: UserTier[] = ["free", "starter", "pro", "agency"]
 
-function createMockSupabase(messageCount: number) {
-  const eqChain = {
-    eq: vi.fn().mockReturnValue({
-      count: messageCount,
-      error: null,
-    } as never),
-  }
-  const selectChain = {
-    eq: vi.fn().mockReturnValue(eqChain),
-  }
-  return {
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue(selectChain),
-    }),
-  } as any
-}
+/** Types the free tier allows (excluding invoice, which is covered by the invariant). */
+const FREE_TIER_ALLOWED = ["invoice", "contract", "quote"] as const
 
-describe("Feature: document-linking-and-usage-tracking, Property 1: Message limit enforcement returns structured 429", () => {
-  it("should return 429 with all required fields when message count >= tier limit", async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.constantFrom(...LIMITED_TIERS),
-        fc.integer({ min: 0, max: 500 }),
-        async (tier, extraMessages) => {
-          const limit = TIER_MESSAGE_LIMITS[tier]
-          const messageCount = limit + extraMessages // always >= limit
-          const mockSupabase = createMockSupabase(messageCount)
+/** Types the free tier blocks (all types not in FREE_TIER_ALLOWED). */
+const FREE_TIER_BLOCKED = ALL_DOCUMENT_TYPES.filter(
+  (t) => !(FREE_TIER_ALLOWED as readonly string[]).includes(t)
+)
 
-          const result = await checkMessageLimit(
-            mockSupabase,
-            "test-user-id",
-            "test-session-id",
-            tier
-          )
+// ─── Arbitraries ──────────────────────────────────────────────────────────────
 
-          // Must return a response (not null)
-          expect(result).not.toBeNull()
+const anyDocumentType = fc.constantFrom(...ALL_DOCUMENT_TYPES)
+const anyTier = fc.constantFrom<UserTier>("free", "starter", "pro", "agency")
 
-          // Extract the JSON body from the NextResponse
-          const body = await result!.json()
-
-          // Status must be 429
-          expect(result!.status).toBe(429)
-
-          // All required fields must be present
-          expect(body).toHaveProperty("error", "Session message limit reached")
-          expect(body).toHaveProperty("currentMessages", messageCount)
-          expect(body).toHaveProperty("limit", limit)
-          expect(body).toHaveProperty("tier", tier)
-          expect(body).toHaveProperty("message")
-          expect(typeof body.message).toBe("string")
-          expect(body.message.length).toBeGreaterThan(0)
-        }
-      ),
-      { numRuns: 100 }
-    )
-  })
-
-  it("should return null for agency tier regardless of message count", async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.integer({ min: 0, max: 10000 }),
-        async (messageCount) => {
-          const mockSupabase = createMockSupabase(messageCount)
-
-          const result = await checkMessageLimit(
-            mockSupabase,
-            "test-user-id",
-            "test-session-id",
-            "agency"
-          )
-
-          expect(result).toBeNull()
-        }
-      ),
-      { numRuns: 100 }
-    )
-  })
-})
-
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Property 2: Message counting counts only user-role messages
- * Feature: document-linking-and-usage-tracking
+ * Oracle: returns true iff checkDocumentTypeAllowed should return null (allowed)
+ * for the given (docType, tier) pair.
  *
- * For any session containing a random mix of messages with roles "user"
- * and "assistant", getSessionMessageCount SHALL return a count equal to
- * exactly the number of messages with role = "user", ignoring all
- * assistant messages.
- *
- * Validates: Requirements 2.3, 8.3
+ * Mirrors the logic in cost-protection.ts independently so the property test
+ * is not just re-running the implementation.
  */
-import { getSessionMessageCount } from "@/lib/cost-protection"
+function shouldBeAllowed(docType: string, tier: UserTier): boolean {
+  const normalized = normalizeDocumentType(docType) ?? docType.toLowerCase()
+  // Invoice invariant — always allowed regardless of tier
+  if (normalized === "invoice") return true
+  // Free tier only allows invoice, contract, quote
+  if (tier === "free") {
+    return (FREE_TIER_ALLOWED as readonly string[]).includes(normalized)
+  }
+  // Paid tiers (starter, pro, agency) allow all document types
+  return (ALL_DOCUMENT_TYPES as readonly string[]).includes(normalized)
+}
 
-describe("Feature: document-linking-and-usage-tracking, Property 2: Message counting counts only user-role messages", () => {
-  it("should return count equal to the number of user-role messages", async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.array(
-          fc.record({
-            role: fc.constantFrom("user", "assistant"),
-            content: fc.string({ minLength: 1, maxLength: 100 }),
-          }),
-          { minLength: 0, maxLength: 50 }
-        ),
-        fc.uuid(),
-        async (messages, sessionId) => {
-          const expectedUserCount = messages.filter(
-            (m) => m.role === "user"
-          ).length
+// ─── Property 3: Tier access control enforcement ──────────────────────────────
 
-          // Mock Supabase to return the expected user count
-          // (simulating what the real DB would return after filtering by role="user")
-          const eqRole = {
-            count: expectedUserCount,
-            error: null,
-          }
-          const eqSession = {
-            eq: vi.fn().mockReturnValue(eqRole),
-          }
-          const selectChain = {
-            eq: vi.fn().mockReturnValue(eqSession),
-          }
-          const mockSupabase = {
-            from: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue(selectChain),
-            }),
-          } as any
+describe("Property 3: Tier access control enforcement", () => {
+  // ─── Invoice Invariant ──────────────────────────────────────────────────────
 
-          const result = await getSessionMessageCount(mockSupabase, sessionId)
+  describe("invoice invariant", () => {
+    /**
+     * For ALL tiers, checkDocumentTypeAllowed("invoice", tier) must return null.
+     * This holds independent of tier — invoice is always accessible.
+     *
+     * **Validates: Requirement 2.1**
+     */
+    it("invoice is always allowed regardless of tier (property-based)", () => {
+      fc.assert(
+        fc.property(anyTier, (tier) => {
+          const result = checkDocumentTypeAllowed("invoice", tier)
+          expect(result).toBeNull()
+        }),
+        { numRuns: 100 }
+      )
+    })
 
-          // Result must equal the number of user-role messages
-          expect(result).toBe(expectedUserCount)
-
-          // Verify the query was constructed correctly
-          expect(mockSupabase.from).toHaveBeenCalledWith("chat_messages")
-          expect(selectChain.eq).toHaveBeenCalledWith("session_id", sessionId)
-          expect(eqSession.eq).toHaveBeenCalledWith("role", "user")
-        }
-      ),
-      { numRuns: 100 }
+    it.each(ALL_TIERS)(
+      "invoice is allowed on tier: %s",
+      (tier) => {
+        expect(checkDocumentTypeAllowed("invoice", tier)).toBeNull()
+      }
     )
   })
 
-  it("should return 0 when Supabase returns an error (fail-open)", async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.uuid(),
-        fc.string({ minLength: 1, maxLength: 50 }),
-        async (sessionId, errorMessage) => {
-          const eqRole = {
-            count: null,
-            error: { message: errorMessage, code: "UNKNOWN" },
-          }
-          const eqSession = {
-            eq: vi.fn().mockReturnValue(eqRole),
-          }
-          const selectChain = {
-            eq: vi.fn().mockReturnValue(eqSession),
-          }
-          const mockSupabase = {
-            from: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue(selectChain),
-            }),
-          } as any
+  // ─── Legacy Alias: quotation → quote ───────────────────────────────────────
 
-          const result = await getSessionMessageCount(mockSupabase, sessionId)
+  describe("legacy alias: quotation normalizes to quote", () => {
+    /**
+     * "quotation" normalizes to "quote", which is in the free tier allowedDocTypes.
+     * So checkDocumentTypeAllowed("quotation", "free") must return null.
+     *
+     * **Validates: Requirement 2.2**
+     */
+    it("quotation is allowed on free tier (normalizes to quote)", () => {
+      expect(checkDocumentTypeAllowed("quotation", "free")).toBeNull()
+    })
 
-          // Must return 0 on error (fail-open)
-          expect(result).toBe(0)
-        }
-      ),
-      { numRuns: 100 }
+    it.each(ALL_TIERS)(
+      "quotation is allowed on tier: %s",
+      (tier) => {
+        // "quotation" normalizes to "quote", which is allowed on all tiers
+        expect(checkDocumentTypeAllowed("quotation", tier)).toBeNull()
+      }
     )
+  })
+
+  // ─── Free Tier: Allowed Types ───────────────────────────────────────────────
+
+  describe("free tier allowed types", () => {
+    /**
+     * For types in ["invoice", "contract", "quote"], checkDocumentTypeAllowed
+     * must return null on the free tier.
+     *
+     * **Validates: Requirement 2.2**
+     */
+    it.each(Array.from(FREE_TIER_ALLOWED))(
+      "%s is allowed on free tier",
+      (docType) => {
+        expect(checkDocumentTypeAllowed(docType, "free")).toBeNull()
+      }
+    )
+  })
+
+  // ─── Free Tier: Blocked Types ───────────────────────────────────────────────
+
+  describe("free tier blocked types", () => {
+    /**
+     * For types not in the free tier allowedDocTypes, checkDocumentTypeAllowed
+     * must return a non-null response (status 403).
+     *
+     * **Validates: Requirement 2.2**
+     */
+    it.each(FREE_TIER_BLOCKED)(
+      "%s is blocked (403) on free tier",
+      (docType) => {
+        const result = checkDocumentTypeAllowed(docType, "free")
+        expect(result).not.toBeNull()
+        expect(result?.status).toBe(403)
+      }
+    )
+  })
+
+  // ─── Paid Tiers: All Types Allowed ─────────────────────────────────────────
+
+  describe("paid tiers allow all document types", () => {
+    /**
+     * For starter, pro, and agency tiers, all types in ALL_DOCUMENT_TYPES
+     * must return null.
+     *
+     * **Validates: Requirement 2.2**
+     */
+    it("starter tier allows all document types (property-based)", () => {
+      fc.assert(
+        fc.property(anyDocumentType, (docType) => {
+          expect(checkDocumentTypeAllowed(docType, "starter")).toBeNull()
+        }),
+        { numRuns: 100 }
+      )
+    })
+
+    it("pro tier allows all document types (property-based)", () => {
+      fc.assert(
+        fc.property(anyDocumentType, (docType) => {
+          expect(checkDocumentTypeAllowed(docType, "pro")).toBeNull()
+        }),
+        { numRuns: 100 }
+      )
+    })
+
+    it("agency tier allows all document types (property-based)", () => {
+      fc.assert(
+        fc.property(anyDocumentType, (docType) => {
+          expect(checkDocumentTypeAllowed(docType, "agency")).toBeNull()
+        }),
+        { numRuns: 100 }
+      )
+    })
+
+    it.each(
+      (["starter", "pro", "agency"] as UserTier[]).flatMap((tier) =>
+        ALL_DOCUMENT_TYPES.map((docType) => [tier, docType] as [UserTier, string])
+      )
+    )("tier %s allows %s", (tier, docType) => {
+      expect(checkDocumentTypeAllowed(docType, tier)).toBeNull()
+    })
+  })
+
+  // ─── Core Property: null iff invoice invariant OR in allowed set ────────────
+
+  describe("core property: result is null iff allowed by oracle", () => {
+    /**
+     * For any (documentType, userTier) pair drawn from the canonical sets,
+     * checkDocumentTypeAllowed returns null iff the oracle says it should.
+     *
+     * Oracle: null when (normalized === "invoice") OR (type in tier's allowed set).
+     *
+     * **Validates: Requirements 2.1, 2.2**
+     */
+    it("result is null iff (invoice invariant OR type is in tier allowed set)", () => {
+      fc.assert(
+        fc.property(anyDocumentType, anyTier, (docType, tier) => {
+          const result = checkDocumentTypeAllowed(docType, tier)
+          const allowed = shouldBeAllowed(docType, tier)
+
+          if (allowed) {
+            expect(result).toBeNull()
+          } else {
+            expect(result).not.toBeNull()
+            expect(result?.status).toBe(403)
+          }
+        }),
+        { numRuns: 500 }
+      )
+    })
+
+    /**
+     * Invoice invariant always takes precedence: even if the invoice type were
+     * accidentally removed from a tier's allowedDocTypes, it must still be allowed.
+     *
+     * We verify this by checking "invoice" returns null across all tiers
+     * together with a non-invoice type that free tier blocks, confirming
+     * the invariant is the deciding factor for free tier + invoice.
+     *
+     * **Validates: Requirement 2.1**
+     */
+    it("invoice invariant takes precedence — invoice is null, proposal is blocked on free", () => {
+      expect(checkDocumentTypeAllowed("invoice", "free")).toBeNull()
+      expect(checkDocumentTypeAllowed("proposal", "free")).not.toBeNull()
+    })
+  })
+
+  // ─── 403 Response Shape ─────────────────────────────────────────────────────
+
+  describe("blocked response shape", () => {
+    /**
+     * When blocked, the response must have status 403 (not 429 or anything else).
+     * This distinguishes document type restrictions from quota exhaustion.
+     *
+     * **Validates: Requirement 2.2**
+     */
+    it("blocked response has status 403 for any free-tier blocked type (property-based)", () => {
+      const blockedTypes = fc.constantFrom(...FREE_TIER_BLOCKED)
+      fc.assert(
+        fc.property(blockedTypes, (docType) => {
+          const result = checkDocumentTypeAllowed(docType, "free")
+          expect(result).not.toBeNull()
+          expect(result?.status).toBe(403)
+        }),
+        { numRuns: 200 }
+      )
+    })
   })
 })

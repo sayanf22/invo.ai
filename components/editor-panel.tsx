@@ -32,11 +32,182 @@ import {
   formatCurrency,
 } from "@/lib/invoice-types"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
+import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
+import {
+  sowSchema,
+  changeOrderSchema,
+  ndaSchema,
+  clientOnboardingFormSchema,
+  paymentFollowupSchema,
+} from "@/lib/document-schemas"
+import { z } from "zod"
+
+// ─── Field validation per document type ──────────────────────────────────────
+
+/**
+ * Validates required fields for the given document data before export.
+ * Returns an array of human-readable missing-field messages, or an empty array
+ * when validation passes. Uses the Zod schema for new document types and a
+ * simple rule set for the legacy InvoiceData types.
+ */
+export function validateDocumentForExport(data: InvoiceData): string[] {
+  const docType = normalizeDocumentType(data.documentType ?? "")
+
+  // Map the raw InvoiceData context object to each Zod schema and validate
+  switch (docType) {
+    case "sow": {
+      const result = sowSchema.safeParse({
+        documentType: "sow",
+        title: (data as unknown as Record<string, unknown>).title ?? data.referenceNumber ?? "",
+        referenceNumber: data.referenceNumber ?? "",
+        projectOverview: (data as unknown as Record<string, unknown>).projectOverview ?? data.description ?? "",
+        scopeItems: (data as unknown as Record<string, unknown>).scopeItems ?? [],
+        deliverables: (data as unknown as Record<string, unknown>).deliverables ?? [],
+        milestones: (data as unknown as Record<string, unknown>).milestones ?? [],
+        assumptions: (data as unknown as Record<string, unknown>).assumptions ?? [],
+        fromName: data.fromName,
+        fromEmail: data.fromEmail,
+        fromAddress: data.fromAddress,
+        toName: data.toName,
+        toEmail: data.toEmail,
+        toAddress: data.toAddress,
+        effectiveDate: data.invoiceDate,
+        currency: data.currency,
+      })
+      if (!result.success) return formatZodErrors(result.error)
+      return []
+    }
+
+    case "change_order": {
+      const rawData = data as unknown as Record<string, unknown>
+      const result = changeOrderSchema.safeParse({
+        documentType: "change_order",
+        changeOrderNumber: rawData.changeOrderNumber ?? data.invoiceNumber ?? "",
+        referenceNumber: data.referenceNumber ?? "",
+        parentDocumentId: rawData.parentDocumentId ?? "00000000-0000-0000-0000-000000000000",
+        parentDocumentType: rawData.parentDocumentType ?? "contract",
+        description: rawData.description ?? data.description ?? "",
+        additions: rawData.additions ?? [],
+        removals: rawData.removals ?? [],
+        modifications: rawData.modifications ?? [],
+        effectiveDate: data.invoiceDate,
+        fromName: data.fromName,
+        fromEmail: data.fromEmail,
+        fromAddress: data.fromAddress,
+        toName: data.toName,
+        toEmail: data.toEmail,
+        toAddress: data.toAddress,
+        currency: data.currency,
+      })
+      if (!result.success) return formatZodErrors(result.error)
+      return []
+    }
+
+    case "nda": {
+      const rawData = data as unknown as Record<string, unknown>
+      const result = ndaSchema.safeParse({
+        documentType: "nda",
+        referenceNumber: data.referenceNumber ?? "",
+        parties: rawData.parties ?? [
+          { name: data.fromName, role: "disclosing" },
+          { name: data.toName, role: "receiving" },
+        ],
+        confidentialInfoDefinition: rawData.confidentialInfoDefinition ?? data.description ?? "",
+        obligations: rawData.obligations ?? [],
+        exclusions: rawData.exclusions ?? [],
+        termStart: rawData.termStart ?? data.invoiceDate ?? "",
+        termDuration: rawData.termDuration ?? 12,
+        termUnit: rawData.termUnit ?? "months",
+        governingLaw: rawData.governingLaw ?? "",
+        fromName: data.fromName,
+        fromEmail: data.fromEmail,
+        fromAddress: data.fromAddress,
+        toName: data.toName,
+        toEmail: data.toEmail,
+        toAddress: data.toAddress,
+      })
+      if (!result.success) return formatZodErrors(result.error)
+      return []
+    }
+
+    case "client_onboarding_form": {
+      const rawData = data as unknown as Record<string, unknown>
+      const result = clientOnboardingFormSchema.safeParse({
+        documentType: "client_onboarding_form",
+        referenceNumber: data.referenceNumber ?? "",
+        clientName: data.toName,
+        clientEmail: data.toEmail || undefined,
+        projectName: rawData.projectName ?? data.referenceNumber ?? "",
+        projectDescription: rawData.projectDescription ?? data.description ?? "",
+        requirements: rawData.requirements ?? [],
+        customQuestions: rawData.customQuestions ?? [],
+        fromName: data.fromName,
+        fromEmail: data.fromEmail,
+        fromAddress: data.fromAddress,
+      })
+      if (!result.success) return formatZodErrors(result.error)
+      return []
+    }
+
+    case "payment_followup": {
+      const rawData = data as unknown as Record<string, unknown>
+      const result = paymentFollowupSchema.safeParse({
+        documentType: "payment_followup",
+        referenceNumber: data.referenceNumber ?? "",
+        linkedInvoiceId: rawData.linkedInvoiceId ?? "00000000-0000-0000-0000-000000000000",
+        invoiceNumber: rawData.invoiceNumber ?? data.invoiceNumber ?? "",
+        invoiceAmount: rawData.invoiceAmount ?? 0,
+        invoiceCurrency: rawData.invoiceCurrency ?? data.currency ?? "USD",
+        dueDate: rawData.dueDate ?? data.dueDate ?? "",
+        daysOverdue: rawData.daysOverdue ?? 0,
+        paymentLinkUrl: rawData.paymentLinkUrl ?? data.paymentLink ?? undefined,
+        reminderTone: rawData.reminderTone ?? "polite",
+        customMessage: rawData.customMessage ?? data.description ?? "",
+        fromName: data.fromName,
+        fromEmail: data.fromEmail,
+        fromAddress: data.fromAddress,
+        toName: data.toName,
+        toEmail: data.toEmail,
+        toAddress: data.toAddress,
+      })
+      if (!result.success) return formatZodErrors(result.error)
+      return []
+    }
+
+    // Legacy InvoiceData types (invoice, contract, quote, quotation, proposal, recurring_invoice)
+    default: {
+      const missing: string[] = []
+      if (!data.fromName?.trim()) missing.push("Your name / company (From)")
+      if (!data.toName?.trim()) missing.push("Client name / company (To)")
+      if (!data.documentType) missing.push("Document type")
+      // For invoice/quote/proposal: require at least one line item with a description
+      const hasLineItems = docType !== "contract"
+      if (hasLineItems) {
+        const hasValidItem = data.items?.some(
+          (i) => i.description?.trim().length > 0 && i.rate > 0
+        )
+        if (!hasValidItem) missing.push("At least one line item with description and rate")
+      } else {
+        // Contract: require description field
+        if (!data.description?.trim()) missing.push("Contract description / scope")
+      }
+      return missing
+    }
+  }
+}
+
+/** Converts Zod validation errors into readable field labels */
+function formatZodErrors(error: z.ZodError): string[] {
+  return error.issues.map((issue) => {
+    const path = issue.path.join(" › ")
+    return path ? `${path}: ${issue.message}` : issue.message
+  })
+}
 
 const documentTypes = [
   { label: "Invoice", icon: FileText, description: "Bills & payment requests" },
   { label: "Contract", icon: ScrollText, description: "Legal agreements" },
-  { label: "Quotation", icon: ClipboardList, description: "Price quotes & estimates" },
+  { label: "Quote", icon: ClipboardList, description: "Price quotes & estimates" },
   { label: "Proposal", icon: Lightbulb, description: "Business proposals" },
 ]
 
@@ -417,8 +588,11 @@ function SignatureStep({
         />
       </div>
 
-      {/* Client response toggle — quotations and proposals only */}
-      {(data.documentType === "Quotation" || data.documentType === "Proposal") && (
+      {/* Client response toggle — quotes and proposals only */}
+      {(() => {
+        const _normType = normalizeDocumentType(data.documentType ?? "")
+        return _normType === "quote" || _normType === "proposal"
+      })() && (
         <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-border bg-muted/20">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 shrink-0 flex items-center justify-center text-muted-foreground">
@@ -577,7 +751,31 @@ function InlineSignaturePad({
   )
 }
 
-export function EditorPanel({ data, onChange, documentStatus }: EditorPanelProps) {
+/**
+ * Top-level dispatch for `EditorPanel`. For the 6 newer document types (sow,
+ * change_order, nda, client_onboarding_form, payment_followup) we render a
+ * purpose-built editor. For everything else (invoice, contract, quote,
+ * quotation, proposal, recurring_invoice) we fall through to the legacy
+ * layout in `LegacyEditorPanel`.
+ *
+ * Each branch renders a different component, so React unmounts/remounts when
+ * the document type changes — no hooks-order violation.
+ */
+export function EditorPanel(props: EditorPanelProps) {
+  const _typeForDispatch = normalizeDocumentType(
+    (props.data.documentType ?? "").toLowerCase()
+  )
+
+  if (_typeForDispatch === "sow") return <SOWEditor {...props} />
+  if (_typeForDispatch === "change_order") return <ChangeOrderEditor {...props} />
+  if (_typeForDispatch === "nda") return <NDAEditor {...props} />
+  if (_typeForDispatch === "client_onboarding_form") return <ClientOnboardingFormEditor {...props} />
+  if (_typeForDispatch === "payment_followup") return <PaymentFollowupEditor {...props} />
+
+  return <LegacyEditorPanel {...props} />
+}
+
+function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps) {
   const isPaid = documentStatus === "paid"
   const [openStep, setOpenStep] = useState(1)
   const logoInputRef = useRef<HTMLInputElement>(null)
@@ -587,9 +785,18 @@ export function EditorPanel({ data, onChange, documentStatus }: EditorPanelProps
   // Cached hook — no spinner on repeat visits, instant after upload
   const { url: logoDisplayUrl, loading: logoLoading } = useLogoUrl(data.fromLogo || null)
 
-  const isInvoice = data.documentType === "Invoice"
-  const isContract = data.documentType === "Contract"
-  const hasLineItems = !isContract // invoices, quotations, proposals all have items
+  // Normalize so both "Quote" and legacy "Quotation" route to the same Quote
+  // layout (Task 14.6). The display label is always "Quote" — we no longer
+  // surface "Quotation" in the UI.
+  const _normalizedDocType = normalizeDocumentType((data.documentType ?? "").toLowerCase())
+  const isInvoice = _normalizedDocType === "invoice" || data.documentType === "Invoice"
+  const isContract = _normalizedDocType === "contract" || data.documentType === "Contract"
+  const isQuote = _normalizedDocType === "quote"
+  const isProposal = _normalizedDocType === "proposal" || data.documentType === "Proposal"
+  const hasLineItems = !isContract // invoices, quotes, proposals all have items
+  const supportsPaymentLink = _normalizedDocType
+    ? getDocumentTypeConfig(_normalizedDocType)?.capabilities.supports_payment_link === true
+    : data.documentType?.toLowerCase() === "invoice" // fallback for legacy capitalized values
   const step1Complete = data.documentType !== null
   const step2Complete =
     data.fromName.trim().length > 0 && data.toName.trim().length > 0
@@ -724,7 +931,10 @@ export function EditorPanel({ data, onChange, documentStatus }: EditorPanelProps
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-2">
               {documentTypes.map((type) => {
+                // Match the active tile by normalized type so legacy "Quotation" highlights "Quote"
+                const _typeNorm = normalizeDocumentType(type.label.toLowerCase())
                 const isActive = data.documentType === type.label
+                  || (_normalizedDocType !== null && _normalizedDocType === _typeNorm)
                 return (
                   <button
                     key={type.label}
@@ -1053,13 +1263,13 @@ export function EditorPanel({ data, onChange, documentStatus }: EditorPanelProps
                 label="Reference / PO #"
                 value={data.referenceNumber}
                 onChange={(v) => onChange({ referenceNumber: v })}
-                placeholder={isInvoice ? "PO-1234" : data.documentType === "Quotation" ? "QUO-0001" : data.documentType === "Proposal" ? "PROP-0001" : "CTR-0001"}
+                placeholder={isInvoice ? "PO-1234" : isQuote ? "QUO-0001" : isProposal ? "PROP-0001" : "CTR-0001"}
                 optional={isInvoice}
                 disabled={isPaid}
               />
               <Field
                 id="invoice-date"
-                label={isInvoice ? "Invoice Date" : data.documentType === "Quotation" ? "Quote Date" : data.documentType === "Proposal" ? "Proposal Date" : "Date"}
+                label={isInvoice ? "Invoice Date" : isQuote ? "Quote Date" : isProposal ? "Proposal Date" : "Date"}
                 value={data.invoiceDate}
                 onChange={(v) => onChange({ invoiceDate: v })}
                 type="date"
@@ -1379,8 +1589,8 @@ export function EditorPanel({ data, onChange, documentStatus }: EditorPanelProps
                 </p>
               )}
 
-              {/* Payment link options — only for invoices */}
-              {data.documentType === "Invoice" && (
+              {/* Payment link options — only for invoice and recurring_invoice */}
+              {supportsPaymentLink && (
                 <div className="rounded-xl border border-border bg-background p-3 space-y-3">
                   <p className="text-xs font-semibold text-foreground">Payment Link & QR</p>
 
@@ -1584,7 +1794,994 @@ export function EditorPanel({ data, onChange, documentStatus }: EditorPanelProps
             </div>
           </Step>
         )}
+
+        {/* ═══ Validate before export ═══ */}
+        {!isPaid && (
+          <div className="px-1 pb-2">
+            <button
+              type="button"
+              onClick={() => {
+                const missing = validateDocumentForExport(data)
+                if (missing.length > 0) {
+                  toast.error(
+                    `Missing required fields:\n${missing.slice(0, 5).join(", ")}${missing.length > 5 ? ` (+${missing.length - 5} more)` : ""}`,
+                    {
+                      description: missing.length > 1
+                        ? `Please fill in all required fields before exporting.`
+                        : undefined,
+                      duration: 5000,
+                    }
+                  )
+                } else {
+                  toast.success("All required fields are complete. Use the Download PDF button to export.")
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-secondary/40 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
+            >
+              <Check className="w-4 h-4 text-primary" />
+              Validate before export
+            </button>
+          </div>
+        )}
       </div>
     </div>
+  )
+}
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║ Type-specific editor components (Tasks 14.1–14.5)                          ║
+// ║ These render purpose-built step layouts for the 6 newer document types.   ║
+// ║ They share the Step / Field / SelectField / SignatureStep helpers above.  ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+/**
+ * Helper to read/write extension fields on InvoiceData without complaining
+ * about the unindexed string | null union. The 6 new doc types stash their
+ * type-specific data on the same InvoiceData object via these escape hatches.
+ */
+type ExtData = InvoiceData & Record<string, unknown>
+
+function getExt<T>(data: InvoiceData, key: string, fallback: T): T {
+  const v = (data as ExtData)[key]
+  return (v === undefined || v === null) ? fallback : (v as T)
+}
+
+function genId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/* ─── Reusable string-array editor (for assumptions/obligations/exclusions) ─── */
+function StringArrayEditor({
+  label,
+  values,
+  onChange,
+  placeholder,
+  disabled,
+}: {
+  label: string
+  values: string[]
+  onChange: (next: string[]) => void
+  placeholder?: string
+  disabled?: boolean
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      {values.length === 0 && (
+        <p className="text-xs text-muted-foreground/70 italic">No items yet.</p>
+      )}
+      {values.map((v, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            type="text"
+            value={v}
+            onChange={(e) => {
+              const next = [...values]
+              next[i] = e.target.value
+              onChange(next)
+            }}
+            placeholder={placeholder}
+            disabled={disabled}
+            className="flex-1 px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          />
+          <button
+            type="button"
+            onClick={() => onChange(values.filter((_, j) => j !== i))}
+            disabled={disabled}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 transition-all"
+            aria-label={`Remove ${label} ${i + 1}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...values, ""])}
+        disabled={disabled}
+        className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-40"
+      >
+        <Plus className="w-3.5 h-3.5" /> Add
+      </button>
+    </div>
+  )
+}
+
+/* ─── Shared Parties block (From/To) ─── */
+function PartiesBlock({
+  data,
+  onChange,
+  disabled,
+  fromLabel = "From",
+  toLabel = "To",
+}: {
+  data: InvoiceData
+  onChange: (u: Partial<InvoiceData>) => void
+  disabled?: boolean
+  fromLabel?: string
+  toLabel?: string
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-foreground uppercase tracking-wider">{fromLabel}</p>
+        <Field id="from-name" label="Name / Company" value={data.fromName} onChange={(v) => onChange({ fromName: v })} disabled={disabled} placeholder="e.g. Acme Corp" />
+        <Field id="from-email" label="Email" value={data.fromEmail} onChange={(v) => onChange({ fromEmail: v })} disabled={disabled} placeholder="hello@acme.com" type="email" />
+        <Field id="from-address" label="Address" value={data.fromAddress} onChange={(v) => onChange({ fromAddress: v })} disabled={disabled} placeholder="123 Main St, City, Country" />
+      </div>
+      <div className="border-t border-border" />
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-foreground uppercase tracking-wider">{toLabel}</p>
+        <Field id="to-name" label="Name / Company" value={data.toName} onChange={(v) => onChange({ toName: v })} disabled={disabled} placeholder="e.g. John Doe" />
+        <Field id="to-email" label="Email" value={data.toEmail} onChange={(v) => onChange({ toEmail: v })} disabled={disabled} placeholder="john@example.com" type="email" />
+        <Field id="to-address" label="Address" value={data.toAddress} onChange={(v) => onChange({ toAddress: v })} disabled={disabled} placeholder="456 Elm St, City, Country" />
+      </div>
+    </div>
+  )
+}
+
+/* ─── Shell wrapper that all type-specific editors use for consistent chrome ─── */
+function TypedEditorShell({
+  title,
+  totalSteps,
+  completedSteps,
+  isPaid,
+  children,
+}: {
+  title: string
+  totalSteps: number
+  completedSteps: number
+  isPaid: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <div className="px-5 py-4 border-b border-border flex items-center gap-2.5 shrink-0 bg-card">
+        <span className="text-sm font-semibold text-foreground tracking-tight">{title}</span>
+        <span className="text-xs text-muted-foreground ml-auto">
+          {completedSteps}/{totalSteps} steps
+        </span>
+      </div>
+      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24 flex flex-col gap-3 min-h-0">
+        {isPaid && (
+          <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 px-4 py-3 flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Document is read-only</p>
+          </div>
+        )}
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function ValidateBeforeExportButton({ data, isPaid }: { data: InvoiceData; isPaid: boolean }) {
+  if (isPaid) return null
+  return (
+    <div className="px-1 pb-2">
+      <button
+        type="button"
+        onClick={() => {
+          const missing = validateDocumentForExport(data)
+          if (missing.length > 0) {
+            toast.error(
+              `Missing required fields:\n${missing.slice(0, 5).join(", ")}${missing.length > 5 ? ` (+${missing.length - 5} more)` : ""}`,
+              {
+                description: missing.length > 1 ? "Please fill in all required fields before exporting." : undefined,
+                duration: 5000,
+              }
+            )
+          } else {
+            toast.success("All required fields are complete. Use the Download PDF button to export.")
+          }
+        }}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-secondary/40 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
+      >
+        <Check className="w-4 h-4 text-primary" />
+        Validate before export
+      </button>
+    </div>
+  )
+}
+
+// ─── 14.1 SOW Editor ──────────────────────────────────────────────────────────
+
+function SOWEditor({ data, onChange, documentStatus }: EditorPanelProps) {
+  const isPaid = documentStatus === "paid"
+  const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
+  const [openStep, setOpenStep] = useState(1)
+
+  const scopeItems = getExt<Array<{ id: string; title: string; description: string; included: boolean }>>(data, "scopeItems", [])
+  const deliverables = getExt<Array<{ id: string; description: string; dueDate?: string; acceptanceCriteria?: string }>>(data, "deliverables", [])
+  const milestones = getExt<Array<{ id: string; name: string; date: string; description?: string }>>(data, "milestones", [])
+  const assumptions = getExt<string[]>(data, "assumptions", [])
+  const projectOverview = getExt<string>(data, "projectOverview", data.description ?? "")
+  const title = getExt<string>(data, "title", "")
+
+  const completed = [
+    !!data.documentType,
+    data.fromName.trim().length > 0 && data.toName.trim().length > 0,
+    scopeItems.length > 0 && deliverables.length >= 0 && projectOverview.trim().length > 0,
+    milestones.length >= 0,
+    data.signatureName.trim().length > 0,
+  ].filter(Boolean).length
+
+  return (
+    <TypedEditorShell title="SOW Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
+      <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
+        <div className="space-y-3">
+          <div className="px-3 py-2.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800/40">
+            <p className="text-xs font-semibold text-cyan-800 dark:text-cyan-300">Statement of Work</p>
+            <p className="text-[11px] text-cyan-700 dark:text-cyan-400 mt-0.5">Detailed scope, deliverables and milestones — typically issued under a parent contract.</p>
+          </div>
+          <Field id="sow-title" label="Title" value={title} onChange={(v) => onChange({ title: v } as Partial<InvoiceData>)} placeholder="e.g. Website Redesign — Statement of Work" disabled={isPaid} />
+          <Field id="sow-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="SOW-0001" disabled={isPaid} />
+          <SelectField id="sow-currency" label="Currency" value={data.currency} onChange={(v) => onChange({ currency: v })} options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol} ${c.code}` }))} disabled={isPaid} />
+        </div>
+      </Step>
+
+      <Step number={2} title="Parties" isComplete={data.fromName.trim().length > 0 && data.toName.trim().length > 0} isOpen={openStep === 2} onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}>
+        <PartiesBlock data={data} onChange={onChange} disabled={isPaid} fromLabel="Service Provider" toLabel="Client" />
+      </Step>
+
+      <Step number={3} title="Scope & Deliverables" isComplete={scopeItems.length > 0 && projectOverview.trim().length > 0} isOpen={openStep === 3} onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Project Overview</label>
+            <textarea
+              value={projectOverview}
+              onChange={(e) => onChange({ projectOverview: e.target.value, description: e.target.value } as Partial<InvoiceData>)}
+              rows={3}
+              disabled={isPaid}
+              placeholder="High-level summary of the work to be performed..."
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 resize-none disabled:opacity-60"
+            />
+          </div>
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Scope Items</p>
+            {scopeItems.map((s, i) => (
+              <div key={s.id} className="rounded-xl border border-border bg-background p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={s.title}
+                    onChange={(e) => {
+                      const next = [...scopeItems]; next[i] = { ...s, title: e.target.value }
+                      onChange({ scopeItems: next } as Partial<InvoiceData>)
+                    }}
+                    placeholder="Scope item title"
+                    disabled={isPaid}
+                    className="flex-1 px-3 py-2 rounded-lg border border-border bg-card text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 disabled:opacity-60"
+                  />
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground select-none">
+                    <input
+                      type="checkbox"
+                      checked={s.included}
+                      onChange={(e) => {
+                        const next = [...scopeItems]; next[i] = { ...s, included: e.target.checked }
+                        onChange({ scopeItems: next } as Partial<InvoiceData>)
+                      }}
+                      disabled={isPaid}
+                    />
+                    Included
+                  </label>
+                  <button type="button" onClick={() => onChange({ scopeItems: scopeItems.filter((_, j) => j !== i) } as Partial<InvoiceData>)} disabled={isPaid} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 transition-all">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <textarea
+                  value={s.description}
+                  onChange={(e) => {
+                    const next = [...scopeItems]; next[i] = { ...s, description: e.target.value }
+                    onChange({ scopeItems: next } as Partial<InvoiceData>)
+                  }}
+                  rows={2}
+                  placeholder="Describe what's included in this scope item..."
+                  disabled={isPaid}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 resize-none disabled:opacity-60"
+                />
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => onChange({ scopeItems: [...scopeItems, { id: genId(), title: "", description: "", included: true }] } as Partial<InvoiceData>)}
+              disabled={isPaid}
+              className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-40"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add scope item
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Deliverables</p>
+            {deliverables.map((d, i) => (
+              <div key={d.id} className="rounded-xl border border-border bg-background p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={d.description}
+                    onChange={(e) => {
+                      const next = [...deliverables]; next[i] = { ...d, description: e.target.value }
+                      onChange({ deliverables: next } as Partial<InvoiceData>)
+                    }}
+                    placeholder="Deliverable description"
+                    disabled={isPaid}
+                    className="flex-1 px-3 py-2 rounded-lg border border-border bg-card text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 disabled:opacity-60"
+                  />
+                  <button type="button" onClick={() => onChange({ deliverables: deliverables.filter((_, j) => j !== i) } as Partial<InvoiceData>)} disabled={isPaid} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field id={`del-due-${d.id}`} label="Due date" value={d.dueDate ?? ""} onChange={(v) => {
+                    const next = [...deliverables]; next[i] = { ...d, dueDate: v }
+                    onChange({ deliverables: next } as Partial<InvoiceData>)
+                  }} type="date" optional disabled={isPaid} />
+                  <Field id={`del-ac-${d.id}`} label="Acceptance criteria" value={d.acceptanceCriteria ?? ""} onChange={(v) => {
+                    const next = [...deliverables]; next[i] = { ...d, acceptanceCriteria: v }
+                    onChange({ deliverables: next } as Partial<InvoiceData>)
+                  }} optional disabled={isPaid} />
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => onChange({ deliverables: [...deliverables, { id: genId(), description: "" }] } as Partial<InvoiceData>)}
+              disabled={isPaid}
+              className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-40"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add deliverable
+            </button>
+          </div>
+        </div>
+      </Step>
+
+      <Step number={4} title="Milestones" isComplete={milestones.length > 0} isOpen={openStep === 4} onToggle={() => setOpenStep(openStep === 4 ? 0 : 4)}>
+        <div className="space-y-3">
+          {milestones.map((m, i) => (
+            <div key={m.id} className="rounded-xl border border-border bg-background p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={m.name}
+                  onChange={(e) => {
+                    const next = [...milestones]; next[i] = { ...m, name: e.target.value }
+                    onChange({ milestones: next } as Partial<InvoiceData>)
+                  }}
+                  placeholder="Milestone name"
+                  disabled={isPaid}
+                  className="flex-1 px-3 py-2 rounded-lg border border-border bg-card text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 disabled:opacity-60"
+                />
+                <button type="button" onClick={() => onChange({ milestones: milestones.filter((_, j) => j !== i) } as Partial<InvoiceData>)} disabled={isPaid} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field id={`ms-date-${m.id}`} label="Date" value={m.date} onChange={(v) => {
+                  const next = [...milestones]; next[i] = { ...m, date: v }
+                  onChange({ milestones: next } as Partial<InvoiceData>)
+                }} type="date" disabled={isPaid} />
+                <Field id={`ms-desc-${m.id}`} label="Description" value={m.description ?? ""} onChange={(v) => {
+                  const next = [...milestones]; next[i] = { ...m, description: v }
+                  onChange({ milestones: next } as Partial<InvoiceData>)
+                }} optional disabled={isPaid} />
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => onChange({ milestones: [...milestones, { id: genId(), name: "", date: "" }] } as Partial<InvoiceData>)}
+            disabled={isPaid}
+            className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-40"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add milestone
+          </button>
+          <div className="border-t border-border pt-3">
+            <StringArrayEditor
+              label="Assumptions"
+              values={assumptions}
+              onChange={(next) => onChange({ assumptions: next } as Partial<InvoiceData>)}
+              placeholder="e.g. Client provides content within 5 business days"
+              disabled={isPaid}
+            />
+          </div>
+        </div>
+      </Step>
+
+      <Step number={5} title="Terms & Signature" isComplete={data.signatureName.trim().length > 0} isOpen={openStep === 5} onToggle={() => setOpenStep(openStep === 5 ? 0 : 5)}>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Terms</label>
+            <textarea
+              value={data.terms}
+              onChange={(e) => onChange({ terms: e.target.value })}
+              rows={3}
+              disabled={isPaid}
+              placeholder="Payment terms, change-control process, IP ownership..."
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 resize-none disabled:opacity-60"
+            />
+          </div>
+          <SignatureStep data={data} onChange={onChange} isPaid={isPaid} isSent={isSent} />
+        </div>
+      </Step>
+
+      <ValidateBeforeExportButton data={data} isPaid={isPaid} />
+    </TypedEditorShell>
+  )
+}
+
+// ─── 14.2 Change Order Editor ────────────────────────────────────────────────
+
+function ChangeOrderEditor({ data, onChange, documentStatus }: EditorPanelProps) {
+  const isPaid = documentStatus === "paid"
+  const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
+  const [openStep, setOpenStep] = useState(1)
+
+  const additions = getExt<Array<{ id: string; description: string; cost?: number }>>(data, "additions", [])
+  const removals = getExt<Array<{ id: string; description: string; costReduction?: number }>>(data, "removals", [])
+  const modifications = getExt<Array<{ id: string; original: string; revised: string; costImpact?: number }>>(data, "modifications", [])
+  const parentDocumentId = getExt<string>(data, "parentDocumentId", "")
+  const parentDocumentType = getExt<"sow" | "contract">(data, "parentDocumentType", "contract")
+  const parentReferenceNumber = getExt<string>(data, "parentReferenceNumber", "")
+  const changeOrderNumber = getExt<string>(data, "changeOrderNumber", data.invoiceNumber ?? "")
+  const description = getExt<string>(data, "description", data.description ?? "")
+  const timelineImpact = getExt<string>(data, "timelineImpact", "")
+
+  const completed = [
+    !!data.documentType,
+    !!parentDocumentId,
+    description.trim().length > 0,
+    additions.length + removals.length + modifications.length > 0,
+    data.signatureName.trim().length > 0,
+  ].filter(Boolean).length
+
+  return (
+    <TypedEditorShell title="Change Order Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
+      <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
+        <div className="space-y-3">
+          <div className="px-3 py-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40">
+            <p className="text-xs font-semibold text-orange-800 dark:text-orange-300">Change Order</p>
+            <p className="text-[11px] text-orange-700 dark:text-orange-400 mt-0.5">Amendment to an existing SOW or contract.</p>
+          </div>
+          <Field id="co-number" label="Change Order #" value={changeOrderNumber} onChange={(v) => onChange({ changeOrderNumber: v, invoiceNumber: v } as Partial<InvoiceData>)} placeholder="CO-001" disabled={isPaid} />
+          <Field id="co-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="REF-0001" disabled={isPaid} />
+          <SelectField id="co-currency" label="Currency" value={data.currency} onChange={(v) => onChange({ currency: v })} options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol} ${c.code}` }))} disabled={isPaid} />
+        </div>
+      </Step>
+
+      <Step number={2} title="Parent Reference" isComplete={!!parentDocumentId} isOpen={openStep === 2} onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}>
+        <div className="space-y-3">
+          <div className="px-3 py-2.5 rounded-xl bg-muted/40 border border-border">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Linked Document (read-only)</p>
+            <p className="text-sm font-medium text-foreground">
+              {parentReferenceNumber || "No parent linked"}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Type: {parentDocumentType.toUpperCase()} {parentDocumentId && <>· ID: {parentDocumentId.slice(0, 8)}…</>}
+            </p>
+          </div>
+          <p className="text-[11px] text-muted-foreground italic">
+            The parent reference is set when this change order is created from a parent SOW/contract. To link a different parent, regenerate the change order from the parent document.
+          </p>
+          <PartiesBlock data={data} onChange={onChange} disabled={isPaid} fromLabel="Service Provider" toLabel="Client" />
+        </div>
+      </Step>
+
+      <Step number={3} title="Changes" isComplete={additions.length + removals.length + modifications.length > 0} isOpen={openStep === 3} onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Description / Reason</label>
+            <textarea
+              value={description}
+              onChange={(e) => onChange({ description: e.target.value } as Partial<InvoiceData>)}
+              rows={2}
+              disabled={isPaid}
+              placeholder="Why is this change order needed?"
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 resize-none disabled:opacity-60"
+            />
+          </div>
+
+          {/* Additions */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Additions</p>
+            {additions.map((a, i) => (
+              <div key={a.id} className="flex items-center gap-2">
+                <input type="text" value={a.description} onChange={(e) => {
+                  const next = [...additions]; next[i] = { ...a, description: e.target.value }
+                  onChange({ additions: next } as Partial<InvoiceData>)
+                }} placeholder="What's being added" disabled={isPaid} className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 disabled:opacity-60" />
+                <input type="number" value={a.cost ?? ""} onChange={(e) => {
+                  const next = [...additions]; next[i] = { ...a, cost: e.target.value === "" ? undefined : Number(e.target.value) }
+                  onChange({ additions: next } as Partial<InvoiceData>)
+                }} placeholder="Cost" disabled={isPaid} className="w-24 px-2 py-2 rounded-lg border border-border bg-background text-sm text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 disabled:opacity-60" />
+                <button type="button" onClick={() => onChange({ additions: additions.filter((_, j) => j !== i) } as Partial<InvoiceData>)} disabled={isPaid} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={() => onChange({ additions: [...additions, { id: genId(), description: "" }] } as Partial<InvoiceData>)} disabled={isPaid} className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-40">
+              <Plus className="w-3.5 h-3.5" /> Add addition
+            </button>
+          </div>
+
+          {/* Removals */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400">Removals</p>
+            {removals.map((r, i) => (
+              <div key={r.id} className="flex items-center gap-2">
+                <input type="text" value={r.description} onChange={(e) => {
+                  const next = [...removals]; next[i] = { ...r, description: e.target.value }
+                  onChange({ removals: next } as Partial<InvoiceData>)
+                }} placeholder="What's being removed" disabled={isPaid} className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 disabled:opacity-60" />
+                <input type="number" value={r.costReduction ?? ""} onChange={(e) => {
+                  const next = [...removals]; next[i] = { ...r, costReduction: e.target.value === "" ? undefined : Number(e.target.value) }
+                  onChange({ removals: next } as Partial<InvoiceData>)
+                }} placeholder="Reduction" disabled={isPaid} className="w-24 px-2 py-2 rounded-lg border border-border bg-background text-sm text-right outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 disabled:opacity-60" />
+                <button type="button" onClick={() => onChange({ removals: removals.filter((_, j) => j !== i) } as Partial<InvoiceData>)} disabled={isPaid} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={() => onChange({ removals: [...removals, { id: genId(), description: "" }] } as Partial<InvoiceData>)} disabled={isPaid} className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-40">
+              <Plus className="w-3.5 h-3.5" /> Add removal
+            </button>
+          </div>
+
+          {/* Modifications */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">Modifications</p>
+            {modifications.map((m, i) => (
+              <div key={m.id} className="rounded-xl border border-border bg-background p-3 space-y-2">
+                <div className="flex items-center gap-2 justify-end">
+                  <button type="button" onClick={() => onChange({ modifications: modifications.filter((_, j) => j !== i) } as Partial<InvoiceData>)} disabled={isPaid} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <Field id={`mod-orig-${m.id}`} label="Original" value={m.original} onChange={(v) => {
+                  const next = [...modifications]; next[i] = { ...m, original: v }
+                  onChange({ modifications: next } as Partial<InvoiceData>)
+                }} disabled={isPaid} />
+                <Field id={`mod-rev-${m.id}`} label="Revised" value={m.revised} onChange={(v) => {
+                  const next = [...modifications]; next[i] = { ...m, revised: v }
+                  onChange({ modifications: next } as Partial<InvoiceData>)
+                }} disabled={isPaid} />
+                <Field id={`mod-cost-${m.id}`} label="Cost impact" value={m.costImpact?.toString() ?? ""} onChange={(v) => {
+                  const next = [...modifications]; next[i] = { ...m, costImpact: v === "" ? undefined : Number(v) }
+                  onChange({ modifications: next } as Partial<InvoiceData>)
+                }} type="number" optional disabled={isPaid} />
+              </div>
+            ))}
+            <button type="button" onClick={() => onChange({ modifications: [...modifications, { id: genId(), original: "", revised: "" }] } as Partial<InvoiceData>)} disabled={isPaid} className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-40">
+              <Plus className="w-3.5 h-3.5" /> Add modification
+            </button>
+          </div>
+        </div>
+      </Step>
+
+      <Step number={4} title="Impact" isComplete={timelineImpact.trim().length > 0} isOpen={openStep === 4} onToggle={() => setOpenStep(openStep === 4 ? 0 : 4)}>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Timeline Impact</label>
+            <textarea
+              value={timelineImpact}
+              onChange={(e) => onChange({ timelineImpact: e.target.value } as Partial<InvoiceData>)}
+              rows={2}
+              disabled={isPaid}
+              placeholder="e.g. Project completion extended by 2 weeks"
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 resize-none disabled:opacity-60"
+            />
+          </div>
+          <Field id="co-effective" label="Effective Date" value={data.invoiceDate} onChange={(v) => onChange({ invoiceDate: v })} type="date" disabled={isPaid} />
+        </div>
+      </Step>
+
+      <Step number={5} title="Signature" isComplete={data.signatureName.trim().length > 0} isOpen={openStep === 5} onToggle={() => setOpenStep(openStep === 5 ? 0 : 5)}>
+        <SignatureStep data={data} onChange={onChange} isPaid={isPaid} isSent={isSent} />
+      </Step>
+
+      <ValidateBeforeExportButton data={data} isPaid={isPaid} />
+    </TypedEditorShell>
+  )
+}
+
+// ─── 14.3 NDA Editor ──────────────────────────────────────────────────────────
+
+function NDAEditor({ data, onChange, documentStatus }: EditorPanelProps) {
+  const isPaid = documentStatus === "paid"
+  const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
+  const [openStep, setOpenStep] = useState(1)
+
+  const parties = getExt<Array<{ name: string; role: "disclosing" | "receiving" | "mutual"; address?: string; representative?: string }>>(data, "parties", [
+    { name: data.fromName || "", role: "disclosing" },
+    { name: data.toName || "", role: "receiving" },
+  ])
+  const confidentialInfoDefinition = getExt<string>(data, "confidentialInfoDefinition", data.description ?? "")
+  const obligations = getExt<string[]>(data, "obligations", [])
+  const exclusions = getExt<string[]>(data, "exclusions", [])
+  const termDuration = getExt<number>(data, "termDuration", 12)
+  const termUnit = getExt<"months" | "years">(data, "termUnit", "months")
+  const termStart = getExt<string>(data, "termStart", data.invoiceDate ?? "")
+  const governingLaw = getExt<string>(data, "governingLaw", "")
+
+  const completed = [
+    !!data.documentType,
+    parties.length >= 2 && parties.every((p) => p.name.trim().length > 0),
+    confidentialInfoDefinition.trim().length > 0,
+    obligations.length > 0 && termStart.length > 0,
+    data.signatureName.trim().length > 0,
+  ].filter(Boolean).length
+
+  const updateParty = (i: number, patch: Partial<(typeof parties)[number]>) => {
+    const next = [...parties]; next[i] = { ...next[i], ...patch }
+    onChange({ parties: next } as Partial<InvoiceData>)
+  }
+
+  return (
+    <TypedEditorShell title="NDA Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
+      <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
+        <div className="space-y-3">
+          <div className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/40">
+            <p className="text-xs font-semibold text-slate-800 dark:text-slate-300">Non-Disclosure Agreement</p>
+            <p className="text-[11px] text-slate-700 dark:text-slate-400 mt-0.5">Protects confidential information shared between parties.</p>
+          </div>
+          <Field id="nda-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="NDA-0001" disabled={isPaid} />
+        </div>
+      </Step>
+
+      <Step number={2} title="Parties" isComplete={parties.length >= 2 && parties.every((p) => p.name.trim().length > 0)} isOpen={openStep === 2} onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}>
+        <div className="space-y-3">
+          {parties.map((p, i) => (
+            <div key={i} className="rounded-xl border border-border bg-background p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Party {i + 1}</span>
+                <span className="ml-auto" />
+                {parties.length > 2 && (
+                  <button type="button" onClick={() => onChange({ parties: parties.filter((_, j) => j !== i) } as Partial<InvoiceData>)} disabled={isPaid} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <Field id={`p-name-${i}`} label="Name / Company" value={p.name} onChange={(v) => updateParty(i, { name: v })} disabled={isPaid} />
+              <SelectField id={`p-role-${i}`} label="Role" value={p.role} onChange={(v) => updateParty(i, { role: v as "disclosing" | "receiving" | "mutual" })} options={[
+                { value: "disclosing", label: "Disclosing" },
+                { value: "receiving", label: "Receiving" },
+                { value: "mutual", label: "Mutual" },
+              ]} disabled={isPaid} />
+              <Field id={`p-addr-${i}`} label="Address" value={p.address ?? ""} onChange={(v) => updateParty(i, { address: v })} optional disabled={isPaid} />
+              <Field id={`p-rep-${i}`} label="Representative" value={p.representative ?? ""} onChange={(v) => updateParty(i, { representative: v })} optional disabled={isPaid} />
+            </div>
+          ))}
+          {parties.length < 4 && (
+            <button type="button" onClick={() => onChange({ parties: [...parties, { name: "", role: "receiving" as const }] } as Partial<InvoiceData>)} disabled={isPaid} className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-40">
+              <Plus className="w-3.5 h-3.5" /> Add party
+            </button>
+          )}
+        </div>
+      </Step>
+
+      <Step number={3} title="Confidential Information" isComplete={confidentialInfoDefinition.trim().length > 0} isOpen={openStep === 3} onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Definition of Confidential Information</label>
+            <textarea
+              value={confidentialInfoDefinition}
+              onChange={(e) => onChange({ confidentialInfoDefinition: e.target.value, description: e.target.value } as Partial<InvoiceData>)}
+              rows={4}
+              disabled={isPaid}
+              placeholder="Describe what information is considered confidential..."
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 resize-none disabled:opacity-60"
+            />
+          </div>
+          <StringArrayEditor label="Obligations" values={obligations} onChange={(next) => onChange({ obligations: next } as Partial<InvoiceData>)} placeholder="e.g. Use the information only for the stated purpose" disabled={isPaid} />
+          <StringArrayEditor label="Exclusions" values={exclusions} onChange={(next) => onChange({ exclusions: next } as Partial<InvoiceData>)} placeholder="e.g. Information already in the public domain" disabled={isPaid} />
+        </div>
+      </Step>
+
+      <Step number={4} title="Terms & Duration" isComplete={obligations.length > 0 && termStart.length > 0} isOpen={openStep === 4} onToggle={() => setOpenStep(openStep === 4 ? 0 : 4)}>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Field id="nda-term-start" label="Term Start" value={termStart} onChange={(v) => onChange({ termStart: v, invoiceDate: v } as Partial<InvoiceData>)} type="date" disabled={isPaid} />
+            <Field id="nda-term-duration" label="Duration" value={String(termDuration)} onChange={(v) => onChange({ termDuration: Number(v) || 0 } as Partial<InvoiceData>)} type="number" disabled={isPaid} />
+          </div>
+          <SelectField id="nda-term-unit" label="Duration Unit" value={termUnit} onChange={(v) => onChange({ termUnit: v as "months" | "years" } as Partial<InvoiceData>)} options={[
+            { value: "months", label: "Months" },
+            { value: "years", label: "Years" },
+          ]} disabled={isPaid} />
+          <Field id="nda-law" label="Governing Law" value={governingLaw} onChange={(v) => onChange({ governingLaw: v } as Partial<InvoiceData>)} placeholder="e.g. State of California, USA" disabled={isPaid} />
+        </div>
+      </Step>
+
+      <Step number={5} title="Signature" isComplete={data.signatureName.trim().length > 0} isOpen={openStep === 5} onToggle={() => setOpenStep(openStep === 5 ? 0 : 5)}>
+        <SignatureStep data={data} onChange={onChange} isPaid={isPaid} isSent={isSent} />
+      </Step>
+
+      <ValidateBeforeExportButton data={data} isPaid={isPaid} />
+    </TypedEditorShell>
+  )
+}
+
+// ─── 14.4 Client Onboarding Form Editor ──────────────────────────────────────
+
+function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPanelProps) {
+  const isPaid = documentStatus === "paid"
+  const [openStep, setOpenStep] = useState(1)
+
+  const customQuestions = getExt<Array<{ id: string; question: string; answer: string }>>(data, "customQuestions", [])
+  const requirements = getExt<string[]>(data, "requirements", [])
+  const projectName = getExt<string>(data, "projectName", "")
+  const projectDescription = getExt<string>(data, "projectDescription", data.description ?? "")
+  const timelinePreference = getExt<string>(data, "timelinePreference", "")
+  const budgetRange = getExt<string>(data, "budgetRange", "")
+
+  const completed = [
+    !!data.documentType,
+    data.toName.trim().length > 0,
+    customQuestions.length > 0 || requirements.length > 0,
+    projectName.trim().length > 0,
+  ].filter(Boolean).length
+
+  const moveQuestion = (i: number, dir: -1 | 1) => {
+    const j = i + dir
+    if (j < 0 || j >= customQuestions.length) return
+    const next = [...customQuestions]
+    const tmp = next[i]; next[i] = next[j]; next[j] = tmp
+    onChange({ customQuestions: next } as Partial<InvoiceData>)
+  }
+
+  return (
+    <TypedEditorShell title="Onboarding Form Builder" totalSteps={4} completedSteps={completed} isPaid={isPaid}>
+      <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
+        <div className="space-y-3">
+          <div className="px-3 py-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800/40">
+            <p className="text-xs font-semibold text-teal-800 dark:text-teal-300">Client Onboarding Form</p>
+            <p className="text-[11px] text-teal-700 dark:text-teal-400 mt-0.5">Intake form to collect structured client details and project requirements.</p>
+          </div>
+          <Field id="cof-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="ONB-0001" disabled={isPaid} />
+        </div>
+      </Step>
+
+      <Step number={2} title="Client Details" isComplete={data.toName.trim().length > 0} isOpen={openStep === 2} onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">From (You)</p>
+            <Field id="cof-from-name" label="Name / Company" value={data.fromName} onChange={(v) => onChange({ fromName: v })} disabled={isPaid} />
+            <Field id="cof-from-email" label="Email" value={data.fromEmail} onChange={(v) => onChange({ fromEmail: v })} type="email" disabled={isPaid} />
+          </div>
+          <div className="border-t border-border" />
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Client</p>
+            <Field id="cof-client-name" label="Client Name" value={data.toName} onChange={(v) => onChange({ toName: v })} placeholder="e.g. Jane Doe" disabled={isPaid} />
+            <Field id="cof-client-email" label="Client Email" value={data.toEmail} onChange={(v) => onChange({ toEmail: v })} optional type="email" disabled={isPaid} />
+            <Field id="cof-client-phone" label="Client Phone" value={data.toPhone} onChange={(v) => onChange({ toPhone: v })} optional disabled={isPaid} />
+            <Field id="cof-client-address" label="Client Address" value={data.toAddress} onChange={(v) => onChange({ toAddress: v })} optional disabled={isPaid} />
+          </div>
+          <div className="border-t border-border" />
+          <Field id="cof-project-name" label="Project Name" value={projectName} onChange={(v) => onChange({ projectName: v } as Partial<InvoiceData>)} placeholder="e.g. Website Redesign" disabled={isPaid} />
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Project Description</label>
+            <textarea
+              value={projectDescription}
+              onChange={(e) => onChange({ projectDescription: e.target.value, description: e.target.value } as Partial<InvoiceData>)}
+              rows={3}
+              disabled={isPaid}
+              placeholder="High-level project overview..."
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 resize-none disabled:opacity-60"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field id="cof-timeline" label="Timeline Preference" value={timelinePreference} onChange={(v) => onChange({ timelinePreference: v } as Partial<InvoiceData>)} optional placeholder="e.g. 6 weeks" disabled={isPaid} />
+            <Field id="cof-budget" label="Budget Range" value={budgetRange} onChange={(v) => onChange({ budgetRange: v } as Partial<InvoiceData>)} optional placeholder="e.g. $5-10k" disabled={isPaid} />
+          </div>
+        </div>
+      </Step>
+
+      <Step number={3} title="Questions" isComplete={customQuestions.length > 0 || requirements.length > 0} isOpen={openStep === 3} onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}>
+        <div className="space-y-4">
+          <StringArrayEditor label="Requirements" values={requirements} onChange={(next) => onChange({ requirements: next } as Partial<InvoiceData>)} placeholder="e.g. Mobile-responsive design" disabled={isPaid} />
+          <div className="border-t border-border pt-3 space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Custom Questions</p>
+            {customQuestions.map((q, i) => (
+              <div key={q.id} className="rounded-xl border border-border bg-background p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">#{i + 1}</span>
+                  <span className="ml-auto" />
+                  <button type="button" onClick={() => moveQuestion(i, -1)} disabled={isPaid || i === 0} className="text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-30">↑</button>
+                  <button type="button" onClick={() => moveQuestion(i, 1)} disabled={isPaid || i === customQuestions.length - 1} className="text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-30">↓</button>
+                  <button type="button" onClick={() => onChange({ customQuestions: customQuestions.filter((_, j) => j !== i) } as Partial<InvoiceData>)} disabled={isPaid} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <Field id={`q-${q.id}`} label="Question" value={q.question} onChange={(v) => {
+                  const next = [...customQuestions]; next[i] = { ...q, question: v }
+                  onChange({ customQuestions: next } as Partial<InvoiceData>)
+                }} disabled={isPaid} />
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Answer</label>
+                  <textarea
+                    value={q.answer}
+                    onChange={(e) => {
+                      const next = [...customQuestions]; next[i] = { ...q, answer: e.target.value }
+                      onChange({ customQuestions: next } as Partial<InvoiceData>)
+                    }}
+                    rows={2}
+                    disabled={isPaid}
+                    placeholder="Client's answer..."
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 resize-none disabled:opacity-60"
+                  />
+                </div>
+              </div>
+            ))}
+            <button type="button" onClick={() => onChange({ customQuestions: [...customQuestions, { id: genId(), question: "", answer: "" }] } as Partial<InvoiceData>)} disabled={isPaid} className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-40">
+              <Plus className="w-3.5 h-3.5" /> Add question
+            </button>
+          </div>
+        </div>
+      </Step>
+
+      <Step number={4} title="Summary" isComplete={projectName.trim().length > 0} isOpen={openStep === 4} onToggle={() => setOpenStep(openStep === 4 ? 0 : 4)}>
+        <div className="space-y-3">
+          <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Onboarding Summary</p>
+            <p className="text-sm font-medium text-foreground">{projectName || "(no project name)"}</p>
+            <p className="text-xs text-muted-foreground">{requirements.length} requirements · {customQuestions.length} questions answered</p>
+            {timelinePreference && <p className="text-xs text-muted-foreground">Timeline: {timelinePreference}</p>}
+            {budgetRange && <p className="text-xs text-muted-foreground">Budget: {budgetRange}</p>}
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Notes</label>
+            <textarea
+              value={data.notes}
+              onChange={(e) => onChange({ notes: e.target.value })}
+              rows={3}
+              disabled={isPaid}
+              placeholder="Any additional notes for this onboarding..."
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 resize-none disabled:opacity-60"
+            />
+          </div>
+        </div>
+      </Step>
+
+      <ValidateBeforeExportButton data={data} isPaid={isPaid} />
+    </TypedEditorShell>
+  )
+}
+
+// ─── 14.5 Payment Follow-up Editor ───────────────────────────────────────────
+
+function PaymentFollowupEditor({ data, onChange, documentStatus }: EditorPanelProps) {
+  const isPaid = documentStatus === "paid"
+  const [openStep, setOpenStep] = useState(1)
+
+  const linkedInvoiceId = getExt<string>(data, "linkedInvoiceId", "")
+  const invoiceNumber = getExt<string>(data, "invoiceNumber", data.invoiceNumber ?? "")
+  const invoiceAmount = getExt<number>(data, "invoiceAmount", 0)
+  const invoiceCurrency = getExt<string>(data, "invoiceCurrency", data.currency ?? "USD")
+  const dueDate = getExt<string>(data, "dueDate", data.dueDate ?? "")
+  const daysOverdue = getExt<number>(data, "daysOverdue", 0)
+  const paymentLinkUrl = getExt<string>(data, "paymentLinkUrl", data.paymentLink ?? "")
+  const reminderTone = getExt<"polite" | "firm" | "urgent">(data, "reminderTone", "polite")
+  const customMessage = getExt<string>(data, "customMessage", data.description ?? "")
+
+  const completed = [
+    !!data.documentType,
+    !!linkedInvoiceId,
+    customMessage.trim().length > 0,
+  ].filter(Boolean).length
+
+  return (
+    <TypedEditorShell title="Payment Follow-up Builder" totalSteps={4} completedSteps={completed} isPaid={isPaid}>
+      <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
+        <div className="space-y-3">
+          <div className="px-3 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40">
+            <p className="text-xs font-semibold text-rose-800 dark:text-rose-300">Payment Follow-up</p>
+            <p className="text-[11px] text-rose-700 dark:text-rose-400 mt-0.5">Reminder for an unpaid invoice — references the original invoice details.</p>
+          </div>
+          <Field id="pf-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="REM-0001" disabled={isPaid} />
+        </div>
+      </Step>
+
+      <Step number={2} title="Invoice Reference" isComplete={!!linkedInvoiceId} isOpen={openStep === 2} onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}>
+        <div className="space-y-3">
+          <div className="px-3 py-3 rounded-xl bg-muted/40 border border-border space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Linked Invoice (read-only)</p>
+            <p className="text-sm font-medium text-foreground">
+              {invoiceNumber || "—"}
+              {invoiceAmount > 0 && (
+                <span className="ml-2 text-muted-foreground">
+                  · {formatCurrency(invoiceAmount, invoiceCurrency)}
+                </span>
+              )}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {dueDate && <>Due: {dueDate}</>}
+              {daysOverdue > 0 && <span className="ml-2 text-rose-600 dark:text-rose-400">· {daysOverdue} days overdue</span>}
+            </p>
+            {paymentLinkUrl && (
+              <p className="text-[11px] text-muted-foreground truncate">
+                <span className="font-medium">Link:</span> {paymentLinkUrl}
+              </p>
+            )}
+            {linkedInvoiceId && (
+              <p className="text-[10px] text-muted-foreground/70">ID: {linkedInvoiceId.slice(0, 8)}…</p>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground italic">
+            The invoice link is set automatically when this follow-up is generated from a parent invoice. To target a different invoice, regenerate from that invoice.
+          </p>
+          <PartiesBlock data={data} onChange={onChange} disabled={isPaid} />
+        </div>
+      </Step>
+
+      <Step number={3} title="Reminder Settings" isComplete={!!reminderTone} isOpen={openStep === 3} onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tone</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["polite", "firm", "urgent"] as const).map((tone) => {
+                const active = reminderTone === tone
+                return (
+                  <button
+                    key={tone}
+                    type="button"
+                    onClick={() => onChange({ reminderTone: tone } as Partial<InvoiceData>)}
+                    disabled={isPaid}
+                    className={`px-3 py-2 rounded-xl border text-sm font-medium capitalize transition-all ${active ? "border-primary bg-primary/10 text-foreground" : "border-border bg-background text-muted-foreground hover:border-primary/30"} disabled:opacity-60`}
+                  >
+                    {tone}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1.5">
+              {reminderTone === "polite" && "Friendly nudge. Best for first reminders."}
+              {reminderTone === "firm" && "Direct and clear. Use after the first nudge has been ignored."}
+              {reminderTone === "urgent" && "Strong language. Reserve for significantly overdue invoices."}
+            </p>
+          </div>
+        </div>
+      </Step>
+
+      <Step number={4} title="Message" isComplete={customMessage.trim().length > 0} isOpen={openStep === 4} onToggle={() => setOpenStep(openStep === 4 ? 0 : 4)}>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Custom Message</label>
+            <textarea
+              value={customMessage}
+              onChange={(e) => onChange({ customMessage: e.target.value, description: e.target.value } as Partial<InvoiceData>)}
+              rows={6}
+              disabled={isPaid}
+              maxLength={2000}
+              placeholder="Hi [Client], just a friendly reminder that invoice [number] for [amount] is now [days] days past due..."
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 resize-none disabled:opacity-60"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1 text-right">
+              {customMessage.length}/2000
+            </p>
+          </div>
+        </div>
+      </Step>
+
+      <ValidateBeforeExportButton data={data} isPaid={isPaid} />
+    </TypedEditorShell>
   )
 }

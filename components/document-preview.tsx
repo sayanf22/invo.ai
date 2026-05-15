@@ -17,6 +17,7 @@ import { SignatureCancelDialog } from "@/components/signature-cancel-dialog"
 import { SignaturePad } from "@/components/signature-pad"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import { parseTier } from "@/lib/cost-protection"
+import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
@@ -28,7 +29,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-const SIGNATURE_DOCUMENT_TYPES = ["contract", "quotation", "proposal"]
+/** Check if a document type supports signature workflow via the registry */
+function supportsSignatureWorkflow(documentType: string): boolean {
+  const config = getDocumentTypeConfig(documentType)
+  return config?.capabilities.supports_signature === true
+}
 
 interface DocumentPreviewProps {
   data: InvoiceData
@@ -143,6 +148,7 @@ function LivePDFPreview({ data, zoom, onPageCount, locked = false, lockReason }:
         case "contract":
           PdfComponent = templates.ContractPDF
           break
+        case "quote":
         case "quotation":
           PdfComponent = templates.QuotationPDF
           break
@@ -367,7 +373,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [savedSignatureUrl, setSavedSignatureUrl] = useState<string | null | undefined>(undefined) // undefined = not loaded yet
   const hasContent = data.documentType || data.fromName || data.toName || data.description
 
-  const supportsSignatures = SIGNATURE_DOCUMENT_TYPES.includes((data.documentType || "").toLowerCase())
+  const supportsSignatures = supportsSignatureWorkflow(data.documentType || "")
   const hasPendingSignatures = signatures.some(s => s.signed_at === null && (s.signer_action === null || s.signer_action === undefined))
   const allSigned = signatures.length > 0 && signatures.every(s => s.signed_at !== null)
 
@@ -569,8 +575,14 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       const { generateDocx } = await import("@/lib/docx-export")
       const blob = await generateDocx(data)
       const docType = (data.documentType || "document").toLowerCase()
+      const typeConfig = getDocumentTypeConfig(docType) || getDocumentTypeConfig("invoice")
+      // Document type label prefix (spaces / hyphens → underscore, strip non-alphanumerics)
+      const labelPrefix = (typeConfig?.label || "Document")
+        .replace(/[\s-]+/g, "_")
+        .replace(/[^a-zA-Z0-9_]/g, "")
       const ref = data.invoiceNumber || data.referenceNumber || docType
-      const filename = `${ref}_${new Date().toISOString().slice(0, 10)}.docx`
+      const sanitizedRef = String(ref).replace(/[/\\:*?"<>|]/g, "_")
+      const filename = `${labelPrefix}_${sanitizedRef}_${new Date().toISOString().slice(0, 10)}.docx`
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url; a.download = filename
@@ -593,8 +605,13 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       const { generateDocumentImage } = await import("@/lib/image-export")
       const blob = await generateDocumentImage(data, format)
       const docType = (data.documentType || "document").toLowerCase()
+      const typeConfig = getDocumentTypeConfig(docType) || getDocumentTypeConfig("invoice")
+      const labelPrefix = (typeConfig?.label || "Document")
+        .replace(/[\s-]+/g, "_")
+        .replace(/[^a-zA-Z0-9_]/g, "")
       const ref = data.invoiceNumber || data.referenceNumber || docType
-      const filename = `${ref}_${new Date().toISOString().slice(0, 10)}.${format}`
+      const sanitizedRef = String(ref).replace(/[/\\:*?"<>|]/g, "_")
+      const filename = `${labelPrefix}_${sanitizedRef}_${new Date().toISOString().slice(0, 10)}.${format}`
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url; a.download = filename
@@ -603,7 +620,18 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       toast.success(`${format.toUpperCase()} image downloaded!`)
     } catch (err) {
       console.error("Image export error:", err)
-      toast.error("Failed to generate image")
+      // Same fail-closed handling as PDF: surface signature block failures clearly
+      if (err instanceof Error && err.name === "SignatureBlockRenderError") {
+        const docType = (data.documentType || "").toLowerCase()
+        const typeLabel = getDocumentTypeConfig(docType)?.label || "document"
+        toast.error(
+          `Image export blocked: the ${typeLabel} signature section could not be rendered. ` +
+          `Please ensure all party names and required fields are filled in, then try again.`,
+          { duration: 7000 }
+        )
+      } else {
+        toast.error("Failed to generate image")
+      }
     } finally {
       setExportingImage(false)
     }
@@ -634,6 +662,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }>
       switch (docType) {
         case "contract": PdfComponent = templates.ContractPDF; break
+        case "quote":
         case "quotation": PdfComponent = templates.QuotationPDF; break
         case "proposal": PdfComponent = templates.ProposalPDF; break
         case "receipt": PdfComponent = templates.ReceiptPDF; break
@@ -813,6 +842,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                   let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
                   switch (docType) {
                     case "contract": PdfComponent = templates.ContractPDF; break
+                    case "quote":
                     case "quotation": PdfComponent = templates.QuotationPDF; break
                     case "proposal": PdfComponent = templates.ProposalPDF; break
                     default: PdfComponent = templates.InvoicePDF; break
@@ -916,6 +946,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                     let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
                     switch (docType) {
                       case "contract": PdfComponent = templates.ContractPDF; break
+                      case "quote":
                       case "quotation": PdfComponent = templates.QuotationPDF; break
                       case "proposal": PdfComponent = templates.ProposalPDF; break
                       default: PdfComponent = templates.InvoicePDF; break

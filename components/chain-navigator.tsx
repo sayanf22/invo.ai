@@ -1,10 +1,25 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { FileText, ScrollText, ClipboardList, Lightbulb, ChevronRight, Link2 } from "lucide-react"
+import {
+    FileText,
+    ScrollText,
+    ClipboardList,
+    Lightbulb,
+    ChevronRight,
+    Link2,
+    FileQuestion,
+    Presentation,
+    GitMerge,
+    Shield,
+    ClipboardCheck,
+    Bell,
+    RefreshCw,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/components/auth-provider"
 import { authFetch } from "@/lib/auth-fetch"
+import { getDocumentTypeConfig, getDocumentTypeLabel, normalizeDocumentType } from "@/lib/document-type-registry"
 
 interface ChainSession {
     id: string
@@ -20,30 +35,66 @@ interface ChainNavigatorProps {
     onSessionSelect: (sessionId: string) => void
 }
 
-const DOC_ICONS: Record<string, React.ElementType> = {
-    invoice: FileText,
-    contract: ScrollText,
-    quotation: ClipboardList,
-    proposal: Lightbulb,
+/**
+ * Map Lucide icon name strings (from the registry) to actual React components.
+ * This avoids dynamic imports — all icons are statically bundled.
+ */
+const ICON_COMPONENTS: Record<string, React.ElementType> = {
+    FileText,
+    FileCheck: ScrollText,  // contract uses ScrollText visually
+    FileQuestion,
+    Presentation,
+    ClipboardList,
+    GitMerge,
+    Shield,
+    ClipboardCheck,
+    Bell,
+    RefreshCw,
 }
 
-const DOC_PILL_COLORS: Record<string, { active: string; inactive: string }> = {
-    invoice: {
-        active: "bg-blue-500 text-white border-blue-500",
-        inactive: "bg-card text-foreground border-border hover:bg-secondary hover:border-border",
-    },
-    contract: {
-        active: "bg-amber-500 text-white border-amber-500",
-        inactive: "bg-card text-foreground border-border hover:bg-secondary hover:border-border",
-    },
-    quotation: {
-        active: "bg-emerald-500 text-white border-emerald-500",
-        inactive: "bg-card text-foreground border-border hover:bg-secondary hover:border-border",
-    },
-    proposal: {
-        active: "bg-purple-500 text-white border-purple-500",
-        inactive: "bg-card text-foreground border-border hover:bg-secondary hover:border-border",
-    },
+/**
+ * Resolve the Lucide icon component for a document type string.
+ * Falls back to FileText for unknown types.
+ */
+function getDocIcon(documentType: string): React.ElementType {
+    const config = getDocumentTypeConfig(documentType)
+    if (config && ICON_COMPONENTS[config.icon]) {
+        return ICON_COMPONENTS[config.icon]
+    }
+    return FileText
+}
+
+/**
+ * Derive active/inactive pill color classes from the registry's Tailwind color.
+ * Registry colors follow the pattern "text-{color}-600"; we map to matching pill styles.
+ */
+function getPillColors(documentType: string): { active: string; inactive: string } {
+    const config = getDocumentTypeConfig(documentType)
+    if (!config) {
+        return {
+            active: "bg-gray-500 text-white border-gray-500",
+            inactive: "bg-card text-foreground border-border hover:bg-secondary hover:border-border",
+        }
+    }
+
+    // Map registry text color class to active pill bg color
+    const colorMap: Record<string, string> = {
+        "text-blue-600": "bg-blue-500 text-white border-blue-500",
+        "text-emerald-600": "bg-emerald-500 text-white border-emerald-500",
+        "text-amber-600": "bg-amber-500 text-white border-amber-500",
+        "text-violet-600": "bg-violet-500 text-white border-violet-500",
+        "text-cyan-600": "bg-cyan-500 text-white border-cyan-500",
+        "text-orange-600": "bg-orange-500 text-white border-orange-500",
+        "text-slate-600": "bg-slate-500 text-white border-slate-500",
+        "text-teal-600": "bg-teal-500 text-white border-teal-500",
+        "text-rose-600": "bg-rose-500 text-white border-rose-500",
+        "text-indigo-600": "bg-indigo-500 text-white border-indigo-500",
+    }
+
+    const active = colorMap[config.color] ?? "bg-gray-500 text-white border-gray-500"
+    const inactive = "bg-card text-foreground border-border hover:bg-secondary hover:border-border"
+
+    return { active, inactive }
 }
 
 export function ChainNavigator({ currentSessionId, onSessionSelect }: ChainNavigatorProps) {
@@ -119,10 +170,11 @@ export function ChainNavigator({ currentSessionId, onSessionSelect }: ChainNavig
                     </span>
                 )}
                 {chain.map((session, idx) => {
-                    const Icon = DOC_ICONS[session.document_type] || FileText
+                    const Icon = getDocIcon(session.document_type)
                     const isCurrent = session.id === currentSessionId
-                    const colors = DOC_PILL_COLORS[session.document_type] || DOC_PILL_COLORS.invoice
-                    const label = session.document_type.charAt(0).toUpperCase() + session.document_type.slice(1)
+                    const colors = getPillColors(session.document_type)
+                    // Use registry label, normalize "quotation" → "Quote"
+                    const label = getDocumentTypeLabel(session.document_type)
                     const isCompleted = session.status === "completed"
 
                     return (
@@ -134,6 +186,7 @@ export function ChainNavigator({ currentSessionId, onSessionSelect }: ChainNavig
                                 type="button"
                                 onClick={() => { if (!isCurrent) onSessionSelect(session.id) }}
                                 disabled={isCurrent}
+                                title={getDocumentTypeConfig(session.document_type)?.description ?? label}
                                 className={cn(
                                     "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-semibold border transition-all duration-200",
                                     isCurrent

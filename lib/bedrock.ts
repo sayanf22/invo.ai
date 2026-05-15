@@ -375,3 +375,153 @@ export function CORRECTION_INSTRUCTION_PROMPT(data: {
         `If no fixes are needed, respond with exactly: "NO_FIXES_NEEDED"`
     )
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Multi-turn Bedrock chat for the chat-only advisory mode.
+ *
+ * Unlike `streamBedrockChat` (which takes a single user prompt), this function
+ * accepts a full conversation history so Kimi K2.5 can maintain context across
+ * multiple turns in the chat-only screen.
+ *
+ * The system prompt is always prepended as the first message.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+export interface BedrockChatMessage {
+    role: "user" | "assistant"
+    content: string
+}
+
+/**
+ * Stream a multi-turn conversation with Kimi K2.5 via Amazon Bedrock Mantle.
+ *
+ * @param systemPrompt   - System instructions (prepended as system message)
+ * @param messages       - Full conversation history including the latest user message
+ * @param apiKey         - Bedrock Mantle API key
+ * @param maxTokens      - Maximum response tokens (default: 1500)
+ */
+export async function* streamBedrockChatWithHistory(
+    systemPrompt: string,
+    messages: BedrockChatMessage[],
+    apiKey: string,
+    maxTokens: number = 1500
+): AsyncGenerator<{ type: "chunk" | "complete" | "error"; data: string }> {
+    if (!apiKey || apiKey.trim().length === 0) {
+        yield {
+            type: "error",
+            data: "Bedrock API key not configured.",
+        }
+        return
+    }
+
+    if (!messages || messages.length === 0) {
+        yield { type: "error", data: "No messages provided." }
+        return
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+    try {
+        const response = await fetch(BEDROCK_MANTLE_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: BEDROCK_MODEL,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    // Limit to last 20 messages (10 pairs) to stay within context limits
+                    ...messages.slice(-20),
+                ],
+                max_tokens: maxTokens,
+                temperature: 0.4,
+                stream: true,
+            }),
+            signal: controller.signal,
+        })
+
+        if (!response.ok) {
+            if (response.status === 401 || response.status === 403) {
+                yield { type: "error", data: "Bedrock API key is invalid or expired." }
+                return
+            }
+            if (response.status === 429) {
+                yield { type: "error", data: "Bedrock API rate limit exceeded." }
+                return
+            }
+            if (FALLBACK_STATUS_CODES.has(response.status)) {
+                yield { type: "error", data: `Bedrock API server error (${response.status}).` }
+                return
+            }
+            throw new Error(`Bedrock API error: ${response.status}`)
+        }
+
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        let fullContent = ""
+        let sseBuffer = ""
+
+        if (!reader) throw new Error("No response body from Bedrock")
+
+        while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            const chunk = decoder.decode(value, { stream: true })
+            sseBuffer += chunk
+
+            const parts = sseBuffer.split("\n")
+            sseBuffer = parts.pop() || ""
+
+            for (const rawLine of parts) {
+                const line = rawLine.trim()
+                if (!line.startsWith("data: ")) continue
+                const data = line.slice(6)
+                if (data === "[DONE]") continue
+                try {
+                    const parsed = JSON.parse(data)
+                    const content = parsed.choices?.[0]?.delta?.content || ""
+                    if (content) {
+                        fullContent += content
+                        yield { type: "chunk", data: content }
+                    }
+                } catch {
+                    // Skip invalid JSON chunks
+                }
+            }
+        }
+
+        // Flush remaining SSE buffer
+        if (sseBuffer.trim()) {
+            const line = sseBuffer.trim()
+            if (line.startsWith("data: ")) {
+                const data = line.slice(6)
+                if (data !== "[DONE]") {
+                    try {
+                        const parsed = JSON.parse(data)
+                        const content = parsed.choices?.[0]?.delta?.content || ""
+                        if (content) {
+                            fullContent += content
+                            yield { type: "chunk", data: content }
+                        }
+                    } catch { /* ignore */ }
+                }
+            }
+        }
+
+        yield { type: "complete", data: fullContent.trim() }
+    } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+            yield { type: "error", data: "Bedrock API request timed out after 30 seconds." }
+            return
+        }
+        yield {
+            type: "error",
+            data: error instanceof Error ? error.message : "Bedrock streaming failed",
+        }
+    } finally {
+        clearTimeout(timeoutId)
+    }
+}

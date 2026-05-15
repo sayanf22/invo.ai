@@ -133,6 +133,7 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
                 let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
                 switch (docType) {
                     case "contract": PdfComponent = templates.ContractPDF; break
+                    case "quote":
                     case "quotation": PdfComponent = templates.QuotationPDF; break
                     case "proposal": PdfComponent = templates.ProposalPDF; break
                     default: PdfComponent = templates.InvoicePDF; break

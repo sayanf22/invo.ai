@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 
 interface PaymentLinkButtonProps {
     sessionId: string | null
@@ -187,7 +188,16 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
     const [showConfirm, setShowConfirm] = useState(false)
     const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
-    const isInvoice = documentType.toLowerCase() === "invoice"
+    // Use registry to determine capability — handles all 10 canonical types
+    const normalizedType = normalizeDocumentType(documentType) ?? documentType
+    const docConfig = getDocumentTypeConfig(normalizedType)
+    const supportsPaymentLink = docConfig?.capabilities.supports_payment_link === true
+    // Payment Follow-up: display the linked invoice's payment link but do NOT create new ones
+    const isPaymentFollowup = normalizedType === "payment_followup"
+    // isInvoice controls the "fetch existing link" flow — applies to invoice + recurring_invoice
+    // but NOT payment_followup (that type reads paymentLinkUrl from its own context)
+    const isInvoice = supportsPaymentLink && !isPaymentFollowup
+
     const hasFetchedRef = useRef(false)
     const prevSessionIdRef = useRef(sessionId)
 
@@ -244,8 +254,45 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
         fetchExisting()
     }, [fetchExisting])
 
-    // Only show for invoices — AFTER all hooks
-    if (!isInvoice) return null
+    // Only show for document types that support payment links (or payment_followup which displays
+    // the referenced invoice's existing link). Hide for all other document types.
+    if (!supportsPaymentLink && !isPaymentFollowup) return null
+
+    // Payment Follow-up: display the payment link URL from the referenced invoice context.
+    // It does NOT create new payment links — show the URL directly from invoiceData context.
+    if (isPaymentFollowup) {
+        const followupLink = (invoiceData as any).paymentLinkUrl as string | undefined
+        if (!followupLink) return null
+        const handleCopyFollowup = async () => {
+            await navigator.clipboard.writeText(followupLink)
+            toast.success("Payment link copied!")
+        }
+        return (
+            <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-card p-1 shadow-sm">
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-muted/50 text-muted-foreground">
+                                <Link2 className="w-3 h-3" />
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Payment link from referenced invoice</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button type="button" onClick={handleCopyFollowup}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg hover:bg-muted/80 transition-colors text-foreground/60 hover:text-foreground">
+                                <Copy className="w-3.5 h-3.5" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Copy invoice payment link</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            </div>
+        )
+    }
 
     const total = getInvoiceTotal(invoiceData)
     const currency = invoiceData.currency || "INR"

@@ -9,11 +9,14 @@ import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-
 import { sanitizeText } from "@/lib/sanitize"
 import { incrementDocumentCount, checkDocumentLimit, checkDocumentTypeAllowed } from "@/lib/cost-protection"
 import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
+import { normalizeDocumentType, getDocumentTypeConfig, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 
 interface CreateSessionRequest {
-    documentType: "invoice" | "contract" | "quotation" | "proposal"
+    documentType: string
     initialPrompt?: string
     forceNew?: boolean // bypass deduplication (e.g. explicit "New conversation" click)
+    /** Optional: session ID of a parent document to link this document to */
+    parentSessionId?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -26,10 +29,11 @@ export async function POST(request: NextRequest) {
         const sizeError = validateBodySize(body, 10 * 1024)
         if (sizeError) return sizeError
 
-        const validTypes = ["invoice", "contract", "quotation", "proposal"]
-        if (!body.documentType || !validTypes.includes(body.documentType)) {
+        // Normalize to canonical document type (handles "quotation" → "quote" too)
+        const normalizedType = normalizeDocumentType(body.documentType)
+        if (!normalizedType) {
             return NextResponse.json(
-                { success: false, error: "Invalid document type. Must be: invoice, contract, quotation, or proposal" },
+                { success: false, error: `Invalid document type. Must be one of: ${ALL_DOCUMENT_TYPES.join(", ")}` },
                 { status: 400 }
             )
         }
@@ -54,23 +58,145 @@ export async function POST(request: NextRequest) {
         const userTier = resolveEffectiveTier(subscription as any)
 
         // Check document type is allowed for this tier (fast, no DB query)
-        const typeError = checkDocumentTypeAllowed(body.documentType, userTier)
+        const typeError = checkDocumentTypeAllowed(normalizedType, userTier)
         if (typeError) return typeError
 
         // Check document limit for this tier (requires DB query)
         const limitError = await checkDocumentLimit(auth.supabase, auth.user.id, userTier)
         if (limitError) return limitError
 
+        // ── Parent document reference handling ─────────────────────────────────
+        let parentContext: Record<string, any> = {}
+        let chainId: string | null = null
+        let clientName: string | null = null
+
+        if (body.parentSessionId) {
+            // Validate UUID format
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+            if (!uuidRegex.test(body.parentSessionId)) {
+                return NextResponse.json(
+                    { success: false, error: "Invalid parentSessionId" },
+                    { status: 400 }
+                )
+            }
+
+            // Load the parent session
+            const { data: parentSession, error: parentError } = await auth.supabase
+                .from("document_sessions")
+                .select("id, document_type, chain_id, client_name, context")
+                .eq("id", body.parentSessionId)
+                .eq("user_id", auth.user.id)
+                .single()
+
+            if (parentError || !parentSession) {
+                return NextResponse.json(
+                    { success: false, error: "Parent session not found" },
+                    { status: 404 }
+                )
+            }
+
+            const parentType = normalizeDocumentType(parentSession.document_type)
+
+            // Validate that this parent type is allowed for the child type
+            const childConfig = getDocumentTypeConfig(normalizedType)
+            if (childConfig && childConfig.validParentTypes.length > 0) {
+                if (!parentType || !childConfig.validParentTypes.includes(parentType)) {
+                    const allowed = childConfig.validParentTypes.join(", ")
+                    return NextResponse.json(
+                        {
+                            success: false,
+                            error: `Invalid parent type. ${childConfig.label} can only link to: ${allowed}. Parent is "${parentSession.document_type}".`,
+                        },
+                        { status: 400 }
+                    )
+                }
+            }
+
+            // Carry forward chain_id (or promote parent to chain root)
+            chainId = parentSession.chain_id || parentSession.id
+
+            // If parent doesn't have a chain_id yet, promote it to chain root
+            if (!parentSession.chain_id) {
+                await auth.supabase
+                    .from("document_sessions")
+                    .update({ chain_id: chainId })
+                    .eq("id", parentSession.id)
+            }
+
+            clientName = parentSession.client_name
+
+            const rawContext = parentSession.context
+            const rawParentCtx: Record<string, any> =
+                rawContext && typeof rawContext === "object" && !Array.isArray(rawContext)
+                    ? (rawContext as Record<string, any>)
+                    : {}
+
+            // Store parent_document_id in context for SOW, Change Order, Payment Follow-up
+            const typesWithParentRef: string[] = ["sow", "change_order", "payment_followup"]
+            if (typesWithParentRef.includes(normalizedType)) {
+                parentContext.parent_document_id = parentSession.id
+                parentContext._parentDocumentType = parentSession.document_type
+            }
+
+            // Auto-populate Payment Follow-up fields from linked invoice
+            if (normalizedType === "payment_followup" && parentType === "invoice") {
+                parentContext.linkedInvoiceId = parentSession.id
+                if (rawParentCtx.invoiceNumber) parentContext.invoiceNumber = rawParentCtx.invoiceNumber
+                if (rawParentCtx.total != null) parentContext.invoiceAmount = rawParentCtx.total
+                if (rawParentCtx.currency) parentContext.invoiceCurrency = rawParentCtx.currency
+                if (rawParentCtx.dueDate) parentContext.dueDate = rawParentCtx.dueDate
+                if (rawParentCtx.paymentLinkUrl) parentContext.paymentLinkUrl = rawParentCtx.paymentLinkUrl
+
+                // Compute days overdue if dueDate is available
+                if (rawParentCtx.dueDate) {
+                    const due = new Date(rawParentCtx.dueDate)
+                    const today = new Date()
+                    const msPerDay = 1000 * 60 * 60 * 24
+                    const daysOverdue = Math.floor((today.getTime() - due.getTime()) / msPerDay)
+                    parentContext.daysOverdue = Math.max(0, daysOverdue)
+                }
+            }
+
+            // Carry over client/from info for SOW context seeding
+            if (normalizedType === "sow") {
+                if (rawParentCtx.parentContractId == null) {
+                    parentContext.parentContractId = parentSession.id
+                }
+                if (rawParentCtx.toName) parentContext.toName = rawParentCtx.toName
+                if (rawParentCtx.toEmail) parentContext.toEmail = rawParentCtx.toEmail
+                if (rawParentCtx.toAddress) parentContext.toAddress = rawParentCtx.toAddress
+                if (rawParentCtx.fromName) parentContext.fromName = rawParentCtx.fromName
+                if (rawParentCtx.fromEmail) parentContext.fromEmail = rawParentCtx.fromEmail
+                if (rawParentCtx.fromAddress) parentContext.fromAddress = rawParentCtx.fromAddress
+            }
+
+            // Carry over client/from info for Change Order context seeding
+            if (normalizedType === "change_order") {
+                if (rawParentCtx.toName) parentContext.toName = rawParentCtx.toName
+                if (rawParentCtx.toEmail) parentContext.toEmail = rawParentCtx.toEmail
+                if (rawParentCtx.toAddress) parentContext.toAddress = rawParentCtx.toAddress
+                if (rawParentCtx.fromName) parentContext.fromName = rawParentCtx.fromName
+                if (rawParentCtx.fromEmail) parentContext.fromEmail = rawParentCtx.fromEmail
+                if (rawParentCtx.fromAddress) parentContext.fromAddress = rawParentCtx.fromAddress
+                if (rawParentCtx.currency) parentContext.currency = rawParentCtx.currency
+                // Store parent doc type for schema validation (sow | contract)
+                if (parentType === "sow" || parentType === "contract") {
+                    parentContext.parentDocumentType = parentType
+                }
+            }
+        }
+
         // Deduplication: prevent duplicate sessions created within 5 seconds
         // (handles React StrictMode double-invocation and fast re-renders)
         // Skip deduplication if forceNew is explicitly set (e.g. "New conversation" button)
-        if (!body.forceNew) {
+        // Also skip deduplication when creating linked sessions (parent reference provided)
+        if (!body.forceNew && !body.parentSessionId) {
             const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString()
             const { data: recentSession } = await auth.supabase
                 .from("document_sessions")
                 .select("id, document_type, status, created_at")
                 .eq("user_id", auth.user.id)
-                .eq("document_type", body.documentType)
+                .eq("document_type", normalizedType)
                 .eq("status", "active")
                 .gte("created_at", fiveSecondsAgo)
                 .order("created_at", { ascending: false })
@@ -95,9 +221,11 @@ export async function POST(request: NextRequest) {
             .from("document_sessions")
             .insert({
                 user_id: auth.user.id,
-                document_type: body.documentType,
+                document_type: normalizedType,
                 status: "active",
-                context: {},
+                context: parentContext,
+                ...(chainId ? { chain_id: chainId } : {}),
+                ...(clientName ? { client_name: clientName } : {}),
             })
             .select()
             .single()
@@ -111,7 +239,7 @@ export async function POST(request: NextRequest) {
                     .from("document_sessions")
                     .select("id, document_type, status, created_at")
                     .eq("user_id", auth.user.id)
-                    .eq("document_type", body.documentType)
+                    .eq("document_type", normalizedType)
                     .eq("status", "active")
                     .order("created_at", { ascending: false })
                     .limit(1)
@@ -134,6 +262,21 @@ export async function POST(request: NextRequest) {
                 { success: false, error: "Failed to create session" },
                 { status: 500 }
             )
+        }
+
+        // If there's a parent session, create a document link record and increment document count
+        if (body.parentSessionId) {
+            const { error: linkError } = await auth.supabase
+                .from("document_links")
+                .insert({
+                    parent_session_id: body.parentSessionId,
+                    child_session_id: newSession.id,
+                    relationship: "derived_from",
+                })
+            if (linkError) {
+                console.error("Failed to create document link:", linkError)
+                // Non-fatal — session was created, link is supplementary
+            }
         }
 
         // NOTE: Document count is NOT incremented here — it's incremented in /api/ai/stream
@@ -160,6 +303,7 @@ export async function POST(request: NextRequest) {
                 documentType: newSession.document_type,
                 status: newSession.status,
                 createdAt: newSession.created_at,
+                ...(chainId ? { chainId } : {}),
             }
         })
 

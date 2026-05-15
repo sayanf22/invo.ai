@@ -44,6 +44,7 @@ async function generatePdfBlob(data: InvoiceData, paymentQrCode?: string | null)
   let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }>
   switch (docType) {
     case "contract": PdfComponent = templates.ContractPDF; break
+    case "quote":
     case "quotation": PdfComponent = templates.QuotationPDF; break
     case "proposal": PdfComponent = templates.ProposalPDF; break
     case "receipt": PdfComponent = templates.ReceiptPDF; break
@@ -127,7 +128,7 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
     const type = docType.charAt(0).toUpperCase() + docType.slice(1)
     const isContract = docType.toLowerCase() === "contract"
     const isProposal = docType.toLowerCase() === "proposal"
-    const isQuotation = docType.toLowerCase() === "quotation"
+    const isQuotation = docType.toLowerCase() === "quotation" || docType.toLowerCase() === "quote"
 
     // Use correct reference number — contracts/proposals use referenceNumber, not invoiceNumber
     const ref = (isContract || isProposal || isQuotation)

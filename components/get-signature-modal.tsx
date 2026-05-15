@@ -6,6 +6,23 @@ import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import { SenderSignFirstModal } from "@/components/sender-sign-first-modal"
 
+/**
+ * Get type-specific party labels for the signature block.
+ * - NDA: "Disclosing Party" / "Receiving Party"
+ * - SOW / Change Order: "Client" / "Provider"
+ * - Contract and others: "Party A" / "Party B"
+ */
+function getSignaturePartyLabels(documentType: string): { partyA: string; partyB: string } {
+  const type = documentType.toLowerCase()
+  if (type === "nda") {
+    return { partyA: "Disclosing Party", partyB: "Receiving Party" }
+  }
+  if (type === "sow" || type === "change_order") {
+    return { partyA: "Client", partyB: "Provider" }
+  }
+  return { partyA: "Party A", partyB: "Party B" }
+}
+
 interface GetSignatureModalProps {
   sessionId: string
   documentType: string
@@ -75,6 +92,9 @@ export function GetSignatureModal({
       .catch(() => {})
   }, [open, documentType, sessionId])
 
+  // Type-specific party labels for the signing request
+  const { partyB: signerPartyLabel } = getSignaturePartyLabels(documentType)
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -88,7 +108,7 @@ export function GetSignatureModal({
           sessionId,
           signerEmail: signerEmail.trim(),
           signerName: signerName.trim(),
-          party: "Client",
+          party: signerPartyLabel,
           personalMessage: personalMessage.trim() || undefined,
         }),
       })

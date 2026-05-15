@@ -104,7 +104,7 @@ export function ChatSendCard({
   }, [hasAnyGateway, gatewayLoading])
 
   const isInvoice = documentType.toLowerCase() === "invoice"
-  const isSignable = ["contract", "quotation", "proposal"].includes(documentType.toLowerCase())
+  const isSignable = ["contract", "quote", "quotation", "proposal"].includes(documentType.toLowerCase())
   const isContract = documentType.toLowerCase() === "contract"
   const isPaidTier = userTier !== "free"
   const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
@@ -180,7 +180,7 @@ export function ChatSendCard({
     setIsSending(true)
     setError(null)
     try {
-      const supportsSignatures = ["contract", "quotation", "proposal"].includes(documentType.toLowerCase())
+      const supportsSignatures = ["contract", "quote", "quotation", "proposal"].includes(documentType.toLowerCase())
 
       // For signature-supporting documents, create a signature request first
       if (supportsSignatures) {
