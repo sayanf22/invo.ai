@@ -154,6 +154,7 @@ export function PromptScreen({
     onChainSessionSelect: handleSessionSelect,
     onMessageCountChange: setMessageCount,
     onLockDocument: () => setInvoiceLocked(true),
+    onUnlockDocument: () => setInvoiceLocked(false),
     onPaymentLinkCancelled: paymentLinkCancelledAt > 0 ? cancelledSignal : undefined,
     onSaveContext: handleSaveContextReady,
     initialPrompt,

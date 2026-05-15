@@ -256,13 +256,14 @@ interface InvoiceChatProps {
     onChainSessionSelect?: (sessionId: string) => void
     onMessageCountChange?: (count: number) => void
     onLockDocument?: () => void
+    onUnlockDocument?: () => void
     onPaymentLinkCancelled?: () => void
     initialPrompt?: string
     /** Called once the session is ready with a function to persist context to DB */
     onSaveContext?: (saveFn: (data: InvoiceData) => Promise<void>) => void
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onPaymentLinkCancelled, initialPrompt, onSaveContext }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, initialPrompt, onSaveContext }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
 
     // Hook handles session init + switching when selectedSessionId changes
@@ -1910,6 +1911,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                                             toast.success("Document unlocked")
                                                             // Update session status locally to remove the banner immediately
                                                             updateSessionStatus("active")
+                                                            // Notify parent (prompt-screen) to clear invoiceLocked so toolbar updates
+                                                            onUnlockDocument?.()
                                                         } else {
                                                             const err = await res.json()
                                                             setMessages(prev => prev.map((m, i) =>
