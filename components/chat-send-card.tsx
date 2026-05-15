@@ -91,8 +91,35 @@ export function ChatSendCard({
   const [showSignFirst, setShowSignFirst] = useState(false)
   // Track if sender already self-signed (skip modal if so)
   const [senderAlreadySigned, setSenderAlreadySigned] = useState(false)
-  // Track if sender has a saved signature on their profile (skip draw step)
+  // Track if sender has a saved signature on their profile (auto-sign without modal)
   const [hasSavedSignature, setHasSavedSignature] = useState(false)
+  const [isAutoSigning, setIsAutoSigning] = useState(false)
+
+  // Auto-sign using saved profile signature — no modal needed
+  const autoSignWithSaved = useCallback(async () => {
+    if (isAutoSigning) return
+    setIsAutoSigning(true)
+    setError(null)
+    try {
+      const res = await authFetch("/api/signatures/self-sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, useSaved: true }),
+      })
+      if (res.ok || res.status === 409) {
+        // Signed successfully (409 = already signed) — proceed to send
+        setSenderAlreadySigned(true)
+        await handleSend()
+      } else {
+        // Auto-sign failed — fall back to showing the modal
+        setIsAutoSigning(false)
+        setShowSignFirst(true)
+      }
+    } catch {
+      setIsAutoSigning(false)
+      setShowSignFirst(true)
+    }
+  }, [isAutoSigning, sessionId])
 
   // Default includePayment to true ONLY if user has a gateway connected
   useEffect(() => {
@@ -592,17 +619,23 @@ export function ChatSendCard({
 
             <button
               onClick={() => {
-                // For contracts: show sign-first prompt before sending (unless already signed)
+                // For contracts: if already signed, just send.
+                // If user has a saved signature, auto-sign silently (no modal).
+                // Otherwise, show the sign-first modal to draw a signature.
                 if (isContract && !senderAlreadySigned) {
-                  setShowSignFirst(true)
+                  if (hasSavedSignature) {
+                    autoSignWithSaved()
+                  } else {
+                    setShowSignFirst(true)
+                  }
                 } else {
                   handleSend()
                 }
               }}
-              disabled={isSending || isGeneratingMsg}
+              disabled={isSending || isGeneratingMsg || isAutoSigning}
               className="w-full h-11 rounded-2xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20">
-              {isSending
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
+              {(isSending || isAutoSigning)
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> {isAutoSigning ? "Signing…" : "Sending…"}</>
                 : <><Send className="w-4 h-4" /> {actionLabel}</>
               }
             </button>

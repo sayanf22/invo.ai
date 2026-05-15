@@ -75,8 +75,32 @@ export function GetSignatureModal({
   const [showSignFirst, setShowSignFirst] = useState(false)
   // Track if sender already self-signed
   const [senderAlreadySigned, setSenderAlreadySigned] = useState(false)
-  // Track if sender has a saved signature on their profile
+  // Track if sender has a saved signature on their profile (auto-sign without modal)
   const [hasSavedSignature, setHasSavedSignature] = useState(false)
+  const [isAutoSigning, setIsAutoSigning] = useState(false)
+
+  // Auto-sign silently using saved profile signature — no modal
+  async function autoSignWithSaved(afterSignCallback: () => void) {
+    setIsAutoSigning(true)
+    try {
+      const res = await authFetch("/api/signatures/self-sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, useSaved: true }),
+      })
+      if (res.ok || res.status === 409) {
+        setSenderAlreadySigned(true)
+        afterSignCallback()
+      } else {
+        // Auto-sign failed — fall back to modal
+        setIsAutoSigning(false)
+        setShowSignFirst(true)
+      }
+    } catch {
+      setIsAutoSigning(false)
+      setShowSignFirst(true)
+    }
+  }
 
   // Check if sender already self-signed AND if they have a saved profile signature
   useEffect(() => {
@@ -338,20 +362,27 @@ export function GetSignatureModal({
               <button
                 type="submit"
                 form="signature-form"
-                disabled={!canSubmit}
+                disabled={!canSubmit || isAutoSigning}
                 onClick={(e) => {
-                  // For contracts: show sign-first prompt before sending (unless already signed)
+                  // For contracts: if already signed, submit directly.
+                  // If saved signature exists, auto-sign silently.
+                  // Otherwise show modal to draw signature.
                   if (documentType.toLowerCase() === "contract" && !senderAlreadySigned) {
                     e.preventDefault()
-                    if (canSubmit) setShowSignFirst(true)
+                    if (!canSubmit) return
+                    if (hasSavedSignature) {
+                      autoSignWithSaved(() => handleSubmit({ preventDefault: () => {} } as any))
+                    } else {
+                      setShowSignFirst(true)
+                    }
                   } else {
                     handleSubmit(e as any)
                   }
                 }}
                 className="w-full h-11 rounded-xl bg-foreground text-background text-sm font-semibold transition-all duration-200 hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {loading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
+                {(loading || isAutoSigning) ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> {isAutoSigning ? "Signing…" : "Sending..."}</>
                 ) : (
                   <><PenLine className="w-4 h-4" /> Send Signing Request</>
                 )}
