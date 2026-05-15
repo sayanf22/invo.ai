@@ -66,31 +66,19 @@ export async function POST(request: NextRequest) {
     const dueDateText = safeDueDate ? `, due ${safeDueDate}` : ""
     const itemsSummary = safeItems.filter(Boolean).join(", ")
 
-    const systemPrompt = `You are a professional business email writer. Write concise, warm, and professional email body text for sending business documents to clients. 
+    const systemPrompt = `You are a professional business email writer. Write a SHORT, concise email body for sending business documents.
 
 Rules:
-- Write in plain text only (no markdown, no HTML)
-- Keep it 3-5 short paragraphs
-- Be professional but friendly
-- Include a clear call to action
-- End with a warm sign-off using the sender's name
+- Plain text only (no markdown, no HTML, no asterisks)
+- Maximum 3 sentences total
+- Greeting + 1-2 sentences about the document + sign-off
+- Be warm and professional, not overly formal
 - Do NOT include a subject line
-- Do NOT use placeholder text like [name] — use the actual names provided
-- If client name is unknown, use a generic greeting like "Hi there,"
-- Keep total length under 300 words`
+- Do NOT use placeholder text — use the actual names provided
+- Do NOT explain the document contents in detail
+- Sign off with the sender's first name or business name only`
 
-    const userPrompt = `Write a professional email body for sending a ${docLabel}${refText}${amountText}${dueDateText} to ${safeClientName || "the client"}.
-
-Context:
-- Document type: ${docLabel}
-- Reference: ${safeRef || "N/A"}
-- Amount: ${safeAmount ? `${safeCurrency} ${safeAmount}`.trim() : "not specified"}
-- Due date: ${safeDueDate || "not specified"}
-- Services/items: ${itemsSummary || safeDescription || "as per the document"}
-- Sender name: ${safeSenderName || "the business"}
-- Client name: ${safeClientName || "not specified"}
-
-Write the email body text only. Start directly with the greeting.`
+    const userPrompt = `Write a short 3-sentence email for sending a ${docLabel}${refText} to ${safeClientName || "the client"} from ${safeSenderName || "the business"}.`
 
     const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",
@@ -104,7 +92,7 @@ Write the email body text only. Start directly with the greeting.`
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 400,
+        max_tokens: 120,
         temperature: 0.7,
         stream: false,
       }),

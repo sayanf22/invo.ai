@@ -82,19 +82,23 @@ function getDocumentType(signature: SignatureData): string {
 
 // ── Inline PDF Viewer for signing page ───────────────────────────────────────
 // Renders the actual document PDF so the signer can read what they're signing.
-// Uses the same PDF templates as the rest of the app.
+// Supports zoom in/out and fullscreen mode.
 
 const PDF_OPTIONS = { standardFontDataUrl: "/standard_fonts/", cMapUrl: "/cmaps/", cMapPacked: true } as const
 
 function SigningDocumentPreview({ context, documentType }: { context: any; documentType: string | null }) {
     const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
     const [rendering, setRendering] = useState(false)
-    const [open, setOpen] = useState(false) // collapsed by default on mobile
+    const [open, setOpen] = useState(false)
+    const [fullscreen, setFullscreen] = useState(false)
+    const [zoom, setZoom] = useState(1.0)
     const [ViewerComponents, setViewerComponents] = useState<{ Document: any; Page: any } | null>(null)
     const [numPages, setNumPages] = useState(0)
     const containerRef = useRef<HTMLDivElement>(null)
     const [containerWidth, setContainerWidth] = useState(0)
     const optionsRef = useRef(PDF_OPTIONS)
+
+    const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
     // Load react-pdf viewer
     useEffect(() => {
@@ -114,7 +118,7 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
         obs.observe(el)
         setContainerWidth(el.clientWidth)
         return () => obs.disconnect()
-    }, [])
+    }, [open, fullscreen])
 
     // Generate PDF when context is available and panel is opened
     useEffect(() => {
@@ -153,10 +157,130 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
         return () => { cancelled = true }
     }, [context, documentType, open])
 
+    // Close fullscreen on Escape
+    useEffect(() => {
+        if (!fullscreen) return
+        const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false) }
+        document.addEventListener("keydown", handler)
+        return () => document.removeEventListener("keydown", handler)
+    }, [fullscreen])
+
     const fileData = useMemo(() => pdfBytes ? { data: pdfBytes.slice() } : null, [pdfBytes])
-    const pageWidth = containerWidth > 0 ? Math.min(containerWidth - 16, 560) : 400
+
+    // Base page width before zoom
+    const basePageWidth = fullscreen
+        ? Math.min((typeof window !== "undefined" ? window.innerWidth : 800) - 48, 680)
+        : containerWidth > 0 ? Math.min(containerWidth - 24, 520) : 400
+    const pageWidth = Math.round(basePageWidth * zoom)
 
     if (!context) return null
+
+    const viewerContent = (
+        <div
+            ref={containerRef}
+            className="bg-neutral-100 dark:bg-neutral-900 overflow-auto"
+            style={{ maxHeight: fullscreen ? "calc(100vh - 120px)" : "72vh" }}
+        >
+            {rendering && (
+                <div className="flex items-center justify-center py-12">
+                    <div className="flex items-center gap-2.5 bg-card px-4 py-2.5 rounded-xl shadow border border-border/60">
+                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                        <span className="text-sm text-muted-foreground">Loading document...</span>
+                    </div>
+                </div>
+            )}
+            {fileData && ViewerComponents && !rendering && (
+                <div className="flex flex-col items-center gap-4 py-4 px-3">
+                    <ViewerComponents.Document
+                        file={fileData}
+                        onLoadSuccess={({ numPages: n }: { numPages: number }) => setNumPages(n)}
+                        options={optionsRef.current}
+                        loading={
+                            <div className="flex justify-center py-12">
+                                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                            </div>
+                        }
+                    >
+                        {Array.from({ length: numPages }, (_, i) => (
+                            <div key={i} className="shadow-lg rounded-lg overflow-hidden bg-white mb-4">
+                                <ViewerComponents.Page
+                                    pageNumber={i + 1}
+                                    width={pageWidth}
+                                    renderTextLayer={false}
+                                    renderAnnotationLayer={false}
+                                />
+                            </div>
+                        ))}
+                    </ViewerComponents.Document>
+                </div>
+            )}
+        </div>
+    )
+
+    // Fullscreen overlay
+    if (fullscreen) {
+        return (
+            <div className="fixed inset-0 z-50 bg-background flex flex-col">
+                {/* Fullscreen toolbar */}
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card shrink-0 gap-3">
+                    <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-semibold">View Document</span>
+                        {numPages > 0 && <span className="text-xs text-muted-foreground">{numPages} page{numPages > 1 ? "s" : ""}</span>}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            type="button"
+                            onClick={() => setZoom(z => { const i = ZOOM_STEPS.indexOf(z); return i > 0 ? ZOOM_STEPS[i - 1] : z })}
+                            disabled={zoom <= ZOOM_STEPS[0]}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-40 transition-colors text-lg font-semibold"
+                            aria-label="Zoom out"
+                        >−</button>
+                        <span className="text-xs font-medium text-muted-foreground min-w-[3ch] text-center">{Math.round(zoom * 100)}%</span>
+                        <button
+                            type="button"
+                            onClick={() => setZoom(z => { const i = ZOOM_STEPS.indexOf(z); return i < ZOOM_STEPS.length - 1 ? ZOOM_STEPS[i + 1] : z })}
+                            disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-40 transition-colors text-lg font-semibold"
+                            aria-label="Zoom in"
+                        >+</button>
+                        <button
+                            type="button"
+                            onClick={() => setFullscreen(false)}
+                            className="ml-2 px-3 h-8 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                            aria-label="Close fullscreen"
+                        >Done</button>
+                    </div>
+                </div>
+                <div className="flex-1 overflow-auto bg-neutral-100 dark:bg-neutral-900 p-4">
+                    {rendering && (
+                        <div className="flex items-center justify-center py-12">
+                            <div className="flex items-center gap-2.5 bg-card px-4 py-2.5 rounded-xl shadow border border-border/60">
+                                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                                <span className="text-sm text-muted-foreground">Loading document...</span>
+                            </div>
+                        </div>
+                    )}
+                    {fileData && ViewerComponents && !rendering && (
+                        <div className="flex flex-col items-center gap-4">
+                            <ViewerComponents.Document
+                                file={fileData}
+                                onLoadSuccess={({ numPages: n }: { numPages: number }) => setNumPages(n)}
+                                options={optionsRef.current}
+                                loading={<div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>}
+                            >
+                                {Array.from({ length: numPages }, (_, i) => (
+                                    <div key={i} className="shadow-lg rounded-lg overflow-hidden bg-white mb-4">
+                                        <ViewerComponents.Page pageNumber={i + 1} width={pageWidth} renderTextLayer={false} renderAnnotationLayer={false} />
+                                    </div>
+                                ))}
+                            </ViewerComponents.Document>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="rounded-xl border border-border overflow-hidden">
@@ -174,43 +298,38 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
                 <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
             </button>
 
-            {/* PDF content */}
+            {/* PDF content + toolbar */}
             {open && (
-                <div ref={containerRef} className="bg-neutral-100 dark:bg-neutral-900 overflow-auto max-h-[70vh]">
-                    {rendering && (
-                        <div className="flex items-center justify-center py-12">
-                            <div className="flex items-center gap-2.5 bg-card px-4 py-2.5 rounded-xl shadow border border-border/60">
-                                <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                                <span className="text-sm text-muted-foreground">Loading document...</span>
-                            </div>
+                <>
+                    {/* Mini toolbar: zoom + fullscreen */}
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/60 bg-muted/20">
+                        <div className="flex items-center gap-1">
+                            <button
+                                type="button"
+                                onClick={() => setZoom(z => { const i = ZOOM_STEPS.indexOf(z); return i > 0 ? ZOOM_STEPS[i - 1] : z })}
+                                disabled={zoom <= ZOOM_STEPS[0]}
+                                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-40 transition-colors text-base font-semibold"
+                                aria-label="Zoom out"
+                            >−</button>
+                            <span className="text-[11px] font-medium text-muted-foreground w-8 text-center">{Math.round(zoom * 100)}%</span>
+                            <button
+                                type="button"
+                                onClick={() => setZoom(z => { const i = ZOOM_STEPS.indexOf(z); return i < ZOOM_STEPS.length - 1 ? ZOOM_STEPS[i + 1] : z })}
+                                disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+                                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-40 transition-colors text-base font-semibold"
+                                aria-label="Zoom in"
+                            >+</button>
                         </div>
-                    )}
-                    {fileData && ViewerComponents && !rendering && (
-                        <div className="flex flex-col items-center gap-4 py-4 px-2">
-                            <ViewerComponents.Document
-                                file={fileData}
-                                onLoadSuccess={({ numPages: n }: { numPages: number }) => setNumPages(n)}
-                                options={optionsRef.current}
-                                loading={
-                                    <div className="flex justify-center py-12">
-                                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                                    </div>
-                                }
-                            >
-                                {Array.from({ length: numPages }, (_, i) => (
-                                    <div key={i} className="shadow-lg rounded-lg overflow-hidden bg-white mb-4">
-                                        <ViewerComponents.Page
-                                            pageNumber={i + 1}
-                                            width={pageWidth}
-                                            renderTextLayer={false}
-                                            renderAnnotationLayer={false}
-                                        />
-                                    </div>
-                                ))}
-                            </ViewerComponents.Document>
-                        </div>
-                    )}
-                </div>
+                        <button
+                            type="button"
+                            onClick={() => setFullscreen(true)}
+                            className="text-[11px] font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted/60 transition-colors"
+                        >
+                            Full screen
+                        </button>
+                    </div>
+                    {viewerContent}
+                </>
             )}
         </div>
     )

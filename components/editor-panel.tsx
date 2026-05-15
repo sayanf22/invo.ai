@@ -1794,35 +1794,6 @@ function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps)
             </div>
           </Step>
         )}
-
-        {/* ═══ Validate before export ═══ */}
-        {!isPaid && (
-          <div className="px-1 pb-2">
-            <button
-              type="button"
-              onClick={() => {
-                const missing = validateDocumentForExport(data)
-                if (missing.length > 0) {
-                  toast.error(
-                    `Missing required fields:\n${missing.slice(0, 5).join(", ")}${missing.length > 5 ? ` (+${missing.length - 5} more)` : ""}`,
-                    {
-                      description: missing.length > 1
-                        ? `Please fill in all required fields before exporting.`
-                        : undefined,
-                      duration: 5000,
-                    }
-                  )
-                } else {
-                  toast.success("All required fields are complete. Use the Download PDF button to export.")
-                }
-              }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-secondary/40 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
-            >
-              <Check className="w-4 h-4 text-primary" />
-              Validate before export
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )
@@ -1976,32 +1947,9 @@ function TypedEditorShell({
 }
 
 function ValidateBeforeExportButton({ data, isPaid }: { data: InvoiceData; isPaid: boolean }) {
-  if (isPaid) return null
-  return (
-    <div className="px-1 pb-2">
-      <button
-        type="button"
-        onClick={() => {
-          const missing = validateDocumentForExport(data)
-          if (missing.length > 0) {
-            toast.error(
-              `Missing required fields:\n${missing.slice(0, 5).join(", ")}${missing.length > 5 ? ` (+${missing.length - 5} more)` : ""}`,
-              {
-                description: missing.length > 1 ? "Please fill in all required fields before exporting." : undefined,
-                duration: 5000,
-              }
-            )
-          } else {
-            toast.success("All required fields are complete. Use the Download PDF button to export.")
-          }
-        }}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-secondary/40 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
-      >
-        <Check className="w-4 h-4 text-primary" />
-        Validate before export
-      </button>
-    </div>
-  )
+  // Removed: "Validate before export" was confusing jargon.
+  // Validation now happens inline when the user clicks Download.
+  return null
 }
 
 // ─── 14.1 SOW Editor ──────────────────────────────────────────────────────────
