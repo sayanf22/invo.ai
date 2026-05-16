@@ -36,7 +36,7 @@ const stats = [
     {
         label: "Document types supported",
         detail: "All your business needs, one platform",
-        value: 12,
+        value: 9,
         suffix: "",
         duration: 1.5,
         bg: "bg-[#C9BDA8]",

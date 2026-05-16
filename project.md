@@ -1,6 +1,6 @@
 # Clorefy (Invo.ai) — Complete Project Reference
 
-AI-powered document generation platform. Create compliant invoices, contracts, quotations, and proposals for 11 countries through natural conversation.
+AI-powered document generation platform. Create compliant invoices, contracts, quotations, and proposals for businesses worldwide through natural conversation.
 
 ---
 
