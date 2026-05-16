@@ -134,8 +134,8 @@ import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
 // Matches explicit email sending: "email to", "send via email", "mail to", or has an email address
 const EMAIL_SEND_REGEX = /\b(email\s+to\b|mail\s+to\b|send\s+(via|through|by)\s+email|forward\s+(via|through|by)\s+email)\b/i
-// Matches generic send: "send it", "send this", "send the invoice", "send to John", "deliver to"
-const GENERIC_SEND_REGEX = /\b(send\s+(it|this|the\s+\w+|to\b)|deliver\s+to\b|forward\s+to\b|dispatch\s+to\b)\b/i
+// Matches generic send: "send it", "send this", "send the invoice", "send to John", "deliver to", or bare "send" / "send via email"
+const GENERIC_SEND_REGEX = /\b(send\s+(it|this|the\s+\w+|to\b|via\s+email)|deliver\s+to\b|forward\s+to\b|dispatch\s+to\b|^send$)\b/i
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
 
 // Non-send email contexts — reject if these match
@@ -844,7 +844,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         // Catch "cancel the send", "undo send", "unlock", "make it editable" etc.
         // directly before the API call so the unlock card shows immediately.
         if (documentGenerated && session && (session.status === "finalized" || session.status === "signed")) {
-            const CANCEL_SEND_REGEX = /\b(cancel|undo|revert|revoke|unsend)\s*(the\s*)?(send|sent|delivery|email|sharing)|unlock\s*(the\s*)?(document|invoice|contract|quotation|proposal|this)|make\s*(it\s*)?(editable|edit\s*again)|edit\s*again|can\s*(i|we)\s*edit/i
+            const CANCEL_SEND_REGEX = /\b(cancel|undo|revert|revoke|unsend)\s*(the\s*)?(send|sent|delivery|email|sharing|link|payment\s*link)|unlock\s*(the\s*)?(document|invoice|contract|quotation|proposal|this)|make\s*(it\s*)?(editable|edit\s*again)|edit\s*again|can\s*(i|we)\s*edit/i
             if (CANCEL_SEND_REGEX.test(userMessage)) {
                 setInputValue("")
                 if (session.status === "signed") {
@@ -1960,7 +1960,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     documentType={docType}
                                     detectedEmail={msg.sendCard.email}
                                     onDismiss={() => setMessages(prev => prev.filter((_, i) => i !== idx))}
-                                    onLockDocument={onLockDocument}
+                                    onLockDocument={() => {
+                                        // Notify parent to lock the document and immediately update
+                                        // the DocumentPreview's lock state without waiting for a DB fetch
+                                        onLockDocument?.()
+                                        onDocumentStatusChange?.("finalized")
+                                        updateSessionStatus("finalized")
+                                    }}
                                     onSent={() => {
                                         // Card handles its own sent state
                                     }}

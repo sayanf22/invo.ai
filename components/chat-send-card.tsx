@@ -98,6 +98,8 @@ export function ChatSendCard({
   const emailRef = useRef<HTMLInputElement>(null)
   // Sign-first modal — shown before sending a contract
   const [showSignFirst, setShowSignFirst] = useState(false)
+  // Lock confirmation — shown before sending any document (warns it will be locked)
+  const [showLockConfirm, setShowLockConfirm] = useState(false)
   // Track if sender already self-signed (skip modal if so)
   const [senderAlreadySigned, setSenderAlreadySigned] = useState(false)
   // Track if sender has a saved signature on their profile (auto-sign without modal)
@@ -640,20 +642,8 @@ export function ChatSendCard({
 
             <button
               onClick={() => {
-                // For contracts: if already signed, just send.
-                // If signature fields are turned off, skip signing entirely.
-                // If user has a saved signature, auto-sign silently (no modal).
-                // Otherwise, show the sign-first modal to draw a signature.
-                const signFieldsOn = invoiceData.showSignatureFields !== false
-                if (isContract && !senderAlreadySigned && signFieldsOn) {
-                  if (hasSavedSignature) {
-                    autoSignWithSaved()
-                  } else {
-                    setShowSignFirst(true)
-                  }
-                } else {
-                  handleSend()
-                }
+                // Step 1: Show lock confirmation dialog before any signing or sending
+                setShowLockConfirm(true)
               }}
               disabled={isSending || isGeneratingMsg || isAutoSigning}
               className="w-full h-11 rounded-2xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20">
@@ -662,6 +652,51 @@ export function ChatSendCard({
                 : <><Send className="w-4 h-4" /> {actionLabel}</>
               }
             </button>
+
+            {/* Lock confirmation inline dialog */}
+            {showLockConfirm && (
+              <div className="rounded-2xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <div className="flex items-start gap-2.5">
+                  <span className="text-lg leading-none mt-0.5">🔒</span>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Document will be locked</p>
+                    <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">
+                      Once sent, the document will be locked for editing. You can still unlock it from the chat if you need to make changes.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowLockConfirm(false)}
+                    className="flex-1 py-2 rounded-xl text-sm font-semibold border border-border/60 bg-background hover:bg-muted/40 transition-colors active:scale-[0.98]"
+                  >
+                    Go back
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSending || isAutoSigning}
+                    onClick={() => {
+                      setShowLockConfirm(false)
+                      // Now proceed with signing flow or direct send
+                      const signFieldsOn = invoiceData.showSignatureFields !== false
+                      if (isContract && !senderAlreadySigned && signFieldsOn) {
+                        if (hasSavedSignature) {
+                          autoSignWithSaved()
+                        } else {
+                          setShowSignFirst(true)
+                        }
+                      } else {
+                        handleSend()
+                      }
+                    }}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-bold bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50"
+                  >
+                    <Send className="w-3.5 h-3.5" /> Confirm & Send
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
