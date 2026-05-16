@@ -1251,7 +1251,21 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             // Phase 3: Parse the complete response
             // Prefer backend's cleaned data, fall back to our accumulated content
             let cleaned = (completeData || fullContent).trim()
-            
+
+            // ── Strip stray ACTION markers BEFORE JSON detection ──────────────
+            // The AI sometimes emits action markers like [ACTION:UNLOCK_DOCUMENT]
+            // followed by a chat message AND a full document JSON. We need to
+            // strip these markers FIRST so the JSON parsing below still works.
+            //
+            // For unlock specifically: if the AI hallucinated the marker on a
+            // fresh/active session, strip it so the JSON below still parses.
+            // For genuinely locked documents, the post-parse handler will
+            // detect it and show the unlock card.
+            const isActuallyLocked = session && (session.status === "finalized" || session.status === "signed")
+            if (cleaned.startsWith("[ACTION:UNLOCK_DOCUMENT]") && !isActuallyLocked) {
+                cleaned = cleaned.replace("[ACTION:UNLOCK_DOCUMENT]", "").trim()
+            }
+
             // Strip markdown code fences — handle both "starts with" and "embedded" patterns
             // Pattern 1: Response starts with ```json
             if (cleaned.startsWith("```json")) {
