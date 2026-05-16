@@ -48,11 +48,19 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Cancellation guard ──
-    // If the document is currently in "active" status (= owner unlocked/cancelled it
-    // after sending), all signing requests have been cancelled. The public link
-    // should also be invalidated until the doc is re-sent.
-    // Exception: if status is "signed" or "paid" or "finalized", the doc is still valid
-    // because those are end-states that shouldn't be silently revoked.
+    // Two cancellation paths exist:
+    //   1. Owner clicks "Unlock" via chat → status returns to "active"
+    //   2. Owner clicks "Cancel" via document preview → status becomes "cancelled"
+    // Both should immediately revoke public access — this matches the industry
+    // standard set by DocuSign / Adobe Sign / HelloSign where voiding a document
+    // makes the link null and renders the document unavailable to recipients.
+    // Exception: end-states "signed" and "paid" are NEVER revoked (legally binding).
+    if (session.status === "cancelled") {
+        return NextResponse.json(
+            { error: "This document is no longer available. The owner has cancelled it.", cancelled: true },
+            { status: 410 }
+        )
+    }
     if (session.status === "active" && session.sent_at) {
       // Owner unlocked after sending — public link is now dead
       return NextResponse.json(

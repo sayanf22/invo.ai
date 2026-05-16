@@ -331,6 +331,10 @@ export default function ViewDocumentPage() {
   const [payment, setPayment] = useState<PaymentInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelled, setCancelled] = useState(false)
+  // True only when the viewer is the authenticated owner of this document.
+  // Recipients (clients) get a stripped-down view: no Share button, no toolbar
+  // controls that imply ownership. Mirrors DocuSign/Adobe Sign best practice.
+  const [isOwner, setIsOwner] = useState(false)
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [rendering, setRendering] = useState(false)
   const [zoom, setZoom] = useState(typeof window !== "undefined" && window.innerWidth < 640 ? 75 : 100)
@@ -374,12 +378,20 @@ export default function ViewDocumentPage() {
             // Cancellation guard for owner-side viewing too: if the session
             // was unlocked/cancelled after sending, treat the share link as
             // dead (the owner explicitly chose to cancel pending shares).
+            // Also block explicit "cancelled" status — both end up the same.
+            if ((session as any).status === "cancelled") {
+              setCancelled(true)
+              setLoading(false)
+              return
+            }
             if ((session as any).status === "active" && (session as any).sent_at) {
               setCancelled(true)
               setLoading(false)
               return
             }
 
+            // Authenticated owner view — show full toolbar (Share, etc.)
+            setIsOwner(true)
             setDocData(session.context as unknown as InvoiceData)
 
             // Load payment info — only active/paid (not cancelled/expired)
@@ -692,13 +704,18 @@ export default function ViewDocumentPage() {
 
           {/* Actions */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => setShowShare(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-sm font-medium hover:bg-muted/50 transition-colors"
-            >
-              <Share2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Share</span>
-            </button>
+            {/* Share button is owner-only — recipients shouldn't be able to
+                forward someone else's document. Mirrors DocuSign behavior:
+                only the sender can re-share a sent envelope. */}
+            {isOwner && (
+              <button
+                onClick={() => setShowShare(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-sm font-medium hover:bg-muted/50 transition-colors"
+              >
+                <Share2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Share</span>
+              </button>
+            )}
             <button
               onClick={handleDownload}
               disabled={downloading || rendering}

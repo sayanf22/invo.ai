@@ -48,9 +48,13 @@ export default async function PayPage({ params }: PageProps) {
   }
 
   // ── Cancellation guard ──
-  // If the document was unlocked/cancelled by the owner after sending,
-  // session.status returns to "active". The pay link should be invalidated
-  // until the owner re-sends. Paid documents stay accessible.
+  // Two paths cancel a document:
+  //   1. Owner unlocks via chat → status returns to "active" (with sent_at intact)
+  //   2. Owner cancels via document preview → status becomes "cancelled"
+  // Both should invalidate the pay link. End-states (signed/paid) are NEVER revoked.
+  if (session.status === "cancelled") {
+    return <PayDocumentView docData={null} payment={null} cancelled />
+  }
   if (session.status === "active" && session.sent_at) {
     return <PayDocumentView docData={null} payment={null} cancelled />
   }
