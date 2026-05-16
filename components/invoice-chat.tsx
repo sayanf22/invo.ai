@@ -2083,7 +2083,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                         ))
                                     }}
                                     onDismiss={() => setMessages(prev => prev.filter((_, i) => i !== idx))}
-                                    onLockDocument={onLockDocument}
+                                    onLockDocument={() => {
+                                        // Full sync: update all three state atoms so they agree
+                                        onLockDocument?.()
+                                        onDocumentStatusChange?.("finalized")
+                                        updateSessionStatus("finalized")
+                                    }}
                                 />
                             ) : msg.paymentCard ? (
                                 // Inline payment gateway card — shown when payment intent detected without gateway

@@ -606,8 +606,16 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       setSignatures(prev => prev.map(s =>
         s.signed_at === null ? { ...s, signer_action: "cancelled" as const } : s
       ))
+    } else if (documentStatus === "finalized" || documentStatus === "signed" || documentStatus === "paid") {
+      // When the parent signals the document has been sent/signed/paid, immediately
+      // stamp sentAt so isDocumentLocked=true without waiting for the next DB fetch.
+      // This closes the race where the toolbar shows "Locked" but the document is
+      // still editable because the async sentAt query hasn't run yet.
+      if (!sentAt) {
+        setSentAt(new Date().toISOString())
+      }
     }
-  }, [documentStatus])
+  }, [documentStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fullscreen keyboard handler — closes modal on Escape
   useEffect(() => {

@@ -137,6 +137,12 @@ export function PromptScreen({
 
   const handleLockChange = useCallback((locked: boolean) => {
     setInvoiceLocked(locked)
+    // When locking (e.g. after toolbar send), also update documentSessionStatus
+    // so DocumentPreview immediately shows the Locked badge and the AI gets the
+    // correct session status on the next message.
+    if (locked) {
+      setDocumentSessionStatus("finalized")
+    }
   }, [])
 
   // ── Chat-unlock signal ───────────────────────────────────────────
@@ -146,6 +152,9 @@ export function PromptScreen({
   const handleChatUnlock = useCallback(() => {
     setInvoiceLocked(false)
     setChatUnlockNonce(n => n + 1)
+    // Reset documentSessionStatus so the AI gets "active" on next message
+    // (the DB is also updated by the unlock API)
+    setDocumentSessionStatus("active")
   }, [])
 
   const handleLinkedSessionCreate = useCallback((sessionId: string, docType: string) => {
@@ -174,7 +183,10 @@ export function PromptScreen({
     onLinkedSessionCreate: handleLinkedSessionCreate,
     onChainSessionSelect: handleSessionSelect,
     onMessageCountChange: setMessageCount,
-    onLockDocument: () => setInvoiceLocked(true),
+    onLockDocument: () => {
+      setInvoiceLocked(true)
+      setDocumentSessionStatus("finalized")
+    },
     onUnlockDocument: handleChatUnlock,
     onPaymentLinkCancelled: paymentLinkCancelledAt > 0 ? cancelledSignal : undefined,
     onDocumentStatusChange: setDocumentSessionStatus,
