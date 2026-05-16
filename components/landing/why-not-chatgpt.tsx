@@ -136,8 +136,8 @@ export function WhyNotChatGPT() {
             </p>
 
             <p className="text-[#5B5550] text-lg leading-relaxed mb-10 max-w-md">
-              Clorefy generates compliant invoices, contracts, proposals, NDAs, SOWs, and 4 more
-              document types — with country-specific tax rules auto-applied for 11 countries, your
+              Clorefy generates compliant invoices, contracts, proposals, NDAs, SOWs, and more
+              — with country-specific tax rules auto-applied for your location, your
               business details pre-filled, payment links attached, and professional formatting
               guaranteed. One platform, purpose-built for service businesses.
             </p>

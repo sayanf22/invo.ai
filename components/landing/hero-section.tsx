@@ -111,7 +111,7 @@ export function HeroSection() {
                         transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
                         className="text-[15px] sm:text-lg md:text-xl text-[#5B5550] max-w-2xl mx-auto mb-8 sm:mb-12 leading-relaxed font-medium px-2"
                     >
-                        Describe your document in plain English. Clorefy generates it with your business details, country-compliant tax rules for 11 countries, and a payment link — ready to send in under 30 seconds.
+                        Describe your document in plain English. Clorefy generates it with your business details, local tax rules auto-applied, and a payment link — ready to send in under 30 seconds.
                     </motion.p>
 
                     {/* CTA buttons */}

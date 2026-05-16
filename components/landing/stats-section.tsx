@@ -34,9 +34,9 @@ const stats = [
         Icon: ShieldCheck,
     },
     {
-        label: "Countries supported",
-        detail: "With auto-applied tax and legal rules",
-        value: 11,
+        label: "Document types supported",
+        detail: "All your business needs, one platform",
+        value: 12,
         suffix: "",
         duration: 1.5,
         bg: "bg-[#C9BDA8]",

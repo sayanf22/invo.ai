@@ -12,7 +12,7 @@ const features = [
     },
     {
         title: "Country-Compliant",
-        desc: "Tax rules, mandatory fields, and legal requirements auto-applied for 11 countries. No manual lookup required.",
+        desc: "Tax rules, mandatory fields, and legal requirements auto-applied based on your business location. No manual lookup required.",
         icon: Wand2,
         className: "md:col-span-1 bg-white border border-stone-100 shadow-xl"
     },
