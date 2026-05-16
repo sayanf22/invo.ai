@@ -913,12 +913,19 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         // ── Cancel send / unlock intent guard (pre-API) ───────────────────────
         // Catch "cancel the send", "undo send", "unlock", "make it editable" etc.
         // directly before the API call so the unlock card shows immediately.
-        if (documentGenerated && session && (session.status === "finalized" || session.status === "signed")) {
+        if (documentGenerated && session && (session.status === "finalized" || session.status === "signed" || session.status === "paid")) {
             const CANCEL_SEND_REGEX = /\b(cancel|undo|revert|revoke|unsend)\s*(the\s*)?(send|sent|delivery|email|sharing|link|payment\s*link)|unlock\s*(the\s*)?(document|invoice|contract|quotation|proposal|this)|make\s*(it\s*)?(editable|edit\s*again)|edit\s*again|can\s*(i|we)\s*edit|\bi\s*(want|need|would\s*like)\s*to\s*(edit|make\s*changes|change|update)\b/i
             if (CANCEL_SEND_REGEX.test(userMessage)) {
                 setInputValue("")
-                if (session.status === "signed") {
-                    const signedMsg = "This document has been signed and can't be unlocked. Signed documents are legally binding."
+
+                // Determine the permanent lock reason (in priority order)
+                const isSignedPermanent = session.status === "signed"
+                const isPaidPermanent = session.status === "paid"
+                    || data.paymentLinkStatus === "paid"
+                    || (data as any).manualPaid === true
+
+                if (isSignedPermanent) {
+                    const signedMsg = "This document has been signed by all parties and is permanently locked. Signed documents are legally binding and cannot be edited or cancelled."
                     setMessages(prev => [...prev,
                         { role: "user" as const, content: userMessage },
                         { role: "assistant" as const, content: signedMsg },
@@ -927,6 +934,19 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     await saveMessage("assistant", signedMsg)
                     return
                 }
+
+                if (isPaidPermanent) {
+                    const paidMsg = "This invoice has been paid and is permanently locked. Paid invoices are financial records and cannot be edited or cancelled."
+                    setMessages(prev => [...prev,
+                        { role: "user" as const, content: userMessage },
+                        { role: "assistant" as const, content: paidMsg },
+                    ])
+                    await saveMessage("user", userMessage)
+                    await saveMessage("assistant", paidMsg)
+                    return
+                }
+
+                // Document is finalized/sent but not signed or paid — unlockable
                 setMessages(prev => [...prev,
                     { role: "user" as const, content: userMessage },
                     { role: "assistant" as const, content: "", unlockCard: true },
@@ -2158,76 +2178,115 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             ) : msg.unlockCard ? (
                                 // Unlock/cancel-send confirmation card
                                 // FINAL GATE: only render if the document is genuinely locked.
-                                // If the session is no longer finalized/signed (e.g. cancelled,
-                                // unlocked, or never sent in the first place), suppress the card
-                                // and show nothing — the user shouldn't see an unlock prompt
-                                // for a doc that isn't locked.
-                                (session?.status === "finalized" || session?.status === "signed") ? (
+                                (session?.status === "finalized" || session?.status === "signed" || session?.status === "paid") ? (
                                 <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/50 overflow-hidden"
                                     style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04)" }}
                                 >
-                                    <div className="px-5 pt-5 pb-5 space-y-4">
-                                        <div className="flex items-start gap-3">
-                                            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center shrink-0 mt-0.5">
-                                                <span className="text-base">🔓</span>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-semibold text-foreground">Unlock Document</p>
-                                                <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">
-                                                    This will unlock the document so you can edit it again. The email that was already sent cannot be recalled, but you can make changes and resend.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setMessages(prev => prev.map((m, i) =>
-                                                        i === idx ? { role: "assistant" as const, content: "No changes made. The document stays locked." } : m
-                                                    ))
-                                                }}
-                                                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-border/60 bg-background hover:bg-muted/40 transition-colors active:scale-[0.98]"
-                                            >
-                                                Keep Locked
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={async () => {
-                                                    try {
-                                                        const res = await authFetch("/api/sessions/unlock", {
-                                                            method: "POST",
-                                                            headers: { "Content-Type": "application/json" },
-                                                            body: JSON.stringify({ sessionId: session!.id }),
-                                                        })
-                                                        if (res.ok) {
-                                                            // Replace card with success message
+                                    {/* Determine lock state once */}
+                                    {(() => {
+                                        const isSignedPerm = session?.status === "signed"
+                                        const isPaidPerm = session?.status === "paid"
+                                            || data.paymentLinkStatus === "paid"
+                                            || (data as any).manualPaid === true
+                                        const isPermanentlyLocked = isSignedPerm || isPaidPerm
+
+                                        if (isPermanentlyLocked) {
+                                            // Permanently locked — no unlock option
+                                            const permanentMsg = isSignedPerm
+                                                ? "All parties have signed this document. It is permanently locked and cannot be edited or cancelled — this is required for legal validity."
+                                                : "This invoice has been paid and is permanently locked. Paid invoices are financial records that must be preserved."
+                                            const permanentLabel = isSignedPerm ? "Signed & locked" : "Paid & locked"
+                                            return (
+                                                <div className="px-5 pt-5 pb-5 space-y-3">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="w-9 h-9 rounded-xl bg-foreground/6 dark:bg-foreground/10 border border-border/40 flex items-center justify-center shrink-0 mt-0.5">
+                                                            <span className="text-base">🔒</span>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-foreground">{permanentLabel}</p>
+                                                            <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">
+                                                                {permanentMsg}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
                                                             setMessages(prev => prev.map((m, i) =>
-                                                                i === idx ? { role: "assistant" as const, content: "✅ Document unlocked! You can now edit it and resend when ready." } : m
+                                                                i === idx ? { role: "assistant" as const, content: "Got it." } : m
                                                             ))
-                                                            toast.success("Document unlocked")
-                                                            // Update session status locally to remove the banner immediately
-                                                            updateSessionStatus("active")
-                                                            // Notify parent (prompt-screen) to clear invoiceLocked so toolbar updates
-                                                            onUnlockDocument?.()
-                                                        } else {
-                                                            const err = await res.json()
+                                                        }}
+                                                        className="w-full py-2.5 rounded-xl text-sm font-medium border border-border/60 bg-background hover:bg-muted/40 transition-colors active:scale-[0.97]"
+                                                    >
+                                                        Understood
+                                                    </button>
+                                                </div>
+                                            )
+                                        }
+
+                                        // Finalized/sent only — can unlock
+                                        return (
+                                            <div className="px-5 pt-5 pb-5 space-y-4">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-9 h-9 rounded-xl bg-foreground/6 dark:bg-foreground/10 border border-border/40 flex items-center justify-center shrink-0 mt-0.5">
+                                                        <span className="text-base">🔓</span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-foreground">Unlock Document</p>
+                                                        <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">
+                                                            This will unlock the document so you can edit it again. The email already sent cannot be recalled, but you can make changes and resend.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
                                                             setMessages(prev => prev.map((m, i) =>
-                                                                i === idx ? { role: "assistant" as const, content: err.error || "Failed to unlock the document." } : m
+                                                                i === idx ? { role: "assistant" as const, content: "No changes made. The document stays locked." } : m
                                                             ))
-                                                        }
-                                                    } catch {
-                                                        setMessages(prev => prev.map((m, i) =>
-                                                            i === idx ? { role: "assistant" as const, content: "Something went wrong. Please try again." } : m
-                                                        ))
-                                                    }
-                                                }}
-                                                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold bg-foreground text-background hover:bg-foreground/90 transition-all active:scale-[0.98]"
-                                                style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.08)" }}
-                                            >
-                                                🔓 Unlock & Edit
-                                            </button>
-                                        </div>
-                                    </div>
+                                                        }}
+                                                        className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-border/60 bg-background hover:bg-muted/40 transition-colors active:scale-[0.97]"
+                                                    >
+                                                        Keep Locked
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const res = await authFetch("/api/sessions/unlock", {
+                                                                    method: "POST",
+                                                                    headers: { "Content-Type": "application/json" },
+                                                                    body: JSON.stringify({ sessionId: session!.id }),
+                                                                })
+                                                                if (res.ok) {
+                                                                    setMessages(prev => prev.map((m, i) =>
+                                                                        i === idx ? { role: "assistant" as const, content: "Document unlocked. You can now edit it and resend when ready." } : m
+                                                                    ))
+                                                                    toast.success("Document unlocked")
+                                                                    updateSessionStatus("active")
+                                                                    onUnlockDocument?.()
+                                                                } else {
+                                                                    const err = await res.json()
+                                                                    setMessages(prev => prev.map((m, i) =>
+                                                                        i === idx ? { role: "assistant" as const, content: err.error || "Failed to unlock the document." } : m
+                                                                    ))
+                                                                }
+                                                            } catch {
+                                                                setMessages(prev => prev.map((m, i) =>
+                                                                    i === idx ? { role: "assistant" as const, content: "Something went wrong. Please try again." } : m
+                                                                ))
+                                                            }
+                                                        }}
+                                                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold bg-foreground text-background hover:bg-foreground/90 transition-all active:scale-[0.97]"
+                                                        style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.08)" }}
+                                                    >
+                                                        🔓 Unlock &amp; Edit
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )
+                                    })()}
                                 </div>
                                 ) : null
                             ) : msg.role === "user" ? (
