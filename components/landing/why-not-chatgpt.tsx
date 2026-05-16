@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { FileText, Mic, Paperclip, ArrowUp, CheckCircle2 } from "lucide-react"
+import { FileText, Mic, Paperclip, ArrowUp, CheckCircle2, X, Check } from "lucide-react"
 import { motion } from "framer-motion"
 
 export function WhyNotChatGPT() {
@@ -10,18 +10,18 @@ export function WhyNotChatGPT() {
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col lg:flex-row items-center gap-16 lg:gap-24">
 
-          {/* Left: UI Mockup Card — High Contrast SaaS UI */}
+          {/* Left: UI Mockup Card */}
           <div className="w-full lg:w-1/2 flex justify-center perspective-[2000px]">
-            <motion.div 
-                initial={{ opacity: 0, rotateY: -10, x: -30 }}
-                whileInView={{ opacity: 1, rotateY: 0, x: 0 }}
-                viewport={{ once: true, margin: "-100px" }}
-                transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full max-w-[500px] relative"
+            <motion.div
+              initial={{ opacity: 0, rotateY: -10, x: -30 }}
+              whileInView={{ opacity: 1, rotateY: 0, x: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full max-w-[500px] relative"
             >
-              
-              {/* Document Popout Preview (Sliding out from behind) */}
-              <motion.div 
+
+              {/* Document Popout Preview */}
+              <motion.div
                 initial={{ y: 20, opacity: 0 }}
                 whileInView={{ y: -60, opacity: 1 }}
                 viewport={{ once: true, margin: "-100px" }}
@@ -34,7 +34,7 @@ export function WhyNotChatGPT() {
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-[#1C1A17]">Invoice_AcmeCorp.pdf</h4>
-                    <p className="text-xs text-[#86807B]">Generated • Ready to send</p>
+                    <p className="text-xs text-[#86807B]">Generated · Ready to send</p>
                   </div>
                 </div>
                 <div className="flex-1 bg-[#FAFAF9] rounded-lg border border-black/5 p-4 relative overflow-hidden">
@@ -42,10 +42,8 @@ export function WhyNotChatGPT() {
                   <div className="w-full h-1 bg-black/5 rounded mb-2" />
                   <div className="w-5/6 h-1 bg-black/5 rounded mb-2" />
                   <div className="w-4/6 h-1 bg-black/5 rounded mb-6" />
-                  
                   <div className="w-full h-12 bg-white rounded border border-black/5 mb-2" />
                   <div className="w-full h-12 bg-white rounded border border-black/5" />
-                  
                   <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#FAFAF9] to-transparent" />
                 </div>
               </motion.div>
@@ -66,21 +64,21 @@ export function WhyNotChatGPT() {
                   </div>
                   <p className="text-[15px] leading-[1.75] text-[#5B5550] font-medium">
                     Generating document for{" "}
-                    <span className="text-[#1C1A17] font-bold bg-stone-200/50 px-1.5 py-0.5 rounded">Acme Corp</span>. Found matching
-                    client in CRM. Extracting{" "}
+                    <span className="text-[#1C1A17] font-bold bg-stone-200/50 px-1.5 py-0.5 rounded">Acme Corp</span>.
+                    {" "}Extracting{" "}
                     <span className="text-[var(--landing-amber)] font-semibold">billing address</span> and
                     tax rules. Adding $5,000 line item. Formatting as PDF.
                   </p>
                 </div>
 
-                {/* Auto-applied context pills — Animated row */}
+                {/* Auto-applied context pills */}
                 <div className="px-6 py-5 flex flex-wrap gap-2.5 border-b border-stone-100 bg-white">
                   {[
                     { text: "Auto-filled GSTIN", delay: 0.5 },
                     { text: "Calculated 18% Tax", delay: 0.7 },
-                    { text: "Applied Net-30 Terms", delay: 0.9 }
+                    { text: "Applied Net-30 Terms", delay: 0.9 },
                   ].map((pill, idx) => (
-                    <motion.span 
+                    <motion.span
                       key={idx}
                       initial={{ opacity: 0, scale: 0.9, y: 10 }}
                       whileInView={{ opacity: 1, scale: 1, y: 0 }}
@@ -88,7 +86,7 @@ export function WhyNotChatGPT() {
                       transition={{ delay: pill.delay, duration: 0.4, type: "spring" }}
                       className="inline-flex items-center gap-1.5 bg-[var(--landing-amber)]/10 text-[var(--landing-amber)] text-xs font-bold px-3 py-1.5 rounded-full border border-[var(--landing-amber)]/20 shadow-sm"
                     >
-                      <CheckCircle2 size={12} className="text-[var(--landing-amber)]" />
+                      <CheckCircle2 size={12} />
                       {pill.text}
                     </motion.span>
                   ))}
@@ -121,25 +119,61 @@ export function WhyNotChatGPT() {
           </div>
 
           {/* Right: Copy */}
-          <div className="w-full lg:w-1/2 flex flex-col items-start z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full lg:w-1/2 flex flex-col items-start z-10"
+          >
 
-            <h2 className="font-serif text-5xl sm:text-6xl lg:text-[4.5rem] font-medium text-[#1C1A17] mb-6 tracking-tight leading-[1.05]">
+            <h2 className="font-serif text-5xl sm:text-6xl lg:text-[4.5rem] font-medium text-[#1C1A17] mb-4 tracking-tight leading-[1.05]">
               Why not just <br />
-              <span className="italic">ChatGPT?</span>
+              <span className="italic">use AI?</span>
             </h2>
 
-            <p className="text-[#5B5550] text-lg leading-relaxed mb-4 max-w-md font-medium">
-              ChatGPT writes text. It hallucinates tax rates, ignores country-specific compliance
-              rules, can&apos;t format a real invoice, and has no memory of your business details.
-              You&apos;d still need 5 other tools that don&apos;t talk to each other — and uploading
-              contracts to consumer AI risks confidentiality breaches with zero professional accountability.
+            <p className="text-[#5B5550] text-lg leading-relaxed mb-8 max-w-md">
+              You can ask any AI to draft an invoice. But it won't know your tax rate, format it
+              correctly, attach a payment link, or send it. You'd still be doing all the work.
             </p>
 
-            <p className="text-[#5B5550] text-lg leading-relaxed mb-10 max-w-md">
-              Clorefy generates compliant invoices, contracts, proposals, NDAs, SOWs, and more
-              — with country-specific tax rules auto-applied for your location, your
-              business details pre-filled, payment links attached, and professional formatting
-              guaranteed. One platform, purpose-built for service businesses.
+            {/* Comparison box */}
+            <div className="w-full max-w-md rounded-2xl border-[2px] border-stone-200 overflow-hidden bg-white shadow-sm mb-8">
+              {/* Header row */}
+              <div className="grid grid-cols-[1fr_1fr] border-b border-stone-200">
+                <div className="px-4 py-3 border-r border-stone-200 bg-stone-50">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">AI chat alone</span>
+                </div>
+                <div className="px-4 py-3 bg-[#1C1A17]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--landing-amber)]">Clorefy</span>
+                </div>
+              </div>
+
+              {/* Comparison rows */}
+              {[
+                ["Raw text to copy-paste", "Formatted PDF/DOCX, ready to send"],
+                ["Guesses your tax rate", "Correct rate for your country, auto-applied"],
+                ["No memory of your business", "Your details pre-filled every time"],
+                ["No payment processing", "Payment link attached to every invoice"],
+                ["No e-signatures", "Send for e-signature in one click"],
+              ].map(([bad, good], i) => (
+                <div key={i} className={`grid grid-cols-[1fr_1fr] ${i < 4 ? "border-b border-stone-200" : ""}`}>
+                  <div className="px-4 py-3 border-r border-stone-200 flex items-start gap-2 bg-stone-50/50">
+                    <X size={13} className="text-stone-400 mt-0.5 shrink-0" />
+                    <span className="text-[12.5px] text-stone-500 leading-snug">{bad}</span>
+                  </div>
+                  <div className="px-4 py-3 flex items-start gap-2">
+                    <Check size={13} className="text-emerald-600 mt-0.5 shrink-0" />
+                    <span className="text-[12.5px] text-[#1C1A17] font-medium leading-snug">{good}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Honest disclaimer */}
+            <p className="text-[12px] text-stone-400 mb-8 max-w-md leading-relaxed">
+              Clorefy is powered by leading AI APIs — the difference is the workflow built around them:
+              your business profile, country tax rules, document formatting, and delivery tools, all in one place.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -163,7 +197,7 @@ export function WhyNotChatGPT() {
               </a>
             </div>
 
-          </div>
+          </motion.div>
 
         </div>
       </div>
