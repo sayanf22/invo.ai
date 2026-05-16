@@ -5,38 +5,38 @@ import { Wand2, Clock, Share2, FileText, Zap, ArrowRight, CreditCard } from "luc
 
 const features = [
     {
-        title: "Text-to-Document",
-        desc: "Type naturally. Our AI captures every detail and turns it into a structured document instantly.",
+        title: "Prompt-to-Document",
+        desc: "Describe your document in plain English. Clorefy generates a complete, compliant document with your business details pre-filled.",
         icon: FileText,
         className: "md:col-span-2 bg-[var(--landing-dark)] text-white shadow-2xl overflow-hidden relative"
     },
     {
-        title: "AI Formatting",
-        desc: "Automatically formats your raw thoughts into professional reports, emails, or notes.",
+        title: "Country-Compliant",
+        desc: "Tax rules, mandatory fields, and legal requirements auto-applied based on your business location. No manual lookup required.",
         icon: Wand2,
         className: "md:col-span-1 bg-white border border-stone-100 shadow-xl"
     },
     {
-        title: "Save Hours",
-        desc: "Skip the drafting phase. Go from idea to finished document in seconds, not hours.",
+        title: "5+ Hours Saved Monthly",
+        desc: "Eliminate manual invoicing, proposal drafting, and compliance checking. One prompt replaces an afternoon of admin.",
         icon: Clock,
         className: "md:col-span-1 bg-white border border-stone-100 shadow-xl"
     },
     {
-        title: "Instant Sharing",
-        desc: "Share links, export PDFs, or send directly to email with one click.",
+        title: "Send & Get Paid",
+        desc: "Email documents to clients with a payment link attached. Export as PDF, DOCX, or image — one click.",
         icon: Share2,
         className: "md:col-span-2 bg-[var(--landing-cream-deep)] border border-stone-100 shadow-xl"
     },
     {
-        title: "Custom Templates",
-        desc: "Create templates for your specific needs—meeting notes, daily standups, or client updates.",
+        title: "9 Document Types",
+        desc: "Invoices, contracts, proposals, quotations, NDAs, SOWs, change orders, client onboarding forms, and payment follow-ups — all from one platform.",
         icon: FileText,
         className: "md:col-span-1 bg-white border border-stone-100 shadow-xl"
     },
     {
-        title: "Payments Integration",
-        desc: "Seamlessly accept payments via Razorpay, Cashfree, and Stripe directly from your generated documents.",
+        title: "Integrated Payments",
+        desc: "Accept payments via Razorpay, Cashfree, and Stripe directly from your documents. No separate payment tool needed.",
         icon: Zap,
         className: "md:col-span-2 bg-gradient-to-br from-[var(--landing-amber)] to-[var(--landing-amber-light)] text-white shadow-2xl"
     }
@@ -115,8 +115,8 @@ export function FeaturesSection() {
                         viewport={{ once: true, margin: "-60px" }}
                         className="font-display text-3xl sm:text-5xl lg:text-7xl font-bold mb-4 sm:mb-6 leading-[0.95]"
                     >
-                        Everything you need to <br />
-                        <span className="text-[var(--landing-amber)] italic font-serif">flow</span>
+                        Everything your business needs to <br />
+                        <span className="text-[var(--landing-amber)] italic font-serif">get paid</span>
                     </motion.h2>
                     <motion.p
                         variants={subVariants}
@@ -125,7 +125,7 @@ export function FeaturesSection() {
                         viewport={{ once: true, margin: "-60px" }}
                         className="text-base sm:text-xl text-[var(--landing-text-muted)] max-w-2xl mx-auto"
                     >
-                        Powerful tools wrapped in a simple, intuitive interface. No complex setup required.
+                        Generate compliant documents, collect payments, and save 5+ hours a month — from a single prompt.
                     </motion.p>
                 </div>
 

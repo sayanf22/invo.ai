@@ -7,7 +7,7 @@ import { useSupabase, useUser } from "@/components/auth-provider"
 import {
   ArrowLeft, Download, Share2, Loader2, FileText,
   Copy, Check, MessageCircle, Mail, Link2, QrCode,
-  ZoomIn, ZoomOut, Maximize2, CheckCircle2, XCircle, Edit3,
+  ZoomIn, ZoomOut, Maximize2, CheckCircle2, XCircle, Edit3, X,
 } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import { toast } from "sonner"
@@ -330,6 +330,11 @@ export default function ViewDocumentPage() {
   const [docData, setDocData] = useState<InvoiceData | null>(null)
   const [payment, setPayment] = useState<PaymentInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [cancelled, setCancelled] = useState(false)
+  // True only when the viewer is the authenticated owner of this document.
+  // Recipients (clients) get a stripped-down view: no Share button, no toolbar
+  // controls that imply ownership. Mirrors DocuSign/Adobe Sign best practice.
+  const [isOwner, setIsOwner] = useState(false)
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [rendering, setRendering] = useState(false)
   const [zoom, setZoom] = useState(typeof window !== "undefined" && window.innerWidth < 640 ? 75 : 100)
@@ -364,12 +369,29 @@ export default function ViewDocumentPage() {
         if (user) {
           const { data: session } = await supabase
             .from("document_sessions")
-            .select("context, document_type")
+            .select("context, document_type, status, sent_at")
             .eq("id", sessionId)
             .eq("user_id", user.id)
             .maybeSingle()
 
           if (session?.context) {
+            // Cancellation guard for owner-side viewing too: if the session
+            // was unlocked/cancelled after sending, treat the share link as
+            // dead (the owner explicitly chose to cancel pending shares).
+            // Also block explicit "cancelled" status — both end up the same.
+            if ((session as any).status === "cancelled") {
+              setCancelled(true)
+              setLoading(false)
+              return
+            }
+            if ((session as any).status === "active" && (session as any).sent_at) {
+              setCancelled(true)
+              setLoading(false)
+              return
+            }
+
+            // Authenticated owner view — show full toolbar (Share, etc.)
+            setIsOwner(true)
             setDocData(session.context as unknown as InvoiceData)
 
             // Load payment info — only active/paid (not cancelled/expired)
@@ -465,6 +487,14 @@ export default function ViewDocumentPage() {
 
         // Fallback: public API for email recipients (no auth needed)
         const res = await fetch(`/api/emails/view-document?sessionId=${sessionId}`)
+
+        // 410 Gone = the owner cancelled the share after sending
+        if (res.status === 410) {
+          setCancelled(true)
+          setLoading(false)
+          return
+        }
+
         if (res.ok) {
           const data = await res.json()
           if (data.context) {
@@ -566,8 +596,11 @@ export default function ViewDocumentPage() {
       const a = document.createElement("a")
       a.href = url
       a.download = `${docData.invoiceNumber || docData.referenceNumber || "document"}.pdf`
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      // Delay revocation so iOS QuickLook can open the blob URL
+      setTimeout(() => URL.revokeObjectURL(url), 3000)
       toast.success("PDF downloaded!")
     } catch { toast.error("Failed to download") }
     finally { setDownloading(false) }
@@ -581,6 +614,29 @@ export default function ViewDocumentPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (cancelled) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-background">
+        <div className="w-full max-w-md text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto">
+            <X className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-semibold text-foreground">
+              Document no longer available
+            </h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              The owner has cancelled this document. The link is no longer valid.
+            </p>
+            <p className="text-xs text-muted-foreground/70 pt-2">
+              If you believe this is an error, please contact the sender directly.
+            </p>
+          </div>
+        </div>
       </div>
     )
   }
@@ -648,13 +704,18 @@ export default function ViewDocumentPage() {
 
           {/* Actions */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => setShowShare(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-sm font-medium hover:bg-muted/50 transition-colors"
-            >
-              <Share2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Share</span>
-            </button>
+            {/* Share button is owner-only — recipients shouldn't be able to
+                forward someone else's document. Mirrors DocuSign behavior:
+                only the sender can re-share a sent envelope. */}
+            {isOwner && (
+              <button
+                onClick={() => setShowShare(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-sm font-medium hover:bg-muted/50 transition-colors"
+              >
+                <Share2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Share</span>
+              </button>
+            )}
             <button
               onClick={handleDownload}
               disabled={downloading || rendering}

@@ -75,9 +75,9 @@ Test the following:
 ## Security Features
 
 ### Cost Protection
-- **Free tier**: 3 documents/month, 10 messages/session
-- **Starter tier**: 50 documents/month, 25 messages/session
-- **Pro tier**: 150 documents/month, 30 messages/session
+- **Free tier**: 5 documents/month, 10 messages/session
+- **Starter tier**: 50 documents/month, 30 messages/session
+- **Pro tier**: 150 documents/month, 50 messages/session
 - **Agency tier**: Unlimited documents and messages
 - Automatic enforcement before session creation and AI calls
 - Real-time usage tracking

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, PenLine, Download, FileDown, ChevronDown, Image as ImageIcon, X, Lock } from "lucide-react"
+import { FileText, Edit3, Loader2, ZoomIn, ZoomOut, Maximize2, RotateCcw, Printer, PenLine, PenOff, Download, FileDown, ChevronDown, Image as ImageIcon, X, Lock, XCircle, AlertTriangle } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
@@ -53,6 +53,18 @@ interface DocumentPreviewProps {
    * UI must reflect the user's choice immediately.
    */
   externallyUnlocked?: boolean
+  /**
+   * The current document session status from the parent (e.g. "draft", "sent",
+   * "cancelled", "signed", etc.). When this transitions to "cancelled", the
+   * component clears its local lock state (sentAt, manualPaid, pending signatures)
+   * so the preview immediately reflects unlocked/editable state.
+   */
+  documentStatus?: string
+  /**
+   * Called after a successful document cancellation from the toolbar.
+   * The parent should update its local session status and notify chat.
+   */
+  onDocumentCancelled?: () => void
 }
 
 function EmptyState() {
@@ -203,7 +215,7 @@ function LivePDFPreview({ data, zoom, onPageCount, locked = false, lockReason }:
     return () => {
       if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current)
     }
-  }, [dataKey, generatePdf]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dataKey, generatePdf, locked]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     mountedRef.current = true
@@ -359,7 +371,7 @@ function ToolbarSep() {
 }
 
 /* ─── Main DocumentPreview ─── */
-export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onLockChange, externallyUnlocked = false }: DocumentPreviewProps) {
+export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onLockChange, externallyUnlocked = false, documentStatus = "", onDocumentCancelled }: DocumentPreviewProps) {
   const supabase = useSupabase()
   const user = useUser()
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
@@ -368,6 +380,11 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [getSignatureModalOpen, setGetSignatureModalOpen] = useState(false)
   const [signatures, setSignatures] = useState<Array<{ id: string; signed_at: string | null; signer_action: string | null; signer_name?: string }>>([])
   const [signaturesLoading, setSignaturesLoading] = useState(false)
+  // Tracks whether the recipient has already submitted a "declined" or
+  // "changes_requested" response on a quotation/proposal. When set, the
+  // owner cannot cancel the document — the response is part of the record
+  // and must be answered with a revised version instead.
+  const [clientResponseType, setClientResponseType] = useState<"declined" | "changes_requested" | null>(null)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [userTier, setUserTier] = useState<"free" | "starter" | "pro" | "agency">("free")
@@ -380,6 +397,9 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [selfSignOpen, setSelfSignOpen] = useState(false)
   const [selfSignLoading, setSelfSignLoading] = useState(false)
   const [savedSignatureUrl, setSavedSignatureUrl] = useState<string | null | undefined>(undefined) // undefined = not loaded yet
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [cancelDocumentOpen, setCancelDocumentOpen] = useState(false)
+  const [cancelDocumentLoading, setCancelDocumentLoading] = useState(false)
   const hasContent = data.documentType || data.fromName || data.toName || data.description
 
   const supportsSignatures = supportsSignatureWorkflow(data.documentType || "")
@@ -422,6 +442,26 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       || allSigned
       || hasPendingSignatures
     )
+
+  // Cancel is blocked when the document is in a terminal-or-responded state.
+  // Mirrors the server-side guards in /api/sessions/cancel:
+  //   - any signature actually signed (legally binding)
+  //   - quotation/proposal recipient declined or requested changes
+  //     (the response is part of the record — owner must send a revised version)
+  //   - document is paid (financial record)
+  // The UI uses this flag to hide the Cancel menu item; the server enforces.
+  const hasAnySignedSignature = signatures.some((s: any) =>
+    s.signed_at &&
+    s.signer_action !== "declined" &&
+    s.signer_action !== "revision_requested" &&
+    s.signer_action !== "cancelled"
+  )
+  const cancelBlockedReason: "signed" | "responded" | "paid" | null =
+    hasAnySignedSignature ? "signed"
+    : clientResponseType ? "responded"
+    : (paymentLinkStatus === "paid" || manualPaid) ? "paid"
+    : null
+  const isCancelAllowed = cancelBlockedReason === null
 
   // When the user explicitly unlocks via chat, we also want to clear the
   // local sentAt so subsequent renders don't flicker back to "sent".
@@ -480,14 +520,73 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       .catch(() => {})
   }, [sessionId, user, supabase])
 
+  // Fetch any client response (declined / changes_requested) for quotations
+  // and proposals. When present, the owner cannot cancel the document — the
+  // server enforces the same rule, this just keeps the UI in sync.
+  useEffect(() => {
+    setClientResponseType(null)
+    if (!sessionId || !user) return
+    const docType = (data.documentType || "").toLowerCase()
+    if (docType !== "quotation" && docType !== "quote" && docType !== "proposal") return
+
+    ;(supabase as any)
+      .from("quotation_responses")
+      .select("response_type")
+      .eq("session_id", sessionId)
+      .in("response_type", ["declined", "changes_requested"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data: r }: { data: { response_type?: string } | null }) => {
+        const t = r?.response_type
+        if (t === "declined" || t === "changes_requested") {
+          setClientResponseType(t)
+        }
+      })
+      .catch(() => {})
+  }, [sessionId, user, supabase, data.documentType])
+
   // When the parent signals an external unlock (e.g., via chat unlock card),
   // clear the local lock-related state so the UI immediately reflects unlocked.
+  // Also clear the signatures cache — the unlock API has cancelled them, but
+  // our local state is stale until the next fetch. Clearing prevents
+  // hasPendingSignatures from keeping the lock state alive.
   useEffect(() => {
     if (externallyUnlocked) {
       setSentAt(null)
       setManualPaid(false)
+      // Treat all pending sigs as cancelled in local state. We don't blow away
+      // signed sigs (signed_at !== null) because those are still relevant for
+      // the "Signed" status badge.
+      setSignatures(prev => prev.map(s =>
+        s.signed_at === null ? { ...s, signer_action: "cancelled" } : s
+      ))
     }
   }, [externallyUnlocked])
+
+  // When the session status transitions to "cancelled", clear all local lock state
+  // so the preview immediately shows as unlocked/editable.
+  // Bug 5 fix: sentAt is fetched from DB on session load and never cleared by the
+  // cancel flow, so isDocumentLocked stays true even after cancellation.
+  useEffect(() => {
+    if (documentStatus === "cancelled") {
+      setSentAt(null)
+      setManualPaid(false)
+      // Mark all pending (unsigned) signature rows as cancelled in local state.
+      // This prevents hasPendingSignatures from keeping the lock alive.
+      setSignatures(prev => prev.map(s =>
+        s.signed_at === null ? { ...s, signer_action: "cancelled" as const } : s
+      ))
+    }
+  }, [documentStatus])
+
+  // Fullscreen keyboard handler — closes modal on Escape
+  useEffect(() => {
+    if (!isFullscreen) return
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setIsFullscreen(false) }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
+  }, [isFullscreen])
 
   // Check if invoice is already manually marked as paid
   useEffect(() => {
@@ -711,6 +810,37 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const canZoomIn = zoom < ZOOM_LEVELS[ZOOM_LEVELS.length - 1]
   const canZoomOut = zoom > ZOOM_LEVELS[0]
 
+  const handleCancelDocument = useCallback(async () => {
+    if (!sessionId || cancelDocumentLoading) return
+    setCancelDocumentLoading(true)
+    try {
+      const { authFetch } = await import("@/lib/auth-fetch")
+      const res = await authFetch("/api/sessions/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      })
+      const result = await res.json()
+      if (res.ok) {
+        toast.success("Document cancelled")
+        setCancelDocumentOpen(false)
+        // Clear local lock state immediately
+        setSentAt(null)
+        setManualPaid(false)
+        setSignatures(prev => prev.map(s =>
+          s.signed_at === null ? { ...s, signer_action: "cancelled" as const } : s
+        ))
+        onDocumentCancelled?.()
+      } else {
+        toast.error(result.error || "Failed to cancel document")
+      }
+    } catch {
+      toast.error("Failed to cancel document")
+    } finally {
+      setCancelDocumentLoading(false)
+    }
+  }, [sessionId, cancelDocumentLoading, onDocumentCancelled])
+
   if (!hasContent) return <EmptyState />
 
   return (
@@ -759,6 +889,10 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           <ToolbarBtn onClick={() => setZoom(DEFAULT_ZOOM)} title="Reset zoom">
             <RotateCcw className="w-4 h-4" />
           </ToolbarBtn>
+          <ToolbarSep />
+          <ToolbarBtn onClick={() => setIsFullscreen(true)} title="Open document fullscreen">
+            <Maximize2 className="w-4 h-4" />
+          </ToolbarBtn>
           {pageCount > 0 && (
             <>
               <ToolbarSep />
@@ -780,18 +914,63 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none scrollbar-none"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {/* Monochrome Lock badge — shown whenever the document is in a locked state.
-              Acts as the primary visual signal that edits are disabled. */}
+          {/* Lock badge — clickable dropdown to cancel the document */}
           {isDocumentLocked && (
-            <span
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 border border-neutral-900 dark:border-neutral-100 shadow-sm shrink-0"
-              title={lockReason ? `Locked — ${lockReason}` : "Locked"}
-              aria-label={lockReason ? `Locked — ${lockReason}` : "Locked"}
-            >
-              <Lock className="w-3.5 h-3.5" strokeWidth={2.5} />
-              <span className="hidden sm:inline">Locked</span>
-            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 border border-neutral-900 dark:border-neutral-100 shadow-sm shrink-0 hover:bg-neutral-700 dark:hover:bg-neutral-200 transition-colors"
+                  title={lockReason ? `Locked — ${lockReason}` : "Locked"}
+                  aria-label={lockReason ? `Locked — ${lockReason}` : "Locked"}
+                >
+                  <Lock className="w-3.5 h-3.5" strokeWidth={2.5} />
+                  <span className="hidden sm:inline">Locked</span>
+                  <ChevronDown className="w-3 h-3 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={8} className="w-52 rounded-2xl p-1.5 shadow-xl border border-border/60">
+                <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-3 py-1">
+                  {lockReason || "Document Locked"}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="my-1 bg-border/50" />
+                {sessionId && isCancelAllowed && (
+                  <DropdownMenuItem
+                    onClick={() => setCancelDocumentOpen(true)}
+                    className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium text-destructive focus:text-destructive focus:bg-destructive/10"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    <span>Cancel Document</span>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
+
+          {/* Quick toggle: show/hide signature block in the rendered PDF.
+              Only relevant for signable doc types (contract, sow, nda, etc.).
+              Disabled while the document is locked so the user can't change
+              signature visibility on a doc that's already been sent/signed. */}
+          {supportsSignatures && !isDocumentLocked && (() => {
+            const sigVisible = data.showSignatureFields !== false
+            return (
+              <button
+                type="button"
+                onClick={() => onChange?.({ showSignatureFields: !sigVisible } as Partial<InvoiceData>)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border shrink-0 transition-colors",
+                  sigVisible
+                    ? "bg-primary/10 border-primary/30 text-primary hover:bg-primary/15"
+                    : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
+                )}
+                title={sigVisible ? "Hide signature block in PDF" : "Show signature block in PDF"}
+                aria-label={sigVisible ? "Hide signature block" : "Show signature block"}
+              >
+                {sigVisible ? <PenLine className="w-3.5 h-3.5" /> : <PenOff className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">{sigVisible ? "Signature on" : "Signature off"}</span>
+              </button>
+            )
+          })()}
 
           {/* Signature status badges — visible on all screen sizes */}
           {supportsSignatures && sessionId && hasPendingSignatures && !hasDeclined && !hasRevisionRequested && (
@@ -812,6 +991,24 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           {supportsSignatures && sessionId && allSigned && (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-foreground/70 border border-border">
               ✓ Signed
+            </span>
+          )}
+          {/* Client response badge — quotation/proposal recipient declined or
+              requested changes. Cancel is blocked while this is set. */}
+          {sessionId && clientResponseType === "declined" && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border"
+              title="Recipient declined this document"
+            >
+              Client Declined
+            </span>
+          )}
+          {sessionId && clientResponseType === "changes_requested" && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border"
+              title="Recipient requested changes — send a revised version"
+            >
+              Changes Requested
             </span>
           )}
           {/* For contracts/proposals: toolbar state machine for signature actions */}
@@ -924,7 +1121,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               }}
             />
           )}
-          <ShareButton data={data} sessionId={sessionId ?? null} onOpenSendDialog={() => setSendEmailDialogOpen(true)} />
+          <ShareButton data={data} sessionId={sessionId ?? null} documentStatus={documentStatus} onOpenSendDialog={() => setSendEmailDialogOpen(true)} />
           <button
             type="button"
             onClick={handlePrint}
@@ -1092,6 +1289,144 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           }}
           loading={cancelLoading}
         />
+      )}
+
+      {/* Cancel Document confirmation dialog */}
+      {cancelDocumentOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !cancelDocumentLoading && setCancelDocumentOpen(false)} />
+          <div className="relative w-full max-w-sm bg-card border border-border rounded-3xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-3 px-5 pt-5 pb-4">
+              <div className="w-10 h-10 rounded-2xl bg-destructive/10 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Cancel Document?</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">This cannot be undone</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCancelDocumentOpen(false)}
+                disabled={cancelDocumentLoading}
+                className="ml-auto w-7 h-7 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-40"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Body */}
+            <div className="px-5 pb-4 space-y-2">
+              <div className="rounded-xl bg-destructive/5 border border-destructive/20 px-4 py-3 space-y-1.5 text-sm text-foreground/80 leading-relaxed">
+                <p className="font-medium text-destructive">What happens when you cancel:</p>
+                <ul className="space-y-1 text-xs text-muted-foreground list-none">
+                  <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-destructive/60 shrink-0" />All signing links become invalid (410 Gone)</li>
+                  <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-destructive/60 shrink-0" />Scheduled email reminders are stopped</li>
+                  <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-destructive/60 shrink-0" />Document becomes editable again</li>
+                  <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted-foreground/40 shrink-0" />Existing data is preserved</li>
+                </ul>
+              </div>
+            </div>
+            {/* Footer */}
+            <div className="px-5 pb-5 flex gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCancelDocumentOpen(false)}
+                disabled={cancelDocumentLoading}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted/60 transition-colors disabled:opacity-40"
+              >
+                Keep it
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelDocument}
+                disabled={cancelDocumentLoading}
+                className="flex-1 py-2.5 rounded-xl bg-destructive text-destructive-foreground text-sm font-semibold hover:bg-destructive/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {cancelDocumentLoading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Cancelling...</>
+                ) : (
+                  <><XCircle className="w-4 h-4" /> Cancel Document</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen overlay */}
+      {isFullscreen && (
+        <div
+          className="fixed inset-0 z-50 bg-background flex flex-col"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Document fullscreen preview"
+        >
+        {/* Fullscreen toolbar */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">Preview</span>
+              {/* Lock badge in fullscreen */}
+              {isDocumentLocked && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 border border-neutral-900 dark:border-neutral-100 shadow-sm hover:bg-neutral-700 dark:hover:bg-neutral-200 transition-colors"
+                      title={lockReason || "Locked"}
+                    >
+                      <Lock className="w-3.5 h-3.5" strokeWidth={2.5} />
+                      <span>Locked</span>
+                      <ChevronDown className="w-3 h-3 opacity-60" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" sideOffset={8} className="w-52 rounded-2xl p-1.5 shadow-xl border border-border/60">
+                    <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-3 py-1">
+                      {lockReason || "Document Locked"}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator className="my-1 bg-border/50" />
+                    {sessionId && isCancelAllowed && (
+                      <DropdownMenuItem
+                        onClick={() => { setIsFullscreen(false); setCancelDocumentOpen(true) }}
+                        className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium text-destructive focus:text-destructive focus:bg-destructive/10"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        <span>Cancel Document</span>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <ToolbarBtn onClick={handleZoomOut} disabled={!canZoomOut} title="Zoom out">
+                <ZoomOut className="w-4 h-4" />
+              </ToolbarBtn>
+              <span className="text-xs font-semibold min-w-[40px] text-center tabular-nums select-none">{zoom}%</span>
+              <ToolbarBtn onClick={handleZoomIn} disabled={!canZoomIn} title="Zoom in">
+                <ZoomIn className="w-4 h-4" />
+              </ToolbarBtn>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setIsFullscreen(false)}
+                className="ml-2 w-8 h-8 flex items-center justify-center rounded-lg border border-border hover:bg-muted/60 transition-colors"
+                aria-label="Close fullscreen"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-auto bg-neutral-100 dark:bg-neutral-900">
+            <LivePDFPreview
+              data={data}
+              zoom={zoom}
+              onPageCount={setPageCount}
+              locked={isDocumentLocked}
+              lockReason={lockReason}
+            />
+          </div>
+        </div>
       )}
     </div>
   )

@@ -404,6 +404,39 @@ export async function GET(request: NextRequest) {
             const ipAddress = getClientIP(request)
             const userAgent = request.headers.get("user-agent") ?? undefined
 
+            // Bug 2 fix: Check if the parent document session has been cancelled.
+            // The signer_action may still be null if the session was cancelled without
+            // atomically updating signature rows — so we must check the session status too.
+            //
+            // Two cancellation paths invalidate a signing link:
+            //   1. Owner clicks "Cancel" on document preview → status = "cancelled"
+            //   2. Owner clicks "Unlock" in chat → status returns to "active"
+            //      with sent_at still set (the document is being edited again).
+            // Both must return 410 Gone so the recipient can never sign a stale
+            // version of the document. This matches DocuSign / Adobe Sign behaviour
+            // where unlocking a sent envelope voids all outstanding signing links.
+            const sigSessionId = (signature as any).session_id
+            if (sigSessionId) {
+                const { data: parentSession } = await serviceSupabase
+                    .from("document_sessions")
+                    .select("status, sent_at")
+                    .eq("id", sigSessionId)
+                    .single()
+                if (parentSession?.status === "cancelled") {
+                    return NextResponse.json(
+                        { error: "This document has been cancelled by the owner.", cancelled: true },
+                        { status: 410 }
+                    )
+                }
+                // Owner-unlocked: status reverted to "active" but sent_at is still set.
+                if (parentSession?.status === "active" && parentSession?.sent_at) {
+                    return NextResponse.json(
+                        { error: "This document is no longer available. The owner has cancelled the share.", cancelled: true },
+                        { status: 410 }
+                    )
+                }
+            }
+
             // Check if signing request was cancelled by the document owner
             if ((signature as any).signer_action === "cancelled") {
                 return NextResponse.json(

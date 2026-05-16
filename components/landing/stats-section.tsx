@@ -7,37 +7,37 @@ import { Clock, Zap, ShieldCheck, FileText } from "lucide-react"
 
 const stats = [
     {
-        label: "Hours saved weekly",
-        detail: "Per user on average",
-        value: 12,
+        label: "Hours lost monthly",
+        detail: "Average for freelancers on manual invoicing",
+        value: 5,
         suffix: "+",
         duration: 2.5,
         bg: "bg-[#8B9A6B]",
         Icon: Clock,
     },
     {
-        label: "Faster than manual",
-        detail: "Document creation speed",
-        value: 10,
+        label: "Higher cash-flow risk",
+        detail: "For businesses with late or incorrect invoices",
+        value: 3,
         suffix: "×",
         duration: 2,
         bg: "bg-[#C4A0B0]",
         Icon: Zap,
     },
     {
-        label: "Accuracy rate",
-        detail: "AI-generated documents",
-        value: 99,
+        label: "Compliance error rate",
+        detail: "When tax rules are applied manually",
+        value: 22,
         suffix: "%",
         duration: 2,
         bg: "bg-[#B5C8BA]",
         Icon: ShieldCheck,
     },
     {
-        label: "Documents generated",
-        detail: "Across all users",
-        value: 10,
-        suffix: "k+",
+        label: "Document types supported",
+        detail: "All your business needs, one platform",
+        value: 9,
+        suffix: "",
         duration: 1.5,
         bg: "bg-[#C9BDA8]",
         Icon: FileText,
@@ -92,7 +92,7 @@ export function StatsSection() {
                 
                 <div className="text-center mb-4 sm:mb-8">
                     <h2 className="font-serif text-4xl sm:text-5xl font-bold text-[#1C1A17] tracking-tight">
-                        The impact of automation
+                        The cost of manual documents
                     </h2>
                 </div>
 

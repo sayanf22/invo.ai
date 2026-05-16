@@ -6,7 +6,7 @@
 
 ## What's Built
 
-- ✅ AI document generation (invoice, contract, quotation, proposal) — 11 countries
+- ✅ AI document generation (invoice, contract, quotation, proposal) — global compliance
 - ✅ Country-compliant tax rules (GST, VAT, USt, TVA, etc.)
 - ✅ Digital signatures — legally defensible with document fingerprinting (SHA-256), audit trail, certificate page, verification URL (`/verify/[signatureId]`), Decline + Request Revision via signing link
 - ✅ Quotation Accept / Decline / Request Changes flow — clients respond directly from the public view page, owner gets in-app notifications
@@ -152,7 +152,7 @@ Tally XML export for Indian SMBs, QuickBooks IIF, and Xero CSV. 90% of Indian bu
 The Agency tier advertises 3 team members but the feature isn't built yet. Shared workspace with role-based access (owner, editor, viewer) is the next major feature for the Agency tier.
 
 ### 🔵 Multi-language Documents
-Currently all documents are generated in English. Adding language selection (Hindi, German, French, Dutch, Arabic) would unlock the full potential of the 11-country support.
+Currently all documents are generated in English. Adding language selection (Hindi, German, French, Dutch, Arabic) would unlock the full potential of global support.
 
 ### 🔵 Client Portal
 A dedicated portal where clients can view all their documents, sign contracts, pay invoices, and respond to quotations — all in one place without needing separate links.
@@ -164,7 +164,7 @@ A dedicated portal where clients can view all their documents, sign contracts, p
 | | Wave | FreshBooks | PandaDoc | Proposify | **Clorefy** |
 |--|------|-----------|----------|-----------|-------------|
 | AI generation | ❌ | ❌ | ❌ | ❌ | ✅ |
-| 11 countries | ❌ | Partial | ❌ | ❌ | ✅ |
+| Global compliance | ❌ | Partial | ❌ | ❌ | ✅ |
 | Payment links | ✅ | ✅ | ✅ | ❌ | ✅ (Razorpay + Stripe + Cashfree) |
 | Public pay page | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Email sending | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -176,4 +176,4 @@ A dedicated portal where clients can view all their documents, sign contracts, p
 | Auto-invoice on sign | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Price | Free/$16 | $8.40+ | $19+ | $49+ | **$9–$59** |
 
-**Pitch:** Generate, send, track, and get paid — all from one AI-powered platform. For 11 countries, at half the price of PandaDoc.
+**Pitch:** Generate, send, track, and get paid — all from one AI-powered platform, at half the price of PandaDoc.

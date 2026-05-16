@@ -1,4 +1,4 @@
--- Seed Document Templates for All 11 Countries
+-- Seed Document Templates for Global Compliance
 -- This script populates the document_templates table with compliance requirements
 
 -- ============================================================================
@@ -418,4 +418,4 @@ SELECT id, 7, CURRENT_DATE + INTERVAL '7 days'
 FROM document_templates
 ON CONFLICT (template_id) DO NOTHING;
 
-SELECT 'All 44 templates seeded successfully (11 countries × 4 document types)' as status;
+SELECT 'Document templates seeded successfully' as status;

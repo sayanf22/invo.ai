@@ -4,10 +4,26 @@ import { streamBedrockChat, streamBedrockChatWithHistory, callBedrockBrief, ORCH
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 import { classifyIntent, detectMismatch, type DocumentType as IntentDocumentType } from "@/lib/intent-router"
 import { buildChatOnlySystemPrompt } from "@/lib/chat-only-prompts"
+import { formatReferenceNumber } from "@/lib/document-type-registry"
 
 import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText, stripPromptInjection } from "@/lib/sanitize"
+
+// Streaming generation can take 60-90s in thinking mode (deepseek-v4-pro
+// spends time on reasoning before emitting content).
+//
+// Cloudflare Workers (Paid plan): wall-clock limit is 5 minutes; CPU time is
+// 30s. Streaming responses keep the request open during fetch I/O, which
+// counts as wall-clock not CPU, so this is safe.
+//
+// `dynamic = "force-dynamic"` ensures Next.js does not try to cache or
+// statically optimize the route.
+export const dynamic = "force-dynamic"
+// `maxDuration` is harmless on Cloudflare Workers (it ignores it), but useful
+// if anyone ever deploys to Vercel as well — keeps the streaming route alive
+// past the default 10s edge limit.
+export const maxDuration = 120
 
 export async function POST(request: NextRequest) {
     try {
@@ -486,15 +502,6 @@ export async function POST(request: NextRequest) {
                     if (intentType === "document") {
                     try {
                         const docTypeLower = (body.documentType || "invoice").toLowerCase()
-                        const prefix = docTypeLower === "quotation" || docTypeLower === "quote" ? "QUO"
-                            : docTypeLower === "contract" ? "CTR"
-                            : docTypeLower === "proposal" ? "PROP"
-                            : docTypeLower === "sow" ? "SOW"
-                            : docTypeLower === "change_order" ? "CO"
-                            : docTypeLower === "nda" ? "NDA"
-                            : docTypeLower === "client_onboarding_form" ? "COF"
-                            : docTypeLower === "payment_followup" ? "PF"
-                            : "INV"
 
                         const { count } = await auth.supabase
                             .from("document_sessions")
@@ -502,11 +509,11 @@ export async function POST(request: NextRequest) {
                             .eq("user_id", auth.user.id)
                             .eq("document_type", docTypeLower)
 
-                        const nextNum = (count ?? 0) + 1
-                        const year = new Date().getFullYear()
-                        const month = String(new Date().getMonth() + 1).padStart(2, '0')
-                        const paddedNum = String(nextNum).padStart(3, '0')
-                        const nextDocNumber = `${prefix}-${year}-${month}-${paddedNum}`
+                        // Single source of truth: registry-driven prefix +
+                        // YYYY-MM-NNN format. Same helper is used at persist
+                        // time to coerce any AI-produced reference number to
+                        // the correct prefix for this document type.
+                        const nextDocNumber = formatReferenceNumber(docTypeLower, (count ?? 0) + 1)
 
                         body.prompt = `[SYSTEM: Use document number "${nextDocNumber}" for this ${docTypeLower}. Today's date is ${new Date().toISOString().split('T')[0]}. The invoice date should be today and the due date should be calculated from today based on payment terms.]\n\n${body.prompt}`
 
@@ -992,7 +999,7 @@ export async function POST(request: NextRequest) {
 
         return new Response(stream, {
             headers: {
-                "Content-Type": "text/event-stream",
+                "Content-Type": "text/event-stream; charset=utf-8",
                 "Cache-Control": "no-cache",
                 Connection: "keep-alive",
             },

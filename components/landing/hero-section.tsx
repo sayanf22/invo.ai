@@ -27,28 +27,6 @@ export function HeroSection() {
 
                 <div className="relative z-10 max-w-6xl mx-auto text-center px-4 sm:px-6">
 
-                    {/* Premium Beta announcement pill */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex justify-center mb-6 sm:mb-10"
-                    >
-                        <div className="group relative inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-stone-200/50 bg-white/60 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 max-w-[92vw]">
-                            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[var(--landing-amber)]/0 via-[var(--landing-amber)]/5 to-[var(--landing-amber)]/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 animate-shimmer" />
-                            <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--landing-amber)] opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-[var(--landing-amber)]"></span>
-                            </span>
-                            <span className="text-[11.5px] sm:text-[13px] font-medium text-[var(--landing-text-dark)] whitespace-nowrap">
-                                <span className="font-bold text-[var(--landing-amber)] mr-1">BETA</span>
-                                <span className="sm:hidden">Try it free — share feedback</span>
-                                <span className="hidden sm:inline">We&apos;re live — try it free and share your feedback</span>
-                            </span>
-                            <ArrowRight size={12} className="sm:w-[14px] sm:h-[14px] text-[var(--landing-text-muted)] group-hover:translate-x-0.5 transition-transform shrink-0" />
-                        </div>
-                    </motion.div>
-
                     {/* Main heading */}
                     <motion.div
                         initial={{ opacity: 0, y: 30 }}
@@ -70,7 +48,7 @@ export function HeroSection() {
                         {/* Fixed-height row — prevents layout shift during word swap */}
                         <span className="block relative" style={{ minHeight: "1.15em" }} aria-hidden>
                             <FlipWords
-                                words={["invoices", "contracts", "proposals", "quotations"]}
+                                words={["invoices", "contracts", "proposals", "NDAs", "SOWs"]}
                                 gradients={[
                                     // Invoices — warm amber → terracotta (matches brand)
                                     "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
@@ -78,8 +56,10 @@ export function HeroSection() {
                                     "linear-gradient(120deg, #1e3a8a 0%, #3730a3 50%, #0f172a 100%)",
                                     // Proposals — forest emerald → deep teal (rich, editorial)
                                     "linear-gradient(120deg, #065f46 0%, #047857 50%, #134e4a 100%)",
-                                    // Quotations — burgundy → warm rose (elegant, warm)
+                                    // NDAs — burgundy → warm rose (elegant, warm)
                                     "linear-gradient(120deg, #881337 0%, #9f1239 50%, #6b0f2a 100%)",
+                                    // SOWs — deep slate → charcoal (professional, structured)
+                                    "linear-gradient(120deg, #334155 0%, #475569 50%, #1e293b 100%)",
                                 ]}
                                 className="italic font-serif tracking-tight"
                             />
@@ -109,7 +89,7 @@ export function HeroSection() {
                         transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
                         className="text-[15px] sm:text-lg md:text-xl text-[#5B5550] max-w-2xl mx-auto mb-8 sm:mb-12 leading-relaxed font-medium px-2"
                     >
-                        Tell Clorefy what you need. It writes the invoice, contract, or proposal for you — with your details filled in, the right tax rules applied, and a payment link ready to send.
+                        Describe your document in plain English. Clorefy generates it with your business details, local tax rules auto-applied, and a payment link — ready to send in under 30 seconds.
                     </motion.p>
 
                     {/* CTA buttons */}

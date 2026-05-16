@@ -11,7 +11,7 @@
 |-----------|--------|----------|
 | pgvector extension | Enabled | Supabase |
 | `match_compliance_rules` function | Defined but never called | `lib/database.types.ts` |
-| `compliance_knowledge` table | Seeded (11 countries x 4 doc types) | `scripts/seed-compliance-knowledge.sql` |
+| `compliance_knowledge` table | Seeded (global coverage x doc types) | `scripts/seed-compliance-knowledge.sql` |
 | OpenAI API key | In Supabase Vault | Used by `app/api/ai/analyze-file/route.ts` |
 | Cost tracking | Implemented | `lib/cost-protection.ts` |
 | Audit logging | Implemented | `lib/audit-log.ts` |
@@ -21,7 +21,7 @@
 
 ### The Core Problem
 
-All 11 countries x 4 document types compliance rules are **hardcoded** in `DUAL_MODE_SYSTEM_PROMPT` (`lib/deepseek.ts`, lines 242-549). This block is sent on **every AI call** regardless of user country or document type.
+All hardcoded compliance rules in `DUAL_MODE_SYSTEM_PROMPT` (`lib/deepseek.ts`, lines 242-549) are sent on **every AI call** regardless of user country or document type.
 
 ### What Is NOT Wired Up
 
@@ -107,7 +107,7 @@ TOTAL INPUT:                      ~8,235 tokens per call
 
 The previous estimate was wrong. Here's why:
 
-1. The 11 country blocks are **3,860 tokens** — not 10,000. The system prompt is dense text, not padded.
+1. The compliance country blocks are **3,860 tokens** — not 10,000. The system prompt is dense text, not padded.
 2. The system prompt has **6,795 tokens of non-compliance content** (math rules, extraction rules, output schemas, template detection, etc.) that cannot be removed — the AI needs all of it.
 3. RAG adds back **~420 tokens** of retrieved rules, so the net removal is ~3,440 tokens.
 4. The user prompt (`buildPrompt` output) is ~1,020 tokens that stays the same.
@@ -246,7 +246,7 @@ Document generation uses **deterministic lookup** (SQL WHERE country = X AND doc
 
 | File | Change |
 |------|--------|
-| `lib/deepseek.ts` | Remove lines 242-549 (11 country blocks). Add 2-line note: "Compliance rules provided dynamically via RAG." Keep `getTaxApplyRule()`. |
+| `lib/deepseek.ts` | Remove lines 242-549 (country compliance blocks). Add 2-line note: "Compliance rules provided dynamically via RAG." Keep `getTaxApplyRule()`. |
 | `app/api/ai/stream/route.ts` | Add RAG retrieval after business profile fetch, before `streamGenerateDocument()` |
 | `scripts/seed-compliance-knowledge.sql` | Add `embedding vector(1024)` column (or 1536 if using OpenAI) |
 
@@ -307,7 +307,7 @@ RAG uses the same OpenAI key already in Vault (or a new Voyage AI key if you cho
 | 3 | Create + run `scripts/embed-compliance-rules.ts` | 1 hour |
 | 4 | Wire RAG into `app/api/ai/stream/route.ts` | 2 hours |
 | 5 | Remove country blocks from `DUAL_MODE_SYSTEM_PROMPT` (lines 242-549) | 1 hour |
-| 6 | Test all 11 countries + fallback behavior | 2-3 hours |
+| 6 | Test global compliance + fallback behavior | 2-3 hours |
 | **Total** | | **8-10 hours** |
 
 ---
@@ -335,7 +335,7 @@ RAG uses the same OpenAI key already in Vault (or a new Voyage AI key if you cho
 | **Token reduction?** | 23% (2,431 tokens saved per call, from 10,666 to 8,235) |
 | **Why not 60%?** | Country blocks are 3,860 tokens, not 10,000. The rest of the system prompt (6,795 tokens) must stay. |
 | **Where does RAG affect?** | Document generation (all 4 types), compliance chat, tax validation |
-| **What gets removed?** | Lines 242-549 of `lib/deepseek.ts` (11 country compliance blocks) |
+| **What gets removed?** | Lines 242-549 of `lib/deepseek.ts` (country compliance blocks) |
 | **What stays?** | `getTaxApplyRule()`, math rules, output schemas, template detection, all non-compliance prompt sections |
 | **Is it only chat?** | No. Every invoice/contract/quotation/proposal generation + compliance chat |
 | **Updatable without deploy?** | Yes. Change DB rows for tax rates, thresholds, e-invoicing deadlines. |

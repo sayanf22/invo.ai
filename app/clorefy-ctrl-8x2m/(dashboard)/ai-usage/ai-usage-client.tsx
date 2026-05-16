@@ -233,8 +233,14 @@ export default function AIUsageClient() {
             <option value="">All Types</option>
             <option value="invoice">Invoice</option>
             <option value="contract">Contract</option>
-            <option value="quotation">Quotation</option>
+            <option value="quote">Quote</option>
+            <option value="quotation">Quotation (legacy)</option>
             <option value="proposal">Proposal</option>
+            <option value="sow">SOW</option>
+            <option value="change_order">Change Order</option>
+            <option value="nda">NDA</option>
+            <option value="client_onboarding_form">Client Onboarding Form</option>
+            <option value="payment_followup">Payment Reminder</option>
           </select>
           <select value={success} onChange={e => { setSuccess(e.target.value); setPage(1) }}
             style={inputStyle} className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500">

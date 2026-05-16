@@ -17,14 +17,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
 
-import { checkCostLimit, trackUsage } from "@/lib/cost-protection"
+import { checkCostLimit, checkMessageLimit, resolveEffectiveTier, trackUsage } from "@/lib/cost-protection"
 import { sanitizeText, sanitizeEmail, sanitizePhone } from "@/lib/sanitize"
 import { SUPPORTED_COUNTRIES as COUNTRY_LIST } from "@/lib/countries"
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 // Accept any ISO 3166-1 alpha-2 country code the onboarding UI lets the user pick.
-// The whitelist was previously hard-coded to 11 countries, which silently dropped
+// The whitelist was previously hard-coded to a fixed set of countries, which silently dropped
 // any profile country outside that set. Now derived from the single source of
 // truth in `lib/countries.ts`.
 const SUPPORTED_COUNTRIES = COUNTRY_LIST.map((c) => c.code)
@@ -178,8 +178,16 @@ export async function POST(request: NextRequest) {
 
         // Rate limiting removed - handled by Supabase if needed
 
-        // SECURITY: Cost protection
-        const costError = await checkCostLimit(auth.supabase, auth.user.id, "onboarding")
+        // SECURITY: Resolve effective tier from subscription
+        const { data: subscription } = await auth.supabase
+            .from("subscriptions")
+            .select("plan, status, current_period_end")
+            .eq("user_id", auth.user.id)
+            .single()
+        const userTier = resolveEffectiveTier(subscription)
+
+        // SECURITY: Cost protection (tier-aware)
+        const costError = await checkCostLimit(auth.supabase, auth.user.id, "onboarding", userTier)
         if (costError) return costError
 
         const body: OnboardingAPIRequest = await request.json()
@@ -189,6 +197,13 @@ export async function POST(request: NextRequest) {
         if (sizeError) return sizeError
 
         const { messages, collectedData } = body
+        const sessionId = (body as any).sessionId as string | undefined
+
+        // SECURITY: Message-limit check (per-session, tier-aware)
+        if (sessionId) {
+            const limitError = await checkMessageLimit(auth.supabase, auth.user.id, sessionId, userTier)
+            if (limitError) return limitError
+        }
 
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
             return NextResponse.json(

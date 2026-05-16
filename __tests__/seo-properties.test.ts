@@ -534,7 +534,7 @@ describe("Feature: seo-optimization, Property 10: Entity SEO consistency", () =>
     url: "https://clorefy.com",
     logo: "https://clorefy.com/favicon.png",
     description:
-      "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals using artificial intelligence. Compliant across 11 countries.",
+      "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals using artificial intelligence. Compliant for every country worldwide.",
     foundingDate: "2025",
     sameAs: [
       "https://twitter.com/clorefy",

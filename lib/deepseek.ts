@@ -27,7 +27,12 @@ export function getModelConfig(thinkingMode: "fast" | "thinking"): {
     return {
         model: isThinking ? "deepseek-v4-pro" : "deepseek-chat",
         isThinking,
-        extraParams: isThinking ? { reasoning_effort: "medium" } : { temperature: 0.3 },
+        // Keep reasoning_effort at "low" for production reliability — higher values
+        // make the model think for 30+ seconds before emitting any content, which
+        // can hit edge runtime/proxy timeouts and result in truncated streams.
+        // The orchestrator (Bedrock/Kimi) provides additional planning, so the
+        // reasoning model doesn't need to do as much work alone.
+        extraParams: isThinking ? { reasoning_effort: "low" } : { temperature: 0.3 },
     }
 }
 
@@ -121,7 +126,7 @@ When the user says "send it" for a contract, NDA, SOW, or Change Order, understa
 - **Recurring Invoices**: Set up weekly/monthly/quarterly auto-send for invoices.
 - **Auto-Invoice on Signing**: Contracts can auto-generate and send an invoice when signed.
 - **Verification**: Every signature has a public verification URL for legal proof.
-- **Unlock Sent Documents**: If a document has been sent (locked/finalized), users can ask to unlock it to make edits. When a user asks to cancel the send, undo sending, unlock the document, or make it editable again, respond with the special marker [ACTION:UNLOCK_DOCUMENT] at the START of your response, followed by a brief confirmation message. Example: "[ACTION:UNLOCK_DOCUMENT] Sure! I'll unlock this document so you can edit it again. Note that the email already sent cannot be recalled, but you can make changes and resend." If the document is signed, it CANNOT be unlocked — explain that signed documents are legally binding.
+- **Unlock Sent Documents**: If a document has been sent (locked/finalized), users can ask to unlock it to make edits. When a user asks to cancel the send, undo sending, unlock the document, or make it editable again, respond with the special marker [ACTION:UNLOCK_DOCUMENT] at the START of your response, followed by a brief confirmation message. Example: "[ACTION:UNLOCK_DOCUMENT] Sure! I'll unlock this document so you can edit it again. Note that the email already sent cannot be recalled, but you can make changes and resend." If the document is signed, it CANNOT be unlocked — explain that signed documents are legally binding. **CRITICAL — DO NOT emit [ACTION:UNLOCK_DOCUMENT] when the user is creating a new document, drafting, or in the middle of generation. The marker is ONLY for already-sent/finalized documents where the user explicitly says words like "unlock", "make it editable", "cancel the send", "undo send", "edit again", or "I want to change the doc I already sent". A request to "create a payment follow-up", "make a new invoice", "start a quotation", or any document creation/modification request must NEVER trigger this marker — generate a JSON document instead.**
 - **Document Link**: When the user asks "what is the link", "show me the link", "get the link", "copy link", or similar, respond with the special marker [ACTION:SHOW_LINK] at the START of your response. The system will show a card with the document link and a copy button. Do NOT try to construct the link yourself — the system handles it.
 - **Recurring Invoices (Chat)**: Users can set up or cancel recurring invoices from chat. When the user asks to "make this recurring", "send this every month", "set up recurring", respond with [ACTION:SETUP_RECURRING] at the START. When they ask to "cancel recurring", "stop recurring", "turn off recurring", respond with [ACTION:CANCEL_RECURRING] at the START. The system will show the appropriate UI card.
 - **Client Response Toggle (Quotations/Proposals)**: When the user asks to "turn off accept/reject", "disable client response", "hide response buttons", respond with [ACTION:DISABLE_CLIENT_RESPONSE]. When they ask to "turn on accept/reject", "enable client response", "show response buttons", respond with [ACTION:ENABLE_CLIENT_RESPONSE]. This only applies to quotations and proposals.
@@ -216,7 +221,8 @@ When responding in DOCUMENT GENERATION mode, follow ALL rules below.
   - CO- for change orders (e.g. CO-2026-01-001)
   - NDA- for NDAs (e.g. NDA-2026-01-001)
   - ONB- for client onboarding forms (e.g. ONB-2026-01-001)
-  - REM- for payment follow-ups (e.g. REM-2026-01-001)
+  - PF- for payment follow-ups (e.g. PF-2026-01-001)
+- ALWAYS use the EXACT document number from the [SYSTEM: Use document number "..."] block when present. The system has already pre-computed the correct number for the requested document type. Never substitute your own prefix or numbering — even if the prefix looks unusual.
 
 
 ## UNDERSTANDING THE USER'S BUSINESS
@@ -564,7 +570,7 @@ NOTE: Client Onboarding Forms do NOT have items arrays, tax fields, or payment t
 ### Payment Follow-up (documentType: "payment_followup")
 Required fields:
 - documentType: "payment_followup"
-- referenceNumber: "REM-XXXX"
+- referenceNumber: "PF-XXXX"
 - linkedInvoiceId: UUID of the linked invoice (use "" if not available from context)
 - invoiceNumber: the original invoice reference number (e.g. "INV-2026-01-001")
 - invoiceAmount: the invoice amount as a number
@@ -584,6 +590,11 @@ Required fields:
 - design: template object
 
 DOCUMENT LINKING RULE for Payment Follow-up: If PARENT CONTEXT or conversation history references a specific invoice, extract linkedInvoiceId, invoiceNumber, invoiceAmount, dueDate, and paymentLinkUrl from that context. If the user provides these details in their message, use them directly.
+
+PAYMENT FOLLOW-UP MISSING-FIELD RULE: If the user asks to create a payment follow-up and PARENT CONTEXT does NOT include the invoice amount, OR the user's message does NOT include an explicit amount, you MUST do BOTH of the following on the SAME turn:
+  1. Generate the JSON document anyway, using invoiceAmount: 0 and invoiceCurrency from profile as a placeholder.
+  2. In the "message" field, ask the user explicitly: "What's the original invoice amount you'd like to follow up on?" — and also ask for the invoice number and due date if those are missing too. Combine into a single sentence.
+DO NOT silently leave invoiceAmount as 0 without asking the user — the recipient must see the correct amount in the reminder. Ask all missing critical fields (amount, invoiceNumber, dueDate, recipient email) in ONE concise follow-up question, not separate ones.
 
 NOTE: Payment Follow-up documents do NOT create new payment links. They reference the payment link from the original invoice. Do NOT include items, tax, or payment terms fields.
 
@@ -611,7 +622,8 @@ Apply country-specific compliance rules from COMPLIANCE CONTEXT to ALL document 
 - **Payment Follow-up**: Apply country-appropriate late payment interest rates and legal references (e.g., UK Late Payment of Commercial Debts Act, EU Payment Services Directive) in the notes when the invoice is significantly overdue.
 
 ## OUTPUT FORMAT
-Respond with ONLY valid JSON (no markdown, no code fences):
+Respond with ONLY valid JSON (no markdown, no code fences, no prose).
+The very FIRST character of your response MUST be the opening curly brace. Do NOT prepend any commentary like "Here is the document..." or "The document is unlocked...". The user will see your "message" field — put any chat-style commentary there, NOT outside the JSON.
 {
   "document": { ... complete document data ... },
   "message": "Short friendly message about what was created + one follow-up question"
@@ -1133,7 +1145,11 @@ export async function* streamGenerateDocument(
                     { role: "system", content: DUAL_MODE_SYSTEM_PROMPT },
                     { role: "user", content: prompt },
                 ],
-                max_tokens: 3000,
+                // Thinking mode (deepseek-v4-pro) needs more tokens because the
+                // model outputs richer prose alongside the JSON document. The
+                // reasoning_content channel is separate but the main `content`
+                // channel can still hit ~5-6KB for contracts/proposals.
+                max_tokens: isThinking ? 6000 : 3000,
                 ...extraParams,
                 stream: true,
             }),

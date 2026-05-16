@@ -25,7 +25,7 @@ export function MultiDeviceSection() {
                     viewport={{ once: true }}
                     className="inline-block px-4 py-1.5 rounded-full bg-white border border-stone-200/50 text-sm font-semibold mb-4 sm:mb-6 shadow-sm text-[var(--landing-text-muted)]"
                 >
-                    Cross-Platform Sync
+                    Work From Anywhere
                 </motion.div>
                 <motion.h2
                     initial={{ opacity: 0, y: 20 }}
@@ -33,11 +33,11 @@ export function MultiDeviceSection() {
                     viewport={{ once: true }}
                     className="font-display text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-4 sm:mb-6 text-[var(--landing-text-dark)] drop-shadow-sm"
                 >
-                    Everywhere you <br />
-                    <span className="text-[var(--landing-amber)] italic font-serif">work</span>
+                    Generate documents wherever you <br />
+                    <span className="text-[var(--landing-amber)] italic font-serif">are</span>
                 </motion.h2>
                 <p className="text-base sm:text-xl md:text-2xl text-[var(--landing-text-muted)] max-w-2xl mx-auto drop-shadow-sm">
-                    Capture ideas on your phone, edit on your tablet, finalize on your desktop.
+                    In a client meeting, on a train, or at your desk — generate and send compliant documents without missing a billing window.
                 </p>
             </div>
 

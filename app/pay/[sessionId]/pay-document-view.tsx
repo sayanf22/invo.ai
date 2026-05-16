@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useMemo, useCallback } from "react"
-import { Loader2, FileText, CheckCircle2, Clock, RefreshCw, AlertCircle } from "lucide-react"
+import { Loader2, FileText, CheckCircle2, Clock, RefreshCw, AlertCircle, X } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport, calculateTotal, getCurrencySymbol } from "@/lib/invoice-types"
@@ -16,6 +16,11 @@ interface Props {
   sessionId?: string
   documentType?: string
   existingResponse?: "accepted" | "declined" | "changes_requested" | null
+  /**
+   * When true, render a "no longer available" UI instead of the document.
+   * Set by the server when the owner has cancelled the share after sending.
+   */
+  cancelled?: boolean
 }
 
 // ── QR Code ───────────────────────────────────────────────────────────
@@ -180,7 +185,7 @@ function StatusBadge({ status }: { status: PaymentInfo["status"] }) {
 
 // ── Main Client Component ─────────────────────────────────────────────
 
-export function PayDocumentView({ docData, payment: initialPayment, sessionId, documentType, existingResponse }: Props) {
+export function PayDocumentView({ docData, payment: initialPayment, sessionId, documentType, existingResponse, cancelled }: Props) {
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [rendering, setRendering] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
@@ -281,6 +286,30 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
 
   // Cleanup polling on unmount
   useEffect(() => () => stopPolling(), [stopPolling])
+
+  // ── Cancelled by owner ──────────────────────────────────────────────
+  if (cancelled) {
+    return (
+      <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex flex-col items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mx-auto">
+            <X className="h-8 w-8 text-neutral-500 dark:text-neutral-400" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+              Document no longer available
+            </h1>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              The owner has cancelled this document. The link is no longer valid.
+            </p>
+            <p className="text-xs text-neutral-500/70 dark:text-neutral-400/70 pt-2">
+              If you believe this is an error, please contact the sender directly.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // ── Document not found ──────────────────────────────────────────────
   if (!docData) {

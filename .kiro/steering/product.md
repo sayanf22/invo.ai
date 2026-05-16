@@ -1,6 +1,6 @@
 # Product Overview
 
-Invo.ai is an AI-powered platform that generates compliant invoices, contracts, quotations, and proposals for 11 countries through conversational prompts.
+Invo.ai is an AI-powered platform that generates compliant invoices, contracts, quotations, and proposals for businesses globally through conversational prompts.
 
 ## Core User Flow
 
@@ -8,7 +8,7 @@ User describes document need → AI generates complete document → User edits i
 
 ## Supported Countries
 
-India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands (all equal priority)
+Works globally with country-aware compliance. Particularly well-tested for India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, and the Netherlands — and expanding continuously.
 
 ## Key Principles
 
@@ -28,7 +28,7 @@ India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France,
 2. **Document Generation** - DeepSeek V3 Chat: Generate invoices, contracts, quotations, and proposals using business profile data + country-specific compliance templates
 
 **Template System:**
-- 44 templates covering 11 countries × 4 document types
+- Templates cover a wide range of countries × document type combinations
 - Automatic compliance requirement injection
 - Country-specific tax rates, mandatory fields, and legal requirements
 - Auto-update system for regulatory changes (7-day review cycle)

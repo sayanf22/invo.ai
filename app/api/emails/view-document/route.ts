@@ -41,10 +41,67 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    // Allow: sent documents OR signed documents
-    // Block: drafts that were never sent and never signed
+    // Allow public access when the document has been delivered to a recipient,
+    // either by:
+    //   - a sent email/share (sent_at is stamped), OR
+    //   - a signing flow having reached the signed state, OR
+    //   - an active invoice_payments row exists (the owner created a public
+    //     payment link, which acts as a recipient-facing artefact).
+    // Block: drafts that have none of the above.
+    let hasPaymentLink = false
     if (!session.sent_at && session.status !== "signed") {
-      return NextResponse.json({ error: "Document not found" }, { status: 404 })
+      const { data: payCheck } = await supabase
+        .from("invoice_payments")
+        .select("id")
+        .eq("session_id", sessionId)
+        .in("status", ["created", "partially_paid", "paid"])
+        .limit(1)
+        .maybeSingle()
+      hasPaymentLink = !!payCheck
+      if (!hasPaymentLink) {
+        return NextResponse.json({ error: "Document not found" }, { status: 404 })
+      }
+    }
+
+    // ── Cancellation guard ──
+    // Two cancellation paths exist:
+    //   1. Owner clicks "Unlock" via chat → status returns to "active"
+    //   2. Owner clicks "Cancel" via document preview → status becomes "cancelled"
+    // Both should immediately revoke public access — this matches the industry
+    // standard set by DocuSign / Adobe Sign / HelloSign where voiding a document
+    // makes the link null and renders the document unavailable to recipients.
+    // Exception: end-states "signed" and "paid" are NEVER revoked (legally binding).
+    if (session.status === "cancelled") {
+        return NextResponse.json(
+            { error: "This document is no longer available. The owner has cancelled it.", cancelled: true },
+            { status: 410 }
+        )
+    }
+    if (session.status === "active" && session.sent_at) {
+      // Owner unlocked after sending — public link is now dead
+      return NextResponse.json(
+        { error: "This document is no longer available. The owner has cancelled the share.", cancelled: true },
+        { status: 410 }
+      )
+    }
+
+    // Also check: if all signature requests for this session are cancelled,
+    // treat the public view as cancelled too (defence in depth).
+    if (["contract", "sow", "nda", "change_order", "quotation", "quote", "proposal"].includes(session.document_type || "")) {
+      const { data: sigs } = await supabase
+        .from("signatures")
+        .select("signer_action, signed_at")
+        .eq("session_id", sessionId)
+      const hasAnySig = (sigs ?? []).length > 0
+      const allCancelled = hasAnySig && (sigs ?? []).every(s =>
+        (s as any).signer_action === "cancelled" && !s.signed_at
+      )
+      if (allCancelled) {
+        return NextResponse.json(
+          { error: "This document is no longer available. The owner has cancelled the share.", cancelled: true },
+          { status: 410 }
+        )
+      }
     }
 
     // Payment info for invoices

@@ -12,11 +12,6 @@ export function ClorefyLogo({ size = 72, className = "", showBeta = false }: { s
         className={`rounded-lg shrink-0 ${className}`}
         priority
       />
-      {showBeta && (
-        <span className="text-[7px] font-bold uppercase tracking-wider px-1 py-[1px] rounded-full bg-foreground/[0.07] text-muted-foreground/60 border border-border/40 leading-none select-none whitespace-nowrap shrink-0">
-          beta
-        </span>
-      )}
     </span>
   )
 }

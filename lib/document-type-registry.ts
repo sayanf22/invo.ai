@@ -38,6 +38,15 @@ export interface DocumentTypeConfig {
   color: string
   /** Tailwind bg color class */
   bgColor: string
+  /**
+   * Reference number prefix — single source of truth for document numbering.
+   * Used by the stream route to inject the deterministic document number into
+   * the AI prompt, and by the persist layer to coerce any AI-produced
+   * referenceNumber/invoiceNumber to the right prefix.
+   *
+   * Format: `<PREFIX>-<YYYY>-<MM>-<NNN>` (e.g. `INV-2026-05-001`).
+   */
+  prefix: string
   capabilities: {
     supports_signature: boolean
     supports_payment_link: boolean
@@ -59,6 +68,7 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     icon: "FileText",
     color: "text-blue-600",
     bgColor: "bg-blue-50",
+    prefix: "INV",
     capabilities: {
       supports_signature: false,
       supports_payment_link: true,
@@ -76,6 +86,7 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     icon: "FileCheck",
     color: "text-emerald-600",
     bgColor: "bg-emerald-50",
+    prefix: "CTR",
     capabilities: {
       supports_signature: true,
       supports_payment_link: false,
@@ -93,6 +104,7 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     icon: "FileQuestion",
     color: "text-amber-600",
     bgColor: "bg-amber-50",
+    prefix: "QUO",
     capabilities: {
       supports_signature: false,
       supports_payment_link: false,
@@ -110,6 +122,7 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     icon: "Presentation",
     color: "text-violet-600",
     bgColor: "bg-violet-50",
+    prefix: "PROP",
     capabilities: {
       supports_signature: false,
       supports_payment_link: false,
@@ -127,6 +140,7 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     icon: "ClipboardList",
     color: "text-cyan-600",
     bgColor: "bg-cyan-50",
+    prefix: "SOW",
     capabilities: {
       supports_signature: true,
       supports_payment_link: false,
@@ -144,6 +158,7 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     icon: "GitMerge",
     color: "text-orange-600",
     bgColor: "bg-orange-50",
+    prefix: "CO",
     capabilities: {
       supports_signature: true,
       supports_payment_link: false,
@@ -161,6 +176,7 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     icon: "Shield",
     color: "text-slate-600",
     bgColor: "bg-slate-50",
+    prefix: "NDA",
     capabilities: {
       supports_signature: true,
       supports_payment_link: false,
@@ -178,6 +194,7 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     icon: "ClipboardCheck",
     color: "text-teal-600",
     bgColor: "bg-teal-50",
+    prefix: "ONB",
     capabilities: {
       supports_signature: false,
       supports_payment_link: false,
@@ -195,6 +212,7 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     icon: "Bell",
     color: "text-rose-600",
     bgColor: "bg-rose-50",
+    prefix: "PF",
     capabilities: {
       supports_signature: false,
       supports_payment_link: false,
@@ -249,3 +267,70 @@ export function getDocumentTypeConfig(type: string): DocumentTypeConfig | null {
   if (!normalized) return null
   return DOCUMENT_TYPE_REGISTRY[normalized]
 }
+
+// ─── Reference Number Helpers ─────────────────────────────────────────────────
+
+/**
+ * Get the canonical reference number prefix for a document type.
+ * Falls back to "DOC" for unknown types so callers always get a non-empty string.
+ */
+export function getPrefixForType(type: string): string {
+  const config = getDocumentTypeConfig(type)
+  return config?.prefix ?? "DOC"
+}
+
+/**
+ * Build a deterministic reference number for a document.
+ * Format: `<PREFIX>-<YYYY>-<MM>-<NNN>` (e.g. `INV-2026-05-001`).
+ *
+ * @param type - Document type (legacy aliases accepted).
+ * @param sequence - 1-based count among the user's documents of this type.
+ * @param now - Optional date for testing; defaults to today.
+ */
+export function formatReferenceNumber(
+  type: string,
+  sequence: number,
+  now: Date = new Date()
+): string {
+  const prefix = getPrefixForType(type)
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+  const padded = String(Math.max(1, Math.floor(sequence))).padStart(3, "0")
+  return `${prefix}-${year}-${month}-${padded}`
+}
+
+/**
+ * Check whether a reference number string starts with the correct prefix
+ * for the given document type. Case-sensitive on the prefix; the prefix is
+ * always uppercase by convention. Empty/missing strings are considered invalid.
+ */
+export function isReferenceNumberValid(ref: string | null | undefined, type: string): boolean {
+  if (!ref || typeof ref !== "string") return false
+  const prefix = getPrefixForType(type)
+  return ref.startsWith(`${prefix}-`)
+}
+
+/**
+ * Coerce an AI-produced reference number to the correct prefix for the
+ * given document type. If the AI hallucinated `REM-2026-05-001` for an
+ * invoice, this returns `INV-2026-05-001`. If the prefix already matches
+ * (or the value is empty/invalid in a way we can't safely fix), returns
+ * the original value untouched.
+ *
+ * Used at persist time so the database always reflects a reference number
+ * whose prefix matches the session's `document_type` — regardless of
+ * whether the AI assigned it correctly.
+ */
+export function coerceReferenceNumber(ref: string | null | undefined, type: string): string | null {
+  if (!ref || typeof ref !== "string") return ref ?? null
+  const targetPrefix = getPrefixForType(type)
+  // Strip any leading prefix matching `<LETTERS>-` and replace with the target
+  // prefix. We only rewrite when the leading token is alphabetic — leaves
+  // arbitrary user-typed numbers like `2026/04` unchanged.
+  const match = ref.match(/^([A-Z]{2,6})-(.*)$/i)
+  if (!match) return ref
+  const currentPrefix = match[1].toUpperCase()
+  if (currentPrefix === targetPrefix) return ref
+  return `${targetPrefix}-${match[2]}`
+}
+

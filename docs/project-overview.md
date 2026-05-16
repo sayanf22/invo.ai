@@ -1,10 +1,10 @@
 # Clorefy (invo.ai) — Project Overview
 
-> AI-powered document generation platform for businesses across 11 countries.
+> AI-powered document generation platform for businesses worldwide.
 
 ## Product Overview
 
-Clorefy is a conversational AI platform that generates compliant invoices, contracts, quotations, and proposals. Users describe their document needs in natural language, and the AI produces complete, country-compliant documents ready for export and digital signing.
+Clorefy is a conversational AI platform that generates compliant invoices, contracts, quotations, proposals, statements of work, change orders, NDAs, client onboarding forms, and payment follow-ups. Users describe their document needs in natural language, and the AI produces complete, country-compliant documents ready for export and digital signing.
 
 **Core flow:** User describes document need → AI generates complete document → User edits if needed → Export in multiple formats
 
@@ -20,6 +20,7 @@ Clorefy is a conversational AI platform that generates compliant invoices, contr
 - Supports iterative refinement within a session (edit, add items, change terms)
 - Smart extraction: parses client names, amounts, services from natural language
 - Business context auto-injected from onboarding profile (never asks for your own info)
+- Dual-mode detection: AI determines if user wants conversation or document generation
 
 ### 2. Business Onboarding via AI Chat
 - First-time users go through a conversational onboarding flow
@@ -28,8 +29,10 @@ Clorefy is a conversational AI platform that generates compliant invoices, contr
 - Data stored permanently and reused for all future documents
 - Profile editable anytime via hamburger menu → Profile page
 
-### 3. Supported Countries (11)
-All countries are equal priority with full compliance support:
+### 3. Global Country Support
+Clorefy supports **every ISO 3166-1 country** (200+ countries). Users from any country can create documents with their local currency, tax ID format, and compliance rules.
+
+**11 Core Markets** with strict tax-ID validation and full compliance templates:
 
 | Code | Country       | Tax System          | Standard Rate |
 |------|---------------|---------------------|---------------|
@@ -45,64 +48,89 @@ All countries are equal priority with full compliance support:
 | FR   | France        | TVA                 | 20%           |
 | NL   | Netherlands   | BTW                 | 21%           |
 
-### 4. Document Types
-- **Invoices** — with country-specific tax compliance, line items, tax calculations
+All other countries use a permissive tax-ID format and get compliance rules dynamically via the RAG knowledge base at generation time.
+
+### 4. Document Types (9)
+- **Invoices** — with country-specific tax compliance, line items, tax calculations, per-item discounts
 - **Contracts** — service agreements, employment contracts, with jurisdiction clauses
 - **Quotations** — price quotes, estimates, bids with validity periods
 - **Proposals** — business proposals, project proposals, pitches
+- **Statements of Work (SOW)** — detailed project scope, deliverables, timelines
+- **Change Orders** — amendments to existing contracts/SOWs
+- **NDAs** — non-disclosure/confidentiality agreements
+- **Client Onboarding Forms** — structured intake forms for new clients
+- **Payment Follow-ups** — payment reminder documents with invoice references
 
 ### 5. Multi-Format Export
 - **PDF** — via `@react-pdf/renderer`, 9 templates available
 - **DOCX** — Word document export
 - **Image** — PNG/JPG export
 
-### 6. Digital Signatures
+### 6. Digital Signatures (E-Signatures)
 - Token-based access for external signers (no account required)
 - Signature pad capture (drawn signatures)
 - Tracks: signer name, email, IP address, user agent, document hash
 - Signature tokens with expiration dates
 - Party A / Party B signing flow
+- Sender's saved signature auto-applied as Party A
+- Public verification URL for legal proof
+- Supported on: Contracts, SOWs, Change Orders, NDAs (Pro/Agency plans)
 
-### 7. Custom Logo & Branding (Pro+)
+### 7. Email Sending
+- Send documents directly to clients via email from toolbar or chat
+- AI-generated personalized email messages
+- Auto follow-up reminders
+- Recurring invoice scheduling (weekly/monthly/quarterly)
+- Payment links embedded in invoice emails (via Razorpay)
+
+### 8. Custom Logo & Branding (Pro+)
 - Upload business logo during onboarding or via profile
 - Logo appears on all generated documents
 - Custom signature upload
 
-### 8. Document Linking
+### 9. Document Linking
 - **derived_from** — create a contract from a quotation, invoice from a proposal
 - **related_to** — link related documents together
 - Chain navigation UI for browsing linked document sessions
+- Auto-invoice on contract signing
 
-### 9. Session History
+### 10. Session History
 - Chat sessions preserved with full message history
 - Chain navigator for browsing linked sessions
 - Session sidebar for quick access to recent sessions
 - History retention varies by plan (7 days → forever)
 
-### 10. 9 Document Templates
+### 11. 9 Document Templates
 Modern, Classic, Bold, Minimal, Elegant, Corporate, Creative, Warm, Geometric — each with distinct fonts, colors, and layouts.
 
-### 11. File Analysis
+### 12. File Analysis
 - Upload PDFs, images, or documents for AI analysis
 - AI reads file contents and can extract data for document generation
-- Powered by OpenAI GPT-4.1 mini for vision/file understanding
+- Powered by OpenAI GPT-5.4 mini for vision/file understanding
+
+### 13. Client Response (Quotations/Proposals)
+- Accept/reject toggle for quotations and proposals
+- Clients can respond to documents without an account
+- Toggleable via chat commands
 
 ---
 
 ## AI Models Used
 
-| Model | API Name | Use Case | Input Cost | Output Cost |
-|-------|----------|----------|------------|-------------|
-| DeepSeek V3 | `deepseek-chat` | Onboarding, general chat, document generation | $0.27/1M tokens | $1.10/1M tokens |
-| DeepSeek R1 | `deepseek-reasoner` | Complex reasoning tasks | $0.55/1M tokens | $2.19/1M tokens |
-| OpenAI GPT-4.1 mini | `gpt-4.1-mini` | File analysis, PDF/image reading | $0.40/1M tokens | $1.60/1M tokens |
+| Model | API Name | Use Case |
+|-------|----------|----------|
+| DeepSeek V3 | `deepseek-chat` | Fast mode: onboarding, general chat, document generation (temperature 0.3) |
+| DeepSeek V4 Pro | `deepseek-v4-pro` | Thinking mode: complex reasoning with reasoning_effort "low" |
+| OpenAI GPT-5.4 mini | `gpt-5.4-mini` | File analysis only: PDF/image reading and data extraction |
 
 **Architecture:**
 - Dual-mode system prompt: AI detects whether user wants conversation or document generation
 - Document generation returns structured JSON; conversation returns Markdown
 - Business context injected into every AI call
-- Country-specific compliance rules embedded in system prompts
-- 44 compliance templates (11 countries × 4 document types)
+- Country-specific compliance rules fetched via RAG (pgvector semantic search)
+- Compliance templates for major world markets (document types × countries)
+- GPT is ONLY used when a file is physically attached; all text interactions use DeepSeek
+- Thinking mode uses reasoning_effort "low" to avoid timeout issues on edge runtimes
 
 ---
 
@@ -113,10 +141,10 @@ Modern, Classic, Bold, Minimal, Elegant, Corporate, Creative, Warm, Geometric �
 | Feature | Free | Starter (₹999/mo) | Pro (₹2,499/mo) | Agency (₹5,999/mo) |
 |---------|------|-------------------|-----------------|-------------------|
 | Documents/month | 5 | 50 | 150 | Unlimited |
-| Document types | Invoice + Contract | All 4 | All 4 | All 4 |
+| Document types | Invoice + Contract | All 9 | All 9 | All 9 |
 | Messages/session | 10 | 30 | 50 | Unlimited |
 | Templates | 3 | All 9 | All 9 | All 9 |
-| Countries | All 11 | All 11 | All 11 | All 11 |
+| Countries | All | All | All | All |
 | Export formats | PDF | PDF + DOCX | PDF + DOCX + Image | All |
 | Digital signatures | ✗ | ✗ | ✓ | ✓ |
 | Custom branding | ✗ | ✗ | ✓ | ✓ |
@@ -144,7 +172,7 @@ Modern, Classic, Bold, Minimal, Elegant, Corporate, Creative, Warm, Geometric �
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 16.1.6 (App Router) |
+| Framework | Next.js 16.2.4 (App Router) |
 | UI Library | React 19 |
 | Language | TypeScript 5.7.3 |
 | Styling | Tailwind CSS 3.4.17 |
@@ -160,6 +188,7 @@ Modern, Classic, Bold, Minimal, Elegant, Corporate, Creative, Warm, Geometric �
 | Dark Mode | next-themes |
 | Toasts | Sonner |
 | Dates | date-fns |
+| Animations | Lenis (smooth scroll) |
 
 ---
 
@@ -181,6 +210,7 @@ Modern, Classic, Bold, Minimal, Elegant, Corporate, Creative, Warm, Geometric �
 - Webhook handling for payment events
 - Payment history tracking
 - Order creation → payment verification → subscription activation flow
+- Payment links auto-embedded in invoice emails
 
 ---
 
@@ -287,11 +317,11 @@ Modern, Classic, Bold, Minimal, Elegant, Corporate, Creative, Warm, Geometric �
 ### API Routes
 | Route | Description |
 |-------|-------------|
-| `/api/ai/stream` | Streaming document generation |
-| `/api/ai/onboarding` | Onboarding conversation |
+| `/api/ai/stream` | Streaming document generation (DeepSeek) |
+| `/api/ai/onboarding` | Onboarding conversation (DeepSeek) |
 | `/api/ai/detect-type` | Document type detection |
-| `/api/ai/analyze-file` | File analysis (PDF/image) |
-| `/api/ai/profile-update` | AI-assisted profile updates |
+| `/api/ai/analyze-file` | File analysis (GPT-5.4 mini) |
+| `/api/ai/profile-update` | AI-assisted profile updates (DeepSeek) |
 | `/api/sessions/create` | Create new document session |
 | `/api/sessions/create-linked` | Create linked session |
 | `/api/sessions/linked` | Get linked sessions |

@@ -111,8 +111,13 @@ export async function middleware(request: NextRequest) {
   // ── Short link redirect: /d/[shortId] → /pay/[full-session-id] ──────
   // Handle this in middleware to avoid service role key issues in edge runtime.
   // Uses the anon key + RPC function to look up the session ID.
-  // The RPC function (lookup_session_by_short_id) handles UUID-to-text casting
-  // and respects RLS by only returning finalized/paid/signed sessions.
+  // The RPC `lookup_session_id_by_short_id` returns the id + status for any
+  // session that has been sent at least once (or is in a terminal state).
+  // We then redirect to /pay/[fullId] which renders the correct UI for each
+  // status — valid docs show the document, cancelled/unlocked docs show the
+  // "no longer available" screen. This matches DocuSign/Adobe Sign behaviour
+  // where a voided envelope resolves to a clear cancellation page rather
+  // than dropping the recipient on the homepage.
   if (pathname.startsWith("/d/") && pathname.length > 3) {
     const shortId = pathname.slice(3) // strip "/d/"
     // Validate: must be 6-8 hex chars
@@ -122,7 +127,7 @@ export async function middleware(request: NextRequest) {
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
         if (supabaseUrl && supabaseKey) {
           const res = await fetch(
-            `${supabaseUrl}/rest/v1/rpc/lookup_session_by_short_id`,
+            `${supabaseUrl}/rest/v1/rpc/lookup_session_id_by_short_id`,
             {
               method: "POST",
               headers: {
@@ -136,7 +141,7 @@ export async function middleware(request: NextRequest) {
           )
           if (res.ok) {
             const rows = await res.json()
-            // RPC returns array of {id: uuid} objects
+            // RPC returns array of {id: uuid, status: text}
             if (Array.isArray(rows) && rows.length > 0 && rows[0].id) {
               const fullId = rows[0].id
               const payUrl = new URL(`/pay/${fullId}`, request.url)
@@ -145,11 +150,13 @@ export async function middleware(request: NextRequest) {
           }
         }
       } catch {
-        // Fall through to page component if middleware lookup fails
+        // Fall through to not-found page if middleware lookup fails
       }
     }
-    // Invalid shortId or not found — redirect to home
-    return NextResponse.redirect(new URL("/", request.url))
+    // Invalid shortId or no matching session — show a "link not found" page
+    // by rewriting (not redirecting) to /pay with an empty session marker.
+    // Using rewrite preserves the original URL so users can retry/share.
+    return NextResponse.rewrite(new URL("/d/not-found", request.url))
   }
 
   // ── Admin route protection ────────────────────────────────────────────

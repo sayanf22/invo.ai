@@ -92,9 +92,9 @@ INSERT INTO compliance_knowledge (country, document_type, category, requirement_
  'https://www.aade.gr/', '2026-01-01'),
 
 ('Romania', 'invoice', 'tax_rates', 'vat_rates',
- '{"standard": 19, "reduced_9": 9, "reduced_5": 5, "zero": 0, "registration_threshold_ron": 395000}',
- 'TVA: 19% standard, 9% (food, medicines, books, hotels, water), 5% (housing <450k lei, agricultural products). e-Factura mandatory for B2B.',
- 'https://www.anaf.ro/', '2026-01-01'),
+ '{"standard": 21, "reduced_9": 9, "reduced_5": 5, "zero": 0, "registration_threshold_ron": 395000}',
+ 'TVA: 21% standard (raised from 19% in 2025), 9% (food, medicines, books, hotels, water), 5% (housing <450k lei, agricultural products). e-Factura mandatory for B2B.',
+ 'https://www.anaf.ro/', '2025-01-01'),
 
 ('Slovakia', 'invoice', 'tax_rates', 'vat_rates',
  '{"standard": 23, "reduced_19": 19, "reduced_5": 5, "zero": 0, "registration_threshold_eur": 50000}',
@@ -270,8 +270,8 @@ INSERT INTO compliance_knowledge (country, document_type, category, requirement_
 
 -- ── AFRICA ───────────────────────────────────────────────────────
 ('South Africa', 'invoice', 'tax_rates', 'vat_rates',
- '{"standard": 15, "zero": 0, "registration_threshold_zar": 1000000}',
- 'VAT: 15% flat standard (since 2018). Registration at ZAR 1M. Tax invoice must show VAT registration number and the words "Tax Invoice".',
+ '{"standard": 16, "previous_standard": 15, "zero": 0, "registration_threshold_zar": 1000000}',
+ 'VAT: 16% standard (raised from 15% effective April 1, 2026; was 15.5% from May 2025). Registration at ZAR 1M. Tax invoice must show VAT registration number and the words "Tax Invoice".',
  'https://www.sars.gov.za/', '2018-04-01'),
 
 ('Nigeria', 'invoice', 'tax_rates', 'vat_rates',

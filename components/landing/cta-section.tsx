@@ -19,12 +19,12 @@ export function CTASection() {
 
                 <div className="relative z-10 max-w-4xl mx-auto">
                     <h2 className="font-display text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-bold text-[var(--landing-dark)] mb-6 sm:mb-8 tracking-tight leading-[0.95]">
-                        Ready to <br />
-                        <span className="text-[var(--landing-amber)] italic font-serif">transform</span> your workflow?
+                        Ready to stop doing <br />
+                        <span className="text-[var(--landing-amber)] italic font-serif">documents</span> manually?
                     </h2>
 
                     <p className="text-base sm:text-xl md:text-2xl text-[var(--landing-text-muted)] mb-8 sm:mb-14 max-w-2xl mx-auto font-medium">
-                        Join 10,000+ professionals generating documents with Clorefy. No credit card required.
+                        Generate compliant invoices, contracts, and proposals in under 30 seconds. Free plan available — no credit card required.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
