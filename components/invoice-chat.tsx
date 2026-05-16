@@ -2076,6 +2076,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 </div>
                             ) : msg.unlockCard ? (
                                 // Unlock/cancel-send confirmation card
+                                // FINAL GATE: only render if the document is genuinely locked.
+                                // If the session is no longer finalized/signed (e.g. cancelled,
+                                // unlocked, or never sent in the first place), suppress the card
+                                // and show nothing — the user shouldn't see an unlock prompt
+                                // for a doc that isn't locked.
+                                (session?.status === "finalized" || session?.status === "signed") ? (
                                 <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/50 overflow-hidden"
                                     style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04)" }}
                                 >
@@ -2142,6 +2148,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                         </div>
                                     </div>
                                 </div>
+                                ) : null
                             ) : msg.role === "user" ? (
                                 <div className="max-w-[78%] min-w-0 px-4 py-2.5 rounded-2xl rounded-br-sm bg-primary text-primary-foreground text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300"
                                     style={{ boxShadow: "0 2px 8px hsl(var(--primary) / 0.25)", wordBreak: "break-word", overflowWrap: "anywhere" }}
