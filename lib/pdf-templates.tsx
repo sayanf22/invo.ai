@@ -2647,15 +2647,13 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | null }) {
-    // Use a fixed "corporate" theme for SOW (cyan accent)
-    const pri = "#0e7490"    // cyan-700
-    const priDk = "#155e75"  // cyan-800
-    const acc = "#cffafe"    // cyan-100
-    const bg = "#f0fdfa"     // teal-50
-    const txt = "#1e293b"
-    const mut = "#64748b"
-    const bdr = "#d1d5db"
-    const font = "Inter"
+    // Template-aware theming — driven by user's design picker (templateId).
+    // Falls back to corporate-cyan if no template selected.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tpl = getTpl(data as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = getTheme(tpl, data as any)
+    const { pri, priDk, acc, bg, txt, mut, bdr, font } = c
 
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
     const thinLineTop = { ...bw(1, 0, 0, 0), ...bc(bdr, "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
@@ -2862,14 +2860,12 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoUrl?: string | null }) {
-    const pri = "#c2410c"    // orange-700
-    const priDk = "#9a3412"  // orange-800
-    const acc = "#ffedd5"    // orange-100
-    const bg = "#fff7ed"     // orange-50
-    const txt = "#1e293b"
-    const mut = "#64748b"
-    const bdr = "#d1d5db"
-    const font = "Inter"
+    // Template-aware theming — driven by user's design picker.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tpl = getTpl(data as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = getTheme(tpl, data as any)
+    const { pri, priDk, acc, bg, txt, mut, bdr, font } = c
 
     const currency = data.currency || "USD"
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
@@ -3078,14 +3074,12 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | null }) {
-    const pri = "#475569"    // slate-600
-    const priDk = "#334155"  // slate-700
-    const acc = "#f1f5f9"    // slate-100
-    const bg = "#f8fafc"     // slate-50
-    const txt = "#1e293b"
-    const mut = "#64748b"
-    const bdr = "#d1d5db"
-    const font = "Inter"
+    // Template-aware theming — driven by user's design picker.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tpl = getTpl(data as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = getTheme(tpl, data as any)
+    const { pri, priDk, acc, bg, txt, mut, bdr, font } = c
 
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
 
@@ -3252,14 +3246,12 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboardingFormData; logoUrl?: string | null }) {
-    const pri = "#0f766e"    // teal-700
-    const priDk = "#115e59"  // teal-800
-    const acc = "#ccfbf1"    // teal-100
-    const bg = "#f0fdfa"     // teal-50
-    const txt = "#1e293b"
-    const mut = "#64748b"
-    const bdr = "#d1d5db"
-    const font = "Inter"
+    // Template-aware theming — driven by user's design picker.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tpl = getTpl(data as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = getTheme(tpl, data as any)
+    const { pri, priDk, acc, bg, txt, mut, bdr, font } = c
 
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
 
@@ -3393,21 +3385,38 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupData; logoUrl?: string | null }) {
-    // Tone-based color scheme
+    // Template-aware theming: if the user selected a template via the design
+    // picker, use it. Otherwise fall back to tone-based colors (polite/firm/urgent)
+    // so the document still has visual urgency cues by default.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dataAny = data as any
+    const userPickedTemplate = !!(dataAny.design?.templateId && dataAny.design.templateId !== "modern")
+        || !!(dataAny.design?.headerColor && dataAny.design.headerColor.length > 0)
     const toneColors = {
         polite: { pri: "#2563eb", acc: "#dbeafe", bg: "#eff6ff" },
         firm:   { pri: "#d97706", acc: "#fef3c7", bg: "#fffbeb" },
         urgent: { pri: "#dc2626", acc: "#fee2e2", bg: "#fff5f5" },
     }
     const tone = toneColors[data.reminderTone] || toneColors.polite
-    const pri = tone.pri
-    const acc = tone.acc
-    const bg = tone.bg
-    const priDk = pri
-    const txt = "#1e293b"
-    const mut = "#64748b"
-    const bdr = "#d1d5db"
-    const font = "Inter"
+
+    let pri: string, acc: string, bg: string, priDk: string, txt: string, mut: string, bdr: string, font: string
+    if (userPickedTemplate) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tpl = getTpl(data as any)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const c = getTheme(tpl, data as any)
+        pri = c.pri; priDk = c.priDk; acc = c.acc; bg = c.bg
+        txt = c.txt; mut = c.mut; bdr = c.bdr; font = c.font
+    } else {
+        pri = tone.pri
+        acc = tone.acc
+        bg = tone.bg
+        priDk = pri
+        txt = "#1e293b"
+        mut = "#64748b"
+        bdr = "#d1d5db"
+        font = "Inter"
+    }
 
     const toneLabel = data.reminderTone.charAt(0).toUpperCase() + data.reminderTone.slice(1)
     const isOverdue = data.daysOverdue > 0
