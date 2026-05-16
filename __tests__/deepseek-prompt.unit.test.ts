@@ -47,10 +47,10 @@ describe("System prompt no longer contains hardcoded country blocks", () => {
    * **Validates: Requirement 6.1**
    *
    * THE System_Prompt SHALL have the Country_Blocks (lines 242–549 covering
-   * all 11 countries) removed from the DUAL_MODE_SYSTEM_PROMPT constant.
+   * hardcoded country compliance) removed from the DUAL_MODE_SYSTEM_PROMPT constant.
    */
 
-  it("does NOT contain country flag + name headers for any of the 11 countries", () => {
+  it("does NOT contain country flag + name headers for hardcoded country blocks", () => {
     const countryHeaders = [
       "🇮🇳 INDIA",
       "🇺🇸 USA",

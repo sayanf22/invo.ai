@@ -1,6 +1,6 @@
 # Clorefy (invo.ai) — Project Overview
 
-> AI-powered document generation platform for businesses across 11 countries.
+> AI-powered document generation platform for businesses worldwide.
 
 ## Product Overview
 
@@ -102,7 +102,7 @@ Modern, Classic, Bold, Minimal, Elegant, Corporate, Creative, Warm, Geometric �
 - Document generation returns structured JSON; conversation returns Markdown
 - Business context injected into every AI call
 - Country-specific compliance rules embedded in system prompts
-- 44 compliance templates (11 countries × 4 document types)
+- Compliance templates for major world markets (document types × countries)
 
 ---
 

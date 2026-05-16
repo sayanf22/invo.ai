@@ -84,7 +84,7 @@ Margins are extremely high because DeepSeek V3 is cheap. The document limits are
 | Zoho Invoice Free | Free | 5 customers, no AI |
 | PandaDoc Essentials | $19/mo | Documents + e-sign, no AI gen |
 
-Invo.ai offers AI generation + 4 doc types + 11 countries + 9 templates — significantly more value at lower or equal price points.
+Invo.ai offers AI generation + 9 doc types + global compliance + e-signatures — significantly more value at lower or equal price points.
 
 ## Document Lifecycle & Download Logic
 

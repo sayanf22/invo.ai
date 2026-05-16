@@ -24,7 +24,7 @@ import { SUPPORTED_COUNTRIES as COUNTRY_LIST } from "@/lib/countries"
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 // Accept any ISO 3166-1 alpha-2 country code the onboarding UI lets the user pick.
-// The whitelist was previously hard-coded to 11 countries, which silently dropped
+// The whitelist was previously hard-coded to a fixed set of countries, which silently dropped
 // any profile country outside that set. Now derived from the single source of
 // truth in `lib/countries.ts`.
 const SUPPORTED_COUNTRIES = COUNTRY_LIST.map((c) => c.code)

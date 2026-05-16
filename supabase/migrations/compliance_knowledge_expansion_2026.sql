@@ -518,4 +518,4 @@ SELECT COUNT(DISTINCT country) AS countries_covered,
        COUNT(*) AS total_rules
 FROM compliance_knowledge;
 
-COMMENT ON TABLE compliance_knowledge IS 'Compliance knowledge base — comprehensive coverage for 11 countries × 4 document types (invoice, contract, quotation, proposal). Includes penalties, retention periods, clause checklists. Last expansion: 2026-05-12.';
+COMMENT ON TABLE compliance_knowledge IS 'Compliance knowledge base — comprehensive global coverage across document types (invoice, contract, quotation, proposal). Includes penalties, retention periods, clause checklists. Last expansion: 2026-05-12.';

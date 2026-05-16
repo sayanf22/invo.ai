@@ -1,7 +1,7 @@
 -- =====================================================
 -- COMPLIANCE KNOWLEDGE BASE - COMPREHENSIVE UPDATE
 -- Generated: February 12, 2026
--- Purpose: Store up-to-date compliance requirements for all 11 countries
+-- Purpose: Store up-to-date compliance requirements for businesses worldwide
 -- =====================================================
 
 -- Drop existing table if needed (for fresh start)
@@ -550,4 +550,4 @@ SELECT country, get_tax_rates(country) as tax_rates
 FROM (SELECT DISTINCT country FROM compliance_knowledge) countries
 ORDER BY country;
 
-COMMENT ON TABLE compliance_knowledge IS 'Comprehensive compliance knowledge base for 11 countries covering invoices, contracts, NDAs, and agreements. Updated February 12, 2026.';
+COMMENT ON TABLE compliance_knowledge IS 'Comprehensive compliance knowledge base for businesses worldwide covering invoices, contracts, NDAs, and agreements. Updated February 12, 2026.';

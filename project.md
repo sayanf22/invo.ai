@@ -193,7 +193,7 @@ Conversational AI collects business profile data via `POST /api/ai/onboarding`:
 | 7 | Address | City is enough (partial OK) |
 | 8 | Tax registered (yes/no) | No → taxRate=0, skip taxId |
 | 9 | Tax ID | Only if tax-registered |
-| 10 | Client countries | "all" = all 11 countries |
+| 10 | Client countries | "all" = global support |
 | 11 | Currency | INR, USD, EUR, etc. |
 | 12 | Payment terms | Immediate, Net 15, Net 30, Net 60 |
 | 13 | Bank details (optional) | Bank name, account number, IFSC/SWIFT |
