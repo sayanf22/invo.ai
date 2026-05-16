@@ -165,9 +165,9 @@ Track document usage per user with tier-based limits:
 
 ```typescript
 // Document limits per tier (per month)
-// Free: 3 docs, 10 msgs/session
-// Starter ($9/mo): 50 docs, 25 msgs/session
-// Pro ($24/mo): 150 docs, 30 msgs/session
+// Free: 5 docs, 10 msgs/session
+// Starter ($9/mo): 50 docs, 30 msgs/session
+// Pro ($24/mo): 150 docs, 50 msgs/session
 // Agency ($59/mo): Unlimited
 
 // Enforcement in cost-protection.ts via checkDocumentLimit() and checkMessageLimit()

@@ -1,13 +1,24 @@
 "use client"
 
-import { FileText, ScrollText, ClipboardList, Lightbulb, AlertTriangle } from "lucide-react"
+import {
+    FileText, ScrollText, ClipboardList, Lightbulb, AlertTriangle,
+    GitMerge, Shield, Bell, ClipboardCheck,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getTierLimits, parseTier, nextTierUpgrade } from "@/lib/cost-protection"
 
-const DOC_OPTIONS: Record<string, { label: string; icon: React.ElementType }> = {
-    invoice:  { label: "Invoice",  icon: FileText },
-    contract: { label: "Contract", icon: ScrollText },
-    quote:    { label: "Quote",    icon: ClipboardList },
-    proposal: { label: "Proposal", icon: Lightbulb },
+// Mirror of next-steps-bar's ALL_DOC_OPTIONS — keep the icon/label mapping in
+// sync so the chat banner and the New Doc dropdown stay visually consistent.
+const ALL_DOC_OPTIONS: Record<string, { label: string; icon: React.ElementType }> = {
+    invoice:                { label: "Invoice",          icon: FileText },
+    contract:               { label: "Contract",         icon: ScrollText },
+    quote:                  { label: "Quote",            icon: ClipboardList },
+    proposal:               { label: "Proposal",         icon: Lightbulb },
+    sow:                    { label: "SOW",              icon: GitMerge },
+    nda:                    { label: "NDA",              icon: Shield },
+    change_order:           { label: "Change Order",     icon: ClipboardCheck },
+    client_onboarding_form: { label: "Onboarding Form",  icon: ClipboardCheck },
+    payment_followup:       { label: "Payment Reminder", icon: Bell },
 }
 
 interface MessageLimitBannerProps {
@@ -27,12 +38,22 @@ export function MessageLimitBanner({
     currentDocType,
     onCreateDocument,
 }: MessageLimitBannerProps) {
-    const tierLabel = tier === "free" ? "Free" : tier === "starter" ? "Starter" : tier === "pro" ? "Pro" : "Agency"
-    const upgradeMsg = tier === "free"
-        ? "Upgrade to Starter for 30 messages/session"
-        : tier === "starter"
-        ? "Upgrade to Pro for 50 messages/session"
+    // Derive allowed doc types from the tier prop directly (no hook required).
+    // This keeps the component self-contained and side-effect-free, which is
+    // important for both correctness and unit testability.
+    const parsedTier = parseTier(tier)
+    const allowedDocTypes = getTierLimits(parsedTier).allowedDocTypes
+
+    const tierLabel = parsedTier === "free" ? "Free" : parsedTier === "starter" ? "Starter" : parsedTier === "pro" ? "Pro" : "Agency"
+    const { nextTier, label, messagesPerSession } = nextTierUpgrade(parsedTier)
+    const upgradeMsg = nextTier
+        ? `Upgrade to ${label} for ${messagesPerSession} messages/session`
         : null
+
+    // Filter to types we actually have icon/label mappings for, in canonical
+    // ALL_DOC_OPTIONS order (so labels and icons match the New Doc dropdown).
+    const optionEntries = Object.keys(ALL_DOC_OPTIONS) as (keyof typeof ALL_DOC_OPTIONS)[]
+    const visibleTypes = optionEntries.filter(t => allowedDocTypes.includes(t))
 
     return (
         <div className="rounded-2xl border bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800 p-4">
@@ -54,11 +75,14 @@ export function MessageLimitBanner({
             </div>
 
             <p className="text-xs text-amber-700 dark:text-amber-300 mb-2.5 ml-8">
-                Start a new document to continue chatting
+                {nextTier
+                    ? "Start a new session or upgrade to continue chatting"
+                    : "Start a new session to continue"}
             </p>
 
             <div className="flex gap-2 overflow-x-auto pb-1 -mb-1 scrollbar-none snap-x snap-mandatory ml-8">
-                {Object.entries(DOC_OPTIONS).map(([type, opt]) => {
+                {visibleTypes.map((type) => {
+                    const opt = ALL_DOC_OPTIONS[type]
                     const Icon = opt.icon
                     const isCurrent = type === currentDocType.toLowerCase()
                     return (

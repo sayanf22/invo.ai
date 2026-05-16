@@ -27,7 +27,12 @@ export function getModelConfig(thinkingMode: "fast" | "thinking"): {
     return {
         model: isThinking ? "deepseek-v4-pro" : "deepseek-chat",
         isThinking,
-        extraParams: isThinking ? { reasoning_effort: "medium" } : { temperature: 0.3 },
+        // Keep reasoning_effort at "low" for production reliability — higher values
+        // make the model think for 30+ seconds before emitting any content, which
+        // can hit edge runtime/proxy timeouts and result in truncated streams.
+        // The orchestrator (Bedrock/Kimi) provides additional planning, so the
+        // reasoning model doesn't need to do as much work alone.
+        extraParams: isThinking ? { reasoning_effort: "low" } : { temperature: 0.3 },
     }
 }
 
@@ -611,7 +616,8 @@ Apply country-specific compliance rules from COMPLIANCE CONTEXT to ALL document 
 - **Payment Follow-up**: Apply country-appropriate late payment interest rates and legal references (e.g., UK Late Payment of Commercial Debts Act, EU Payment Services Directive) in the notes when the invoice is significantly overdue.
 
 ## OUTPUT FORMAT
-Respond with ONLY valid JSON (no markdown, no code fences):
+Respond with ONLY valid JSON (no markdown, no code fences, no prose).
+The very FIRST character of your response MUST be the opening curly brace. Do NOT prepend any commentary like "Here is the document..." or "The document is unlocked...". The user will see your "message" field — put any chat-style commentary there, NOT outside the JSON.
 {
   "document": { ... complete document data ... },
   "message": "Short friendly message about what was created + one follow-up question"
@@ -1133,7 +1139,11 @@ export async function* streamGenerateDocument(
                     { role: "system", content: DUAL_MODE_SYSTEM_PROMPT },
                     { role: "user", content: prompt },
                 ],
-                max_tokens: 3000,
+                // Thinking mode (deepseek-v4-pro) needs more tokens because the
+                // model outputs richer prose alongside the JSON document. The
+                // reasoning_content channel is separate but the main `content`
+                // channel can still hit ~5-6KB for contracts/proposals.
+                max_tokens: isThinking ? 6000 : 3000,
                 ...extraParams,
                 stream: true,
             }),

@@ -777,6 +777,7 @@ export function EditorPanel(props: EditorPanelProps) {
 
 function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps) {
   const isPaid = documentStatus === "paid"
+  const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
   const [openStep, setOpenStep] = useState(1)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [isLogoUploading, setIsLogoUploading] = useState(false)
@@ -794,6 +795,12 @@ function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps)
   const isQuote = _normalizedDocType === "quote"
   const isProposal = _normalizedDocType === "proposal" || data.documentType === "Proposal"
   const hasLineItems = !isContract // invoices, quotes, proposals all have items
+  // Whether to render the Signature step in the editor.
+  // Contracts are signable but use the no-line-items layout, so the existing
+  // `hasLineItems` flag was hiding their signature step entirely.
+  const supportsSignature = _normalizedDocType
+    ? getDocumentTypeConfig(_normalizedDocType)?.capabilities.supports_signature === true
+    : isContract // legacy fallback for raw "Contract" string
   const supportsPaymentLink = _normalizedDocType
     ? getDocumentTypeConfig(_normalizedDocType)?.capabilities.supports_payment_link === true
     : data.documentType?.toLowerCase() === "invoice" // fallback for legacy capitalized values
@@ -810,14 +817,24 @@ function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps)
     : true
   const step5Complete =
     data.signatureName.trim().length > 0
-  const totalSteps = hasLineItems ? 6 : 4
-  const completedSteps = [
-    step1Complete,
-    step2Complete,
-    step3Complete,
-    step4Complete,
-    step5Complete,
-  ].filter(Boolean).length
+  // ── Step counting ────────────────────────────────────────────────────────
+  // Layouts (in order):
+  //   - With line items (invoice/quote/proposal): Type, Parties, Items, Notes, Signature?, Additional
+  //     → 5 steps without signature, 6 with (invoice has no signature, quote/proposal also disabled in registry today)
+  //   - Without line items (contract): Type, Parties, Details, Notes & Terms, Signature?
+  //     → 4 steps without signature, 5 with (contract supports signature)
+  // The previous logic hard-coded "6 if hasLineItems, 4 otherwise" and ignored
+  // supportsSignature, which produced "5/4 steps" for contracts (5 step booleans
+  // all true, but totalSteps stuck at 4 because the signature step was hidden).
+  const totalSteps = hasLineItems
+    ? (supportsSignature ? 6 : 5)
+    : (supportsSignature ? 5 : 4)
+  const completedFlags = [step1Complete, step2Complete, step3Complete, step4Complete]
+  if (supportsSignature) completedFlags.push(step5Complete)
+  // Additional Details (step 6) only exists for hasLineItems layouts; its
+  // completion mirrors the description field
+  if (hasLineItems) completedFlags.push(data.description.trim().length > 0)
+  const completedSteps = completedFlags.filter(Boolean).length
 
   /* ── Line item helpers ── */
   function addItem() {
@@ -1755,8 +1772,8 @@ function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps)
           </Step>
         )}
 
-        {/* ═══ Step 5: Signature ═══ */}
-        {hasLineItems && (
+        {/* ═══ Step 5: Signature (signable types only) ═══ */}
+        {supportsSignature && (
           <Step
             number={5}
             title="Signature"
@@ -1768,19 +1785,19 @@ function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps)
               data={data}
               onChange={onChange}
               isPaid={isPaid}
-              isSent={documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"}
+              isSent={isSent}
             />
           </Step>
         )}
 
-        {/* ═══ Step 6: Additional Details / Description ═══ */}
+        {/* ═══ Step 6: Additional Details (line-item docs only) ═══ */}
         {hasLineItems && (
           <Step
-            number={6}
+            number={supportsSignature ? 6 : 5}
             title="Additional Details"
             isComplete={data.description.trim().length > 0}
-            isOpen={openStep === 6}
-            onToggle={() => setOpenStep(openStep === 6 ? 0 : 6)}
+            isOpen={openStep === (supportsSignature ? 6 : 5)}
+            onToggle={() => setOpenStep(openStep === (supportsSignature ? 6 : 5) ? 0 : (supportsSignature ? 6 : 5))}
           >
             <div className="flex flex-col gap-3">
               <textarea
@@ -2558,6 +2575,7 @@ function NDAEditor({ data, onChange, documentStatus }: EditorPanelProps) {
 
 function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPanelProps) {
   const isPaid = documentStatus === "paid"
+  const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
   const [openStep, setOpenStep] = useState(1)
 
   const customQuestions = getExt<Array<{ id: string; question: string; answer: string }>>(data, "customQuestions", [])
@@ -2583,7 +2601,7 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPa
   }
 
   return (
-    <TypedEditorShell title="Onboarding Form Builder" totalSteps={4} completedSteps={completed} isPaid={isPaid}>
+    <TypedEditorShell title="Onboarding Form Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
         <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800/40">
@@ -2716,6 +2734,10 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPa
         </div>
       </Step>
 
+      <Step number={5} title="Signature" isComplete={data.signatureName.trim().length > 0} isOpen={openStep === 5} onToggle={() => setOpenStep(openStep === 5 ? 0 : 5)}>
+        <SignatureStep data={data} onChange={onChange} isPaid={isPaid} isSent={isSent} />
+      </Step>
+
       <ValidateBeforeExportButton data={data} isPaid={isPaid} />
     </TypedEditorShell>
   )
@@ -2725,6 +2747,7 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPa
 
 function PaymentFollowupEditor({ data, onChange, documentStatus }: EditorPanelProps) {
   const isPaid = documentStatus === "paid"
+  const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
   const [openStep, setOpenStep] = useState(1)
 
   const linkedInvoiceId = getExt<string>(data, "linkedInvoiceId", "")
@@ -2744,7 +2767,7 @@ function PaymentFollowupEditor({ data, onChange, documentStatus }: EditorPanelPr
   ].filter(Boolean).length
 
   return (
-    <TypedEditorShell title="Payment Follow-up Builder" totalSteps={4} completedSteps={completed} isPaid={isPaid}>
+    <TypedEditorShell title="Payment Follow-up Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
         <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40">
@@ -2855,6 +2878,10 @@ function PaymentFollowupEditor({ data, onChange, documentStatus }: EditorPanelPr
             </p>
           </div>
         </div>
+      </Step>
+
+      <Step number={5} title="Signature" isComplete={data.signatureName.trim().length > 0} isOpen={openStep === 5} onToggle={() => setOpenStep(openStep === 5 ? 0 : 5)}>
+        <SignatureStep data={data} onChange={onChange} isPaid={isPaid} isSent={isSent} />
       </Step>
 
       <ValidateBeforeExportButton data={data} isPaid={isPaid} />

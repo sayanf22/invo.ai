@@ -47,6 +47,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
+    // ── Cancellation guard ──
+    // If the document is currently in "active" status (= owner unlocked/cancelled it
+    // after sending), all signing requests have been cancelled. The public link
+    // should also be invalidated until the doc is re-sent.
+    // Exception: if status is "signed" or "paid" or "finalized", the doc is still valid
+    // because those are end-states that shouldn't be silently revoked.
+    if (session.status === "active" && session.sent_at) {
+      // Owner unlocked after sending — public link is now dead
+      return NextResponse.json(
+        { error: "This document is no longer available. The owner has cancelled the share.", cancelled: true },
+        { status: 410 }
+      )
+    }
+
+    // Also check: if all signature requests for this session are cancelled,
+    // treat the public view as cancelled too (defence in depth).
+    if (["contract", "sow", "nda", "change_order", "quotation", "quote", "proposal"].includes(session.document_type || "")) {
+      const { data: sigs } = await supabase
+        .from("signatures")
+        .select("signer_action, signed_at")
+        .eq("session_id", sessionId)
+      const hasAnySig = (sigs ?? []).length > 0
+      const allCancelled = hasAnySig && (sigs ?? []).every(s =>
+        (s as any).signer_action === "cancelled" && !s.signed_at
+      )
+      if (allCancelled) {
+        return NextResponse.json(
+          { error: "This document is no longer available. The owner has cancelled the share.", cancelled: true },
+          { status: 410 }
+        )
+      }
+    }
+
     // Payment info for invoices
     let payment = null
     if (session.document_type === "invoice") {

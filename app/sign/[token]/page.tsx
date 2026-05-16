@@ -19,6 +19,8 @@ import {
     ChevronDown,
     AlertTriangle,
     MessageSquare,
+    Maximize2,
+    X,
 } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
@@ -120,9 +122,12 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
         return () => obs.disconnect()
     }, [open, fullscreen])
 
-    // Generate PDF when context is available and panel is opened
+    // Generate PDF when context is available and either the inline panel
+    // is open OR the user has opened the fullscreen viewer. Without the
+    // fullscreen guard, clicking "Full screen" without opening the inline
+    // panel first would render a blank document because pdfBytes is null.
     useEffect(() => {
-        if (!context || !open) return
+        if (!context || (!open && !fullscreen)) return
         let cancelled = false
         const generate = async () => {
             setRendering(true)
@@ -155,7 +160,7 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
         }
         generate()
         return () => { cancelled = true }
-    }, [context, documentType, open])
+    }, [context, documentType, open, fullscreen])
 
     // Close fullscreen on Escape
     useEffect(() => {
@@ -165,7 +170,21 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
         return () => document.removeEventListener("keydown", handler)
     }, [fullscreen])
 
-    const fileData = useMemo(() => pdfBytes ? { data: pdfBytes.slice() } : null, [pdfBytes])
+    // ── PDF file data ─────────────────────────────────────────────────
+    // We render two separate <Document> instances (inline panel + fullscreen).
+    // react-pdf transfers/detaches the underlying ArrayBuffer to its Worker,
+    // so we MUST give each instance its own independent buffer copy. Using a
+    // single shared memo would result in "ArrayBuffer is detached" errors as
+    // soon as one instance consumes it. Instead, derive fresh slices keyed on
+    // both pdfBytes and the active mode so each viewer gets a clean buffer.
+    const inlineFileData = useMemo(
+        () => (pdfBytes && open ? { data: pdfBytes.slice() } : null),
+        [pdfBytes, open]
+    )
+    const fullscreenFileData = useMemo(
+        () => (pdfBytes && fullscreen ? { data: pdfBytes.slice() } : null),
+        [pdfBytes, fullscreen]
+    )
 
     // Base page width before zoom
     const basePageWidth = fullscreen
@@ -189,10 +208,10 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
                     </div>
                 </div>
             )}
-            {fileData && ViewerComponents && !rendering && (
+            {inlineFileData && ViewerComponents && !rendering && (
                 <div className="flex flex-col items-center gap-4 py-4 px-3">
                     <ViewerComponents.Document
-                        file={fileData}
+                        file={inlineFileData}
                         onLoadSuccess={({ numPages: n }: { numPages: number }) => setNumPages(n)}
                         options={optionsRef.current}
                         loading={
@@ -247,9 +266,12 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
                         <button
                             type="button"
                             onClick={() => setFullscreen(false)}
-                            className="ml-2 px-3 h-8 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                            className="ml-2 w-8 h-8 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                            title="Close fullscreen"
                             aria-label="Close fullscreen"
-                        >Done</button>
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
                 <div className="flex-1 overflow-auto bg-neutral-100 dark:bg-neutral-900 p-4">
@@ -261,10 +283,10 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
                             </div>
                         </div>
                     )}
-                    {fileData && ViewerComponents && !rendering && (
+                    {fullscreenFileData && ViewerComponents && !rendering && (
                         <div className="flex flex-col items-center gap-4">
                             <ViewerComponents.Document
-                                file={fileData}
+                                file={fullscreenFileData}
                                 onLoadSuccess={({ numPages: n }: { numPages: number }) => setNumPages(n)}
                                 options={optionsRef.current}
                                 loading={<div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>}
@@ -323,9 +345,11 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
                         <button
                             type="button"
                             onClick={() => setFullscreen(true)}
-                            className="text-[11px] font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted/60 transition-colors"
+                            className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                            title="Open fullscreen"
+                            aria-label="Open fullscreen"
                         >
-                            Full screen
+                            <Maximize2 className="w-3.5 h-3.5" />
                         </button>
                     </div>
                     {viewerContent}

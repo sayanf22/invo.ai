@@ -9,6 +9,21 @@ import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText, stripPromptInjection } from "@/lib/sanitize"
 
+// Streaming generation can take 60-90s in thinking mode (deepseek-v4-pro
+// spends time on reasoning before emitting content).
+//
+// Cloudflare Workers (Paid plan): wall-clock limit is 5 minutes; CPU time is
+// 30s. Streaming responses keep the request open during fetch I/O, which
+// counts as wall-clock not CPU, so this is safe.
+//
+// `dynamic = "force-dynamic"` ensures Next.js does not try to cache or
+// statically optimize the route.
+export const dynamic = "force-dynamic"
+// `maxDuration` is harmless on Cloudflare Workers (it ignores it), but useful
+// if anyone ever deploys to Vercel as well — keeps the streaming route alive
+// past the default 10s edge limit.
+export const maxDuration = 120
+
 export async function POST(request: NextRequest) {
     try {
         // SECURITY: Validate request origin
@@ -992,7 +1007,7 @@ export async function POST(request: NextRequest) {
 
         return new Response(stream, {
             headers: {
-                "Content-Type": "text/event-stream",
+                "Content-Type": "text/event-stream; charset=utf-8",
                 "Cache-Control": "no-cache",
                 Connection: "keep-alive",
             },

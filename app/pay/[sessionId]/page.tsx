@@ -47,6 +47,14 @@ export default async function PayPage({ params }: PageProps) {
     return <PayDocumentView docData={null} payment={null} />
   }
 
+  // ── Cancellation guard ──
+  // If the document was unlocked/cancelled by the owner after sending,
+  // session.status returns to "active". The pay link should be invalidated
+  // until the owner re-sends. Paid documents stay accessible.
+  if (session.status === "active" && session.sent_at) {
+    return <PayDocumentView docData={null} payment={null} cancelled />
+  }
+
   // Fetch the most recent payment record (any status — we need to show the right state)
   const { data: pay } = await (supabase as any)
     .from("invoice_payments")

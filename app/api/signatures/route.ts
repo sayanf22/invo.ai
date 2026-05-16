@@ -404,6 +404,24 @@ export async function GET(request: NextRequest) {
             const ipAddress = getClientIP(request)
             const userAgent = request.headers.get("user-agent") ?? undefined
 
+            // Bug 2 fix: Check if the parent document session has been cancelled.
+            // The signer_action may still be null if the session was cancelled without
+            // atomically updating signature rows — so we must check the session status too.
+            const sigSessionId = (signature as any).session_id
+            if (sigSessionId) {
+                const { data: parentSession } = await serviceSupabase
+                    .from("document_sessions")
+                    .select("status")
+                    .eq("id", sigSessionId)
+                    .single()
+                if (parentSession?.status === "cancelled") {
+                    return NextResponse.json(
+                        { error: "This document has been cancelled by the owner.", cancelled: true },
+                        { status: 410 }
+                    )
+                }
+            }
+
             // Check if signing request was cancelled by the document owner
             if ((signature as any).signer_action === "cancelled") {
                 return NextResponse.json(

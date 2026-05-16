@@ -51,6 +51,9 @@ export function PromptScreen({
   const [messageCount, setMessageCount] = useState(0)
   // Lock invoice editing after payment link is created (anti-fraud)
   const [invoiceLocked, setInvoiceLocked] = useState(false)
+  // Tracks the current document session status so DocumentPreview can react to
+  // status changes (e.g., clear lock state when document is cancelled — Bug 5 fix)
+  const [documentSessionStatus, setDocumentSessionStatus] = useState("")
   // ── Chat-unlock signal ───────────────────────────────────────────
   // Bumped when the user unlocks via chat. DocumentPreview reads it as
   // `externallyUnlocked` and overrides its internal lock calculation
@@ -109,6 +112,7 @@ export function PromptScreen({
     setData(prev => ({ ...getInitialInvoiceData(), design: prev.design }))
     setInvoiceLocked(false)
     setChatUnlockNonce(0)
+    setDocumentSessionStatus("")
     setSelectedSessionId(sessionId)
     // Bubble up so AppShell can update the URL
     onSessionChange?.(sessionId)
@@ -153,6 +157,7 @@ export function PromptScreen({
     // Reset lock — new document has no payment link
     setInvoiceLocked(false)
     setChatUnlockNonce(0)
+    setDocumentSessionStatus("")
     // Bubble up so AppShell can update the URL
     onSessionChange?.(sessionId)
   }, [data.design, onSessionChange])
@@ -172,6 +177,7 @@ export function PromptScreen({
     onLockDocument: () => setInvoiceLocked(true),
     onUnlockDocument: handleChatUnlock,
     onPaymentLinkCancelled: paymentLinkCancelledAt > 0 ? cancelledSignal : undefined,
+    onDocumentStatusChange: setDocumentSessionStatus,
     onSaveContext: handleSaveContextReady,
     initialPrompt,
   } as const
@@ -302,6 +308,12 @@ export function PromptScreen({
                 onPaymentLinkChange={handlePaymentLinkChange}
                 onLockChange={handleLockChange}
                 externallyUnlocked={chatUnlockNonce > 0}
+                documentStatus={documentSessionStatus}
+                onDocumentCancelled={() => {
+                  setDocumentSessionStatus("cancelled")
+                  setInvoiceLocked(false)
+                  setChatUnlockNonce(0)
+                }}
               />
             </div>
           </div>
@@ -359,6 +371,12 @@ export function PromptScreen({
             onPaymentLinkChange={handlePaymentLinkChange}
             onLockChange={handleLockChange}
             externallyUnlocked={chatUnlockNonce > 0}
+            documentStatus={documentSessionStatus}
+            onDocumentCancelled={() => {
+              setDocumentSessionStatus("cancelled")
+              setInvoiceLocked(false)
+              setChatUnlockNonce(0)
+            }}
           />
         </div>
       </div>

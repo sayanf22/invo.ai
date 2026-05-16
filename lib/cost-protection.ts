@@ -112,6 +112,40 @@ export function getTierLimits(tier: UserTier): TierLimits {
     return TIER_LIMITS[tier]
 }
 
+/**
+ * Returns information about the next tier to upgrade to from the current tier.
+ * Used by the message-limit banner to derive upgrade copy from a single source of truth.
+ *
+ * - free    → starter (30 messages/session)
+ * - starter → pro     (50 messages/session)
+ * - pro     → null    (already at a top messaging tier)
+ * - agency  → null    (unlimited — should never show the banner)
+ */
+export function nextTierUpgrade(currentTier: UserTier): {
+    nextTier: UserTier | null
+    label: string | null
+    messagesPerSession: number | null
+} {
+    switch (currentTier) {
+        case "free":
+            return {
+                nextTier: "starter",
+                label: "Starter",
+                messagesPerSession: TIER_LIMITS.starter.messagesPerSession,
+            }
+        case "starter":
+            return {
+                nextTier: "pro",
+                label: "Pro",
+                messagesPerSession: TIER_LIMITS.pro.messagesPerSession,
+            }
+        case "pro":
+        case "agency":
+        default:
+            return { nextTier: null, label: null, messagesPerSession: null }
+    }
+}
+
 // ─── Usage Fetching ───────────────────────────────────────────────────────────
 
 interface UsageRecord {

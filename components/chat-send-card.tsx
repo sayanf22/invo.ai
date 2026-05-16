@@ -57,6 +57,15 @@ function calcTotal(data: InvoiceData): string {
   } catch { return `${currency} ${total.toFixed(2)}` }
 }
 
+function localFallbackMessage(data: InvoiceData, documentType: string): string {
+  const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
+  const clientName = data.toName?.trim() || "there"
+  const senderName = data.fromName?.trim() || ""
+  const ref = data.invoiceNumber || data.referenceNumber || ""
+  const refText = ref ? ` ${ref}` : ""
+  return `Hi ${clientName},\n\nPlease find your ${docLabel}${refText} attached. Let me know if you have any questions.\n\nThank you,\n${senderName}`
+}
+
 export function ChatSendCard({
   sessionId, invoiceData, documentType, detectedEmail, onDismiss, onSent, onLockDocument, userTier = "free",
 }: ChatSendCardProps) {
@@ -179,9 +188,17 @@ export function ChatSendCard({
       })
       if (res.ok) {
         const data = await res.json()
-        if (data.message) setMessage(data.message)
+        if (data.message) {
+          setMessage(data.message)
+        } else {
+          setMessage(localFallbackMessage(invoiceData, documentType))
+        }
+      } else {
+        setMessage(localFallbackMessage(invoiceData, documentType))
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      setMessage(localFallbackMessage(invoiceData, documentType))
+    }
     finally { setIsGeneratingMsg(false) }
   }, [documentType, invoiceData, ref])
 

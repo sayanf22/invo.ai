@@ -8,6 +8,98 @@ function nextActivityId(): string {
     return `activity-${++_activityCounter}`
 }
 
+/**
+ * Salvage a JSON string that was truncated mid-output (e.g. when the AI hit
+ * its max_tokens limit). Walks the input character-by-character tracking
+ * brace/bracket depth (ignoring chars inside string literals) and appends the
+ * required closing braces/brackets to rebalance the structure.
+ *
+ * Handles common truncation points: mid-string, after a key, mid-value (number,
+ * boolean), after a colon, or after a trailing comma. The result is a parseable
+ * JSON string with the truncated tail dropped (the partial document is still
+ * useful — better than a parse error and a "trouble processing" fallback).
+ *
+ * Returns the rebalanced JSON string, or null if the input is fundamentally
+ * unrecoverable (e.g. mismatched brackets, wrong opening char).
+ */
+function balanceTruncatedJson(input: string): string | null {
+    if (!input || input.length === 0) return null
+    const trimInput = input.trim()
+    if (!trimInput.startsWith("{") && !trimInput.startsWith("[")) return null
+
+    // Walk the input tracking brace/bracket depth and string state. Snapshot
+    // the input length and stack depth at the END of the last fully complete
+    // VALUE — we can safely truncate to that snapshot and rebalance.
+    const stack: Array<"}" | "]"> = []
+    let inString = false
+    let escapeNext = false
+    // The last position where we know the JSON was structurally "safe" to truncate
+    // i.e. just after a closing brace, closing bracket, or a complete primitive.
+    // We track the index INTO trimInput (length so far) and the stack snapshot at
+    // that point.
+    let safeLen = 0
+    let safeStack: Array<"}" | "]"> = []
+    // After a `:` we expect a value — if truncated here, drop the key
+    // After a `,` we expect another item — if truncated here, drop the comma
+    let pendingColon = false
+
+    for (let i = 0; i < trimInput.length; i++) {
+        const ch = trimInput[i]
+        if (inString) {
+            if (escapeNext) { escapeNext = false; continue }
+            if (ch === "\\") { escapeNext = true; continue }
+            if (ch === '"') inString = false
+            continue
+        }
+        if (ch === '"') { inString = true; continue }
+        if (ch === "{") {
+            stack.push("}")
+            pendingColon = false
+            continue
+        }
+        if (ch === "[") {
+            stack.push("]")
+            pendingColon = false
+            continue
+        }
+        if (ch === "}" || ch === "]") {
+            if (stack[stack.length - 1] !== ch) return null // mismatched
+            stack.pop()
+            // After a closer we have a complete value — this is a safe truncation point
+            safeLen = i + 1
+            safeStack = [...stack]
+            pendingColon = false
+            continue
+        }
+        if (ch === ":") { pendingColon = true; continue }
+        if (ch === ",") {
+            // Comma marks end of previous value — safe truncation point
+            safeLen = i // up to BEFORE the comma (we'll drop it)
+            safeStack = [...stack]
+            pendingColon = false
+            continue
+        }
+        // Whitespace
+        if (/\s/.test(ch)) continue
+        // Any other char (digit, true/false/null literal, or part of a value)
+        // — value is in progress, not yet safe
+    }
+
+    // If we never reached a safe checkpoint, the document has nothing we can use
+    if (safeLen === 0) {
+        // Try the very minimal salvage: if input is just an opening brace + maybe
+        // the start of a key, return an empty object so downstream code at least
+        // has a shape (it'll fall back to defaults). But this is rarely useful —
+        // for now, return null to signal unrecoverable.
+        return null
+    }
+
+    let result = trimInput.slice(0, safeLen)
+    // Append all the open braces/brackets remaining at that snapshot
+    for (let j = safeStack.length - 1; j >= 0; j--) result += safeStack[j]
+    return result
+}
+
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Sparkles } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -258,12 +350,14 @@ interface InvoiceChatProps {
     onLockDocument?: () => void
     onUnlockDocument?: () => void
     onPaymentLinkCancelled?: () => void
+    /** Called whenever the session status changes — allows parent to pass documentStatus to DocumentPreview */
+    onDocumentStatusChange?: (status: string) => void
     initialPrompt?: string
     /** Called once the session is ready with a function to persist context to DB */
     onSaveContext?: (saveFn: (data: InvoiceData) => Promise<void>) => void
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, initialPrompt, onSaveContext }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, initialPrompt, onSaveContext }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
 
     // Hook handles session init + switching when selectedSessionId changes
@@ -347,6 +441,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         onSaveContext(updateSessionContext)
     }, [session?.id, onSaveContext, updateSessionContext]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Notify parent whenever session status changes so DocumentPreview can react
+    // (e.g., clear lock state when status becomes "cancelled")
+    useEffect(() => {
+        if (session?.status !== undefined) {
+            onDocumentStatusChange?.(session.status)
+        }
+    }, [session?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+
     // Inject "payment link cancelled" card when parent signals cancellation
     // Uses a timestamp-based approach: parent sets a timestamp, we detect when it changes
     const lastCancelledAtRef = useRef(0)
@@ -371,6 +473,30 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             }]
         })
     }, [onPaymentLinkCancelled]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Eager cleanup when selectedSessionId changes ─────────────────────
+    // Clear all chat state SYNCHRONOUSLY when the user navigates to a different
+    // session, so stale UI (e.g. the unlock card from a finalized parent) cannot
+    // leak into a newly opened linked session before the new session loads.
+    useEffect(() => {
+        // Nothing to do on first mount when there's no prior session yet
+        if (lastSyncedSessionRef.current === null) return
+        // If the prop session id matches the last synced one, no transition
+        if (lastSyncedSessionRef.current === selectedSessionId) return
+        // Wipe everything that's tied to the previous session immediately
+        setMessages([])
+        setStreamingContent(null)
+        setDocumentGenerated(false)
+        setFileContext(null)
+        setMessageLimitReached(false)
+        setDocumentLimitReached(false)
+        setLimitInfo(null)
+        setLinkedDocContext(null)
+        setWelcomeLoaded(false)
+        // Drop the auto-gen queue from the previous session — the new session
+        // will set its own pendingAutoGenerateRef inside the sync effect below.
+        pendingAutoGenerateRef.current = null
+    }, [selectedSessionId])
 
     // Sync messages from hook when session changes (new session loaded or switched)
     useEffect(() => {
@@ -1148,10 +1274,21 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             }
             // Pattern 3: Response has text before raw JSON (no code fence)
             // e.g., "Here's your invoice:\n\n{"document": {...}}"
+            // Be aggressive — find the first { that opens a balanced JSON object/array
+            // anywhere in the string, not just after a newline. This handles cases
+            // where the AI prepends prose with no separating newline, or uses \r\n.
             if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) {
-                const jsonStart = cleaned.indexOf("\n{")
+                // Try newline-prefixed first (most common)
+                let jsonStart = cleaned.indexOf("\n{")
+                if (jsonStart === -1) jsonStart = cleaned.indexOf("\r\n{")
+                // Fallback: any { in the string
+                if (jsonStart === -1) jsonStart = cleaned.indexOf("{")
                 if (jsonStart !== -1) {
-                    cleaned = cleaned.slice(jsonStart + 1).trim()
+                    // Slice from the { onwards. For \n{ and \r\n{, jsonStart points
+                    // at the newline so we add 1 (for \n) or 2 (for \r\n).
+                    const ch = cleaned[jsonStart]
+                    const offset = ch === "{" ? 0 : (ch === "\r" ? 2 : 1)
+                    cleaned = cleaned.slice(jsonStart + offset).trim()
                 }
             }
             cleaned = cleaned.trim()
@@ -1163,13 +1300,25 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 try {
                     result = JSON.parse(cleaned)
                 } catch (parseErr) {
-                    // Try to salvage — sometimes there's trailing garbage after the JSON
-                    const lastBrace = cleaned.lastIndexOf("}")
-                    if (lastBrace > 0) {
+                    // Try to salvage — sometimes there's trailing garbage after the JSON.
+                    // Walk backwards from the end finding the last '}' that yields valid JSON.
+                    let lastBrace = cleaned.lastIndexOf("}")
+                    while (lastBrace > 0 && !result) {
                         try {
                             result = JSON.parse(cleaned.slice(0, lastBrace + 1))
                         } catch {
-                            // Truly unparseable
+                            // Try the next earlier '}'
+                            lastBrace = cleaned.lastIndexOf("}", lastBrace - 1)
+                        }
+                    }
+                    // Last-ditch salvage: if the response was TRUNCATED (e.g. hit
+                    // max_tokens mid-output), close the unbalanced braces manually.
+                    // Walk forward through the string tracking brace/bracket depth
+                    // (ignoring chars inside strings) and append closers until balanced.
+                    if (!result) {
+                        const closed = balanceTruncatedJson(cleaned)
+                        if (closed) {
+                            try { result = JSON.parse(closed) } catch { /* unsalvageable */ }
                         }
                     }
                 }
@@ -1392,9 +1541,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     }
                     // ── End send intent detection ──────────────────────────────────────
                 } else {
-                    // JSON parse completely failed — show a friendly error instead of raw JSON
+                    // JSON parse completely failed. The most common cause is the
+                    // stream getting truncated mid-output (edge timeout, network
+                    // hiccup, or the thinking model running out of time).
                     console.error("Failed to parse AI response as JSON:", cleaned.slice(0, 200))
-                    const fallbackMsg = "I generated your document but had trouble processing the response. Please try again."
+                    const isLikelyTruncation = cleaned.length < 100
+                    const isThinkingMode = thinkingMode === "thinking"
+                    const fallbackMsg = isThinkingMode && isLikelyTruncation
+                        ? "Thinking mode timed out before finishing. Try switching to fast mode (the lightning icon) or shorten your prompt."
+                        : "I had trouble processing the response. Please try again."
                     setMessages(prev => [...prev, { role: "assistant", content: fallbackMsg }])
                     await saveMessage("user", displayText)
                     await saveMessage("assistant", fallbackMsg)

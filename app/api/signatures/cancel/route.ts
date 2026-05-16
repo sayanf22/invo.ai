@@ -93,6 +93,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to cancel signature" }, { status: 500 })
     }
 
+    // Atomically revoke all remaining unsigned signature rows for this session.
+    // This ensures that even if other signature rows still have signer_action = null,
+    // they will also be marked cancelled so the GET handler returns 410 consistently.
+    if (sessionId) {
+      await auth.supabase
+        .from("signatures")
+        .update({ signer_action: "cancelled" } as any)
+        .eq("session_id", sessionId)
+        .is("signed_at", null)
+    }
+
     // Reset session status back to 'active' so a new signature request can be sent
     // Only reset if the session was in a pending state (not already signed/paid)
     if (sessionId) {

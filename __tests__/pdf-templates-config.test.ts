@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import * as fc from "fast-check"
-import { getDocumentConfig, getTheme, getSignatureDisplayMode, type Tpl, type SignatureDisplayMode } from "@/lib/pdf-templates"
+import { getDocumentConfig, getTheme, getSignatureDisplayMode, fmtDate, type Tpl, type SignatureDisplayMode } from "@/lib/pdf-templates"
 import { getInitialInvoiceData, type InvoiceData } from "@/lib/invoice-types"
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -455,5 +455,37 @@ describe("ProposalPDF config unit tests", () => {
     expect(config.dateFields[0].label).toBe("Date")
     expect(config.dateFields[1].label).toBe("Valid Until")
     expect(config.dateFields[2].label).toBe("Payment")
+  })
+})
+
+describe("fmtDate unit tests", () => {
+  /**
+   * **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 8.1, 8.2**
+   *
+   * fmtDate(undefined) must return the em dash character U+2014,
+   * not the mojibake sequence â€" (bytes C3 A2 E2 82 AC E2 80 9D decoded as UTF-8).
+   */
+  it("fmtDate(undefined) returns \u2014 (U+2014) and not mojibake", () => {
+    const result = fmtDate(undefined)
+
+    // Must contain the real em dash U+2014
+    expect(result).toMatch(/\u2014/)
+
+    // Must NOT contain mojibake sequence â€" (U+00E2 U+20AC U+201D)
+    const mojibakeEmDash = "\u00e2\u20ac\u201d"
+    expect(result).not.toMatch(new RegExp(mojibakeEmDash.split("").map(c => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`).join("")))
+    expect(result).not.toContain(mojibakeEmDash)
+  })
+
+  it("fmtDate(undefined) returns exactly the em dash string", () => {
+    expect(fmtDate(undefined)).toBe("\u2014")
+  })
+
+  it("fmtDate with a valid date returns a formatted date string", () => {
+    const result = fmtDate("2024-01-15")
+    expect(result).not.toBe("\u2014")
+    expect(result.length).toBeGreaterThan(0)
+    // Should contain "2024" for a 2024 date
+    expect(result).toContain("2024")
   })
 })

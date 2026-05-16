@@ -38,10 +38,7 @@ describe("Feature: document-linking-and-usage-tracking, Property 3: MessageLimit
           const text = container.textContent || ""
 
           // Assert the banner contains the limit-reached message
-          // &apos; renders as standard ASCII apostrophe (')
-          expect(text).toContain(
-            "You've reached the message limit for this session"
-          )
+          expect(text).toContain("Session message limit reached")
 
           // Assert the banner contains the currentMessages/limit format
           expect(text).toContain(`${currentMessages}/${limit}`)

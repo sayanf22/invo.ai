@@ -18,6 +18,7 @@ import type {
     PaymentFollowupData,
 } from "@/lib/document-schemas"
 import type React from "react"
+import { fixEncoding } from "@/lib/encoding"
 
 // â”€â”€â”€ Signature Block Error â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Thrown when a signable document type cannot produce a signature block.
@@ -106,8 +107,8 @@ function fmt(amount: number, currency: string = "USD"): string {
 const CF = {} as const
 const CFB = { fontWeight: 700 as const } as const
 
-function fmtDate(d: string | undefined): string {
-    if (!d) return "â€”"
+export function fmtDate(d: string | undefined): string {
+    if (!d) return "\u2014"
     try {
         return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
     } catch { return d }
@@ -202,7 +203,7 @@ function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn,
                 </Text>
                 {data.paymentLinkStatus === "partially_paid" && (
                     <Text style={{ fontSize: 8, color: "#d97706", marginTop: 4, fontWeight: 700 }}>
-                        Partial payment received â€” balance still due
+                        Partial payment received \u2014 balance still due
                     </Text>
                 )}
             </View>
@@ -1158,13 +1159,13 @@ function NotesSection({ data, c, tpl, config }: NotesSectionProps) {
             {data.notes ? (
                 <View style={wrapStyle}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>Notes</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View>
             ) : null}
             {data.terms ? (
                 <View style={wrapStyle}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>{termsLabel}</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.terms ?? "")}</Text>
                 </View>
             ) : null}
         </>
@@ -1580,11 +1581,11 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                 {/* â”€â”€ NOTES & TERMS â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View> : null}
                 {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.terms ?? "")}</Text>
                 </View> : null}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
@@ -1693,13 +1694,13 @@ export function ContractPDF({ data, logoUrl }: Props) {
                 {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 24, ...bNone() }} wrap={false}>
                     <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
-                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party A â€” Provider</Text>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party A \u2014 Provider</Text>
                         <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
                         {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
                         {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
                     </View>
                     <View style={{ flex: 1, ...bNone() }}>
-                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party B â€” Client</Text>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party B \u2014 Client</Text>
                         <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
                         {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
                         {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
@@ -1708,7 +1709,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
 
                 {/* â”€â”€ CONTRACT BODY (parsed into headings, paragraphs, bullets) â”€â”€ */}
                 {data.description && (() => {
-                    const blocks = parseContractBody(data.description)
+                    const blocks = parseContractBody(fixEncoding(data.description))
                     if (blocks.length === 0) return null
                     return (
                         <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
@@ -1818,11 +1819,11 @@ export function ContractPDF({ data, logoUrl }: Props) {
                 {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View> : null}
                 {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Additional Terms</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.terms ?? "")}</Text>
                 </View> : null}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
@@ -1994,11 +1995,11 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                 {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View> : null}
                 {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.terms ?? "")}</Text>
                 </View> : null}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
@@ -2162,11 +2163,11 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.notes}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View> : null}
                 {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.terms}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.terms ?? "")}</Text>
                 </View> : null}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
@@ -2412,7 +2413,7 @@ export function ReceiptPDF({ data, logoUrl }: Props) {
                             {data.referenceNumber ? <View style={s.payC4}><Text style={{ ...s.th, textAlign: "right" }}>Receipt number</Text></View> : null}
                         </View>
                         <View style={s.payRow}>
-                            <View style={s.payC1}><Text style={s.td}>{data.paymentMethod || "â€”"}</Text></View>
+                            <View style={s.payC1}><Text style={s.td}>{data.paymentMethod || "\u2014"}</Text></View>
                             <View style={s.payC2}><Text style={{ ...s.td, textAlign: "center" }}>{fmtDate(data.invoiceDate)}</Text></View>
                             <View style={s.payC3}><Text style={{ ...s.tdB, textAlign: "right" }}>{fmt(total, data.currency)}</Text></View>
                             {data.referenceNumber ? <View style={s.payC4}><Text style={{ ...s.td, textAlign: "right" }}>{data.referenceNumber}</Text></View> : null}
@@ -2548,7 +2549,7 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                 <View style={s.headerRow} wrap={false}>
                     <View>
                         <Text style={s.title}>Receipt</Text>
-                        <Text style={s.subtitle}>Clorefy â€” AI Document Platform</Text>
+                        <Text style={s.subtitle}>Clorefy \u2014 AI Document Platform</Text>
                         <View style={s.paidBadge}>
                             <Text style={s.paidText}>PAID</Text>
                         </View>
@@ -2631,7 +2632,7 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                 </View>
 
                 <View style={s.footer} fixed>
-                    <Text style={s.footerText}>Clorefy â€” clorefy.com</Text>
+                    <Text style={s.footerText}>Clorefy \u2014 clorefy.com</Text>
                     <Text style={s.footerText}>Official payment receipt</Text>
                 </View>
             </Page>
@@ -2777,8 +2778,8 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                         {data.deliverables.map((d, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
                                 <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{d.description}</Text></View>
-                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "center" }}>{d.dueDate ? fmtDate(d.dueDate) : "â€”"}</Text></View>
-                                <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{d.acceptanceCriteria || "â€”"}</Text></View>
+                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "center" }}>{d.dueDate ? fmtDate(d.dueDate) : "\u2014"}</Text></View>
+                                <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{d.acceptanceCriteria || "\u2014"}</Text></View>
                             </View>
                         ))}
                     </View>
@@ -2797,7 +2798,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
                                 <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, fontWeight: 700 }}>{m.name}</Text></View>
                                 <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "center" }}>{fmtDate(m.date)}</Text></View>
-                                <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{m.description || "â€”"}</Text></View>
+                                <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{m.description || "\u2014"}</Text></View>
                             </View>
                         ))}
                     </View>
@@ -2957,7 +2958,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                         {data.additions.map((a, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
                                 <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{a.description}</Text></View>
-                                <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, textAlign: "right", fontWeight: 700 }}>{a.cost != null ? fmt(a.cost, currency) : "â€”"}</Text></View>
+                                <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, textAlign: "right", fontWeight: 700 }}>{a.cost != null ? fmt(a.cost, currency) : "\u2014"}</Text></View>
                             </View>
                         ))}
                     </View>
@@ -2974,7 +2975,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                         {data.removals.map((rem, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: "#fff5f5" } : {}) }} wrap={false}>
                                 <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{rem.description}</Text></View>
-                                <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: "#dc2626", textAlign: "right", fontWeight: 700 }}>{rem.costReduction != null ? `-${fmt(rem.costReduction, currency)}` : "â€”"}</Text></View>
+                                <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: "#dc2626", textAlign: "right", fontWeight: 700 }}>{rem.costReduction != null ? `-${fmt(rem.costReduction, currency)}` : "\u2014"}</Text></View>
                             </View>
                         ))}
                     </View>
@@ -2994,7 +2995,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                                 <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: mut, lineHeight: 1.5 }}>{mod.original}</Text></View>
                                 <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: txt, lineHeight: 1.5 }}>{mod.revised}</Text></View>
                                 <View style={{ width: 90, ...bNone() }}><Text style={{ fontSize: 9, color: mod.costImpact != null && mod.costImpact < 0 ? "#dc2626" : "#16a34a", textAlign: "right", fontWeight: 700 }}>
-                                    {mod.costImpact != null ? `${mod.costImpact >= 0 ? "+" : ""}${fmt(mod.costImpact, currency)}` : "â€”"}
+                                    {mod.costImpact != null ? `${mod.costImpact >= 0 ? "+" : ""}${fmt(mod.costImpact, currency)}` : "\u2014"}
                                 </Text></View>
                             </View>
                         ))}
@@ -3141,7 +3142,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                                 </Text>
                             </View>
                             <View style={{ flex: 2, ...bNone() }}>
-                                <Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{party.address || "â€”"}</Text>
+                                <Text style={{ fontSize: 9, color: mut, textAlign: "right", lineHeight: 1.5 }}>{party.address || "\u2014"}</Text>
                             </View>
                         </View>
                     ))}
@@ -3300,9 +3301,9 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                     <View style={{ flexDirection: "row", flexWrap: "wrap", ...bNone() }}>
                         {[
                             { label: "Name", value: data.clientName },
-                            { label: "Email", value: data.clientEmail || "â€”" },
-                            { label: "Phone", value: data.clientPhone || "â€”" },
-                            { label: "Address", value: data.clientAddress || "â€”" },
+                            { label: "Email", value: data.clientEmail || "\u2014" },
+                            { label: "Phone", value: data.clientPhone || "\u2014" },
+                            { label: "Address", value: data.clientAddress || "\u2014" },
                         ].map((field, i) => (
                             <View key={i} style={{ width: "50%", marginBottom: 10, ...bNone() }}>
                                 <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>{field.label}</Text>
