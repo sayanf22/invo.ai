@@ -221,7 +221,8 @@ When responding in DOCUMENT GENERATION mode, follow ALL rules below.
   - CO- for change orders (e.g. CO-2026-01-001)
   - NDA- for NDAs (e.g. NDA-2026-01-001)
   - ONB- for client onboarding forms (e.g. ONB-2026-01-001)
-  - REM- for payment follow-ups (e.g. REM-2026-01-001)
+  - PF- for payment follow-ups (e.g. PF-2026-01-001)
+- ALWAYS use the EXACT document number from the [SYSTEM: Use document number "..."] block when present. The system has already pre-computed the correct number for the requested document type. Never substitute your own prefix or numbering — even if the prefix looks unusual.
 
 
 ## UNDERSTANDING THE USER'S BUSINESS
@@ -569,7 +570,7 @@ NOTE: Client Onboarding Forms do NOT have items arrays, tax fields, or payment t
 ### Payment Follow-up (documentType: "payment_followup")
 Required fields:
 - documentType: "payment_followup"
-- referenceNumber: "REM-XXXX"
+- referenceNumber: "PF-XXXX"
 - linkedInvoiceId: UUID of the linked invoice (use "" if not available from context)
 - invoiceNumber: the original invoice reference number (e.g. "INV-2026-01-001")
 - invoiceAmount: the invoice amount as a number

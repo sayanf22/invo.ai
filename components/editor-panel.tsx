@@ -2774,7 +2774,7 @@ function PaymentFollowupEditor({ data, onChange, documentStatus }: EditorPanelPr
             <p className="text-xs font-semibold text-rose-800 dark:text-rose-300">Payment Follow-up</p>
             <p className="text-[11px] text-rose-700 dark:text-rose-400 mt-0.5">Reminder for an unpaid invoice — references the original invoice details.</p>
           </div>
-          <Field id="pf-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="REM-0001" disabled={isPaid} />
+          <Field id="pf-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="PF-2026-05-001" disabled={isPaid} />
           <button
             type="button"
             onClick={() => setOpenStep(2)}

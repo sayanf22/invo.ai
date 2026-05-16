@@ -3428,7 +3428,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                             )}
                             <Text style={{ fontSize: 32, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>PAYMENT FOLLOW-UP</Text>
                             <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-                                {data.referenceNumber ? `REM-${data.referenceNumber}` : "REM"}
+                            {data.referenceNumber ? data.referenceNumber : "PF"}
                             </Text>
                         </View>
                         <View style={{ alignItems: "flex-end", ...bNone() }}>

@@ -5,6 +5,7 @@ import { useSupabase, useUser } from "@/components/auth-provider"
 import type { InvoiceData } from "@/lib/invoice-types"
 import type { DocumentSession, Json } from "@/lib/database.types"
 import { authFetch } from "@/lib/auth-fetch"
+import { coerceReferenceNumber } from "@/lib/document-type-registry"
 
 export interface ChatMessage {
     id: string
@@ -187,10 +188,37 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
     const updateSessionContext = useCallback(async (context: Partial<InvoiceData>) => {
         if (!session || !user) return
         try {
+            // ── Reference number coercion ────────────────────────────────
+            // The session's document_type is the source of truth. If the AI
+            // (or some other write path) hands us a referenceNumber/invoiceNumber
+            // whose prefix doesn't match (e.g. REM- for an invoice because the
+            // AI got confused), rewrite it to the correct prefix before
+            // persisting. The numeric portion is preserved — only the prefix
+            // is touched, so deterministic numbering still works.
+            const sessionDocType = (session.document_type as string | undefined) || ""
+            const safeContext: Partial<InvoiceData> = { ...context }
+            if (sessionDocType) {
+                if (typeof safeContext.referenceNumber === "string") {
+                    safeContext.referenceNumber = coerceReferenceNumber(safeContext.referenceNumber, sessionDocType) ?? safeContext.referenceNumber
+                }
+                if (typeof safeContext.invoiceNumber === "string") {
+                    // For invoices, invoiceNumber is the canonical reference. For
+                    // payment_followup, invoiceNumber refers to the *parent invoice*
+                    // and must keep its INV- prefix. Same for SOW/CO referencing
+                    // a parent contract — but those don't reuse invoiceNumber, they
+                    // use parentContractId / parentDocumentId. So only coerce when
+                    // the field actually IS this document's primary identifier.
+                    const isInvoiceLike = sessionDocType === "invoice"
+                    if (isInvoiceLike) {
+                        safeContext.invoiceNumber = coerceReferenceNumber(safeContext.invoiceNumber, sessionDocType) ?? safeContext.invoiceNumber
+                    }
+                }
+            }
+
             const { error } = await supabase
                 .from("document_sessions")
                 .update({
-                    context: context as unknown as Json,
+                    context: safeContext as unknown as Json,
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", session.id)
@@ -205,7 +233,7 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                     : {}
                 return {
                     ...prev,
-                    context: { ...prevContext, ...context } as unknown as Json
+                    context: { ...prevContext, ...safeContext } as unknown as Json
                 }
             })
         } catch (error) {

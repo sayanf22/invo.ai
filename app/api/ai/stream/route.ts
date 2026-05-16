@@ -4,6 +4,7 @@ import { streamBedrockChat, streamBedrockChatWithHistory, callBedrockBrief, ORCH
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 import { classifyIntent, detectMismatch, type DocumentType as IntentDocumentType } from "@/lib/intent-router"
 import { buildChatOnlySystemPrompt } from "@/lib/chat-only-prompts"
+import { formatReferenceNumber } from "@/lib/document-type-registry"
 
 import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
@@ -501,15 +502,6 @@ export async function POST(request: NextRequest) {
                     if (intentType === "document") {
                     try {
                         const docTypeLower = (body.documentType || "invoice").toLowerCase()
-                        const prefix = docTypeLower === "quotation" || docTypeLower === "quote" ? "QUO"
-                            : docTypeLower === "contract" ? "CTR"
-                            : docTypeLower === "proposal" ? "PROP"
-                            : docTypeLower === "sow" ? "SOW"
-                            : docTypeLower === "change_order" ? "CO"
-                            : docTypeLower === "nda" ? "NDA"
-                            : docTypeLower === "client_onboarding_form" ? "COF"
-                            : docTypeLower === "payment_followup" ? "PF"
-                            : "INV"
 
                         const { count } = await auth.supabase
                             .from("document_sessions")
@@ -517,11 +509,11 @@ export async function POST(request: NextRequest) {
                             .eq("user_id", auth.user.id)
                             .eq("document_type", docTypeLower)
 
-                        const nextNum = (count ?? 0) + 1
-                        const year = new Date().getFullYear()
-                        const month = String(new Date().getMonth() + 1).padStart(2, '0')
-                        const paddedNum = String(nextNum).padStart(3, '0')
-                        const nextDocNumber = `${prefix}-${year}-${month}-${paddedNum}`
+                        // Single source of truth: registry-driven prefix +
+                        // YYYY-MM-NNN format. Same helper is used at persist
+                        // time to coerce any AI-produced reference number to
+                        // the correct prefix for this document type.
+                        const nextDocNumber = formatReferenceNumber(docTypeLower, (count ?? 0) + 1)
 
                         body.prompt = `[SYSTEM: Use document number "${nextDocNumber}" for this ${docTypeLower}. Today's date is ${new Date().toISOString().split('T')[0]}. The invoice date should be today and the due date should be calculated from today based on payment terms.]\n\n${body.prompt}`
 
