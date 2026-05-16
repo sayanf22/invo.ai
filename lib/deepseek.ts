@@ -591,10 +591,11 @@ Required fields:
 
 DOCUMENT LINKING RULE for Payment Follow-up: If PARENT CONTEXT or conversation history references a specific invoice, extract linkedInvoiceId, invoiceNumber, invoiceAmount, dueDate, and paymentLinkUrl from that context. If the user provides these details in their message, use them directly.
 
-PAYMENT FOLLOW-UP MISSING-FIELD RULE: If the user asks to create a payment follow-up and PARENT CONTEXT does NOT include the invoice amount, OR the user's message does NOT include an explicit amount, you MUST do BOTH of the following on the SAME turn:
-  1. Generate the JSON document anyway, using invoiceAmount: 0 and invoiceCurrency from profile as a placeholder.
-  2. In the "message" field, ask the user explicitly: "What's the original invoice amount you'd like to follow up on?" — and also ask for the invoice number and due date if those are missing too. Combine into a single sentence.
-DO NOT silently leave invoiceAmount as 0 without asking the user — the recipient must see the correct amount in the reminder. Ask all missing critical fields (amount, invoiceNumber, dueDate, recipient email) in ONE concise follow-up question, not separate ones.
+PAYMENT FOLLOW-UP MISSING-FIELD RULE (ABSOLUTE — NO EXCEPTIONS): When the user asks to "create payment follow-up", "make a payment reminder", "draft a payment follow-up" or any equivalent phrasing, you MUST respond with valid JSON. **NEVER respond with plain-text questions for payment follow-up requests.** Even if amount, invoice number, or due date are missing, do BOTH of the following on the SAME turn:
+  1. Generate the JSON document with placeholders: invoiceAmount: 0, invoiceNumber: "", dueDate: "", paymentLinkUrl: "" — use whatever client/business data IS available.
+  2. In the "message" field of that JSON, ask the user for the missing fields in ONE concise sentence: "I've drafted a payment follow-up — what's the original invoice amount, invoice number, and due date so I can fill it in?"
+The user MUST see the document preview update on EVERY turn. Plain-text-only replies for payment follow-up creation are FORBIDDEN — they leave the user staring at an empty preview pane.
+DO NOT silently leave invoiceAmount as 0 without asking the user — the recipient must see the correct amount in the reminder.
 
 NOTE: Payment Follow-up documents do NOT create new payment links. They reference the payment link from the original invoice. Do NOT include items, tax, or payment terms fields.
 
