@@ -225,9 +225,13 @@ export function ChatSendCard({
     setError(null)
     try {
       const supportsSignatures = ["contract", "quote", "quotation", "proposal"].includes(documentType.toLowerCase())
+      // Only create a signature request when the document type supports it AND
+      // the user hasn't turned off the signature section via the editor toggle.
+      const signatureFieldsOn = invoiceData.showSignatureFields !== false
+      const shouldRequestSignature = supportsSignatures && signatureFieldsOn
 
       // For signature-supporting documents, create a signature request first
-      if (supportsSignatures) {
+      if (shouldRequestSignature) {
         try {
           await authFetch("/api/signatures", {
             method: "POST",
@@ -637,9 +641,11 @@ export function ChatSendCard({
             <button
               onClick={() => {
                 // For contracts: if already signed, just send.
+                // If signature fields are turned off, skip signing entirely.
                 // If user has a saved signature, auto-sign silently (no modal).
                 // Otherwise, show the sign-first modal to draw a signature.
-                if (isContract && !senderAlreadySigned) {
+                const signFieldsOn = invoiceData.showSignatureFields !== false
+                if (isContract && !senderAlreadySigned && signFieldsOn) {
                   if (hasSavedSignature) {
                     autoSignWithSaved()
                   } else {

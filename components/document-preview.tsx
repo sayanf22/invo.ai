@@ -423,6 +423,15 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const hasContent = data.documentType || data.fromName || data.toName || data.description
 
   const supportsSignatures = supportsSignatureWorkflow(data.documentType || "")
+  // showSignatureFields defaults to true (undefined / not set = visible).
+  // When the user explicitly turns it off via the editor toggle, we suppress
+  // ALL signature-related UI: status badges, Request Signature button, modal.
+  // NOTE: if signatures already exist (pending / signed), we still show the
+  // status badge even when the toggle is off, so the user isn't confused.
+  const signatureFieldsEnabled = data.showSignatureFields !== false
+  // Show signature-related buttons/modal only when the doc type supports it
+  // AND the user hasn't turned off the signature section
+  const signaturesActive = supportsSignatures && signatureFieldsEnabled
   const hasPendingSignatures = signatures.some(s => s.signed_at === null && (s.signer_action === null || s.signer_action === undefined))
   const allSigned = signatures.length > 0 && signatures.every(s => s.signed_at !== null)
 
@@ -1002,7 +1011,9 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
             )
           })()}
 
-          {/* Signature status badges — visible on all screen sizes */}
+          {/* Signature status badges — visible on all screen sizes.
+              These always show based on supportsSignatures (regardless of
+              showSignatureFields toggle) so user can see existing signature state */}
           {supportsSignatures && sessionId && hasPendingSignatures && !hasDeclined && !hasRevisionRequested && (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border">
               Pending Signature
@@ -1041,8 +1052,10 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               Changes Requested
             </span>
           )}
-          {/* For contracts/proposals: toolbar state machine for signature actions */}
-          {supportsSignatures && sessionId && toolbarState === "pending" && (
+          {/* For contracts/proposals: toolbar state machine for signature actions.
+              Only shown when signatureFieldsEnabled — if user turned off the
+              signature section, they don't want to request a signature. */}
+          {signaturesActive && sessionId && toolbarState === "pending" && (
             <button
               type="button"
               onClick={() => setCancelDialogOpen(true)}
@@ -1053,7 +1066,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               <span className="hidden sm:inline">Cancel Request</span>
             </button>
           )}
-          {supportsSignatures && sessionId && (toolbarState === "idle" || toolbarState === "actionable") && (
+          {signaturesActive && sessionId && (toolbarState === "idle" || toolbarState === "actionable") && (
             <>
               {senderSigned && (
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-foreground/70 border border-border">
@@ -1294,7 +1307,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           }}
         />
       )}
-      {supportsSignatures && sessionId && (
+      {signaturesActive && sessionId && (
         <GetSignatureModal
           sessionId={sessionId}
           documentType={data.documentType || ""}
@@ -1308,7 +1321,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           }}
         />
       )}
-      {supportsSignatures && sessionId && pendingSignature && (
+      {signaturesActive && sessionId && pendingSignature && (
         <SignatureCancelDialog
           open={cancelDialogOpen}
           onOpenChange={setCancelDialogOpen}
