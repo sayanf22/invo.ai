@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import { ClorefyLogo } from "@/components/clorefy-logo"
@@ -8,7 +8,7 @@ import { HamburgerMenu } from "@/components/hamburger-menu"
 import {
   History, FileText, FileCheck, FileQuestion, Presentation, ClipboardList,
   GitMerge, Shield, ClipboardCheck, Bell, RefreshCw,
-  Link2, ChevronRight, ArrowRight, ChevronDown, ArrowLeft, Trash2, MessageSquare, ChevronUp
+  Link2, ChevronRight, ArrowRight, ChevronDown, ArrowLeft, Trash2, MessageSquare
 } from "lucide-react"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import { authFetch } from "@/lib/auth-fetch"
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
 import { getDocumentTypeConfig, normalizeDocumentType, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
+import { motion } from "framer-motion"
 
 // ── Icon lookup map (icon name string → Lucide component) ─────────────────────
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
@@ -38,7 +39,6 @@ function getDocCfg(type: string) {
 }
 
 // ── Filter definitions ────────────────────────────────────────────────────────
-// Primary row: All + Chat + top 5 doc types. Remaining 4 under "More".
 const PRIMARY_FILTER_TYPES = ["invoice", "contract", "quote", "proposal", "sow"] as const
 const MORE_FILTER_TYPES    = ["nda", "change_order", "client_onboarding_form", "payment_followup"] as const
 
@@ -81,7 +81,6 @@ export default function HistoryPage() {
   const [groups, setGroups]   = useState<SessionGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter]   = useState<FilterValue>("all")
-  const [showMore, setShowMore] = useState(false)
 
   // Delete state — lifted to page level so one dialog serves all cards
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
@@ -162,6 +161,19 @@ export default function HistoryPage() {
     }
   }, [pendingDeleteId])
 
+  // ── Compute available filter types from actual loaded data (only show non-empty types) ──
+  const availableFilters = useMemo((): FilterValue[] => {
+    const result: FilterValue[] = ["all"]
+    const hasChat = groups.some(g => g.sessions.some(s => s.document_type === "chat"))
+    if (hasChat) result.push("chat")
+    const allDocTypes = [...PRIMARY_FILTER_TYPES, ...MORE_FILTER_TYPES] as const
+    for (const type of allDocTypes) {
+      const exists = groups.some(g => g.sessions.some(s => normalizeDocumentType(s.document_type) === type))
+      if (exists) result.push(type)
+    }
+    return result
+  }, [groups])
+
   // ── Filtering logic ─────────────────────────────────────────────────────────
   const sessionMatchesFilter = (s: Session): boolean => {
     if (filter === "all")  return true  // show everything: docs + chats
@@ -219,55 +231,13 @@ export default function HistoryPage() {
           <p className="text-sm text-muted-foreground mt-0.5">{countLabel}</p>
         </div>
 
-        {/* Filter pills — primary row: All + Chat + top 5 types; More expandable */}
-        <div className="mb-5 space-y-2">
-          {/* Primary row */}
-          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
-            {/* "All" pill */}
-            <FilterPill label="All" active={filter === "all"} onClick={() => setFilter("all")} />
-
-            {/* Chat pill — visible at top level */}
-            <FilterPill label="Chat" active={filter === "chat"} onClick={() => setFilter("chat")} />
-
-            {/* Top 5 type pills */}
-            {PRIMARY_FILTER_TYPES.map(type => (
-              <FilterPill
-                key={type}
-                label={filterLabel(type)}
-                active={filter === type}
-                onClick={() => setFilter(type)}
-              />
+        {/* Filter bar — one smooth scrollable row, active pill slides */}
+        <div className="mb-5 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-1">
+            {availableFilters.map(f => (
+              <FilterPill key={f} label={filterLabel(f)} active={filter === f} onClick={() => setFilter(f)} />
             ))}
-
-            {/* More toggle */}
-            <button
-              onClick={() => setShowMore(v => !v)}
-              className={cn(
-                "flex items-center gap-1 px-4 py-2 rounded-2xl text-sm font-semibold whitespace-nowrap transition-all duration-200 border shrink-0",
-                showMore
-                  ? "bg-secondary text-foreground border-border"
-                  : "bg-card text-muted-foreground border-border hover:bg-secondary shadow-sm"
-              )}
-              style={{ boxShadow: showMore ? undefined : "0 1px 3px rgba(0,0,0,0.06)" }}
-            >
-              More
-              {showMore ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
           </div>
-
-          {/* Expanded row — remaining 4 types */}
-          {showMore && (
-            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5 pl-0 animate-in fade-in slide-in-from-top-1 duration-200">
-              {MORE_FILTER_TYPES.map(type => (
-                <FilterPill
-                  key={type}
-                  label={filterLabel(type)}
-                  active={filter === type}
-                  onClick={() => setFilter(type)}
-                />
-              ))}
-            </div>
-          )}
         </div>
 
         {filteredGroups.length === 0 ? (
@@ -316,20 +286,24 @@ export default function HistoryPage() {
   )
 }
 
-// ── Filter Pill ───────────────────────────────────────────────────────────────
+// ── Filter Pill — Framer Motion sliding background ────────────────────────────
 function FilterPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "px-4 py-2 rounded-2xl text-sm font-semibold whitespace-nowrap transition-all duration-200 border shrink-0",
-        active
-          ? "bg-primary text-primary-foreground border-primary shadow-md"
-          : "bg-card text-foreground border-border hover:bg-secondary shadow-sm"
+        "relative px-3.5 py-2 rounded-2xl text-sm font-semibold whitespace-nowrap transition-colors duration-200 shrink-0",
+        active ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
       )}
-      style={active ? { boxShadow: "0 2px 8px hsl(var(--primary)/0.3)" } : { boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
     >
-      {label}
+      {active && (
+        <motion.span
+          layoutId="history-filter-pill"
+          className="absolute inset-0 rounded-2xl bg-primary shadow-sm"
+          transition={{ type: "spring", stiffness: 380, damping: 36 }}
+        />
+      )}
+      <span className="relative z-10">{label}</span>
     </button>
   )
 }
@@ -343,11 +317,24 @@ function ChainGroup({ group, onOpen, onRequestDelete }: {
   const [expanded, setExpanded] = useState(false)
   const docTypes = [...new Set(group.sessions.map(s => s.document_type))]
 
+  // Get dominant type for accent
+  const dominantType = group.sessions[0]?.document_type || "invoice"
+  const chainAccentMap: Record<string, string> = {
+    invoice: "#2563eb", contract: "#059669", quote: "#d97706",
+    quotation: "#d97706", proposal: "#7c3aed", sow: "#0891b2",
+    change_order: "#ea580c", nda: "#475569",
+    client_onboarding_form: "#0d9488", payment_followup: "#e11d48",
+  }
+  const chainAccentColor = chainAccentMap[dominantType] ?? "#9ca3af"
+
   return (
     <div
       className="rounded-2xl border border-border bg-card overflow-hidden"
       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 16px -4px rgba(0,0,0,0.08)" }}
     >
+      {/* Thin top accent line for chain groups */}
+      <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: chainAccentColor }} />
+
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -440,30 +427,60 @@ function SingleCard({ session, clientName, onOpen, onRequestDelete }: {
   const date = session.updated_at || session.created_at
   const isProtected = session.status === "paid" || session.status === "signed"
 
+  // Get accent color hex for left border from registry
+  const accentColorMap: Record<string, string> = {
+    invoice: "#2563eb", contract: "#059669", quote: "#d97706",
+    quotation: "#d97706", proposal: "#7c3aed", sow: "#0891b2",
+    change_order: "#ea580c", nda: "#475569",
+    client_onboarding_form: "#0d9488", payment_followup: "#e11d48",
+    chat: "#9ca3af",
+  }
+  const accentColor = accentColorMap[session.document_type] ?? "#9ca3af"
+
   return (
     <div
-      className="flex items-center rounded-2xl border border-border bg-card overflow-hidden group"
+      className="flex items-stretch rounded-2xl border border-border bg-card overflow-hidden group"
       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 12px -4px rgba(0,0,0,0.07)" }}
     >
+      {/* Left accent bar */}
+      <div className="w-[3px] shrink-0 rounded-l-2xl" style={{ backgroundColor: accentColor }} />
+
       <button
         type="button"
         onClick={() => onOpen(session)}
         className="flex items-center gap-3.5 flex-1 min-w-0 px-4 py-3.5 text-left active:scale-[0.99] transition-all duration-150 hover:bg-secondary/20"
       >
-        <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center shrink-0", cfg.bg)}
+        {/* Icon badge */}
+        <div
+          className={cn("w-10 h-10 rounded-2xl flex items-center justify-center shrink-0", cfg.bg)}
           style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}
         >
           <Icon className={cn("w-5 h-5", cfg.color)} strokeWidth={1.5} />
         </div>
+
+        {/* Content */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate">{title}</p>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className={cn("text-[11px] font-semibold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>{cfg.label}</span>
-            <span className="text-xs text-muted-foreground">
+          <p className="text-sm font-semibold text-foreground truncate">{title}</p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {/* Type badge — colored */}
+            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>
+              {cfg.label}
+            </span>
+            {/* Status badge for special states */}
+            {(session.status === "signed" || session.status === "paid") && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-foreground/8 text-foreground">
+                {session.status === "signed" ? "✓ Signed" : "✓ Paid"}
+              </span>
+            )}
+            {session.status === "finalized" && (
+              <span className="text-[10px] font-medium text-muted-foreground">Sent</span>
+            )}
+            <span className="text-[11px] text-muted-foreground">
               {date ? formatDistanceToNow(new Date(date), { addSuffix: true }) : ""}
             </span>
           </div>
         </div>
+
         <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
       </button>
 
@@ -471,7 +488,7 @@ function SingleCard({ session, clientName, onOpen, onRequestDelete }: {
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onRequestDelete(session.id) }}
-          className="w-10 h-10 flex items-center justify-center mr-2 rounded-xl text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-all [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+          className="w-10 h-10 flex items-center justify-center mr-2 my-auto rounded-xl text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-all [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
           aria-label="Delete document"
         >
           <Trash2 className="w-4 h-4" />
