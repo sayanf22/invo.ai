@@ -1691,11 +1691,36 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     }
                 }
                 // ── End send intent detection ──────────────────────────────────────
-                setMessages(prev => [...prev, { role: "assistant", content: cleaned }])
+
+                // ── Sanitize hallucinated unlock claims ─────────────────────────────
+                // If the AI mentions "unlocked", "unsent", or "cancelled the send"
+                // but the document isn't actually locked, those statements are
+                // factually wrong and confusing. Strip the claim and replace with
+                // a neutral acknowledgement.
+                let finalContent = cleaned
+                const sessionIsLocked = session && (session.status === "finalized" || session.status === "signed")
+                if (!sessionIsLocked) {
+                    const hallucinatesUnlock = /\b(I[''′]?ve\s+(unlocked|unsent|un-sent|made\s+it\s+editable|cancelled\s+the\s+send|reverted\s+the\s+send)|the\s+document\s+is\s+now\s+(unlocked|editable\s+again)|I\s+(unlocked|unsent)\s+(it|the\s+document))\b/i
+                    if (hallucinatesUnlock.test(finalContent)) {
+                        // Strip the offending sentence(s) — split by sentence and drop matches.
+                        finalContent = finalContent
+                            .split(/(?<=[.!?])\s+/)
+                            .filter(sentence => !hallucinatesUnlock.test(sentence))
+                            .join(" ")
+                            .trim()
+                        // If we stripped everything, fall back to a useful response
+                        if (!finalContent) {
+                            finalContent = "The document has been updated. Check the preview to see the latest values."
+                        }
+                    }
+                }
+                // ── End unlock hallucination sanitizer ──────────────────────────────
+
+                setMessages(prev => [...prev, { role: "assistant", content: finalContent }])
                 await saveMessage("user", displayText)
                 // Save activities from ref (synchronous, reliable)
                 const chatActivities = [...currentActivitiesRef.current]
-                await saveMessage("assistant", cleaned, chatActivities.length > 0 ? { activities: chatActivities } : undefined)
+                await saveMessage("assistant", finalContent, chatActivities.length > 0 ? { activities: chatActivities } : undefined)
             }
         } catch (err: any) {
             // Ignore abort errors (component unmounted or user navigated away)
