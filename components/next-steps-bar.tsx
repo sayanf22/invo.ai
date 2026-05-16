@@ -4,7 +4,7 @@ import { useState } from "react"
 import {
   FileText, ScrollText, ClipboardList, Lightbulb, Loader2,
   ChevronDown, FilePlus, Lock, GitMerge, Shield, Bell,
-  ClipboardCheck, ChevronUp,
+  ClipboardCheck,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -56,7 +56,6 @@ export function NextStepsBar({
   const { allowedDocTypes } = useTier()
 
   const currentType = currentDocType.toLowerCase()
-  const visibleDocs = expanded ? ALL_DOC_OPTIONS : ALL_DOC_OPTIONS.slice(0, DEFAULT_VISIBLE_COUNT)
   const hasMore = ALL_DOC_OPTIONS.length > DEFAULT_VISIBLE_COUNT
 
   const handleClick = async (targetType: string, isLocked: boolean) => {
@@ -132,9 +131,9 @@ export function NextStepsBar({
                 </p>
               </div>
 
-              {/* Document type grid — 2 columns, smooth expand/collapse */}
+              {/* Document type grid — 2 columns; first 3 always visible */}
               <div className="grid grid-cols-2 gap-px bg-border/40">
-                {visibleDocs.map(opt => {
+                {ALL_DOC_OPTIONS.slice(0, DEFAULT_VISIBLE_COUNT).map(opt => {
                   const { type, label, icon: Icon } = opt
                   const isLoading = loadingType === type
                   const isCurrent = type === currentType
@@ -180,24 +179,85 @@ export function NextStepsBar({
                 })}
               </div>
 
-              {/* Expand / collapse button — smooth animation */}
+              {/* Animated extras section — grid-rows technique for smooth expand/collapse */}
               {hasMore && (
-                <button
-                  type="button"
-                  onClick={() => setExpanded(v => !v)}
-                  className={cn(
-                    "w-full flex items-center justify-center gap-1.5 py-2.5",
-                    "text-[11px] font-semibold text-muted-foreground",
-                    "bg-secondary/10 hover:bg-secondary/30 transition-colors duration-150",
-                    "border-t border-border/40"
-                  )}
-                >
-                  {expanded ? (
-                    <><ChevronUp className="w-3 h-3" /> Show less</>
-                  ) : (
-                    <><ChevronDown className="w-3 h-3" /> {ALL_DOC_OPTIONS.length - DEFAULT_VISIBLE_COUNT} more types</>
-                  )}
-                </button>
+                <>
+                  <div
+                    className={cn(
+                      "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+                      expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                    )}
+                  >
+                    <div className="min-h-0 overflow-hidden">
+                      <div className="grid grid-cols-2 gap-px bg-border/40 border-t border-border/40">
+                        {ALL_DOC_OPTIONS.slice(DEFAULT_VISIBLE_COUNT).map(opt => {
+                          const { type, label, icon: Icon } = opt
+                          const isLoading = loadingType === type
+                          const isCurrent = type === currentType
+                          const isLocked = !allowedDocTypes.includes(type)
+                          return (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => handleClick(type, isLocked)}
+                              disabled={!!loadingType || isLocked || !expanded}
+                              title={isLocked ? "Upgrade to Starter to unlock" : undefined}
+                              className={cn(
+                                "flex items-center gap-2.5 px-4 min-h-[44px]",
+                                "text-[13px] font-medium",
+                                "bg-card transition-colors duration-100",
+                                isLocked
+                                  ? "text-muted-foreground/50 cursor-not-allowed"
+                                  : "text-foreground hover:bg-secondary/50 active:bg-secondary/80",
+                                "disabled:cursor-not-allowed",
+                                "touch-manipulation select-none",
+                                isCurrent && !isLocked && "bg-primary/5"
+                              )}
+                            >
+                              {isLoading
+                                ? <Loader2 className="w-4 h-4 animate-spin text-foreground/40 shrink-0" />
+                                : isLocked
+                                  ? <Lock className="w-4 h-4 text-muted-foreground/40 shrink-0" />
+                                  : <Icon className="w-4 h-4 text-foreground/50 shrink-0" />
+                              }
+                              <span className="flex-1 text-left">{label}</span>
+                              {isCurrent && !isLocked && (
+                                <span className="text-[10px] font-semibold text-primary/70 bg-primary/8 px-1.5 py-0.5 rounded-md shrink-0 leading-none">
+                                  current
+                                </span>
+                              )}
+                              {isLocked && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
+                                  Starter
+                                </span>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expand / collapse toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setExpanded(v => !v)}
+                    className={cn(
+                      "w-full flex items-center justify-center gap-1.5 py-2.5",
+                      "text-[11px] font-semibold text-muted-foreground",
+                      "bg-secondary/10 hover:bg-secondary/30 transition-colors duration-150",
+                      "border-t border-border/40"
+                    )}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "w-3 h-3 transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+                        expanded && "rotate-180"
+                      )}
+                    />
+                    {expanded ? "Show less" : `${ALL_DOC_OPTIONS.length - DEFAULT_VISIBLE_COUNT} more`}
+                  </button>
+                </>
               )}
             </div>
           </div>

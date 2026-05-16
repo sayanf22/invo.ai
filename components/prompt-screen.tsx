@@ -51,6 +51,11 @@ export function PromptScreen({
   const [messageCount, setMessageCount] = useState(0)
   // Lock invoice editing after payment link is created (anti-fraud)
   const [invoiceLocked, setInvoiceLocked] = useState(false)
+  // ── Chat-unlock signal ───────────────────────────────────────────
+  // Bumped when the user unlocks via chat. DocumentPreview reads it as
+  // `externallyUnlocked` and overrides its internal lock calculation
+  // (which is based on stale sentAt etc).
+  const [chatUnlockNonce, setChatUnlockNonce] = useState(0)
 
   // ── Single InvoiceChat: render only for mobile OR desktop, never both ──
   const isDesktop = useMediaQuery("(min-width: 768px)")
@@ -103,6 +108,7 @@ export function PromptScreen({
     // Reset data to clean state — the new session's context will be loaded by InvoiceChat
     setData(prev => ({ ...getInitialInvoiceData(), design: prev.design }))
     setInvoiceLocked(false)
+    setChatUnlockNonce(0)
     setSelectedSessionId(sessionId)
     // Bubble up so AppShell can update the URL
     onSessionChange?.(sessionId)
@@ -129,6 +135,15 @@ export function PromptScreen({
     setInvoiceLocked(locked)
   }, [])
 
+  // ── Chat-unlock signal ───────────────────────────────────────────
+  // When the user unlocks via the chat card, bump the nonce. The
+  // DocumentPreview reads it as `externallyUnlocked` and overrides its
+  // internal lock calculation (which is based on stale sentAt etc).
+  const handleChatUnlock = useCallback(() => {
+    setInvoiceLocked(false)
+    setChatUnlockNonce(n => n + 1)
+  }, [])
+
   const handleLinkedSessionCreate = useCallback((sessionId: string, docType: string) => {
     const capitalized = docType.charAt(0).toUpperCase() + docType.slice(1)
     // Preserve current design when creating a linked document
@@ -137,6 +152,7 @@ export function PromptScreen({
     setSelectedSessionId(sessionId)
     // Reset lock — new document has no payment link
     setInvoiceLocked(false)
+    setChatUnlockNonce(0)
     // Bubble up so AppShell can update the URL
     onSessionChange?.(sessionId)
   }, [data.design, onSessionChange])
@@ -154,7 +170,7 @@ export function PromptScreen({
     onChainSessionSelect: handleSessionSelect,
     onMessageCountChange: setMessageCount,
     onLockDocument: () => setInvoiceLocked(true),
-    onUnlockDocument: () => setInvoiceLocked(false),
+    onUnlockDocument: handleChatUnlock,
     onPaymentLinkCancelled: paymentLinkCancelledAt > 0 ? cancelledSignal : undefined,
     onSaveContext: handleSaveContextReady,
     initialPrompt,
@@ -285,6 +301,7 @@ export function PromptScreen({
                 sessionId={selectedSessionId}
                 onPaymentLinkChange={handlePaymentLinkChange}
                 onLockChange={handleLockChange}
+                externallyUnlocked={chatUnlockNonce > 0}
               />
             </div>
           </div>
@@ -341,6 +358,7 @@ export function PromptScreen({
             sessionId={selectedSessionId}
             onPaymentLinkChange={handlePaymentLinkChange}
             onLockChange={handleLockChange}
+            externallyUnlocked={chatUnlockNonce > 0}
           />
         </div>
       </div>

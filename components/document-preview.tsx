@@ -44,6 +44,15 @@ interface DocumentPreviewProps {
   onPaymentLinkChange?: (shortUrl: string, status: string) => void
   /** Called when invoice lock state changes (true = locked after payment link created) */
   onLockChange?: (locked: boolean) => void
+  /**
+   * When the parent (prompt-screen) has explicitly unlocked the document
+   * (e.g. via the chat unlock card), pass true to force the toolbar to
+   * show as unlocked, regardless of internal state like sentAt or pending
+   * signatures. Internal data may still be stale (sentAt remains stamped
+   * in DB even after unlock — by design, since the doc was sent), but the
+   * UI must reflect the user's choice immediately.
+   */
+  externallyUnlocked?: boolean
 }
 
 function EmptyState() {
@@ -350,7 +359,7 @@ function ToolbarSep() {
 }
 
 /* ─── Main DocumentPreview ─── */
-export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onLockChange }: DocumentPreviewProps) {
+export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onLockChange, externallyUnlocked = false }: DocumentPreviewProps) {
   const supabase = useSupabase()
   const user = useUser()
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
@@ -405,12 +414,18 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
     && paymentLinkStatus !== "failed")
 
   const isDocumentLocked =
-    !!sentAt
-    || manualPaid
-    || paymentLinkStatus === "paid"
-    || hasActivePaymentLink
-    || allSigned
-    || hasPendingSignatures
+    !externallyUnlocked && (
+      !!sentAt
+      || manualPaid
+      || paymentLinkStatus === "paid"
+      || hasActivePaymentLink
+      || allSigned
+      || hasPendingSignatures
+    )
+
+  // When the user explicitly unlocks via chat, we also want to clear the
+  // local sentAt so subsequent renders don't flicker back to "sent".
+  // Done via effect below.
 
   // Short reason string for the tooltip on the lock badge
   const lockReason = (() => {
@@ -463,7 +478,16 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         if (s?.sent_at) setSentAt(s.sent_at)
       })
       .catch(() => {})
-  }, [sessionId, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sessionId, user, supabase])
+
+  // When the parent signals an external unlock (e.g., via chat unlock card),
+  // clear the local lock-related state so the UI immediately reflects unlocked.
+  useEffect(() => {
+    if (externallyUnlocked) {
+      setSentAt(null)
+      setManualPaid(false)
+    }
+  }, [externallyUnlocked])
 
   // Check if invoice is already manually marked as paid
   useEffect(() => {
