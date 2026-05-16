@@ -1162,7 +1162,7 @@ export interface ActivityInsights {
   overallHourly: HourlyBucket[]
   overallPeakHour: number
   totalLast30Days: number
-  dailyTrend: Array<{ date: string; invoice: number; contract: number; quotation: number; proposal: number; total: number }>
+  dailyTrend: Array<Record<string, number | string>>
 }
 
 export async function getActivityInsights(): Promise<ActivityInsights> {
@@ -1197,7 +1197,18 @@ export async function getActivityInsights(): Promise<ActivityInsights> {
     }
   }
 
-  const docTypes = ["invoice", "contract", "quotation", "proposal"]
+  // All 9 supported document types from the registry
+  const docTypes = [
+    "invoice", "contract", "quote", "proposal",
+    "sow", "change_order", "nda", "client_onboarding_form", "payment_followup"
+  ]
+
+  // Also include any types that appear in the data but aren't in the list
+  // (e.g. legacy "quotation" alias) so nothing gets silently dropped
+  const seenTypes = Object.keys(typeHourly)
+  for (const t of seenTypes) {
+    if (!docTypes.includes(t) && t !== "unknown") docTypes.push(t)
+  }
 
   const byDocType: DocTypePeaks[] = docTypes.map(type => {
     const hourMap = typeHourly[type] ?? {}
@@ -1217,17 +1228,19 @@ export async function getActivityInsights(): Promise<ActivityInsights> {
   const overallPeakHour = overallHourlyArr.reduce((best, b) => b.count > best.count ? b : best, { hour: 0, count: 0 }).hour
   const totalLast30Days = (rows ?? []).length
 
-  // Daily trend (last 30 days)
+  // Daily trend — include all doc types dynamically so no type is hardcoded
+  const allDailyTypes = [
+    "invoice", "contract", "quote", "proposal",
+    "sow", "change_order", "nda", "client_onboarding_form", "payment_followup",
+    ...Object.keys(typeHourly).filter(t => !["invoice","contract","quote","proposal","sow","change_order","nda","client_onboarding_form","payment_followup"].includes(t) && t !== "unknown")
+  ]
   const dailyTrend = Object.entries(dailyMap)
-    .map(([date, counts]) => ({
-      date,
-      invoice: counts["invoice"] ?? 0,
-      contract: counts["contract"] ?? 0,
-      quotation: counts["quotation"] ?? 0,
-      proposal: counts["proposal"] ?? 0,
-      total: counts["total"] ?? 0,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(([date, counts]) => {
+      const row: Record<string, number | string> = { date, total: counts["total"] ?? 0 }
+      for (const t of allDailyTypes) row[t] = counts[t] ?? 0
+      return row
+    })
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
 
   return { byDocType, overallHourly: overallHourlyArr, overallPeakHour, totalLast30Days, dailyTrend }
 }
