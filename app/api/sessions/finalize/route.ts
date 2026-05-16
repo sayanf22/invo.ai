@@ -3,13 +3,27 @@ import { authenticateRequest } from "@/lib/api-auth"
 
 /**
  * POST /api/sessions/finalize
- * Marks a document session as finalized (sent) so it appears in My Documents.
- * Called when user shares via WhatsApp or copies a link from the chat share card.
- * 
+ *
+ * Marks a document session as finalized (sent) so it appears in My Documents
+ * and the share link is "live" for recipients. This is the canonical
+ * lock-on-share endpoint — every share path (chat-share-card, ShareButton
+ * dropdown, SendEmailDialog, etc.) calls this before performing the share
+ * action, so cancellation→resend produces a clean lifecycle transition.
+ *
+ * Allowed transitions:
+ *   active   → finalized   (first send)
+ *   draft    → finalized   (first send)
+ *   active+sent_at → finalized   (resend after owner unlocked from chat)
+ *   cancelled → finalized  (resend after explicit cancel)
+ *
+ * Blocked transitions (terminal — financial / legally binding):
+ *   paid     → 409 Conflict
+ *   signed   → 409 Conflict
+ *
  * Security:
- * - Requires authentication
- * - Verifies session ownership before updating
- * - Only updates sessions owned by the authenticated user
+ *   - Requires authentication
+ *   - Verifies session ownership before updating (defence in depth on top of RLS)
+ *   - Only the owner can finalize their own sessions
  */
 export async function POST(request: NextRequest) {
   const auth = await authenticateRequest(request)
@@ -28,25 +42,51 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "sessionId is required" }, { status: 400 })
   }
 
-  // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!uuidRegex.test(sessionId)) {
     return NextResponse.json({ error: "Invalid sessionId" }, { status: 400 })
   }
 
-  // Update session — RLS ensures user can only update their own sessions
-  const { error } = await auth.supabase
+  // Fetch existing status so we can block terminal states
+  const { data: existing, error: fetchError } = await auth.supabase
+    .from("document_sessions")
+    .select("status")
+    .eq("id", sessionId)
+    .eq("user_id", auth.user.id)
+    .single()
+
+  if (fetchError || !existing) {
+    return NextResponse.json({ error: "Session not found" }, { status: 404 })
+  }
+
+  if (existing.status === "paid") {
+    return NextResponse.json(
+      { error: "This document is already paid and cannot be re-shared as a new send." },
+      { status: 409 }
+    )
+  }
+
+  if (existing.status === "signed") {
+    return NextResponse.json(
+      { error: "This document is already signed and cannot be re-shared as a new send." },
+      { status: 409 }
+    )
+  }
+
+  // Update — RLS enforces ownership; we add user_id again as belt-and-braces
+  const nowIso = new Date().toISOString()
+  const { error: updateError } = await auth.supabase
     .from("document_sessions")
     .update({
       status: "finalized",
-      sent_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      sent_at: nowIso,
+      updated_at: nowIso,
     })
     .eq("id", sessionId)
     .eq("user_id", auth.user.id)
 
-  if (error) {
-    console.error("Failed to finalize session:", error)
+  if (updateError) {
+    console.error("[sessions/finalize] update error:", updateError)
     return NextResponse.json({ error: "Failed to finalize document" }, { status: 500 })
   }
 

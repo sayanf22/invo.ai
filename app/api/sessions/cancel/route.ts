@@ -10,6 +10,8 @@
  * Blocked when:
  * - Session is already "paid" (financial record — cannot cancel)
  * - Any signature has been actually signed (signed_at IS NOT NULL and not declined/cancelled)
+ * - Quotation/proposal recipient has responded with "declined" or "changes_requested"
+ *   (the owner's path forward is to send a revised version, not revoke the response)
  *
  * Body: { sessionId: string }
  */
@@ -83,6 +85,33 @@ export async function POST(request: NextRequest) {
         },
         { status: 403 }
       )
+    }
+
+    // Block if the recipient already responded with "declined" or "changes_requested"
+    // on a quotation/proposal. Once the client has formally responded the owner
+    // cannot revoke the document — the response itself is part of the record and
+    // would be orphaned by a cancellation. The owner's correct path is to
+    // generate a new revised quotation/proposal that supersedes this one.
+    if (["quotation", "quote", "proposal"].includes((session.document_type || "").toLowerCase())) {
+      const { data: clientResponses } = await (auth.supabase as any)
+        .from("quotation_responses")
+        .select("response_type")
+        .eq("session_id", sessionId)
+        .in("response_type", ["declined", "changes_requested"])
+        .limit(1)
+
+      if (Array.isArray(clientResponses) && clientResponses.length > 0) {
+        const responseType = clientResponses[0].response_type
+        const human = responseType === "declined" ? "declined this document" : "requested changes"
+        return NextResponse.json(
+          {
+            error: `The recipient has already ${human}. Cancellation is no longer available — create a revised version instead.`,
+            status: "responded",
+            responseType,
+          },
+          { status: 403 }
+        )
+      }
     }
 
     // 1. Set session status to "cancelled"

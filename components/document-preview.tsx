@@ -380,6 +380,11 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [getSignatureModalOpen, setGetSignatureModalOpen] = useState(false)
   const [signatures, setSignatures] = useState<Array<{ id: string; signed_at: string | null; signer_action: string | null; signer_name?: string }>>([])
   const [signaturesLoading, setSignaturesLoading] = useState(false)
+  // Tracks whether the recipient has already submitted a "declined" or
+  // "changes_requested" response on a quotation/proposal. When set, the
+  // owner cannot cancel the document — the response is part of the record
+  // and must be answered with a revised version instead.
+  const [clientResponseType, setClientResponseType] = useState<"declined" | "changes_requested" | null>(null)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [userTier, setUserTier] = useState<"free" | "starter" | "pro" | "agency">("free")
@@ -438,6 +443,26 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       || hasPendingSignatures
     )
 
+  // Cancel is blocked when the document is in a terminal-or-responded state.
+  // Mirrors the server-side guards in /api/sessions/cancel:
+  //   - any signature actually signed (legally binding)
+  //   - quotation/proposal recipient declined or requested changes
+  //     (the response is part of the record — owner must send a revised version)
+  //   - document is paid (financial record)
+  // The UI uses this flag to hide the Cancel menu item; the server enforces.
+  const hasAnySignedSignature = signatures.some((s: any) =>
+    s.signed_at &&
+    s.signer_action !== "declined" &&
+    s.signer_action !== "revision_requested" &&
+    s.signer_action !== "cancelled"
+  )
+  const cancelBlockedReason: "signed" | "responded" | "paid" | null =
+    hasAnySignedSignature ? "signed"
+    : clientResponseType ? "responded"
+    : (paymentLinkStatus === "paid" || manualPaid) ? "paid"
+    : null
+  const isCancelAllowed = cancelBlockedReason === null
+
   // When the user explicitly unlocks via chat, we also want to clear the
   // local sentAt so subsequent renders don't flicker back to "sent".
   // Done via effect below.
@@ -494,6 +519,32 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       })
       .catch(() => {})
   }, [sessionId, user, supabase])
+
+  // Fetch any client response (declined / changes_requested) for quotations
+  // and proposals. When present, the owner cannot cancel the document — the
+  // server enforces the same rule, this just keeps the UI in sync.
+  useEffect(() => {
+    setClientResponseType(null)
+    if (!sessionId || !user) return
+    const docType = (data.documentType || "").toLowerCase()
+    if (docType !== "quotation" && docType !== "quote" && docType !== "proposal") return
+
+    ;(supabase as any)
+      .from("quotation_responses")
+      .select("response_type")
+      .eq("session_id", sessionId)
+      .in("response_type", ["declined", "changes_requested"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data: r }: { data: { response_type?: string } | null }) => {
+        const t = r?.response_type
+        if (t === "declined" || t === "changes_requested") {
+          setClientResponseType(t)
+        }
+      })
+      .catch(() => {})
+  }, [sessionId, user, supabase, data.documentType])
 
   // When the parent signals an external unlock (e.g., via chat unlock card),
   // clear the local lock-related state so the UI immediately reflects unlocked.
@@ -883,7 +934,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                   {lockReason || "Document Locked"}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="my-1 bg-border/50" />
-                {sessionId && (
+                {sessionId && isCancelAllowed && (
                   <DropdownMenuItem
                     onClick={() => setCancelDocumentOpen(true)}
                     className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium text-destructive focus:text-destructive focus:bg-destructive/10"
@@ -940,6 +991,24 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           {supportsSignatures && sessionId && allSigned && (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-foreground/70 border border-border">
               ✓ Signed
+            </span>
+          )}
+          {/* Client response badge — quotation/proposal recipient declined or
+              requested changes. Cancel is blocked while this is set. */}
+          {sessionId && clientResponseType === "declined" && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border"
+              title="Recipient declined this document"
+            >
+              Client Declined
+            </span>
+          )}
+          {sessionId && clientResponseType === "changes_requested" && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border"
+              title="Recipient requested changes — send a revised version"
+            >
+              Changes Requested
             </span>
           )}
           {/* For contracts/proposals: toolbar state machine for signature actions */}
@@ -1052,7 +1121,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               }}
             />
           )}
-          <ShareButton data={data} sessionId={sessionId ?? null} onOpenSendDialog={() => setSendEmailDialogOpen(true)} />
+          <ShareButton data={data} sessionId={sessionId ?? null} documentStatus={documentStatus} onOpenSendDialog={() => setSendEmailDialogOpen(true)} />
           <button
             type="button"
             onClick={handlePrint}
@@ -1315,7 +1384,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                       {lockReason || "Document Locked"}
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator className="my-1 bg-border/50" />
-                    {sessionId && (
+                    {sessionId && isCancelAllowed && (
                       <DropdownMenuItem
                         onClick={() => { setIsFullscreen(false); setCancelDocumentOpen(true) }}
                         className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium text-destructive focus:text-destructive focus:bg-destructive/10"
