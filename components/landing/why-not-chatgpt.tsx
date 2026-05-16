@@ -155,18 +155,22 @@ export function WhyNotChatGPT() {
               </span>
             </div>
 
-            {/* Headline — cycles through major AI names */}
+            {/* Headline — name on its own line, fixed-height container prevents jumping */}
             <h2 className="font-display text-4xl sm:text-5xl lg:text-[3.75rem] font-semibold text-[#1C1A17] mb-5 tracking-tighter leading-[1.05]">
-              Why not just{" "}
-              <span className="relative inline-block align-baseline" style={{ minWidth: "5.5ch" }}>
-                <AnimatePresence mode="popLayout" initial={false}>
+              <span className="block">Why not just</span>
+              <span
+                className="block relative font-serif italic"
+                style={{ minHeight: "1.15em" }}
+                aria-live="polite"
+              >
+                <AnimatePresence mode="wait" initial={false}>
                   <motion.span
                     key={AI_NAMES[aiIndex]}
-                    initial={{ opacity: 0, y: 16, filter: "blur(8px)" }}
+                    initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
                     animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, y: -16, filter: "blur(8px)" }}
-                    transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    className="font-serif italic inline-block whitespace-nowrap"
+                    exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
+                    transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                    className="inline-block whitespace-nowrap"
                     style={{
                       backgroundImage: "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
                       WebkitBackgroundClip: "text",
@@ -219,12 +223,6 @@ export function WhyNotChatGPT() {
                 </motion.div>
               ))}
             </div>
-
-            {/* Honest disclaimer — small, italic, matches editorial tone */}
-            <p className="text-[12px] text-stone-500 mb-7 max-w-md leading-relaxed font-serif italic border-l-2 border-stone-300 pl-3">
-              Clorefy uses leading AI APIs. The value is the workflow built around them — your
-              business profile, country tax rules, formatting, and delivery — all in one place.
-            </p>
 
             {/* CTAs — match hero button styling */}
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
