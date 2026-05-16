@@ -179,6 +179,26 @@ function LivePDFPreview({ data, zoom, onPageCount, locked = false, lockReason }:
         case "receipt":
           PdfComponent = templates.ReceiptPDF
           break
+        case "sow":
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          PdfComponent = templates.SOWPDF as any
+          break
+        case "change_order":
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          PdfComponent = templates.ChangeOrderPDF as any
+          break
+        case "nda":
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          PdfComponent = templates.NDAPDF as any
+          break
+        case "client_onboarding_form":
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          PdfComponent = templates.ClientOnboardingFormPDF as any
+          break
+        case "payment_followup":
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          PdfComponent = templates.PaymentFollowupPDF as any
+          break
         default:
           PdfComponent = (docData.design?.layout === "receipt" || docData.design?.templateId === "receipt")
             ? templates.ReceiptPDF
@@ -789,6 +809,16 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         case "quotation": PdfComponent = templates.QuotationPDF; break
         case "proposal": PdfComponent = templates.ProposalPDF; break
         case "receipt": PdfComponent = templates.ReceiptPDF; break
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        case "sow": PdfComponent = templates.SOWPDF as any; break
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        case "change_order": PdfComponent = templates.ChangeOrderPDF as any; break
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        case "nda": PdfComponent = templates.NDAPDF as any; break
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        case "client_onboarding_form": PdfComponent = templates.ClientOnboardingFormPDF as any; break
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        case "payment_followup": PdfComponent = templates.PaymentFollowupPDF as any; break
         default: PdfComponent = (cleanedData.design?.layout === "receipt" || cleanedData.design?.templateId === "receipt")
           ? templates.ReceiptPDF
           : templates.InvoicePDF; break
@@ -1066,6 +1096,17 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                     case "quote":
                     case "quotation": PdfComponent = templates.QuotationPDF; break
                     case "proposal": PdfComponent = templates.ProposalPDF; break
+                    case "receipt": PdfComponent = templates.ReceiptPDF; break
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    case "sow": PdfComponent = templates.SOWPDF as any; break
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    case "change_order": PdfComponent = templates.ChangeOrderPDF as any; break
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    case "nda": PdfComponent = templates.NDAPDF as any; break
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    case "client_onboarding_form": PdfComponent = templates.ClientOnboardingFormPDF as any; break
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    case "payment_followup": PdfComponent = templates.PaymentFollowupPDF as any; break
                     default: PdfComponent = templates.InvoicePDF; break
                   }
                   const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
@@ -1170,6 +1211,17 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                       case "quote":
                       case "quotation": PdfComponent = templates.QuotationPDF; break
                       case "proposal": PdfComponent = templates.ProposalPDF; break
+                      case "receipt": PdfComponent = templates.ReceiptPDF; break
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      case "sow": PdfComponent = templates.SOWPDF as any; break
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      case "change_order": PdfComponent = templates.ChangeOrderPDF as any; break
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      case "nda": PdfComponent = templates.NDAPDF as any; break
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      case "client_onboarding_form": PdfComponent = templates.ClientOnboardingFormPDF as any; break
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      case "payment_followup": PdfComponent = templates.PaymentFollowupPDF as any; break
                       default: PdfComponent = templates.InvoicePDF; break
                     }
                     const blob = await pdf(<PdfComponent data={cleanedData} logoUrl={logoUrl} />).toBlob()
