@@ -41,10 +41,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    // Allow: sent documents OR signed documents
-    // Block: drafts that were never sent and never signed
+    // Allow public access when the document has been delivered to a recipient,
+    // either by:
+    //   - a sent email/share (sent_at is stamped), OR
+    //   - a signing flow having reached the signed state, OR
+    //   - an active invoice_payments row exists (the owner created a public
+    //     payment link, which acts as a recipient-facing artefact).
+    // Block: drafts that have none of the above.
+    let hasPaymentLink = false
     if (!session.sent_at && session.status !== "signed") {
-      return NextResponse.json({ error: "Document not found" }, { status: 404 })
+      const { data: payCheck } = await supabase
+        .from("invoice_payments")
+        .select("id")
+        .eq("session_id", sessionId)
+        .in("status", ["created", "partially_paid", "paid"])
+        .limit(1)
+        .maybeSingle()
+      hasPaymentLink = !!payCheck
+      if (!hasPaymentLink) {
+        return NextResponse.json({ error: "Document not found" }, { status: 404 })
+      }
     }
 
     // ── Cancellation guard ──

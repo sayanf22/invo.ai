@@ -289,10 +289,13 @@ export async function POST(request: NextRequest) {
         // Link was created in Razorpay but not saved — still return it to user
     }
 
-    // Mark session as sent (payment link was shared) + snapshot current context from request
-    // The client sends the current invoiceData so the public /pay page shows up-to-date info
+    // Snapshot current invoice context so the public /pay page shows up-to-date info.
+    // Do NOT stamp sent_at here — creating a payment link is not the same as sending
+    // the document. The owner may copy/share the link manually OR send via the email
+    // dialog later. Public /pay access is granted because an invoice_payments row now
+    // exists for this session (see /api/emails/view-document and /pay/[sessionId]).
     const contextSnapshot = (body as Record<string, unknown>).contextSnapshot
-    const sessionUpdate: Record<string, unknown> = { sent_at: new Date().toISOString() }
+    const sessionUpdate: Record<string, unknown> = {}
     if (contextSnapshot && typeof contextSnapshot === "object" && !Array.isArray(contextSnapshot)) {
         // Validate it's a plain object with expected InvoiceData shape before storing
         const ctx = contextSnapshot as Record<string, unknown>
@@ -301,12 +304,14 @@ export async function POST(request: NextRequest) {
             sessionUpdate.context = contextSnapshot
         }
     }
-    await supabaseAdmin
-        .from("document_sessions")
-        .update(sessionUpdate)
-        .eq("id", sessionId)
-        .eq("user_id", auth.user.id)
-        .is("sent_at", null) // Only set once
+    // Skip the update entirely if there is nothing to save.
+    if (Object.keys(sessionUpdate).length > 0) {
+        await supabaseAdmin
+            .from("document_sessions")
+            .update(sessionUpdate)
+            .eq("id", sessionId)
+            .eq("user_id", auth.user.id)
+    }
 
     // 8. Audit log
     await logAudit(auth.supabase, {
