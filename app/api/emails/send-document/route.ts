@@ -260,16 +260,11 @@ export async function POST(request: NextRequest) {
       ? sanitizeText(body.subject).slice(0, 200)
       : generateEmailSubject(documentType, referenceNumber, businessName)
 
-    // 10b. For signable documents (contract, quotation, proposal, sow, nda,
+    // 10b. For signable documents (contract, quote, proposal, sow, nda,
     // change_order), look up signing token to include Sign button. Capability
     // is registry-driven so adding signable types only requires registry changes.
     let signingUrl: string | null = null
-    const isSignableType =
-      typeCapabilities?.supports_signature === true ||
-      // proposal isn't in registry as signable but historically supports the
-      // "request signature" workflow on quotes/proposals; preserve that.
-      normalizedType === "proposal" ||
-      normalizedType === "quote"
+    const isSignableType = typeCapabilities?.supports_signature === true
     if (isSignableType) {
       const { data: sigRow } = await supabase
         .from("signatures")

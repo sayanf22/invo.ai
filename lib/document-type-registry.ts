@@ -106,7 +106,10 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     bgColor: "bg-amber-50",
     prefix: "QUO",
     capabilities: {
-      supports_signature: false,
+      // Quotes can be accepted/signed by the client to convert into a binding
+      // commitment. The QuotePDF renders signature blocks gated on
+      // `showSignatureFields`, and the editor exposes the toggle to hide them.
+      supports_signature: true,
       supports_payment_link: false,
       supports_linking: false,
       supports_recurring: false,
@@ -124,7 +127,10 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     bgColor: "bg-violet-50",
     prefix: "PROP",
     capabilities: {
-      supports_signature: false,
+      // Proposals are typically counter-signed by the client to confirm
+      // acceptance ("Prepared By" / "Accepted By" blocks in the PDF). The
+      // editor exposes a toggle to hide them when not needed.
+      supports_signature: true,
       supports_payment_link: false,
       supports_linking: false,
       supports_recurring: false,

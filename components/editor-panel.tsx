@@ -820,7 +820,7 @@ function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps)
   // ── Step counting ────────────────────────────────────────────────────────
   // Layouts (in order):
   //   - With line items (invoice/quote/proposal): Type, Parties, Items, Notes, Signature?, Additional
-  //     → 5 steps without signature, 6 with (invoice has no signature, quote/proposal also disabled in registry today)
+  //     → 5 steps without signature, 6 with (invoice has no signature; quote/proposal/contract do)
   //   - Without line items (contract): Type, Parties, Details, Notes & Terms, Signature?
   //     → 4 steps without signature, 5 with (contract supports signature)
   // The previous logic hard-coded "6 if hasLineItems, 4 otherwise" and ignored

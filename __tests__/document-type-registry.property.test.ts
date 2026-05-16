@@ -128,14 +128,21 @@ describe("Property 9: Document linking parent validation", () => {
  * **Validates: Requirements 6.1, 6.5**
  */
 
-const SIGNATURE_SUPPORTED_TYPES = new Set<DocumentType>(["contract", "nda", "sow", "change_order"])
+const SIGNATURE_SUPPORTED_TYPES = new Set<DocumentType>([
+  "contract",
+  "nda",
+  "sow",
+  "change_order",
+  "quote",
+  "proposal",
+])
 
 describe("Property 8: Signature capability correctness", () => {
   /**
    * Property-based: for any type in ALL_DOCUMENT_TYPES,
-   * supports_signature must be true iff type ∈ {contract, nda, sow, change_order}.
+   * supports_signature must be true iff type ∈ {contract, nda, sow, change_order, quote, proposal}.
    */
-  it("supports_signature is true iff type is in {contract, nda, sow, change_order}", () => {
+  it("supports_signature is true iff type is in {contract, nda, sow, change_order, quote, proposal}", () => {
     fc.assert(
       fc.property(anyDocumentType, (docType) => {
         const config = getDocumentTypeConfig(docType)
@@ -153,7 +160,14 @@ describe("Property 8: Signature capability correctness", () => {
   /**
    * Explicit assertion: types that MUST have supports_signature = true.
    */
-  it.each(["contract", "nda", "sow", "change_order"] as DocumentType[])(
+  it.each([
+    "contract",
+    "nda",
+    "sow",
+    "change_order",
+    "quote",
+    "proposal",
+  ] as DocumentType[])(
     "%s has supports_signature = true",
     (docType) => {
       const config = getDocumentTypeConfig(docType)
@@ -167,8 +181,6 @@ describe("Property 8: Signature capability correctness", () => {
    */
   it.each([
     "invoice",
-    "quote",
-    "proposal",
     "client_onboarding_form",
     "payment_followup",
     "recurring_invoice",

@@ -10,9 +10,7 @@ import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { getDocumentTypeConfig } from "@/lib/document-type-registry"
 import { toast } from "sonner"
 
-/** Signable document types — PDF export must include signature blocks */
-const SIGNABLE_TYPES = new Set(["contract", "nda", "sow", "change_order"])
-
+/** Signable document types — sourced from the registry so the set is always in sync */
 interface PDFDownloadButtonProps {
     data: InvoiceData
     filename?: string
@@ -207,8 +205,9 @@ export function PDFDownloadButton({
             const docType = (data.documentType || "").toLowerCase()
             // Fail-closed: descriptive error when signature block cannot be rendered (422 equivalent)
             if (error instanceof Error && error.name === "SignatureBlockRenderError") {
-                const isSignable = SIGNABLE_TYPES.has(docType)
-                const typeLabel = getDocumentTypeConfig(docType)?.label || "document"
+                const cfg = getDocumentTypeConfig(docType)
+                const isSignable = cfg?.capabilities.supports_signature === true
+                const typeLabel = cfg?.label || "document"
                 if (isSignable) {
                     toast.error(
                         `PDF export blocked: the ${typeLabel} signature section could not be rendered. ` +
