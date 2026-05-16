@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
 import { sanitizeText } from "@/lib/sanitize"
-import { incrementDocumentCount, checkDocumentLimit, checkDocumentTypeAllowed } from "@/lib/cost-protection"
+import { incrementDocumentCount, checkDocumentLimit, checkDocumentTypeAllowed, getUserTier } from "@/lib/cost-protection"
 import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 import { normalizeDocumentType, getDocumentTypeConfig, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 
@@ -50,12 +50,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Fetch user tier from subscriptions table, default to "free"
-        const { data: subscription } = await (auth.supabase as any)
-            .from("subscriptions")
-            .select("plan, status, current_period_end")
-            .eq("user_id", auth.user.id)
-            .single()
-        const userTier = resolveEffectiveTier(subscription as any)
+        const userTier = await getUserTier(auth.supabase, auth.user.id)
 
         // Check document type is allowed for this tier (fast, no DB query)
         const typeError = checkDocumentTypeAllowed(normalizedType, userTier)

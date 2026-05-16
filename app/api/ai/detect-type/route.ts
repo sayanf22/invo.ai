@@ -16,7 +16,7 @@ import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-
 import { sanitizeText } from "@/lib/sanitize"
 import { detectDocumentType, getDetectionMessage } from "@/lib/server/document-type-detector"
 import { classifyIntentFull, detectMismatch, type DocumentType } from "@/lib/intent-router"
-import { checkCostLimit, resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
+import { checkCostLimit, resolveEffectiveTier, type UserTier, getUserTier } from "@/lib/cost-protection"
 
 interface DetectTypeRequest {
     prompt: string
@@ -31,12 +31,7 @@ export async function POST(request: NextRequest) {
         if (auth.error) return auth.error
 
         // SECURITY: Check cost limit before processing
-        const { data: sub } = await (auth.supabase as any)
-            .from("subscriptions")
-            .select("plan, status, current_period_end")
-            .eq("user_id", auth.user.id)
-            .single()
-        const userTier = resolveEffectiveTier(sub as any)
+        const userTier = await getUserTier(auth.supabase, auth.user.id)
 
         const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
         if (costError) return costError

@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
-import { checkCostLimit, trackUsage } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, getUserTier } from "@/lib/cost-protection"
 import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 import { sanitizeText } from "@/lib/sanitize"
 
@@ -221,12 +221,7 @@ export async function POST(request: NextRequest) {
     if (auth.error) return auth.error
 
     // Fetch user tier from subscriptions table, default to "free"
-    const { data: subscription } = await (auth.supabase as any)
-        .from("subscriptions")
-        .select("plan, status, current_period_end")
-        .eq("user_id", auth.user.id)
-        .single()
-    const userTier = resolveEffectiveTier(subscription as any)
+    const userTier = await getUserTier(auth.supabase, auth.user.id)
 
     // Block free-tier users from AI profile editing
     if (userTier === "free") {

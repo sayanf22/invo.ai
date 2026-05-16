@@ -50,6 +50,11 @@ export function generateCSRFToken(sessionId: string): string {
 /**
  * Validate CSRF token from request
  * Returns null if valid, or NextResponse with 403 if invalid
+ *
+ * SKIP CONDITION: When the request already carries an Authorization: Bearer
+ * header, it is a Same-Origin API call authenticated via an explicit token
+ * rather than cookies. CSRF attacks exploit ambient cookie credentials — they
+ * cannot forge a Bearer token — so CSRF validation is not needed in that case.
  */
 export async function validateCSRFToken(
     request: NextRequest,
@@ -59,6 +64,13 @@ export async function validateCSRFToken(
     // Skip CSRF for GET, HEAD, OPTIONS (safe methods)
     const method = request.method.toUpperCase()
     if (["GET", "HEAD", "OPTIONS"].includes(method)) {
+        return null
+    }
+
+    // Skip CSRF when request uses Bearer auth (not cookie-based)
+    // Bearer-authenticated requests are inherently CSRF-safe.
+    const authHeader = request.headers.get("authorization")
+    if (authHeader?.startsWith("Bearer ")) {
         return null
     }
 

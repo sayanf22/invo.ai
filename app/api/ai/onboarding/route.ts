@@ -17,7 +17,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
 
-import { checkCostLimit, checkMessageLimit, resolveEffectiveTier, trackUsage } from "@/lib/cost-protection"
+import { checkCostLimit, checkMessageLimit, resolveEffectiveTier, trackUsage, getUserTier } from "@/lib/cost-protection"
 import { sanitizeText, sanitizeEmail, sanitizePhone } from "@/lib/sanitize"
 import { SUPPORTED_COUNTRIES as COUNTRY_LIST } from "@/lib/countries"
 
@@ -178,13 +178,8 @@ export async function POST(request: NextRequest) {
 
         // Rate limiting removed - handled by Supabase if needed
 
-        // SECURITY: Resolve effective tier from subscription
-        const { data: subscription } = await auth.supabase
-            .from("subscriptions")
-            .select("plan, status, current_period_end")
-            .eq("user_id", auth.user.id)
-            .single()
-        const userTier = resolveEffectiveTier(subscription)
+    // SECURITY: Resolve effective tier from subscription
+    const userTier = await getUserTier(auth.supabase, auth.user.id)
 
         // SECURITY: Cost protection (tier-aware)
         const costError = await checkCostLimit(auth.supabase, auth.user.id, "onboarding", userTier)

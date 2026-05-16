@@ -2,11 +2,12 @@ import { NextRequest } from "next/server"
 import { streamGenerateDocument, buildPrompt, DUAL_MODE_SYSTEM_PROMPT, type AIGenerationRequest } from "@/lib/deepseek"
 import { streamBedrockChat, streamBedrockChatWithHistory, callBedrockBrief, ORCHESTRATOR_SYSTEM_PROMPT, BUSINESS_PROFILE_COMMENTARY_PROMPT, COMPLIANCE_COMMENTARY_PROMPT, RAG_VALIDATION_PROMPT, PRE_GENERATION_BRIEF_PROMPT, CORRECTION_INSTRUCTION_PROMPT, type BedrockChatMessage } from "@/lib/bedrock"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
+import { validateCSRFToken } from "@/lib/csrf"
 import { classifyIntent, detectMismatch, type DocumentType as IntentDocumentType } from "@/lib/intent-router"
 import { buildChatOnlySystemPrompt } from "@/lib/chat-only-prompts"
 import { formatReferenceNumber } from "@/lib/document-type-registry"
 
-import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier, getUserTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText, stripPromptInjection } from "@/lib/sanitize"
 
@@ -35,6 +36,10 @@ export async function POST(request: NextRequest) {
         const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
+        // SECURITY: Validate CSRF token (bound to the authenticated user's session)
+        const csrfError = await validateCSRFToken(request, auth.user.id, auth.supabase)
+        if (csrfError) return csrfError
+
         const body: AIGenerationRequest = await request.json()
 
         // Detect chat-only mode early — these sessions bypass quota and use
@@ -42,12 +47,7 @@ export async function POST(request: NextRequest) {
         const isChatOnlyMode = (body.documentType || "").toLowerCase() === "chat"
 
         // Fetch user tier from subscriptions table (needed for all limit checks)
-        const { data: sub } = await (auth.supabase as any)
-            .from("subscriptions")
-            .select("plan, status, current_period_end")
-            .eq("user_id", auth.user.id)
-            .single()
-        const userTier = resolveEffectiveTier(sub as any)
+        const userTier = await getUserTier(auth.supabase, auth.user.id)
 
         // Chat-only mode skips all tier gates — chat conversations are free.
         // Quota is consumed only at promotion time (/api/sessions/promote).

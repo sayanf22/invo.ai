@@ -24,6 +24,7 @@ import {
     checkDocumentLimit,
     checkDocumentTypeAllowed,
     incrementDocumentCount,
+    getUserTier,
     resolveEffectiveTier,
 } from "@/lib/cost-protection"
 import {
@@ -83,13 +84,8 @@ export async function POST(request: NextRequest) {
         // The DB and tier-limits are keyed by canonical type values only.
         const normalizedTargetType = normalizeDocumentType(body.targetType) ?? body.targetType as DocumentType
 
-        // Resolve tier — subscription lookup mirrors other endpoints.
-        const { data: subscription } = await (auth.supabase as any)
-            .from("subscriptions")
-            .select("plan, status, current_period_end")
-            .eq("user_id", auth.user.id)
-            .single()
-        const userTier = resolveEffectiveTier(subscription as any)
+        // Resolve tier — single DB call via helper.
+        const userTier = await getUserTier(auth.supabase, auth.user.id)
 
         // Tier gate: does this tier allow this document type?
         const typeError = checkDocumentTypeAllowed(normalizedTargetType, userTier)

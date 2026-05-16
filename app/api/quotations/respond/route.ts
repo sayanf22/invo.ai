@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    if (!["quotation", "proposal"].includes(session.document_type)) {
+    if (!["quotation", "quote", "proposal"].includes(session.document_type)) {
         return NextResponse.json(
             { error: "Only quotations and proposals can be accepted or rejected" },
             { status: 400 }

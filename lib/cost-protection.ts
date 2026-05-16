@@ -504,6 +504,32 @@ export function checkDocumentTypeAllowed(
     return null
 }
 
+// ─── Tier Lookup Helper ───────────────────────────────────────────────────────
+
+/**
+ * Fetch the user's effective subscription tier in a single call.
+ * Eliminates the copy-pasted subscription fetch that appeared in 10+ routes.
+ *
+ * Falls back to "free" on any DB error so the caller never gets an unhandled
+ * promise rejection. Uses maybeSingle() instead of single() so a missing row
+ * (new user with no subscription yet) returns null gracefully.
+ */
+export async function getUserTier(
+    supabase: SupabaseClient<Database>,
+    userId: string
+): Promise<UserTier> {
+    try {
+        const { data: subscription } = await (supabase as any)
+            .from("subscriptions")
+            .select("plan, status, current_period_end")
+            .eq("user_id", userId)
+            .maybeSingle()
+        return resolveEffectiveTier(subscription)
+    } catch {
+        return "free" // fail-safe: never block user on DB errors
+    }
+}
+
 // ─── Legacy Cost Check (backward compatible) ─────────────────────────────────
 
 /**

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, sanitizeError } from "@/lib/api-auth"
+import { validateCSRFToken } from "@/lib/csrf"
 import { sanitizeEmail, sanitizeText } from "@/lib/sanitize"
 import { sendEmail } from "@/lib/mailtrap"
 import { generateEmailSubject, renderEmailTemplate } from "@/lib/email-template"
 import { logAudit } from "@/lib/audit-log"
-import { checkEmailLimit, incrementEmailCount, getFollowUpSchedule } from "@/lib/cost-protection"
+import { checkEmailLimit, incrementEmailCount, getFollowUpSchedule, getUserTier } from "@/lib/cost-protection"
 import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 import { createClient } from "@supabase/supabase-js"
 import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
@@ -48,6 +49,10 @@ export async function POST(request: NextRequest) {
     const { user, supabase } = auth
     const userId = user.id
 
+    // 1b. CSRF validation (bound to authenticated user's session)
+    const csrfError = await validateCSRFToken(request, userId, supabase)
+    if (csrfError) return csrfError
+
     // 2. Parse body
     let body: SendDocumentRequest
     try {
@@ -66,12 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3b. Monthly email limit (tier-based)
-    const { data: subscription } = await (supabase as any)
-      .from("subscriptions")
-      .select("plan, status, current_period_end")
-      .eq("user_id", userId)
-      .single()
-    const userTier = resolveEffectiveTier(subscription as any)
+    const userTier = await getUserTier(supabase, userId)
 
     const emailLimitError = await checkEmailLimit(supabase, userId, userTier)
     if (emailLimitError) return emailLimitError
