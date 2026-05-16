@@ -134,13 +134,17 @@ import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
 // Matches explicit email sending: "email to", "send via email", "mail to", or has an email address
 const EMAIL_SEND_REGEX = /\b(email\s+to\b|mail\s+to\b|send\s+(via|through|by)\s+email|forward\s+(via|through|by)\s+email)\b/i
-// Matches generic send: "send it", "send this", "send the invoice", "send to John", "deliver to", or bare "send" / "send via email"
-const GENERIC_SEND_REGEX = /\b(send\s+(it|this|the\s+\w+|to\b|via\s+email)|deliver\s+to\b|forward\s+to\b|dispatch\s+to\b|^send$)\b/i
+// Matches generic send: "send it", "send this", "send the doc", "send to John", "deliver to", bare "send",
+// "send via email", "please send", "go ahead and send", or any of the 9 doc type names after "send"
+const GENERIC_SEND_REGEX = /(?:^|\b)(?:please\s+|go\s+ahead\s+(?:and\s+)?)?send(?:\s+(?:it|this|the\s+\w+|to\b|via\s+email|now|please|out|across|over))?(?:\b|$)|deliver\s+to\b|forward\s+to\b|dispatch\s+to\b/i
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
 
 // Non-send email contexts — reject if these match
 const NON_SEND_EMAIL_REGEX = /\b(add|get|fetch|retrieve|find|what|which|update|fill|include|use|from|previous|linked|document)\s+(the\s+)?email\b/i
 const EMAIL_CONTEXT_REGEX = /\bemail\s+(address|from|of|in|on|for)\b/i
+
+// Matches direct "send to [person]" with a name (not a verb like "send to modify")
+const SEND_TO_PERSON_REGEX = /\bsend\s+(it\s+)?to\s+([A-Z][a-z]+|[A-Z]{2,}|\w+\s+[A-Z][a-z]+)/
 
 function detectSendIntent(prompt: string): { hasSendIntent: boolean; method: "email" | "general" | "none"; email: string } {
     const lower = prompt.toLowerCase().trim()
@@ -148,6 +152,14 @@ function detectSendIntent(prompt: string): { hasSendIntent: boolean; method: "em
     // Guard: reject non-send email contexts
     if (NON_SEND_EMAIL_REGEX.test(lower) || EMAIL_CONTEXT_REGEX.test(lower)) {
         return { hasSendIntent: false, method: "none", email: "" }
+    }
+
+    // Guard: reject modification-only phrases that happen to contain "send" variants
+    // e.g. "change and send" is a modification — handled by the AI, not pre-API shortcut
+    // But standalone "send" or "send it" should always work
+    const standaloneMatch = /^(?:please\s+)?send(?:\s+(?:it|this|now|please|out|across|over))?\.?$/i.test(lower.trim())
+    if (standaloneMatch) {
+        return { hasSendIntent: true, method: "general", email: "" }
     }
 
     const emailMatch = prompt.match(EMAIL_REGEX)
@@ -595,10 +607,72 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
     // Load welcome message
     const loadWelcome = useCallback(async () => {
-        const msg = `Hi! I'm your AI assistant. I can help you create invoices, contracts, quotations, and proposals — or just answer your business questions.\n\nTry something like:\n• "Create an invoice for $5,000 for web design to Acme Corp"\n• "What is GST and how does it apply to my business?"\n• Upload a file and ask me about it`
+        const docTypeLabel = docType === "invoice" ? "Invoice"
+            : docType === "contract" ? "Contract"
+            : docType === "quote" || docType === "quotation" ? "Quote"
+            : docType === "proposal" ? "Proposal"
+            : docType === "sow" ? "Statement of Work"
+            : docType === "change_order" ? "Change Order"
+            : docType === "nda" ? "NDA"
+            : docType === "client_onboarding_form" ? "Client Onboarding Form"
+            : docType === "payment_followup" ? "Payment Follow-up"
+            : "document"
+
+        const tips: Record<string, string[]> = {
+            invoice: [
+                '• "Create an invoice for ₹5,000 for web design to Acme Corp"',
+                '• "Add a 5% late fee clause"',
+                '• "Send it to client@example.com"',
+                '• "Make this recurring every month"',
+            ],
+            contract: [
+                '• "Create a 6-month service contract for TechCorp"',
+                '• "Add a confidentiality clause"',
+                '• "Request signature from client@company.com"',
+                '• "Create an invoice from this contract"',
+            ],
+            quote: [
+                '• "Create a quote for website redesign for Startup X"',
+                '• "Make it valid for 15 days"',
+                '• "Send it to client@startup.com"',
+            ],
+            proposal: [
+                '• "Write a proposal for a mobile app project for RetailCo"',
+                '• "Add a timeline and milestone breakdown"',
+                '• "Send it to decision-maker@retailco.com"',
+            ],
+            sow: [
+                '• "Create an SOW for a 3-month website project"',
+                '• "Add 4 milestones and define deliverables"',
+                '• "Link this to the contract we already have"',
+            ],
+            change_order: [
+                '• "Add a change order for the extra UI screens"',
+                '• "Describe what\'s being changed and the new cost"',
+                '• "Send it to the client for approval"',
+            ],
+            nda: [
+                '• "Create a mutual NDA with GlobalCorp"',
+                '• "Make it valid for 2 years under Indian law"',
+                '• "Send it for signing to legal@globalcorp.com"',
+            ],
+            client_onboarding_form: [
+                '• "Create an onboarding form for a new design client"',
+                '• "Add questions about brand guidelines and target audience"',
+                '• "Send it to client@newproject.com"',
+            ],
+            payment_followup: [
+                '• "Send a polite payment reminder for Invoice INV-2026-01-001"',
+                '• "Make it more urgent — it\'s 30 days overdue"',
+                '• "Send the follow-up to accounts@latepayer.com"',
+            ],
+        }
+
+        const docTips = tips[docType] || tips.invoice
+        const msg = `Hi! I'm Clorefy AI — your business document assistant.\n\nI'm here to help you with your **${docTypeLabel}**. Here's what you can say:\n\n${docTips.join("\n")}\n\nI understand context — if you've already filled in client details, just say "send it" and I'll take care of the rest.`
         setMessages([{ role: "assistant", content: msg }])
         setWelcomeLoaded(true)
-    }, [])
+    }, [docType])
 
     // Notify parent of message count changes
     useEffect(() => {
@@ -904,9 +978,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 const RESEND_REGEX = /\b(resend|re-send|send\s*again|send\s*once\s*more)\b/i
                 const isResend = RESEND_REGEX.test(userMessage)
                 const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
+
+                // The email to pre-fill — prioritize: detected in message > already in doc > empty
+                const knownEmail = detectedEmail || data.toEmail || ""
+
                 if ((hasSendIntent && sendMethod === "email") || isResend) {
                     setInputValue("")
-                    const cardEmail = detectedEmail || data.toEmail || ""
                     const isSent = session.status === "finalized" || session.status === "signed"
                     const minimalMsg = isSent || isResend
                         ? `Sure! Fill in the details below to resend your ${docType}.`
@@ -914,7 +991,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     setMessages(prev => [...prev,
                         { role: "user" as const, content: userMessage },
                         { role: "assistant" as const, content: minimalMsg },
-                        { role: "assistant" as const, content: "", sendCard: { email: cardEmail } },
+                        { role: "assistant" as const, content: "", sendCard: { email: knownEmail } },
                     ])
                     await saveMessage("user", userMessage)
                     await saveMessage("assistant", minimalMsg)
@@ -922,14 +999,30 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 }
                 if (hasSendIntent && sendMethod === "general") {
                     setInputValue("")
-                    const shareMsg = `How would you like to send your ${docType}?`
-                    setMessages(prev => [...prev,
-                        { role: "user" as const, content: userMessage },
-                        { role: "assistant" as const, content: shareMsg },
-                        { role: "assistant" as const, content: "", shareCard: true },
-                    ])
-                    await saveMessage("user", userMessage)
-                    await saveMessage("assistant", shareMsg)
+                    // If we already know the client email, go straight to the send card (no need to show options)
+                    if (knownEmail) {
+                        const isSent = session.status === "finalized" || session.status === "signed"
+                        const minimalMsg = isSent
+                            ? `Sure! Fill in the details below to resend your ${docType}.`
+                            : `Sure! Fill in the details below to send your ${docType}.`
+                        setMessages(prev => [...prev,
+                            { role: "user" as const, content: userMessage },
+                            { role: "assistant" as const, content: minimalMsg },
+                            { role: "assistant" as const, content: "", sendCard: { email: knownEmail } },
+                        ])
+                        await saveMessage("user", userMessage)
+                        await saveMessage("assistant", minimalMsg)
+                    } else {
+                        // No known email — show share options so user can pick channel
+                        const shareMsg = `How would you like to send your ${docType}?`
+                        setMessages(prev => [...prev,
+                            { role: "user" as const, content: userMessage },
+                            { role: "assistant" as const, content: shareMsg },
+                            { role: "assistant" as const, content: "", shareCard: true },
+                        ])
+                        await saveMessage("user", userMessage)
+                        await saveMessage("assistant", shareMsg)
+                    }
                     return
                 }
             }
@@ -1665,28 +1758,39 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     }
 
                     const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
+                    const knownEmailPost = detectedEmail || data.toEmail || ""
                     if (hasSendIntent && sendMethod === "email") {
-                        const cardEmail = detectedEmail || data.toEmail || ""
                         // Show a minimal message + email send card
                         const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`
                         setMessages(prev => [...prev, { role: "assistant", content: minimalMsg }, {
                             role: "assistant",
                             content: "",
-                            sendCard: { email: cardEmail },
+                            sendCard: { email: knownEmailPost },
                         }])
                         await saveMessage("user", displayText)
                         await saveMessage("assistant", minimalMsg)
                         return
                     }
                     if (hasSendIntent && sendMethod === "general") {
-                        // Generic "send it" → show multi-option share card
-                        const shareMsg = `How would you like to send your ${docType}?`
-                        setMessages(prev => [...prev,
-                            { role: "assistant", content: shareMsg },
-                            { role: "assistant", content: "", shareCard: true },
-                        ])
-                        await saveMessage("user", displayText)
-                        await saveMessage("assistant", shareMsg)
+                        // If email is known, go straight to send card — no need for 3 options
+                        if (knownEmailPost) {
+                            const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`
+                            setMessages(prev => [...prev,
+                                { role: "assistant", content: minimalMsg },
+                                { role: "assistant", content: "", sendCard: { email: knownEmailPost } },
+                            ])
+                            await saveMessage("user", displayText)
+                            await saveMessage("assistant", minimalMsg)
+                        } else {
+                            // No known email — show share options card
+                            const shareMsg = `How would you like to send your ${docType}?`
+                            setMessages(prev => [...prev,
+                                { role: "assistant", content: shareMsg },
+                                { role: "assistant", content: "", shareCard: true },
+                            ])
+                            await saveMessage("user", displayText)
+                            await saveMessage("assistant", shareMsg)
+                        }
                         return
                     }
                 }
