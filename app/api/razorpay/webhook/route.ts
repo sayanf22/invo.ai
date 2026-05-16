@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { verifyWebhookSignature } from "@/lib/razorpay"
+import { markWebhookProcessed } from "@/lib/webhook-dedup"
 import { createClient } from "@supabase/supabase-js"
 
 /**
@@ -35,24 +36,18 @@ export async function POST(request: Request) {
             process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         )
 
-        // REPLAY PROTECTION: Check if we've already processed this event
+        // REPLAY PROTECTION: Use atomic dedup helper (INSERT ON CONFLICT DO NOTHING)
+        // This correctly handles the (gateway, event_id) unique constraint.
         if (eventId) {
-            const { data: existing } = await supabase
-                .from("webhook_events" as any)
-                .select("id")
-                .eq("event_id", eventId)
-                .eq("gateway", "razorpay")
-                .maybeSingle()
-
-            if (existing) {
+            const isNew = await markWebhookProcessed(supabase as any, "razorpay", eventId)
+            if (!isNew) {
                 return NextResponse.json({ received: true, duplicate: true })
             }
-
-            await supabase.from("webhook_events" as any).insert({
-                event_id: eventId,
-                event_type: eventType,
-                gateway: "razorpay",
-            })
+            // Record event type separately (markWebhookProcessed only writes gateway+event_id+user_id)
+            await supabase.from("webhook_events" as any)
+                .update({ event_type: eventType })
+                .eq("event_id", eventId)
+                .eq("gateway", "razorpay")
         }
 
         switch (eventType) {

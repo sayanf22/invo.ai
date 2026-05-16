@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
     // Returns base64 data URLs so the PDF template can embed them
     let signatureImages: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }> = []
     let senderSignatureDataUrl: string | undefined = undefined
-    if (["contract", "quotation", "proposal"].includes(session.document_type || "")) {
+    if (["contract", "sow", "nda", "change_order", "quotation", "quote", "proposal"].includes(session.document_type || "")) {
       const { data: sigs } = await supabase
         .from("signatures")
         .select("signer_name, party, signed_at, signature_image_url")
