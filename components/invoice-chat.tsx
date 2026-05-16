@@ -1560,8 +1560,23 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 // ── AI action detection ───────────────────────────────────────────
                 // Check if the AI responded with a special action marker
                 if (cleaned.startsWith("[ACTION:UNLOCK_DOCUMENT]")) {
-                    // AI decided the user wants to unlock — show confirmation card
+                    // Defensive: only show unlock card if the document is ACTUALLY locked
+                    // (sent/signed). Otherwise the AI hallucinated the marker — strip it
+                    // and show the message as plain text. Prevents the "Unlock Document"
+                    // card from appearing on freshly-created docs that were never sent.
+                    const isActuallyLocked = session && (session.status === "finalized" || session.status === "signed")
                     const aiMessage = cleaned.replace("[ACTION:UNLOCK_DOCUMENT]", "").trim()
+
+                    if (!isActuallyLocked) {
+                        // Hallucinated marker — treat as a normal AI reply
+                        const safeMsg = aiMessage || "Got it. Let me know what you'd like to do."
+                        setMessages(prev => [...prev, { role: "assistant", content: safeMsg }])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", safeMsg)
+                        return
+                    }
+
+                    // Document is genuinely sent/signed — show the unlock confirmation card
                     setMessages(prev => [...prev, { role: "assistant", content: "", unlockCard: true }])
                     await saveMessage("user", displayText)
                     if (aiMessage) await saveMessage("assistant", aiMessage)
