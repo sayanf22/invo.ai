@@ -154,28 +154,21 @@ function detectSendIntent(prompt: string): { hasSendIntent: boolean; method: "em
         return { hasSendIntent: false, method: "none", email: "" }
     }
 
-    // Guard: reject modification-only phrases that happen to contain "send" variants
-    // e.g. "change and send" is a modification — handled by the AI, not pre-API shortcut
-    // But standalone "send" or "send it" should always work
-    const standaloneMatch = /^(?:please\s+)?send(?:\s+(?:it|this|now|please|out|across|over))?\.?$/i.test(lower.trim())
-    if (standaloneMatch) {
-        return { hasSendIntent: true, method: "general", email: "" }
-    }
-
     const emailMatch = prompt.match(EMAIL_REGEX)
     const hasEmailAddress = !!emailMatch
 
-    // If user provides an email address with a send verb → email-specific
+    // If user provides an email address with a send verb → direct to send card
     if (hasEmailAddress && GENERIC_SEND_REGEX.test(prompt)) {
         return { hasSendIntent: true, method: "email", email: emailMatch![0] }
     }
 
-    // If user explicitly says "email to" / "send via email" → email-specific
+    // If user explicitly says "email to" / "send via email" / "mail it" → direct to send card
     if (EMAIL_SEND_REGEX.test(prompt)) {
         return { hasSendIntent: true, method: "email", email: emailMatch ? emailMatch[0] : "" }
     }
 
-    // Generic send: "send it", "send this", "send to John" (no email address, no "email" keyword)
+    // Generic send (no channel specified): "send", "send it", "send this", "send now", "please send"
+    // → show 3-option share card so user can pick how they want to send
     if (GENERIC_SEND_REGEX.test(prompt)) {
         return { hasSendIntent: true, method: "general", email: "" }
     }
@@ -191,7 +184,10 @@ function detectPaymentIntent(prompt: string): boolean {
 }
 
 // ── Cancel payment link intent detection ──────────────────────────────────────
-const CANCEL_PAYMENT_LINK_REGEX = /\b(cancel|remove|deactivate|disable|revoke|stop|delete)\s*(the\s*)?(payment\s*link|pay\s*link|razorpay\s*link|payment\s*url)\b/i
+// Matches explicit cancellation requests including long descriptive ones:
+// "cancel the link", "cancel the payment link", "remove the payment link",
+// "I want to cancel the payment link for this invoice", "please remove the razorpay link"
+const CANCEL_PAYMENT_LINK_REGEX = /\b(cancel|remove|deactivate|disable|revoke|stop|delete|void|withdraw|take\s*down|get\s*rid\s*of)\b.*\b(payment\s*link|pay\s*link|razorpay\s*link|payment\s*url|invoice\s*link|the\s*link)\b|\b(payment\s*link|pay\s*link|razorpay\s*link|payment\s*url|the\s*link)\b.*\b(cancel|remove|deactivate|disable|revoke|stop|delete|void)\b/i
 
 function detectCancelPaymentLinkIntent(prompt: string): boolean {
     return CANCEL_PAYMENT_LINK_REGEX.test(prompt)
@@ -918,7 +914,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         // Catch "cancel the send", "undo send", "unlock", "make it editable" etc.
         // directly before the API call so the unlock card shows immediately.
         if (documentGenerated && session && (session.status === "finalized" || session.status === "signed")) {
-            const CANCEL_SEND_REGEX = /\b(cancel|undo|revert|revoke|unsend)\s*(the\s*)?(send|sent|delivery|email|sharing|link|payment\s*link)|unlock\s*(the\s*)?(document|invoice|contract|quotation|proposal|this)|make\s*(it\s*)?(editable|edit\s*again)|edit\s*again|can\s*(i|we)\s*edit/i
+            const CANCEL_SEND_REGEX = /\b(cancel|undo|revert|revoke|unsend)\s*(the\s*)?(send|sent|delivery|email|sharing|link|payment\s*link)|unlock\s*(the\s*)?(document|invoice|contract|quotation|proposal|this)|make\s*(it\s*)?(editable|edit\s*again)|edit\s*again|can\s*(i|we)\s*edit|\bi\s*(want|need|would\s*like)\s*to\s*(edit|make\s*changes|change|update)\b/i
             if (CANCEL_SEND_REGEX.test(userMessage)) {
                 setInputValue("")
                 if (session.status === "signed") {
@@ -991,6 +987,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     setMessages(prev => [...prev,
                         { role: "user" as const, content: userMessage },
                         { role: "assistant" as const, content: minimalMsg },
+                        // Always show compose step so email is editable
                         { role: "assistant" as const, content: "", sendCard: { email: knownEmail } },
                     ])
                     await saveMessage("user", userMessage)
@@ -999,30 +996,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 }
                 if (hasSendIntent && sendMethod === "general") {
                     setInputValue("")
-                    // If we already know the client email, go straight to the send card (no need to show options)
-                    if (knownEmail) {
-                        const isSent = session.status === "finalized" || session.status === "signed"
-                        const minimalMsg = isSent
-                            ? `Sure! Fill in the details below to resend your ${docType}.`
-                            : `Sure! Fill in the details below to send your ${docType}.`
-                        setMessages(prev => [...prev,
-                            { role: "user" as const, content: userMessage },
-                            { role: "assistant" as const, content: minimalMsg },
-                            { role: "assistant" as const, content: "", sendCard: { email: knownEmail } },
-                        ])
-                        await saveMessage("user", userMessage)
-                        await saveMessage("assistant", minimalMsg)
-                    } else {
-                        // No known email — show share options so user can pick channel
-                        const shareMsg = `How would you like to send your ${docType}?`
-                        setMessages(prev => [...prev,
-                            { role: "user" as const, content: userMessage },
-                            { role: "assistant" as const, content: shareMsg },
-                            { role: "assistant" as const, content: "", shareCard: true },
-                        ])
-                        await saveMessage("user", userMessage)
-                        await saveMessage("assistant", shareMsg)
-                    }
+                    // Generic "send" (no channel specified) — always show 3 options
+                    const shareMsg = `How would you like to send your ${docType}?`
+                    setMessages(prev => [...prev,
+                        { role: "user" as const, content: userMessage },
+                        { role: "assistant" as const, content: shareMsg },
+                        { role: "assistant" as const, content: "", shareCard: true },
+                    ])
+                    await saveMessage("user", userMessage)
+                    await saveMessage("assistant", shareMsg)
                     return
                 }
             }
@@ -1760,7 +1742,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
                     const knownEmailPost = detectedEmail || data.toEmail || ""
                     if (hasSendIntent && sendMethod === "email") {
-                        // Show a minimal message + email send card
+                        // Show a minimal message + email send card (compose step always shown, email editable)
                         const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`
                         setMessages(prev => [...prev, { role: "assistant", content: minimalMsg }, {
                             role: "assistant",
@@ -1772,25 +1754,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         return
                     }
                     if (hasSendIntent && sendMethod === "general") {
-                        // If email is known, go straight to send card — no need for 3 options
-                        if (knownEmailPost) {
-                            const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`
-                            setMessages(prev => [...prev,
-                                { role: "assistant", content: minimalMsg },
-                                { role: "assistant", content: "", sendCard: { email: knownEmailPost } },
-                            ])
-                            await saveMessage("user", displayText)
-                            await saveMessage("assistant", minimalMsg)
-                        } else {
-                            // No known email — show share options card
-                            const shareMsg = `How would you like to send your ${docType}?`
-                            setMessages(prev => [...prev,
-                                { role: "assistant", content: shareMsg },
-                                { role: "assistant", content: "", shareCard: true },
-                            ])
-                            await saveMessage("user", displayText)
-                            await saveMessage("assistant", shareMsg)
-                        }
+                        // Generic "send" — always show 3-option share card
+                        const shareMsg = `How would you like to send your ${docType}?`
+                        setMessages(prev => [...prev,
+                            { role: "assistant", content: shareMsg },
+                            { role: "assistant", content: "", shareCard: true },
+                        ])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", shareMsg)
                         return
                     }
                 }

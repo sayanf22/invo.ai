@@ -81,9 +81,7 @@ export function ChatSendCard({
         if (saved) return "sent"
       } catch {}
     }
-    // Auto-skip compose step if we already have a valid email
-    const hasEmail = detectedEmail && detectedEmail.includes("@") && detectedEmail.includes(".")
-    if (hasEmail) return "preview"
+    // Always start at compose so the user can review / edit the email
     return "compose"
   })
   const [slideDir, setSlideDir] = useState<SlideDir>("right")
@@ -176,11 +174,7 @@ export function ChatSendCard({
     if (mounted && step === "compose") {
       setTimeout(() => emailRef.current?.focus(), 250)
     }
-    // Auto-generate message when skipping straight to preview (email already known)
-    if (mounted && step === "preview" && !message) {
-      generateMessage()
-    }
-  }, [mounted, step]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mounted, step])
 
   const generateMessage = useCallback(async () => {
     setIsGeneratingMsg(true)
