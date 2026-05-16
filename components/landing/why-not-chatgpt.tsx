@@ -1,8 +1,13 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useState } from "react"
 import { FileText, Mic, Paperclip, ArrowUp, CheckCircle2 } from "lucide-react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
+
+// Cycling AI competitor names — keeps headline relatable & SEO-friendly
+// without singling out one company (safer legally, broader appeal).
+const AI_NAMES = ["ChatGPT", "Claude", "Gemini", "Perplexity"] as const
 
 // Differentiators — what raw AI can't do, what Clorefy adds.
 // Kept terse so each line reads at a glance.
@@ -15,6 +20,15 @@ const differentiators = [
 ] as const
 
 export function WhyNotChatGPT() {
+  // Rotate through AI names every 2.4s — adds movement, conveys breadth
+  const [aiIndex, setAiIndex] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => {
+      setAiIndex((i) => (i + 1) % AI_NAMES.length)
+    }, 2400)
+    return () => clearInterval(id)
+  }, [])
+
   return (
     <section className="py-24 sm:py-32 px-4 sm:px-6 lg:px-10 bg-[#FAFAF9] relative overflow-hidden">
       {/* Subtle background grid — same texture as hero */}
@@ -141,25 +155,34 @@ export function WhyNotChatGPT() {
               </span>
             </div>
 
-            {/* Headline — matches hero typography (font-display + serif italic) */}
+            {/* Headline — cycles through major AI names */}
             <h2 className="font-display text-4xl sm:text-5xl lg:text-[3.75rem] font-semibold text-[#1C1A17] mb-5 tracking-tighter leading-[1.05]">
               Why not just{" "}
-              <span
-                className="font-serif italic"
-                style={{
-                  backgroundImage: "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                use AI?
+              <span className="relative inline-block align-baseline" style={{ minWidth: "5.5ch" }}>
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.span
+                    key={AI_NAMES[aiIndex]}
+                    initial={{ opacity: 0, y: 16, filter: "blur(8px)" }}
+                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                    exit={{ opacity: 0, y: -16, filter: "blur(8px)" }}
+                    transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                    className="font-serif italic inline-block whitespace-nowrap"
+                    style={{
+                      backgroundImage: "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
+                    }}
+                  >
+                    {AI_NAMES[aiIndex]}?
+                  </motion.span>
+                </AnimatePresence>
               </span>
             </h2>
 
             <p className="text-[#5B5550] text-base sm:text-lg leading-relaxed mb-8 max-w-md font-medium">
-              Any AI can draft an invoice. None of them know your tax rate, format it correctly,
-              attach a payment link, or actually send it.
+              Any AI chatbot can draft text. None of them know your tax rate, format a real
+              invoice, attach a payment link, or actually send it.
             </p>
 
             {/* Differentiator rows — neo-brutalist cards in landing theme */}
