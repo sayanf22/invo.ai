@@ -276,8 +276,12 @@ export async function POST(request: NextRequest) {
                         }
                     }
 
-                    // Orchestration gate: only in Thinking Mode + document intent + valid Bedrock key
-                    const shouldOrchestrate = body.thinkingMode === "thinking" && intentType === "document" && bedrockKey && bedrockKey.length > 10
+                    // Orchestration gate: document intent + valid Bedrock key.
+                    // Both fast AND thinking mode use Kimi as the planner — the
+                    // difference is which DeepSeek model generates (chat vs v4-pro)
+                    // and how detailed the brief is (lighter for fast mode).
+                    const shouldOrchestrate = intentType === "document" && bedrockKey && bedrockKey.length > 10
+                    const orchestrateInThinkingMode = body.thinkingMode === "thinking" && shouldOrchestrate
 
                     // ── 1. Read business profile ──────────────────────────────────
                     sendEvent({ type: "activity", action: "read", label: "Reading business profile" })
@@ -337,7 +341,7 @@ export async function POST(request: NextRequest) {
                     // ── 1b. Start Kimi commentary on business profile (non-blocking) ──
                     let profileCommentaryPromise: Promise<string | null> | null = null
                     let profileDetailForCommentary = ""
-                    if (shouldOrchestrate && body.businessContext?.name) {
+                    if (orchestrateInThinkingMode && body.businessContext?.name) {
                         profileDetailForCommentary = [body.businessContext.name, body.businessContext.country, body.businessContext.currency || "USD"].filter(Boolean).join(" • ")
                         profileCommentaryPromise = callBedrockBrief(
                             ORCHESTRATOR_SYSTEM_PROMPT,
@@ -428,7 +432,7 @@ export async function POST(request: NextRequest) {
 
                     // ── 2c. Kimi compliance rules commentary ──
                     let complianceRulesForValidation: any[] = []
-                    if (shouldOrchestrate) {
+                    if (orchestrateInThinkingMode) {
                         try {
                             const { getComplianceContext: getComplianceCtx } = await import("@/lib/compliance-rag")
                             // We already fetched compliance above; re-use complianceRuleCount and body.complianceContext
@@ -541,15 +545,29 @@ export async function POST(request: NextRequest) {
                         try {
                             sendEvent({ type: "activity", action: "think", label: "Planning document generation" })
 
-                            // Build the compliance rules summary for the brief
-                            const briefRulesSummary = complianceRulesForValidation.map(r => {
-                                const desc = r.description || r.requirement_key
-                                if (r.category === "tax_rates") {
-                                    const std = (r.requirement_value as any)?.standard
-                                    return `Tax Rate: ${std !== undefined ? std + "%" : "varies"} — ${desc}`
-                                }
-                                return `${r.category.replace(/_/g, " ")}: ${desc} (${JSON.stringify(r.requirement_value)})`
-                            }).join("\n")
+                            // Build the compliance rules summary for the brief.
+                            // In thinking mode, complianceRulesForValidation is already
+                            // populated. In fast mode, we use a lighter summary built
+                            // from the body.complianceContext string (already fetched
+                            // earlier in the pipeline, no extra DB call).
+                            let briefRulesSummary = ""
+                            if (complianceRulesForValidation.length > 0) {
+                                briefRulesSummary = complianceRulesForValidation.map(r => {
+                                    const desc = r.description || r.requirement_key
+                                    if (r.category === "tax_rates") {
+                                        const std = (r.requirement_value as any)?.standard
+                                        return `Tax Rate: ${std !== undefined ? std + "%" : "varies"} — ${desc}`
+                                    }
+                                    return `${r.category.replace(/_/g, " ")}: ${desc} (${JSON.stringify(r.requirement_value)})`
+                                }).join("\n")
+                            } else if (body.complianceContext) {
+                                // Fast mode: trim the compliance context to first 800 chars
+                                briefRulesSummary = body.complianceContext.slice(0, 800)
+                            }
+
+                            // Lighter token budget in fast mode — Kimi gives a quick plan,
+                            // not a full audit. Thinking mode gets more tokens for depth.
+                            const briefMaxTokens = body.thinkingMode === "thinking" ? 300 : 150
 
                             kimiInstructionBrief = await callBedrockBrief(
                                 ORCHESTRATOR_SYSTEM_PROMPT,
@@ -566,7 +584,7 @@ export async function POST(request: NextRequest) {
                                     hasExistingDocument: !!(body.currentData && Object.keys(body.currentData).length > 0),
                                 }),
                                 bedrockKey,
-                                300
+                                briefMaxTokens
                             )
 
                             if (kimiInstructionBrief) {
@@ -814,7 +832,7 @@ export async function POST(request: NextRequest) {
                     // Kimi validates the generated document against compliance rules.
                     // If issues are found, Kimi produces correction instructions and
                     // DeepSeek regenerates with those fixes applied.
-                    if (shouldOrchestrate && modelCompletedSuccessfully && complianceRulesForValidation.length > 0 && completeResponseData) {
+                    if (orchestrateInThinkingMode && modelCompletedSuccessfully && complianceRulesForValidation.length > 0 && completeResponseData) {
                         try {
                             sendEvent({ type: "activity", action: "validate", label: "Validating compliance" })
 
