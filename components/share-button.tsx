@@ -122,6 +122,19 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
     } catch { toast.error("Failed to copy") }
   }, [])
 
+  // Compute the public document link for this session.
+  // Convention used across the app: ${origin}/d/<first-8-chars-of-uuid>
+  // The middleware resolves /d/<shortId> to /pay/<full-id> so recipients
+  // see the right status-aware page (active doc / cancelled / signed).
+  // We only emit the link when the document has an actual session — drafts
+  // don't get a recipient URL because there's nothing to share yet.
+  const platformLink = (() => {
+    if (!sessionId) return null
+    if (typeof window === "undefined") return null
+    const shortId = sessionId.split("-")[0]
+    return `${window.location.origin}/d/${shortId}`
+  })()
+
   // Build the WhatsApp / share message
   const buildMessage = useCallback(() => {
     const docType = (data.documentType || "Invoice")
@@ -154,18 +167,32 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
       }
     }
 
+    // Always include the document link when we have a session.
+    // Phrasing adapts to the document type so the recipient knows what to do.
+    if (platformLink) {
+      const verb = isContract
+        ? "Review and sign"
+        : isProposal
+        ? "View proposal"
+        : isQuotation
+        ? "View quotation"
+        : "View invoice"
+      lines.push(``, `${verb}: ${platformLink}`)
+    }
+
     if (hasPaymentLink && data.paymentLink) {
       lines.push(``, `Pay here: ${data.paymentLink}`)
     }
 
-    // Include signing link if available (for contracts/proposals/quotations)
+    // Explicit signing URL (from <GetSignatureModal>) takes precedence over the
+    // generic /d/ link for signature flows when both are available.
     if (signingUrl) {
       lines.push(``, `Sign here: ${signingUrl}`)
     }
 
     lines.push(``, `Thank you,`, data.fromName || "")
     return lines.join("\n")
-  }, [data, hasPaymentLink])
+  }, [data, hasPaymentLink, platformLink, signingUrl])
 
   // Share PDF (with QR embedded if payment link exists and enabled)
   const handleSharePdf = useCallback(async () => {
