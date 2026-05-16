@@ -198,7 +198,7 @@ export function PromptScreen({
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <InvoLogo size={26} showBeta />
+          <InvoLogo size={26} />
         </div>
 
         {/* Spacer */}

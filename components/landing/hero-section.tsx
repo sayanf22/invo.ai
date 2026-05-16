@@ -27,28 +27,6 @@ export function HeroSection() {
 
                 <div className="relative z-10 max-w-6xl mx-auto text-center px-4 sm:px-6">
 
-                    {/* Premium Beta announcement pill */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex justify-center mb-6 sm:mb-10"
-                    >
-                        <div className="group relative inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-stone-200/50 bg-white/60 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 max-w-[92vw]">
-                            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[var(--landing-amber)]/0 via-[var(--landing-amber)]/5 to-[var(--landing-amber)]/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 animate-shimmer" />
-                            <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--landing-amber)] opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-[var(--landing-amber)]"></span>
-                            </span>
-                            <span className="text-[11.5px] sm:text-[13px] font-medium text-[var(--landing-text-dark)] whitespace-nowrap">
-                                <span className="font-bold text-[var(--landing-amber)] mr-1">BETA</span>
-                                <span className="sm:hidden">Try it free — share feedback</span>
-                                <span className="hidden sm:inline">We&apos;re live — try it free and share your feedback</span>
-                            </span>
-                            <ArrowRight size={12} className="sm:w-[14px] sm:h-[14px] text-[var(--landing-text-muted)] group-hover:translate-x-0.5 transition-transform shrink-0" />
-                        </div>
-                    </motion.div>
-
                     {/* Main heading */}
                     <motion.div
                         initial={{ opacity: 0, y: 30 }}
