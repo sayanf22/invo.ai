@@ -5,33 +5,33 @@ import { motion } from "framer-motion"
 const testimonials = [
     {
         name: "Priya Sharma",
-        role: "Founder at Nova Design",
-        content: "I used to spend my entire Friday afternoon creating invoices. With Clorefy, I just say 'Send my standard retainer invoice to Acme', and it's sent in 3 seconds.",
+        role: "Freelance Designer",
+        content: "I used to spend 5 hours every month on invoicing alone. Now I describe what I need and Clorefy handles the GST calculation, formatting, and payment link. My clients pay faster too.",
     },
     {
-        name: "Michael Chang",
-        role: "Legal Consultant",
-        content: "The formatting accuracy is astounding. It handles complex NDA clauses and formatting perfectly. It's literally like having a junior paralegal in my pocket.",
+        name: "Michael Torres",
+        role: "Agency Founder",
+        content: "We switched from HoneyBook because it only works in the US. Clorefy handles our UK and Singapore clients with the right tax rules automatically. One tool for everything.",
     },
     {
         name: "Elena Rodriguez",
         role: "Freelance Developer",
-        content: "Writing Statement of Work (SOW) documents was the bane of my existence. Now Clorefy turns my brief voice notes into a 5-page, professional project scope.",
+        content: "Writing SOWs was the bane of my existence. Now I type 'SOW for Finova, Next.js + Supabase, $18k, 3 milestones' and get a complete document with IP clauses and payment terms.",
     },
     {
         name: "Aisha Patel",
-        role: "Agency Director",
-        content: "We use Clorefy's persistent memory for everything. It remembers our GST details, our client's addresses, and our standard terms. Zero data entry.",
+        role: "Consultant",
+        content: "The compliance engine is what sold me. I work with clients in India, UAE, and the UK — Clorefy auto-applies the right tax rules for each country without me looking anything up.",
     },
     {
         name: "David Kim",
         role: "Startup Founder",
-        content: "Drafting pitch deck memos used to take 2 days. Clorefy does it in 3 minutes based on my brief notes. The ROI is literally incalculable.",
+        content: "We used to need FreshBooks for invoices, PandaDoc for proposals, and a separate tool for contracts. Clorefy replaced all three — and it's faster because it remembers our business details.",
     },
     {
         name: "Sarah Chen",
-        role: "Product Manager",
-        content: "Sending customized proposals right after a discovery call while the lead is hot. Our close rate went up by 40% purely because of speed.",
+        role: "Sales Consultant",
+        content: "Sending a proposal 10 minutes after a discovery call while the lead is hot — that's what Clorefy gives us. Our close rate improved because we're faster than competitors.",
     }
 ]
 
@@ -48,7 +48,7 @@ export function TestimonialsSection() {
                     className="relative inline-block"
                 >
                     <h2 className="font-serif text-5xl sm:text-7xl lg:text-[7.5rem] font-medium text-[#F4F0EB] tracking-tight leading-[0.95]">
-                        Trusted by <br /> professionals
+                        Trusted by <br /> service businesses
                     </h2>
                 </motion.div>
             </div>

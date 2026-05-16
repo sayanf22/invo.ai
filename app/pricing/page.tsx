@@ -244,7 +244,7 @@ export default function PricingPage() {
                 </span>
                 <span className="text-[13px] font-medium text-[var(--landing-text-dark)]">
                   <span className="font-bold text-[var(--landing-amber)] mr-1">2,400+</span>
-                  professionals save hours every week
+                  service businesses generate documents with Clorefy
                 </span>
               </div>
 

@@ -70,7 +70,7 @@ export function HeroSection() {
                         {/* Fixed-height row — prevents layout shift during word swap */}
                         <span className="block relative" style={{ minHeight: "1.15em" }} aria-hidden>
                             <FlipWords
-                                words={["invoices", "contracts", "proposals", "quotations"]}
+                                words={["invoices", "contracts", "proposals", "NDAs", "SOWs"]}
                                 gradients={[
                                     // Invoices — warm amber → terracotta (matches brand)
                                     "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
@@ -78,8 +78,10 @@ export function HeroSection() {
                                     "linear-gradient(120deg, #1e3a8a 0%, #3730a3 50%, #0f172a 100%)",
                                     // Proposals — forest emerald → deep teal (rich, editorial)
                                     "linear-gradient(120deg, #065f46 0%, #047857 50%, #134e4a 100%)",
-                                    // Quotations — burgundy → warm rose (elegant, warm)
+                                    // NDAs — burgundy → warm rose (elegant, warm)
                                     "linear-gradient(120deg, #881337 0%, #9f1239 50%, #6b0f2a 100%)",
+                                    // SOWs — deep slate → charcoal (professional, structured)
+                                    "linear-gradient(120deg, #334155 0%, #475569 50%, #1e293b 100%)",
                                 ]}
                                 className="italic font-serif tracking-tight"
                             />
@@ -109,7 +111,7 @@ export function HeroSection() {
                         transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
                         className="text-[15px] sm:text-lg md:text-xl text-[#5B5550] max-w-2xl mx-auto mb-8 sm:mb-12 leading-relaxed font-medium px-2"
                     >
-                        Tell Clorefy what you need. It writes the invoice, contract, or proposal for you — with your details filled in, the right tax rules applied, and a payment link ready to send.
+                        Describe your document in plain English. Clorefy generates it with your business details, country-compliant tax rules for 11 countries, and a payment link — ready to send in under 30 seconds.
                     </motion.p>
 
                     {/* CTA buttons */}

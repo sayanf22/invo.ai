@@ -5,9 +5,9 @@ import { Type, FileCheck, ArrowRight, Wand2, Check } from "lucide-react"
 import { useState, useEffect } from "react"
 
 const STEPS = [
-    { title: "Describe", desc: "Type your request in plain English. No rigid templates.", icon: Type },
-    { title: "Refine",   desc: "Our AI structures your data instantly.",                  icon: Wand2 },
-    { title: "Done",     desc: "Export professional PDFs or share seamlessly.",           icon: FileCheck },
+    { title: "Describe", desc: "Tell Clorefy what you need — client, amount, terms. No forms to fill.", icon: Type },
+    { title: "Comply",   desc: "Tax rules, mandatory fields, and legal requirements auto-applied for your country.", icon: Wand2 },
+    { title: "Deliver",  desc: "Export as PDF, attach a payment link, and send — in under 30 seconds.", icon: FileCheck },
 ] as const
 
 export function AIShowcase() {
@@ -59,8 +59,7 @@ export function AIShowcase() {
                         <h2 className="font-display text-3xl sm:text-5xl lg:text-7xl font-bold mb-6 sm:mb-8 leading-[0.95] text-[var(--landing-text-dark)]"
                             style={{ textShadow: "2px 2px 0px rgba(26,26,26,0.06), 0 6px 20px rgba(26,26,26,0.04)" }}
                         >
-                            From messy thought <br />
-                            to{" "}
+                            From prompt to <br />
                             <span
                                 className="italic font-serif"
                                 style={{
@@ -72,12 +71,12 @@ export function AIShowcase() {
                                     filter: "drop-shadow(2px 2px 0px rgba(26,26,26,0.08))",
                                 }}
                             >
-                                masterpiece
+                                compliant document
                             </span>
                         </h2>
 
                         <p className="text-lg sm:text-xl text-[var(--landing-text-muted)] mb-10 sm:mb-12 leading-relaxed max-w-lg">
-                            Stop worrying about structure or format. Just type your rough ideas. Clorefy understands context and formats everything perfectly.
+                            Describe what you need in plain English. Clorefy applies your business profile, checks country-specific compliance rules, and delivers a professionally formatted document.
                         </p>
 
                         {/* Steps — higher contrast, progress indicator, number badge */}

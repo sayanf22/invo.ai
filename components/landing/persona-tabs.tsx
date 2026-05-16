@@ -40,8 +40,8 @@ const personas: Persona[] = [
     {
         id: "students",
         label: "Students",
-        title: "Professional docs, zero stress",
-        desc: "Create internship contracts, project proposals, and freelance invoices. Free tier covers everything.",
+        title: "Professional docs from day one",
+        desc: "Generate compliant freelance invoices, internship contracts, and project proposals — no templates to fill, no tax rules to look up. Free tier included.",
         chat: {
             prompt: "Invoice Bright Cafe 6500 for logo design, 7 day payment",
             reply: "Done — invoice INV-0042 ready with a UPI + card payment link attached.",
@@ -71,8 +71,8 @@ const personas: Persona[] = [
     {
         id: "agencies",
         label: "Agencies",
-        title: "Scale your client onboarding",
-        desc: "Generate client proposals, service agreements, and quotations in seconds. Spend less time on paperwork, more time closing.",
+        title: "Stop juggling 5 tools that don't talk to each other",
+        desc: "Generate proposals, SOWs, contracts, and invoices from one prompt. No more copying client details between HoneyBook, Google Docs, and your payment processor.",
         chat: {
             prompt: "Draft a brand strategy proposal for Acme, $24,500, 6 weeks",
             reply: "Proposal drafted — scope, timeline, and terms pulled from your studio profile.",
@@ -136,8 +136,8 @@ const personas: Persona[] = [
     {
         id: "developers",
         label: "Developers",
-        title: "Docs that write themselves",
-        desc: "Describe your project scope, deliverables, and terms. Clorefy generates polished proposals and contracts instantly.",
+        title: "Ship code, not paperwork",
+        desc: "Describe your project scope and Clorefy generates the SOW, contract, or invoice — with the right tax rules for your client's country, payment terms, and IP clauses included.",
         chat: {
             prompt: "Fixed-fee SOW for Finova web app, Next.js + Supabase + Stripe, $18k",
             reply: "Statement of Work drafted — milestones, payment schedule, and IP terms included.",
@@ -201,8 +201,8 @@ const personas: Persona[] = [
     {
         id: "creators",
         label: "Creators",
-        title: "Capture fleeting ideas",
-        desc: "Don't let inspiration slip away. Record your creative bursts and get organized project briefs instantly.",
+        title: "Get paid faster for creative work",
+        desc: "Generate sponsorship briefs, collaboration contracts, and invoices with payment links — so you spend time creating, not chasing payments.",
         chat: {
             prompt: "YouTube sponsorship, 4-part series, $8,200, 60 days paid usage",
             reply: "Brief drafted — scope, deliverables, and usage rights laid out.",
@@ -233,8 +233,8 @@ const personas: Persona[] = [
     {
         id: "leaders",
         label: "Leaders",
-        title: "Communicate with clarity",
-        desc: "Turn raw meeting notes into structured investor updates and strategy memos automatically.",
+        title: "From notes to board-ready documents",
+        desc: "Turn meeting notes into structured investor memos, strategy documents, and executive summaries — formatted and ready to share.",
         chat: {
             prompt: "Draft a Q2 investor memo, revenue +42% QoQ, ARR $2.1M, EU expansion plan",
             reply: "Investor memo drafted — structured with metrics, shipped work, and next quarter focus.",

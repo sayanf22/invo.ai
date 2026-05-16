@@ -129,15 +129,17 @@ export function WhyNotChatGPT() {
             </h2>
 
             <p className="text-[#5B5550] text-lg leading-relaxed mb-4 max-w-md font-medium">
-              ChatGPT writes text. It can&apos;t send invoices to your clients, collect payments,
-              chase overdue bills, or run recurring billing every month. You&apos;d still need 5
-              other tools — and they don&apos;t talk to each other.
+              ChatGPT writes text. It hallucinates tax rates, ignores country-specific compliance
+              rules, can&apos;t format a real invoice, and has no memory of your business details.
+              You&apos;d still need 5 other tools that don&apos;t talk to each other — and uploading
+              contracts to consumer AI risks confidentiality breaches with zero professional accountability.
             </p>
 
             <p className="text-[#5B5550] text-lg leading-relaxed mb-10 max-w-md">
-              Clorefy generates tax-compliant invoices, contracts, quotations, and proposals —
-              then emails them to clients, adds a payment link, auto-sends reminders until paid,
-              and schedules recurring invoices every month. One platform, fully automated.
+              Clorefy generates compliant invoices, contracts, proposals, NDAs, SOWs, and 4 more
+              document types — with country-specific tax rules auto-applied for 11 countries, your
+              business details pre-filled, payment links attached, and professional formatting
+              guaranteed. One platform, purpose-built for service businesses.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">

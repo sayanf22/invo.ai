@@ -8,9 +8,9 @@ interface ServicesMarqueeProps {
 
 export function ServicesMarquee({ className }: ServicesMarqueeProps) {
     const services = [
-        "Invoices", "Contracts", "Quotations", "Proposals",
-        "Quotes", "Receipts", "Memos", "Reports", "Briefs",
-        "Purchase Orders", "Credit Notes", "Statements",
+        "Invoices", "Contracts", "Proposals", "Quotations",
+        "NDAs", "SOWs", "Purchase Orders", "Receipts",
+        "Credit Notes", "Change Orders", "Payment Reminders", "Onboarding Forms",
     ]
 
     // Duplicate 4x for seamless loop
@@ -20,7 +20,7 @@ export function ServicesMarquee({ className }: ServicesMarqueeProps) {
         <div className={`w-full bg-[#0f3d2e] overflow-hidden rounded-2xl sm:rounded-3xl border-[2.5px] border-[var(--landing-dark)] shadow-[6px_6px_0px_0px_rgba(26,26,26,1)] ${className}`}>
             {/* Tagline */}
             <p className="text-center text-xs sm:text-sm text-white/70 font-semibold tracking-widest uppercase pt-8 sm:pt-10 pb-4 px-4">
-                Every document your business needs
+                9+ document types, 11 countries, one platform
             </p>
 
             {/* Scrolling strip */}

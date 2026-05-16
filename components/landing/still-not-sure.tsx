@@ -43,12 +43,12 @@ export function StillNotSure() {
 
                     <div className="relative z-10 max-w-2xl flex flex-col items-center">
                         <h2 className="font-display text-2xl sm:text-3xl lg:text-[2.5rem] font-bold uppercase tracking-tight text-[#1C1A17] mb-4 sm:mb-6 leading-tight">
-                            STILL NOT SURE THAT CLOREFY IS RIGHT FOR YOU?
+                            WANT A SECOND OPINION ON CLOREFY?
                         </h2>
                         
                         <p className="text-base sm:text-lg text-[#5B5550] font-medium mb-10 max-w-[600px] leading-relaxed">
-                            Let ChatGPT, Claude, or Perplexity do the thinking for you.<br className="hidden sm:block" />
-                            Click a button and see what your favorite AI says about Clorefy.
+                            Ask an independent AI to evaluate Clorefy for your business.<br className="hidden sm:block" />
+                            Click below and see what they find.
                         </p>
 
                         <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 sm:gap-6 w-full sm:w-auto">
