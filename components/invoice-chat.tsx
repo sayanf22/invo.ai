@@ -1991,12 +1991,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
             {/* Sent/Locked banner — shown when session is finalized or signed */}
             {session && (session.status === "finalized" || session.status === "signed") && (
-                <div className="shrink-0 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 dark:border-amber-800/40 flex items-center gap-2">
-                    <span className="text-amber-600 dark:text-amber-400 text-sm shrink-0">🔒</span>
-                    <p className="text-xs text-amber-700 dark:text-amber-400 leading-snug">
+                <div className="shrink-0 px-4 py-2.5 bg-muted/40 border-b border-border/60 flex items-center gap-2">
+                    <span className="text-foreground/60 text-sm shrink-0">🔒</span>
+                    <p className="text-xs text-muted-foreground leading-snug">
                         {session.status === "signed"
-                            ? "This document has been signed and is locked."
-                            : "This document has been sent. You can still edit it, but it cannot be resent from this session."}
+                            ? "This document has been signed and is permanently locked."
+                            : "This document has been sent and is locked. Use the chat to unlock and edit."}
                     </p>
                 </div>
             )}
@@ -2214,17 +2214,39 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                                             </p>
                                                         </div>
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setMessages(prev => prev.map((m, i) =>
-                                                                i === idx ? { role: "assistant" as const, content: "Got it." } : m
-                                                            ))
-                                                        }}
-                                                        className="w-full py-2.5 rounded-xl text-sm font-medium border border-border/60 bg-background hover:bg-muted/40 transition-colors active:scale-[0.97]"
-                                                    >
-                                                        Understood
-                                                    </button>
+                                                    <div className="flex gap-2.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setMessages(prev => prev.map((m, i) =>
+                                                                    i === idx ? { role: "assistant" as const, content: "Got it. This document is preserved." } : m
+                                                                ))
+                                                            }}
+                                                            className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-border/60 bg-background hover:bg-muted/40 transition-colors active:scale-[0.97]"
+                                                        >
+                                                            Got it
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                // Create a new linked session of the same doc type with the same client data
+                                                                try {
+                                                                    if (session && onLinkedSessionCreate) {
+                                                                        await handleCreateLinked(session.id, docType)
+                                                                        setMessages(prev => prev.map((m, i) =>
+                                                                            i === idx ? { role: "assistant" as const, content: `Starting a new ${docType} with the same client details.` } : m
+                                                                        ))
+                                                                    }
+                                                                } catch {
+                                                                    toast.error("Could not create new document.")
+                                                                }
+                                                            }}
+                                                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold bg-foreground text-background hover:bg-foreground/90 transition-all active:scale-[0.97]"
+                                                            style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.08)" }}
+                                                        >
+                                                            + New Document
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )
                                         }
@@ -2265,12 +2287,19 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                                                     body: JSON.stringify({ sessionId: session!.id }),
                                                                 })
                                                                 if (res.ok) {
+                                                                    const result = await res.json()
                                                                     setMessages(prev => prev.map((m, i) =>
                                                                         i === idx ? { role: "assistant" as const, content: "Document unlocked. You can now edit it and resend when ready." } : m
                                                                     ))
                                                                     toast.success("Document unlocked")
                                                                     updateSessionStatus("active")
                                                                     onUnlockDocument?.()
+                                                                    // If the API also cancelled a payment link, clear it from
+                                                                    // the document data so the PDF strip and toolbar both update.
+                                                                    if (result.paymentLinkCancelled) {
+                                                                        onChange({ paymentLink: "", paymentLinkStatus: undefined, showPaymentLinkInPdf: false })
+                                                                        if (onPaymentLinkCancelled) onPaymentLinkCancelled()
+                                                                    }
                                                                 } else {
                                                                     const err = await res.json()
                                                                     setMessages(prev => prev.map((m, i) =>

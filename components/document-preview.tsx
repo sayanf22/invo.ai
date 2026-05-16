@@ -598,7 +598,9 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   // Bug 5 fix: sentAt is fetched from DB on session load and never cleared by the
   // cancel flow, so isDocumentLocked stays true even after cancellation.
   useEffect(() => {
-    if (documentStatus === "cancelled") {
+    if (documentStatus === "cancelled" || documentStatus === "active") {
+      // "cancelled" = owner explicitly cancelled the sent document
+      // "active" = owner unlocked the document — clear all lock state
       setSentAt(null)
       setManualPaid(false)
       // Mark all pending (unsigned) signature rows as cancelled in local state.

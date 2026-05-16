@@ -140,8 +140,11 @@ export function PromptScreen({
     // When locking (e.g. after toolbar send), also update documentSessionStatus
     // so DocumentPreview immediately shows the Locked badge and the AI gets the
     // correct session status on the next message.
+    // Also reset chatUnlockNonce so externallyUnlocked=false — otherwise a prior
+    // unlock nonce would keep overriding the new lock state after a resend.
     if (locked) {
       setDocumentSessionStatus("finalized")
+      setChatUnlockNonce(0)
     }
   }, [])
 
@@ -186,6 +189,7 @@ export function PromptScreen({
     onLockDocument: () => {
       setInvoiceLocked(true)
       setDocumentSessionStatus("finalized")
+      setChatUnlockNonce(0) // reset so externallyUnlocked=false on next lock
     },
     onUnlockDocument: handleChatUnlock,
     onPaymentLinkCancelled: paymentLinkCancelledAt > 0 ? cancelledSignal : undefined,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
+import { createClient } from "@supabase/supabase-js"
 
 /**
  * POST /api/sessions/unlock
@@ -90,7 +91,43 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Failed to unlock document" }, { status: 500 })
     }
 
-    // 2. Cancel ALL pending signature requests for this session.
+    // 2. Cancel any active Razorpay payment links for this session.
+    // Invoices can have a payment link that blocks editing. When unlocking,
+    // the link must be cancelled so the client can't pay a stale invoice after
+    // the owner edits and re-sends.
+    let paymentLinkCancelled = false
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const supabaseAdmin = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+        )
+        const { data: activeLinks } = await supabaseAdmin
+            .from("invoice_payments")
+            .select("id, razorpay_payment_link_id, status")
+            .eq("session_id", sessionId)
+            .in("status", ["created", "partially_paid"])
+
+        if (activeLinks && activeLinks.length > 0) {
+            for (const link of activeLinks) {
+                try {
+                    if (link.razorpay_payment_link_id) {
+                        const { cancelPaymentLink } = await import("@/lib/razorpay")
+                        await cancelPaymentLink(link.razorpay_payment_link_id)
+                    }
+                    await supabaseAdmin
+                        .from("invoice_payments")
+                        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+                        .eq("id", link.id)
+                    paymentLinkCancelled = true
+                } catch (err) {
+                    // Non-fatal — log but continue unlock
+                    console.warn("Failed to cancel Razorpay link during unlock:", err)
+                }
+            }
+        }
+    }
+
+    // 3. Cancel ALL pending signature requests for this session.
     // Pending = no signed_at AND signer_action is null (not yet declined/revisioned/cancelled).
     // Setting signer_action='cancelled' makes the signing token return 410 Gone immediately.
     await (auth.supabase as any)
@@ -103,7 +140,7 @@ export async function POST(request: NextRequest) {
         .is("signed_at", null)
         .is("signer_action", null)
 
-    // 3. Cancel pending email reminders — old reminders reference a stale snapshot
+    // 4. Cancel pending email reminders — old reminders reference a stale snapshot
     await (auth.supabase as any)
         .from("email_schedules")
         .update({
@@ -117,6 +154,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
         success: true,
-        message: "Document unlocked. Pending signing links and reminders have been cancelled.",
+        paymentLinkCancelled,
+        message: paymentLinkCancelled
+            ? "Document unlocked. Payment link cancelled. Pending signing links and reminders have been cancelled."
+            : "Document unlocked. Pending signing links and reminders have been cancelled.",
     })
 }
