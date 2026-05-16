@@ -2661,42 +2661,20 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
     const includedItems = data.scopeItems.filter(s => s.included)
     const excludedItems = data.scopeItems.filter(s => !s.included)
 
+    const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+    const headerRight = (
+        <>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>Project</Text>
+            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{data.title || "Statement of Work"}</Text>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 6 }}>Effective {data.effectiveDate || ""}</Text>
+        </>
+    )
+
     return (
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* â”€â”€ HEADER â”€â”€ */}
-                <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
-                    <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                        <View style={{ ...bNone() }}>
-                            {logoUrl && (
-                                <View style={{ width: 44, height: 44, marginBottom: 8, overflow: "hidden", ...r(8), ...bNone() }}>
-                                    <Image src={logoUrl} style={{ width: 44, height: 44, objectFit: "cover" as any }} />
-                                </View>
-                            )}
-                            <Text style={{ fontSize: 32, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>STATEMENT OF WORK</Text>
-                            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-                                {data.referenceNumber ? `SOW-${data.referenceNumber}` : "SOW"}
-                            </Text>
-                        </View>
-                        <View style={{ alignItems: "flex-end", ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective Date</Text>
-                            <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700, marginBottom: 10 }}>{fmtDate(data.effectiveDate)}</Text>
-                            {data.endDate && (
-                                <>
-                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>End Date</Text>
-                                    <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>{fmtDate(data.endDate)}</Text>
-                                </>
-                            )}
-                        </View>
-                    </View>
-                </View>
-                {/* Accent bars */}
-                <View style={{ flexDirection: "row", ...bNone() }}>
-                    <View style={{ flex: 2, height: 5, backgroundColor: priDk, ...bNone() }} />
-                    <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
-                </View>
+                <DocHeader tpl={tpl} c={c} title="STATEMENT OF WORK" refNum={data.referenceNumber || "SOW-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
 
                 {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
@@ -2870,44 +2848,21 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
     const currency = data.currency || "USD"
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
 
+    const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+    const changeTotal = data.costImpact?.difference ?? 0
+    const headerRight = (
+        <>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut }}>Change Amount</Text>
+            <Text style={{ fontSize: 22, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{fmt(changeTotal, currency)}</Text>
+            {data.parentDocumentType && <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>Re: {data.parentDocumentType}</Text>}
+        </>
+    )
+
     return (
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* â”€â”€ HEADER â”€â”€ */}
-                <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
-                    <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                        <View style={{ ...bNone() }}>
-                            {logoUrl && (
-                                <View style={{ width: 44, height: 44, marginBottom: 8, overflow: "hidden", ...r(8), ...bNone() }}>
-                                    <Image src={logoUrl} style={{ width: 44, height: 44, objectFit: "cover" as any }} />
-                                </View>
-                            )}
-                            <Text style={{ fontSize: 32, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>CHANGE ORDER</Text>
-                            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-                                {data.changeOrderNumber ? `CO-${data.changeOrderNumber}` : (data.referenceNumber || "CO")}
-                            </Text>
-                        </View>
-                        <View style={{ alignItems: "flex-end", ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective Date</Text>
-                            <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700, marginBottom: 10 }}>{fmtDate(data.effectiveDate)}</Text>
-                            {data.costImpact && (
-                                <>
-                                    <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Cost Impact</Text>
-                                    <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>
-                                        {data.costImpact.difference >= 0 ? "+" : ""}{fmt(data.costImpact.difference, currency)}
-                                    </Text>
-                                </>
-                            )}
-                        </View>
-                    </View>
-                </View>
-                {/* Accent bars */}
-                <View style={{ flexDirection: "row", ...bNone() }}>
-                    <View style={{ flex: 2, height: 5, backgroundColor: priDk, ...bNone() }} />
-                    <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
-                </View>
+                <DocHeader tpl={tpl} c={c} title="CHANGE ORDER" refNum={data.referenceNumber || "CO-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
 
                 {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 16, ...bNone() }} wrap={false}>
@@ -3083,40 +3038,22 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
 
+    const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+    const headerRight = (
+        <>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut }}>Effective Date</Text>
+            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{data.termStart || ""}</Text>
+            {data.governingLaw && <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>{data.governingLaw}</Text>}
+        </>
+    )
+
     return (
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* â”€â”€ HEADER â”€â”€ */}
-                <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
-                    <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                        <View style={{ ...bNone() }}>
-                            {logoUrl && (
-                                <View style={{ width: 44, height: 44, marginBottom: 8, overflow: "hidden", ...r(8), ...bNone() }}>
-                                    <Image src={logoUrl} style={{ width: 44, height: 44, objectFit: "cover" as any }} />
-                                </View>
-                            )}
-                            <Text style={{ fontSize: 28, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>NON-DISCLOSURE AGREEMENT</Text>
-                            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-                                {data.referenceNumber ? `NDA-${data.referenceNumber}` : "NDA"}
-                            </Text>
-                        </View>
-                        <View style={{ alignItems: "flex-end", ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Effective Date</Text>
-                            <Text style={{ fontSize: 14, color: "#fff", fontWeight: 700, marginBottom: 10 }}>{fmtDate(data.termStart)}</Text>
-                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Duration</Text>
-                            <Text style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{data.termDuration} {data.termUnit}</Text>
-                        </View>
-                    </View>
-                </View>
-                {/* Accent bars */}
-                <View style={{ flexDirection: "row", ...bNone() }}>
-                    <View style={{ flex: 2, height: 5, backgroundColor: priDk, ...bNone() }} />
-                    <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
-                </View>
+                <DocHeader tpl={tpl} c={c} title="NON-DISCLOSURE AGREEMENT" refNum={data.referenceNumber || "NDA-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
 
-                {/* â”€â”€ PARTIES TABLE â”€â”€ */}
+                {/* ── PARTIES TABLE ── */}
                 <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }}>
                     <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Parties</Text>
                     <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
@@ -3255,37 +3192,20 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
 
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
 
+    const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+    const headerRight = (
+        <>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut }}>Form Type</Text>
+            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{data.projectName || "Onboarding"}</Text>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>{data.fromName || ""}</Text>
+        </>
+    )
+
     return (
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* â”€â”€ HEADER â”€â”€ */}
-                <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
-                    <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                        <View style={{ ...bNone() }}>
-                            {logoUrl && (
-                                <View style={{ width: 44, height: 44, marginBottom: 8, overflow: "hidden", ...r(8), ...bNone() }}>
-                                    <Image src={logoUrl} style={{ width: 44, height: 44, objectFit: "cover" as any }} />
-                                </View>
-                            )}
-                            <Text style={{ fontSize: 30, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>CLIENT ONBOARDING FORM</Text>
-                            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-                                {data.referenceNumber ? `ONB-${data.referenceNumber}` : "ONB"}
-                            </Text>
-                        </View>
-                        <View style={{ alignItems: "flex-end", ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Prepared By</Text>
-                            <Text style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{data.fromName}</Text>
-                            {data.fromEmail ? <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{data.fromEmail}</Text> : null}
-                        </View>
-                    </View>
-                </View>
-                {/* Accent bars */}
-                <View style={{ flexDirection: "row", ...bNone() }}>
-                    <View style={{ flex: 2, height: 5, backgroundColor: priDk, ...bNone() }} />
-                    <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
-                </View>
+                <DocHeader tpl={tpl} c={c} title="CLIENT ONBOARDING" refNum={data.referenceNumber || "ONB-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
 
                 {/* â”€â”€ CLIENT DETAILS â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 16, padding: 16, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
@@ -3421,39 +3341,24 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
     const toneLabel = data.reminderTone.charAt(0).toUpperCase() + data.reminderTone.slice(1)
     const isOverdue = data.daysOverdue > 0
 
+    const tpl = userPickedTemplate ? getTpl(data as any) : "modern"
+    const c = userPickedTemplate ? getTheme(tpl, data as any) : { pri, priDk, acc, bg, txt, mut, bdr, font, acc2: acc, bg2: bg } as any
+    const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+    const headerRight = (
+        <>
+            <View style={{ backgroundColor: onDark ? "rgba(255,255,255,0.2)" : c.acc, paddingHorizontal: 12, paddingVertical: 5, ...r(20), marginBottom: 8, ...bNone() }}>
+                <Text style={{ fontSize: 9, color: onDark ? "#fff" : c.pri, fontWeight: 700, letterSpacing: 1 }}>{toneLabel}</Text>
+            </View>
+            <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Amount Due</Text>
+            <Text style={{ fontSize: 20, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{fmt(data.invoiceAmount, data.invoiceCurrency)}</Text>
+        </>
+    )
+
     return (
         <Document>
             <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                {/* â”€â”€ HEADER â”€â”€ */}
-                <View style={{ backgroundColor: pri, paddingHorizontal: 48, paddingTop: 36, paddingBottom: 28, ...bNone() }}>
-                    <View style={{ position: "absolute", top: -20, right: -20, width: 130, height: 130, ...r(65), backgroundColor: "rgba(255,255,255,0.07)", ...bNone() }} />
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
-                        <View style={{ ...bNone() }}>
-                            {logoUrl && (
-                                <View style={{ width: 44, height: 44, marginBottom: 8, overflow: "hidden", ...r(8), ...bNone() }}>
-                                    <Image src={logoUrl} style={{ width: 44, height: 44, objectFit: "cover" as any }} />
-                                </View>
-                            )}
-                            <Text style={{ fontSize: 32, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>PAYMENT FOLLOW-UP</Text>
-                            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-                            {data.referenceNumber ? data.referenceNumber : "PF"}
-                            </Text>
-                        </View>
-                        <View style={{ alignItems: "flex-end", ...bNone() }}>
-                            <View style={{ backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 12, paddingVertical: 6, ...r(20), marginBottom: 10, ...bNone() }}>
-                                <Text style={{ fontSize: 9, color: "#fff", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{toneLabel}</Text>
-                            </View>
-                            <Text style={{ fontSize: 7.5, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Amount Due</Text>
-                            <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(data.invoiceAmount, data.invoiceCurrency)}</Text>
-                        </View>
-                    </View>
-                </View>
-                {/* Accent bars */}
-                <View style={{ flexDirection: "row", ...bNone() }}>
-                    <View style={{ flex: 2, height: 5, backgroundColor: priDk, ...bNone() }} />
-                    <View style={{ flex: 1, height: 5, backgroundColor: acc, ...bNone() }} />
-                </View>
+                <DocHeader tpl={tpl} c={c} title="PAYMENT FOLLOW-UP" refNum={data.referenceNumber || "PF-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
 
                 {/* â”€â”€ DAYS OVERDUE BANNER (if overdue) â”€â”€ */}
                 {isOverdue && (
