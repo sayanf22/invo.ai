@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { verifyWebhookSignature } from "@/lib/razorpay"
-import { markWebhookProcessed } from "@/lib/webhook-dedup"
 import { createClient } from "@supabase/supabase-js"
 
 /**
@@ -36,18 +35,27 @@ export async function POST(request: Request) {
             process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         )
 
-        // REPLAY PROTECTION: Use atomic dedup helper (INSERT ON CONFLICT DO NOTHING)
-        // This correctly handles the (gateway, event_id) unique constraint.
+        // REPLAY PROTECTION: Atomic dedup using (gateway, event_id) unique constraint.
+        // We inline the insert here (rather than using markWebhookProcessed) because
+        // the webhook_events table requires a NOT NULL event_type column, which the
+        // shared helper doesn't know about.
         if (eventId) {
-            const isNew = await markWebhookProcessed(supabase as any, "razorpay", eventId)
-            if (!isNew) {
-                return NextResponse.json({ received: true, duplicate: true })
+            const { error: dedupError } = await (supabase as any)
+                .from("webhook_events")
+                .insert({
+                    gateway: "razorpay",
+                    event_id: eventId,
+                    event_type: eventType,
+                    processed_at: new Date().toISOString(),
+                })
+            if (dedupError) {
+                // Unique constraint violation (code 23505) = already processed
+                if (dedupError.code === "23505") {
+                    return NextResponse.json({ received: true, duplicate: true })
+                }
+                // Other DB errors: log but continue (fail-open for payments)
+                console.error("[razorpay/webhook] Dedup insert error:", dedupError.message)
             }
-            // Record event type separately (markWebhookProcessed only writes gateway+event_id+user_id)
-            await supabase.from("webhook_events" as any)
-                .update({ event_type: eventType })
-                .eq("event_id", eventId)
-                .eq("gateway", "razorpay")
         }
 
         switch (eventType) {
