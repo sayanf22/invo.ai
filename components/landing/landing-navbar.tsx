@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Menu, X, ArrowRight, ChevronDown, Zap, FileText, Shield, Briefcase, GraduationCap, Scale, Palette, Users, TrendingUp, BookOpen, HelpCircle, MessageCircle } from "lucide-react"
+import { Menu, X, ArrowRight, ChevronDown, Zap, FileText, Shield, Briefcase, Palette, Users, TrendingUp, BookOpen, HelpCircle, MessageCircle } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { usePathname } from "next/navigation"
 import { ClorefyLogo } from "@/components/clorefy-logo"
@@ -16,18 +16,16 @@ const productItems: DropdownItem[] = [
 ]
 
 const useCaseItems: DropdownItem[] = [
-    { label: "Freelancers", desc: "Get paid faster", href: "/use-cases/freelancers", icon: Briefcase },
-    { label: "Agencies", desc: "Scale client ops", href: "/use-cases/agencies", icon: Palette },
-    { label: "Lawyers", desc: "Draft with precision", href: "/use-cases/lawyers", icon: Scale },
-    { label: "Students", desc: "Professional docs free", href: "/use-cases/students", icon: GraduationCap },
-    { label: "Sales", desc: "Close deals faster", href: "/use-cases/sales", icon: TrendingUp },
-    { label: "Teams", desc: "One platform for all", href: "/use-cases/teams", icon: Users },
+    { label: "Freelancers", desc: "Invoice & get paid faster", href: "/use-cases/freelancers", icon: Briefcase },
+    { label: "Agencies", desc: "Scale client document ops", href: "/use-cases/agencies", icon: Palette },
+    { label: "Consultants", desc: "Proposals & contracts fast", href: "/use-cases/developers", icon: TrendingUp },
+    { label: "Sales Teams", desc: "Quotes & proposals in seconds", href: "/use-cases/sales", icon: Users },
 ]
 
 const resourceItems: DropdownItem[] = [
     { label: "Blog", desc: "Tips and guides", href: "/blog", icon: BookOpen },
-    { label: "Resources", desc: "Guides and tutorials", href: "/resources", icon: HelpCircle },
-    { label: "Contact Support", desc: "We're here to help", href: "/contact", icon: MessageCircle },
+    { label: "Resources", desc: "What's available in Clorefy", href: "/resources", icon: HelpCircle },
+    { label: "Contact Support", desc: "support@clorefy.com", href: "/contact", icon: MessageCircle },
 ]
 
 // Animation variants for the dropdown container
