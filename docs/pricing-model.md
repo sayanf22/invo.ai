@@ -1,4 +1,4 @@
-# Invo.ai Pricing Model
+# Clorefy Pricing Model
 
 ## Billing Philosophy
 
@@ -33,26 +33,66 @@ Once the cap is hit, the user must start a new session (which counts as a new do
 | Documents/month | 5 | 50 | 150 | Unlimited |
 | Messages/session | 10 | 30 | 50 | Unlimited |
 | **Email sends/month** | **5** | **100** | **250** | **Unlimited** |
-| Document types | Invoice + Contract | All 4 | All 4 | All 4 |
-| PDF templates | 3 (Modern, Classic, Minimal) | All 9 | All 9 | All 9 |
-| Countries | All 11 | All 11 | All 11 | All 11 |
+| Document types | Invoice, Contract, Quote | All 9 types | All 9 types | All 9 types |
+| Countries | Global (150+) | Global (150+) | Global (150+) | Global (150+) |
 | Export formats | PDF only | PDF + DOCX | PDF + DOCX + Image | All formats |
 | Session history | 30 days | 30 days | 1 year | Forever |
 | Digital signatures | ✓ | ✓ | ✓ | ✓ |
+| Recurring invoices | — | ✓ | ✓ | ✓ |
+| Auto-invoice on sign | — | — | ✓ | ✓ |
 | Custom logo/branding | ✓ | ✓ | ✓ | ✓ |
 | Team members | 1 | 1 | 1 | 3 |
 | Priority support | — | — | — | ✓ |
 
-### Email Send Limits (enforced)
+## Document Types (9 total)
 
-Email limits are enforced via `checkEmailLimit()` in `lib/cost-protection.ts`, reading `user_usage.emails_count`:
+All 9 types are available on Starter, Pro, and Agency. Free tier includes Invoice, Contract, and Quote.
 
-- **Free**: 5 emails/month — matches the document limit (1 send per doc)
-- **Starter**: 100 emails/month — allows resends + follow-ups across all 50 docs
-- **Pro**: 250 emails/month — comfortable for follow-ups across all 150 docs
+| Type | Free | Paid |
+|------|------|------|
+| Invoice | ✓ | ✓ |
+| Contract | ✓ | ✓ |
+| Quote | ✓ | ✓ |
+| Proposal | — | ✓ |
+| Statement of Work (SOW) | — | ✓ |
+| Change Order | — | ✓ |
+| NDA | — | ✓ |
+| Client Onboarding Form | — | ✓ |
+| Payment Follow-up | — | ✓ |
+
+## Feature Enforcement
+
+| Feature | Gate | Enforcement |
+|---------|------|-------------|
+| Document limit | Per tier | `checkDocumentLimit()` in `cost-protection.ts` |
+| Message limit | Per tier per session | `checkMessageLimit()` in `cost-protection.ts` |
+| Email sends | Per tier per month | `checkEmailLimit()` in `cost-protection.ts` |
+| Document types | Free: 3 types; Paid: all 9 | `checkDocumentTypeAllowed()` in `cost-protection.ts` |
+| Recurring invoices | Starter+ | `POST /api/recurring` returns 403 for free |
+| Auto-invoice on sign | Pro+ | Toggle disabled in UI + API check |
+| E-signatures | All tiers | No restriction |
+| Auto follow-up reminders | Paid tiers | `getFollowUpSchedule()` returns `[]` for free |
+
+### Email Send Limits
+
+- **Free**: 5 emails/month — 1 per document
+- **Starter**: 100 emails/month — resends + follow-ups across 50 docs
+- **Pro**: 250 emails/month — comfortable for follow-ups across 150 docs
 - **Agency**: Unlimited
 
 After each successful send, `incrementEmailCount()` atomically increments the counter via the `increment_email_count` Supabase RPC.
+
+## Supported Countries
+
+Clorefy works globally with country-aware compliance. The AI injects the correct tax rates, mandatory fields, and legal requirements for each country automatically.
+
+**Well-tested countries (150+ total supported):** India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands, and expanding continuously.
+
+Each country has:
+- Correct tax type (GST/HST/VAT/etc.) and rates
+- Mandatory document fields per local regulation
+- Payment terms conventions
+- Invoice numbering requirements
 
 ## Cost Analysis
 
@@ -66,12 +106,10 @@ After each successful send, `incrementEmailCount()` atomically increments the co
 
 | Tier | Revenue | Max AI Cost (all docs used) | Gross Margin |
 |------|---------|----------------------------|-------------|
-| Free ($0) | $0 | ~$0.003 (3 docs) | — (acquisition) |
+| Free ($0) | $0 | ~$0.005 (5 docs) | — (acquisition) |
 | Starter ($9) | $9 | ~$0.05 (50 docs) | ~99.4% |
 | Pro ($24) | $24 | ~$0.15 (150 docs) | ~99.4% |
 | Agency ($59) | $59 | ~$0.50 (est. 500 docs) | ~99.2% |
-
-Margins are extremely high because DeepSeek V3 is cheap. The document limits are a business model choice, not a cost constraint.
 
 ## Competitor Benchmarks
 
@@ -84,61 +122,26 @@ Margins are extremely high because DeepSeek V3 is cheap. The document limits are
 | Zoho Invoice Free | Free | 5 customers, no AI |
 | PandaDoc Essentials | $19/mo | Documents + e-sign, no AI gen |
 
-Invo.ai offers AI generation + 9 doc types + global compliance + e-signatures — significantly more value at lower or equal price points.
-
-## Document Lifecycle & Download Logic
-
-### Flow
-1. User creates document via AI prompt → session created, doc count incremented
-2. User can edit/refine with AI messages (within session message cap)
-3. User downloads/exports the document → document is **finalized and locked**
-4. After download: no further AI edits allowed on that session
-5. User can still VIEW the document but cannot modify it
-
-### Why Lock After Download
-- Prevents infinite re-use of a single session (change name, re-download for different client)
-- Creates natural upgrade pressure (need more docs = need higher tier)
-- Matches real-world workflow (you send an invoice, it's done)
-- Aligns with Stripe/FreshBooks model where finalized invoices are immutable
-
-### What "Locked" Means
-- AI chat input is disabled
-- Editor fields become read-only
-- Export buttons still work (re-download same version)
-- A banner shows "This document has been finalized"
-- User must create a new session for a new document
-
-## Abuse Prevention Strategy
-
-### Problem Scenarios
-1. **Name-swap abuse**: User generates invoice for Client A, downloads, then changes name to Client B and downloads again
-2. **Chatbot abuse**: User uses document session as unlimited AI chatbot
-3. **Bulk generation**: Automated scripts creating documents
-
-### Solutions
-1. **Lock after download** — Once exported, the session is frozen. No more edits.
-2. **Per-session message caps** — 10/30/50/unlimited based on tier. Prevents chatbot abuse.
-3. **Rate limiting** — Existing rate limiter (10 AI requests/min) prevents automated bulk generation.
-4. **Document count tracking** — `user_usage` table tracks monthly document count per user.
+Clorefy offers AI generation + 9 doc types + global compliance + e-signatures — significantly more value at lower or equal price points.
 
 ## Implementation Notes
 
 ### Database
-- Document count tracked in `user_usage` table (column: `documents_count`)
-- Session message count tracked per session
-- Download/finalize status stored on the document/session record
-- Tier stored on user profile (default: "free")
-
-### Enforcement Points
-- `cost-protection.ts` → `checkDocumentLimit()` before creating new session
-- `cost-protection.ts` → `checkMessageLimit()` before sending AI message
-- Session creation API → increment document count
-- Download/export API → set `finalized_at` timestamp on session
-- Editor/chat UI → check `finalized_at` to disable inputs
+- Document count tracked in `user_usage` table (`documents_count`)
+- Email count tracked in `user_usage` table (`emails_count`)
+- Tier stored in `subscriptions` table (`plan`, `status`, `current_period_end`)
+- Tier resolves to "free" if subscription is missing, expired, or cancelled
 
 ### Tier Detection
-- User's tier stored in `profiles` or `subscriptions` table
-- Default tier: "free"
-- Tier checked on every API call that needs limit enforcement
-- Payment integration (Stripe) updates tier on subscription change
+```typescript
+// lib/cost-protection.ts
+getUserTier(supabase, userId)  // single call, handles expiry
+resolveEffectiveTier(subscription)  // expiry-aware: returns "free" if expired
+```
 
+### Enforcement Points
+- `POST /api/sessions/create` → document limit check
+- `POST /api/ai/stream` → message limit + doc type check
+- `POST /api/emails/send-document` → email limit check + follow-up scheduling
+- `POST /api/recurring` → Starter+ tier check
+- `POST /api/signatures` → no tier restriction (all tiers)

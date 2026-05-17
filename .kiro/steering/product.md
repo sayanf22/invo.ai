@@ -37,8 +37,13 @@ Works globally with country-aware compliance. Particularly well-tested for India
 
 - Invoices (with country-specific tax compliance)
 - Contracts (service agreements, employment contracts)
-- Quotations (price quotes, estimates, bids)
+- Quotes (price quotes, estimates, bids)
 - Proposals (business proposals, project proposals, pitches)
+- Statements of Work (project scope, deliverables, milestones)
+- Change Orders (scope amendments to contracts/SOWs)
+- NDAs (Non-Disclosure Agreements)
+- Client Onboarding Forms (intake and requirements gathering)
+- Payment Follow-ups (payment reminders referencing unpaid invoices)
 
 ## User Experience Flow
 
