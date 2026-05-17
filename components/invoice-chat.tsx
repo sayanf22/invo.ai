@@ -525,18 +525,50 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
         if (savedMessages.length > 0) {
             // Loaded an existing session with messages
-            // Restore activities from metadata if available
+            // Restore activities and special cards from metadata if available
             const restoredMessages: typeof messages = []
             for (const msg of savedMessages) {
-                // If this assistant message has saved activities in metadata, inject a thinking block before it
                 const meta = msg.metadata as Record<string, unknown> | undefined
-                if (msg.role === "assistant" && meta?.activities && Array.isArray(meta.activities) && meta.activities.length > 0) {
-                    restoredMessages.push({
-                        role: "thinking" as const,
-                        content: "",
-                        activities: meta.activities as ActivityItem[],
-                        isWorking: false,
-                    })
+                if (msg.role === "assistant") {
+                    // Inject thinking block if activities saved
+                    if (meta?.activities && Array.isArray(meta.activities) && meta.activities.length > 0) {
+                        restoredMessages.push({
+                            role: "thinking" as const,
+                            content: "",
+                            activities: meta.activities as ActivityItem[],
+                            isWorking: false,
+                        })
+                    }
+                    // Restore special cards from metadata
+                    if (meta?.card === "share") {
+                        restoredMessages.push({ role: "assistant" as const, content: msg.content })
+                        restoredMessages.push({ role: "assistant" as const, content: "", shareCard: true })
+                        continue
+                    }
+                    if (meta?.card === "send") {
+                        const cardEmail = (meta?.email as string) || ""
+                        restoredMessages.push({ role: "assistant" as const, content: msg.content })
+                        restoredMessages.push({ role: "assistant" as const, content: "", sendCard: { email: cardEmail } })
+                        continue
+                    }
+                    if (meta?.card === "unlock") {
+                        restoredMessages.push({ role: "assistant" as const, content: "", unlockCard: true })
+                        continue
+                    }
+                    if (meta?.card === "link") {
+                        const shortId = session.id.split("-")[0]
+                        const docLink = `${typeof window !== "undefined" ? window.location.origin : "https://clorefy.com"}/d/${shortId}`
+                        restoredMessages.push({ role: "assistant" as const, content: "", linkCard: docLink })
+                        continue
+                    }
+                    if (meta?.card === "recurring_setup") {
+                        restoredMessages.push({ role: "assistant" as const, content: "", recurringCard: "setup" as const })
+                        continue
+                    }
+                    if (meta?.card === "recurring_cancel") {
+                        restoredMessages.push({ role: "assistant" as const, content: "", recurringCard: "cancel" as const })
+                        continue
+                    }
                 }
                 restoredMessages.push({
                     role: msg.role as "user" | "assistant",
@@ -952,6 +984,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     { role: "assistant" as const, content: "", unlockCard: true },
                 ])
                 await saveMessage("user", userMessage)
+                await saveMessage("assistant", "Unlock document", { card: "unlock" })
                 return
             }
         }
@@ -986,7 +1019,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         { role: "assistant" as const, content: "", shareCard: true },
                     ])
                     await saveMessage("user", userMessage)
-                    await saveMessage("assistant", shareMsg)
+                    await saveMessage("assistant", shareMsg, { card: "share" })
                     return
                 }
 
@@ -1011,7 +1044,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         { role: "assistant" as const, content: "", sendCard: { email: knownEmail } },
                     ])
                     await saveMessage("user", userMessage)
-                    await saveMessage("assistant", minimalMsg)
+                    await saveMessage("assistant", minimalMsg, { card: "send", email: knownEmail })
                     return
                 }
                 if (hasSendIntent && sendMethod === "general") {
@@ -1024,7 +1057,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         { role: "assistant" as const, content: "", shareCard: true },
                     ])
                     await saveMessage("user", userMessage)
-                    await saveMessage("assistant", shareMsg)
+                    await saveMessage("assistant", shareMsg, { card: "share" })
                     return
                 }
             }
@@ -1631,6 +1664,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             { role: "assistant", content: shareMsg },
                             { role: "assistant", content: "", shareCard: true },
                         ])
+                        await saveMessage("assistant", shareMsg, { card: "share" })
                     } else {
                         const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
                         if (hasSendIntent && sendMethod === "email") {
@@ -1640,12 +1674,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 content: "",
                                 sendCard: { email: cardEmail },
                             }])
+                            await saveMessage("assistant", `Sure! Fill in the details below to send your ${docType}.`, { card: "send", email: cardEmail })
                         } else if (hasSendIntent && sendMethod === "general") {
                             const shareMsg = `How would you like to send your ${docType}?`
                             setMessages(prev => [...prev,
                                 { role: "assistant", content: shareMsg },
                                 { role: "assistant", content: "", shareCard: true },
                             ])
+                            await saveMessage("assistant", shareMsg, { card: "share" })
                         }
                     }
                     // ── End send intent detection ──────────────────────────────────────
@@ -1688,7 +1724,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     // Document is genuinely sent/signed — show the unlock confirmation card
                     setMessages(prev => [...prev, { role: "assistant", content: "", unlockCard: true }])
                     await saveMessage("user", displayText)
-                    if (aiMessage) await saveMessage("assistant", aiMessage)
+                    if (aiMessage) await saveMessage("assistant", aiMessage, { card: "unlock" })
+                    else await saveMessage("assistant", "Unlock document", { card: "unlock" })
                     return
                 }
 
@@ -1698,6 +1735,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     const docLink = `${window.location.origin}/d/${shortId}`
                     setMessages(prev => [...prev, { role: "assistant", content: "", linkCard: docLink }])
                     await saveMessage("user", displayText)
+                    await saveMessage("assistant", "View document link", { card: "link" })
                     return
                 }
 
@@ -1705,6 +1743,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 if (cleaned.startsWith("[ACTION:SETUP_RECURRING]") && session) {
                     setMessages(prev => [...prev, { role: "assistant", content: "", recurringCard: "setup" as const }])
                     await saveMessage("user", displayText)
+                    await saveMessage("assistant", "Set up recurring invoice", { card: "recurring_setup" })
                     return
                 }
 
@@ -1712,6 +1751,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 if (cleaned.startsWith("[ACTION:CANCEL_RECURRING]") && session) {
                     setMessages(prev => [...prev, { role: "assistant", content: "", recurringCard: "cancel" as const }])
                     await saveMessage("user", displayText)
+                    await saveMessage("assistant", "Cancel recurring invoice", { card: "recurring_cancel" })
                     return
                 }
 
@@ -1755,7 +1795,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             { role: "assistant", content: "", shareCard: true },
                         ])
                         await saveMessage("user", displayText)
-                        await saveMessage("assistant", shareMsg)
+                        await saveMessage("assistant", shareMsg, { card: "share" })
                         return
                     }
 
@@ -1770,7 +1810,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             sendCard: { email: knownEmailPost },
                         }])
                         await saveMessage("user", displayText)
-                        await saveMessage("assistant", minimalMsg)
+                        await saveMessage("assistant", minimalMsg, { card: "send", email: knownEmailPost })
                         return
                     }
                     if (hasSendIntent && sendMethod === "general") {
@@ -1781,7 +1821,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                             { role: "assistant", content: "", shareCard: true },
                         ])
                         await saveMessage("user", displayText)
-                        await saveMessage("assistant", shareMsg)
+                        await saveMessage("assistant", shareMsg, { card: "share" })
                         return
                     }
                 }
@@ -1793,6 +1833,25 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 // factually wrong and confusing. Strip the claim and replace with
                 // a neutral acknowledgement.
                 let finalContent = cleaned
+
+                // ── Strip any trailing JSON block from plain-text responses ─────────
+                // The AI sometimes appends a full document JSON after its conversational
+                // reply (e.g. "I've updated the name.\n\n{"document":{...}}").
+                // The JSON was already applied to the document via the JSON parse path
+                // above (which runs FIRST and returns early). If we're here, we're on
+                // the plain-text path — but `cleaned` may still contain a leftover JSON
+                // tail because Pattern 3 failed to extract it cleanly. Strip it before
+                // displaying or saving so users never see raw JSON in chat.
+                {
+                    const jsonTailMatch = finalContent.match(/^([\s\S]*?)(\n\n?\{[\s\S]*$)/)
+                    if (jsonTailMatch?.[1] && jsonTailMatch[1].trim().length > 0) {
+                        finalContent = jsonTailMatch[1].trim()
+                    } else if (finalContent.startsWith("{") || finalContent.startsWith("[")) {
+                        // Entire content is JSON (shouldn't normally reach here, but guard)
+                        finalContent = "✅ Document updated! Check the preview."
+                    }
+                }
+                // ── End JSON tail stripper ──────────────────────────────────────────
                 const sessionIsLocked = session && (session.status === "finalized" || session.status === "signed")
                 if (!sessionIsLocked) {
                     const hallucinatesUnlock = /\b(I[''′]?ve\s+(unlocked|unsent|un-sent|made\s+it\s+editable|cancelled\s+the\s+send|reverted\s+the\s+send)|the\s+document\s+is\s+now\s+(unlocked|editable\s+again)|I\s+(unlocked|unsent)\s+(it|the\s+document))\b/i
