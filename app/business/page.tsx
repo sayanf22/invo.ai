@@ -41,8 +41,8 @@ const builtFeatures = [
     },
     {
         icon: Lock,
-        title: "Row-level security",
-        desc: "Every document, message, and business record is isolated by user ID using Supabase RLS. You can only see your own data — no cross-tenant access."
+        title: "Your data stays yours",
+        desc: "Every document and business record is fully isolated to your account. No other user can ever access your data — strict access control enforced at the database level."
     },
 ]
 
@@ -57,7 +57,7 @@ const faqs = [
     },
     {
         q: "Is my data secure?",
-        a: "Yes. All data is stored in Supabase with row-level security. Each user's data is fully isolated. Payments are processed by Razorpay, Stripe, or Cashfree — Clorefy never stores card details."
+        a: "Yes. Your data is fully isolated to your account — no other user can access it. This is enforced at the database level, not just in application code. Payment credentials (API keys for Razorpay, Stripe, and Cashfree) are stored in an encrypted secrets vault, not in code or config files. All traffic is encrypted in transit (TLS). Clorefy never stores card numbers — payments are processed directly by the payment provider."
     },
     {
         q: "Can I use my own branding?",
@@ -170,21 +170,21 @@ export default function BusinessPage() {
                     <div className="max-w-5xl mx-auto">
                         <motion.div {...fadeUp} className="text-center mb-16">
                             <h2 className="font-display text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.05] mb-4">
-                                Security that&apos;s actually built in
+                                Security that protects you and your clients
                             </h2>
                             <p className="text-lg text-[var(--landing-text-muted)] max-w-xl mx-auto">
-                                No certifications, just real technical controls.
+                                Real technical controls — not marketing checkboxes.
                             </p>
                         </motion.div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {[
-                                { icon: Shield, name: "Row-level security on every table", desc: "Supabase RLS — each user sees only their own data" },
+                                { icon: Shield, name: "Your data is fully isolated", desc: "Every document is private to your account — enforced at the database level, not just in code" },
                                 { icon: Lock, name: "CSRF protection", desc: "HMAC-signed tokens on all state-changing requests" },
                                 { icon: Zap, name: "Rate limiting", desc: "Per-user and per-IP limits on all API endpoints" },
                                 { icon: CheckCircle, name: "Input sanitization", desc: "XSS prevention and injection blocking on all inputs" },
                                 { icon: Shield, name: "E-signature audit trail", desc: "IP, timestamp, and document hash recorded per signature" },
-                                { icon: Lock, name: "No card data stored", desc: "Payments processed by Razorpay/Stripe/Cashfree — Clorefy never stores card numbers" },
+                                { icon: Lock, name: "Payment credentials in an encrypted vault", desc: "API keys for payment processors are stored in an encrypted secrets vault — never in code or config files" },
                             ].map((item, i) => (
                                 <motion.div
                                     key={item.name}
