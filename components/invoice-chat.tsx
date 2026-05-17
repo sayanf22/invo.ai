@@ -529,6 +529,26 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             const restoredMessages: typeof messages = []
             for (const msg of savedMessages) {
                 const meta = msg.metadata as Record<string, unknown> | undefined
+
+                // ── Sanitize content on restore ───────────────────────────────────
+                // Messages stored BEFORE the JSON-tail-stripper fix may contain
+                // raw `{"document":{...}}` content. Strip any trailing JSON block
+                // so old sessions don't show raw JSON after refresh.
+                const sanitizeRestoredContent = (raw: string): string => {
+                    if (!raw || typeof raw !== "string") return raw
+                    // If the entire content looks like JSON, replace with a fallback
+                    if (raw.trimStart().startsWith("{") || raw.trimStart().startsWith("[")) {
+                        return "✅ Document updated. Check the preview."
+                    }
+                    // Strip any trailing JSON block (prose followed by a JSON object)
+                    const jsonTailMatch = raw.match(/^([\s\S]*?)(\n\n?\{[\s\S]*$)/)
+                    if (jsonTailMatch?.[1] && jsonTailMatch[1].trim().length > 0) {
+                        return jsonTailMatch[1].trim()
+                    }
+                    return raw
+                }
+                // ── End sanitizer ─────────────────────────────────────────────────
+
                 if (msg.role === "assistant") {
                     // Inject thinking block if activities saved
                     if (meta?.activities && Array.isArray(meta.activities) && meta.activities.length > 0) {
@@ -541,18 +561,28 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     }
                     // Restore special cards from metadata
                     if (meta?.card === "share") {
-                        restoredMessages.push({ role: "assistant" as const, content: msg.content })
+                        const cleanContent = sanitizeRestoredContent(msg.content)
+                        if (cleanContent) restoredMessages.push({ role: "assistant" as const, content: cleanContent })
                         restoredMessages.push({ role: "assistant" as const, content: "", shareCard: true })
                         continue
                     }
                     if (meta?.card === "send") {
                         const cardEmail = (meta?.email as string) || ""
-                        restoredMessages.push({ role: "assistant" as const, content: msg.content })
+                        const cleanContent = sanitizeRestoredContent(msg.content)
+                        if (cleanContent) restoredMessages.push({ role: "assistant" as const, content: cleanContent })
                         restoredMessages.push({ role: "assistant" as const, content: "", sendCard: { email: cardEmail } })
                         continue
                     }
                     if (meta?.card === "unlock") {
-                        restoredMessages.push({ role: "assistant" as const, content: "", unlockCard: true })
+                        // Only restore unlock card if session is still locked/finalized
+                        // If it was already acted on (document is now active), show as text
+                        const sessionStatus = session.status
+                        if (sessionStatus === "finalized" || sessionStatus === "signed") {
+                            restoredMessages.push({ role: "assistant" as const, content: "", unlockCard: true })
+                        } else {
+                            // Session was unlocked — show neutral resolved text instead of stale card
+                            restoredMessages.push({ role: "assistant" as const, content: "Document unlocked. You can now edit and resend." })
+                        }
                         continue
                     }
                     if (meta?.card === "link") {
@@ -570,9 +600,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         continue
                     }
                 }
+                // For regular messages (user or assistant without card), sanitize content
+                const cleanContent = msg.role === "assistant"
+                    ? sanitizeRestoredContent(msg.content)
+                    : msg.content
+                // Skip empty assistant messages that have no card — they're orphaned blobs
+                if (!cleanContent && msg.role === "assistant") continue
                 restoredMessages.push({
                     role: msg.role as "user" | "assistant",
-                    content: msg.content,
+                    content: cleanContent,
                 })
             }
             setMessages(restoredMessages)
