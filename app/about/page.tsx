@@ -6,15 +6,15 @@ export default function AboutPage() {
     return (
         <LegalPageLayout title="About Clorefy" lastUpdated="April 10, 2026">
             <h2>Who We Are</h2>
-            <p>Clorefy is an AI-powered document generation platform that helps businesses create professional invoices, contracts, quotations, and proposals in seconds. Instead of spending hours formatting documents manually, users simply describe what they need in plain language, and our AI generates complete, compliant documents ready for review, editing, and export.</p>
+            <p>Clorefy is an AI-powered document generation platform that helps businesses create professional business documents in seconds. Instead of spending hours formatting documents manually, users simply describe what they need in plain language, and our AI generates complete documents ready for review, editing, sending, and export.</p>
 
             <h2>What We Do</h2>
-            <p>We serve businesses of all sizes — freelancers, agencies, lawyers, sales teams, and enterprises — across every country worldwide with country-specific tax compliance and legal formatting. Our platform supports:</p>
+            <p>We serve businesses of all sizes — freelancers, agencies, lawyers, sales teams, and enterprises — with global document workflows, tax-aware generation, and legal formatting support. Our platform supports:</p>
             <ul>
-                <li><strong>Invoices</strong> with automatic tax calculations (GST, VAT, sales tax) tuned for every jurisdiction — including India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands, and every other country worldwide</li>
-                <li><strong>Contracts</strong> including service agreements, employment contracts, and NDAs</li>
-                <li><strong>Quotations</strong> for price quotes, estimates, and bids</li>
-                <li><strong>Proposals</strong> for business proposals, project proposals, and pitches</li>
+                <li><strong>Business document generation</strong> from natural-language prompts</li>
+                <li><strong>Tax-aware workflows</strong> with GST, VAT, and sales tax support where applicable</li>
+                <li><strong>Client delivery</strong> with email sending, payment links, and follow-up reminders</li>
+                <li><strong>Document workflows</strong> including editing, export, sharing, and e-signatures</li>
             </ul>
 
             <h2>How It Works</h2>

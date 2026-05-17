@@ -29,11 +29,11 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Clorefy — AI Invoice Generator, Contract Maker & Auto Payment Reminders | Every Country",
+    default: "Clorefy - AI Document Generation Platform with Auto Payment Reminders",
     template: "%s | Clorefy",
   },
   description:
-    "Generate invoices, contracts, quotations, and proposals with AI in seconds. Clorefy auto-emails clients, attaches payment links, chases overdue bills for 37 days, and runs recurring billing every month. GST, VAT & sales tax compliant for India, USA, UK, Germany, Canada + 6 more. Free plan, no credit card.",
+    "Generate professional business documents with AI in seconds. Clorefy auto-emails clients, attaches payment links, chases overdue bills for 37 days, and runs recurring billing every month. Built for global document workflows with GST, VAT, and sales tax support where applicable. Free plan, no credit card.",
   keywords: [
     // Core intent keywords — match what people actually search
     "invoice generator", "free invoice generator", "online invoice generator",
@@ -89,9 +89,9 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   openGraph: {
-    title: "Clorefy — AI Invoice Generator with Auto Payment Reminders & Recurring Billing",
+    title: "Clorefy - AI Document Generation Platform with Auto Payment Reminders",
     description:
-      "Generate invoices, contracts & proposals with AI. Auto-email clients, attach payment links, chase overdue bills, run recurring billing. GST, VAT, sales tax compliant for every country worldwide. Free plan available.",
+      "Generate professional business documents with AI. Auto-email clients, attach payment links, chase overdue bills, and run recurring billing. Built for global document workflows. Free plan available.",
     url: "https://clorefy.com",
     siteName: "Clorefy",
     locale: "en_US",
@@ -101,15 +101,15 @@ export const metadata: Metadata = {
         url: "/favicon.png",
         width: 512,
         height: 512,
-        alt: "Clorefy — AI Invoice Generator with Automated Payment Collection",
+        alt: "Clorefy - AI Document Generation Platform with Automated Payment Collection",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Clorefy — AI Invoice Generator with Auto Reminders",
+    title: "Clorefy - AI Document Generation Platform with Auto Reminders",
     description:
-      "Generate invoices & contracts with AI. Auto-email clients, attach payment links, chase overdue bills. Every country worldwide. Free plan.",
+      "Generate professional business documents with AI. Auto-email clients, attach payment links, and chase overdue bills. Free plan.",
     images: ["/favicon.png"],
   },
   robots: {
@@ -148,7 +148,7 @@ export default function RootLayout({
               "name": "Clorefy",
               "alternateName": ["Clorefy AI", "Clorify", "Clorefy.com"],
               "url": "https://clorefy.com",
-              "description": "AI-powered document generation platform for invoices, contracts, quotations, and proposals. Compliant for every country worldwide.",
+              "description": "AI-powered document generation platform for professional business documents, automated sending, payment links, and reminders.",
               "potentialAction": {
                 "@type": "SearchAction",
                 "target": {
@@ -178,7 +178,7 @@ export default function RootLayout({
                 "height": 512,
               },
               "image": "https://clorefy.com/favicon.png",
-              "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals. Compliant for every country worldwide — including India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands and beyond.",
+              "description": "AI-powered document generation platform that creates professional business documents, sends them to clients, attaches payment links, and supports global document workflows.",
               "foundingDate": "2025",
               "numberOfEmployees": { "@type": "QuantitativeValue", "value": 1 },
               "sameAs": [
@@ -215,14 +215,14 @@ export default function RootLayout({
               "alternateName": ["Clorefy AI", "Clorify"],
               "url": "https://clorefy.com",
               "applicationCategory": "BusinessApplication",
-              "applicationSubCategory": "InvoicingApplication",
+              "applicationSubCategory": "DocumentGenerationApplication",
               "operatingSystem": "Web, iOS, Android",
-              "description": "AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals using artificial intelligence. Compliant for every country worldwide.",
+              "description": "AI-powered document generation platform that creates professional business documents using artificial intelligence, with automated sending, payment links, reminders, and global workflow support.",
               "featureList": [
-                "AI invoice generation",
-                "AI contract generation",
-                "AI quotation generation",
-                "AI proposal generation",
+                "AI business document generation",
+                "Prompt-to-document workflow",
+                "Automated client sending",
+                "Payment link attachment",
                 "GST compliance for India",
                 "VAT compliance for UK and EU",
                 "Sales tax compliance for USA",

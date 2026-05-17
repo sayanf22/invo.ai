@@ -16,12 +16,12 @@ const plans = [
     {
         id: "free", name: "Free",
         desc: "Get started with basic document generation",
-        features: ["5 documents/month", "Invoice + Contract", "3 PDF templates", "Every country worldwide", "PDF export"],
+        features: ["5 documents/month", "Core document workflows", "3 PDF templates", "Global document support", "PDF export"],
     },
     {
         id: "starter", name: "Starter", popular: true,
         desc: "For growing businesses that need more",
-        features: ["50 documents/month", "All 4 document types", "All 9 templates", "Every country worldwide", "PDF + DOCX export"],
+        features: ["50 documents/month", "Document generation platform", "All supported templates", "Global document support", "PDF + DOCX export"],
     },
     {
         id: "pro", name: "Pro",

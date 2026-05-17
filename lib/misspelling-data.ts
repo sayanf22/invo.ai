@@ -23,7 +23,6 @@ export const MISSPELLING_VARIANTS: string[] = [
   "cloarfy",
   "cloreffy",
   "clorify",
-  "glorify",   // phonetic confusion
   "cloreify",
   "cloerfi",
   "clorfi",
@@ -46,7 +45,7 @@ export const MISSPELLING_VARIANTS: string[] = [
 /**
  * Misspellings that should trigger URL redirects.
  * Subset of MISSPELLING_VARIANTS — excludes "clorefy" (correct) and
- * "glorify" (too broad, would match unrelated words).
+ * broad dictionary words that would match unrelated products.
  */
 const REDIRECT_VARIANTS: string[] = [
   "clorify",

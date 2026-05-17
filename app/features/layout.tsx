@@ -3,26 +3,26 @@ import { JsonLd } from "@/components/seo/json-ld"
 
 export const metadata: Metadata = {
     title: "Features — AI Document Generation, Templates, Export & E-Signatures",
-    description: "Explore Clorefy's AI-powered features: instant document generation, 9 professional templates, multi-country tax compliance, PDF/DOCX/image export, digital signatures, and more.",
+    description: "Explore Clorefy's AI-powered features: instant business document generation, professional templates, tax-aware workflows, PDF/DOCX/image export, digital signatures, and more.",
     keywords: ["AI document features", "invoice templates", "contract templates", "PDF export", "e-signatures", "tax compliance", "document automation features"],
     alternates: { canonical: "/features" },
     openGraph: {
         title: "Clorefy Features — AI Document Generation Platform",
-        description: "AI-powered invoices, contracts, quotations, proposals. 9 templates, every country worldwide, all export formats.",
+        description: "AI-powered document generation platform for professional business workflows, supported templates, and all export formats.",
     },
 }
 
 const webPageJsonLd = {
     "@type": "WebPage",
     name: "Clorefy Features — AI Document Generation Platform",
-    description: "Explore Clorefy's AI-powered features: instant document generation, 9 professional templates, multi-country tax compliance, PDF/DOCX/image export, digital signatures, and more.",
+    description: "Explore Clorefy's AI-powered features: instant business document generation, professional templates, tax-aware workflows, PDF/DOCX/image export, digital signatures, and more.",
     url: "https://clorefy.com/features",
     mainEntity: {
         "@type": "SoftwareApplication",
         name: "Clorefy",
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web",
-        description: "AI-powered document generation platform for invoices, contracts, quotations, and proposals. Compliant for every country worldwide.",
+        description: "AI-powered document generation platform for professional business documents, automated sending, payment links, and global workflows.",
         featureList: [
             "AI-powered document generation",
             "Multi-country tax compliance",

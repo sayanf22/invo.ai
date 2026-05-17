@@ -12,7 +12,7 @@ const PAGE_URL = BASE_URL + "/clorefy-alternative-spellings"
 export const metadata: Metadata = {
   title: "Clorefy Spelling & Common Misspellings — clorify, clorefi, clorfy | Clorefy",
   description:
-    "Searching for clorify, clorefi, clorfy, cloriphy, or clorafy? The correct spelling is Clorefy — the AI invoice, contract & proposal generator for every country worldwide. Free to start.",
+    "Searching for clorify, clorefi, clorfy, cloriphy, or clorafy? The correct spelling is Clorefy — an AI document generation platform for business workflows. Free to start.",
   alternates: { canonical: PAGE_URL },
   keywords: [
     "clorify", "clorefi", "clorfy", "cloriphy", "clorafy", "clorephy", "clorifly",
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Clorefy Spelling & Common Misspellings | Clorefy",
     description:
-      "Searching for clorify, clorefi, or clorfy? You found Clorefy — AI invoice, contract & proposal generator for every country worldwide.",
+      "Searching for clorify, clorefi, or clorfy? You found Clorefy — an AI document generation platform for business workflows.",
     url: PAGE_URL,
     siteName: "Clorefy",
     type: "website",
@@ -56,7 +56,7 @@ export default function AlternativeSpellingsPage() {
         name: "Is clorify the same as Clorefy?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes — clorify is a common misspelling of Clorefy. The correct name is Clorefy (clorefy.com), an AI-powered platform for generating invoices, contracts, quotations, and proposals.",
+          text: "Yes — clorify is a common misspelling of Clorefy. The correct name is Clorefy (clorefy.com), an AI-powered document generation platform for business workflows.",
         },
       },
       {
@@ -64,7 +64,7 @@ export default function AlternativeSpellingsPage() {
         name: "What is Clorefy?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Clorefy is an AI-powered document generation platform that creates professional invoices, contracts, quotations, and proposals from natural language descriptions. It works for every country worldwide — including India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands, and beyond — with automatic tax compliance (GST, VAT, sales tax).",
+          text: "Clorefy is an AI-powered document generation platform that creates professional business documents from natural language descriptions, with tax-aware workflows for GST, VAT, and sales tax where applicable.",
         },
       },
       {
@@ -87,7 +87,7 @@ export default function AlternativeSpellingsPage() {
     url: "https://clorefy.com",
     logo: { "@type": "ImageObject", url: "https://clorefy.com/favicon.png" },
     description:
-      "AI-powered document generation platform for invoices, contracts, quotations, and proposals for every country worldwide.",
+      "AI-powered document generation platform for professional business documents and automated client workflows.",
     sameAs: [
       "https://twitter.com/clorefy",
       "https://linkedin.com/company/clorefy",
@@ -165,11 +165,10 @@ export default function AlternativeSpellingsPage() {
           </p>
           <ul className="space-y-2 text-gray-600 dark:text-gray-400 text-sm mb-4">
             {[
-              "Invoices with GST (India), VAT (UK/EU), and Sales Tax (USA) — auto-calculated",
-              "Contracts — service agreements, NDAs, employment contracts",
-              "Quotations — price quotes, estimates, bids",
-              "Proposals — business proposals, project pitches",
-              "Every country worldwide supported — India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands, and beyond",
+              "Professional business document generation from plain-language prompts",
+              "Tax-aware workflows for GST, VAT, and Sales Tax where applicable",
+              "Client sending, payment links, reminders, and recurring billing",
+              "Global document workflows for international businesses",
               "Export as PDF, DOCX, PNG, or JPG",
               "Digital e-signatures with audit trail",
               "Free plan — 5 documents/month, no credit card needed",
@@ -193,7 +192,7 @@ export default function AlternativeSpellingsPage() {
               },
               {
                 q: "How do you pronounce Clorefy?",
-                a: 'Clorefy is pronounced "klor-uh-fy" — rhymes with "glorify". The name comes from combining "clarity" and "simplify".',
+                a: 'Clorefy is pronounced "klor-uh-fy". The name comes from combining "clarity" and "simplify".',
               },
               {
                 q: "Is Clorefy free to use?",
@@ -201,7 +200,7 @@ export default function AlternativeSpellingsPage() {
               },
               {
                 q: "What countries does Clorefy support?",
-                a: "Clorefy works for every country worldwide — with country-specific tax compliance built in. Primary markets include India (GST), USA (Sales Tax), UK, Germany, France, Netherlands (VAT), Canada, Australia, Singapore, UAE, and the Philippines, with support for every other jurisdiction via our global compliance knowledge base.",
+                a: "Clorefy is built for global document workflows, with country-specific tax handling such as GST, VAT, and sales tax where applicable through the compliance knowledge base.",
               },
             ].map(({ q, a }) => (
               <div key={q} className="border-b border-gray-200 dark:border-gray-700 pb-6 last:border-0 last:pb-0">
@@ -217,7 +216,7 @@ export default function AlternativeSpellingsPage() {
           <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200 dark:border-amber-800 p-8 text-center">
             <h2 className="text-2xl font-bold mb-3">Try Clorefy Free</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-xl mx-auto">
-              Create your first AI-generated invoice, contract, or proposal in under 60 seconds.
+              Create your first AI-generated business document in under 60 seconds.
               No credit card required.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
