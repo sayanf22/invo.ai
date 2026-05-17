@@ -68,33 +68,33 @@ export default function ContactPage() {
                                 </h2>
                             </div>
 
-                            {[
+                        {([
                                 {
                                     icon: Mail,
                                     label: "Email",
                                     lines: [
-                                        { text: "support@clorefy.com", href: "mailto:support@clorefy.com" },
-                                        { text: "info@clorefy.com", href: "mailto:info@clorefy.com" },
+                                        { text: "support@clorefy.com", href: "mailto:support@clorefy.com" as string },
+                                        { text: "info@clorefy.com", href: "mailto:info@clorefy.com" as string },
                                     ],
                                 },
                                 {
                                     icon: Clock,
                                     label: "Response time",
                                     lines: [
-                                        { text: "Within 24 hrs on business days" },
-                                        { text: "Mon – Fri, 10 AM – 7 PM IST" },
+                                        { text: "Within 24 hrs on business days", href: undefined as string | undefined },
+                                        { text: "Mon – Fri, 10 AM – 7 PM IST", href: undefined as string | undefined },
                                     ],
                                 },
                                 {
                                     icon: FileText,
                                     label: "Policies",
                                     lines: [
-                                        { text: "Refund & Cancellation Policy", href: "/refund-policy" },
-                                        { text: "Terms & Conditions", href: "/terms" },
-                                        { text: "Privacy Policy", href: "/privacy" },
+                                        { text: "Refund & Cancellation Policy", href: "/refund-policy" as string },
+                                        { text: "Terms & Conditions", href: "/terms" as string },
+                                        { text: "Privacy Policy", href: "/privacy" as string },
                                     ],
                                 },
-                            ].map(item => (
+                            ] as const).map(item => (
                                 <div key={item.label} className="flex items-start gap-4">
                                     <div className="w-10 h-10 rounded-xl bg-orange-50 border-[2px] border-[var(--landing-dark)] shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] flex items-center justify-center text-[var(--landing-amber)] shrink-0 mt-0.5">
                                         <item.icon size={18} />
