@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
-import { normalizeDocumentType } from "@/lib/document-type-registry"
+import { normalizeDocumentType, getDocumentTypeConfig } from "@/lib/document-type-registry"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -408,9 +408,8 @@ export default function ViewDocumentPage() {
             if (pay) setPayment(pay as PaymentInfo)
 
             // Check for existing quotation response (authenticated user)
-            // Normalize so "quote", legacy "quotation", and "proposal" all trigger the lookup
-            const normalizedType = normalizeDocumentType(session.document_type)
-            if (normalizedType === 'quote' || normalizedType === 'proposal') {
+            // Use registry so adding new client-response-capable types is automatic
+            if (getDocumentTypeConfig(session.document_type)?.capabilities.supports_client_response) {
               const { data: existingResponse } = await (supabase as any)
                 .from('quotation_responses')
                 .select('response_type, responded_at')
@@ -762,8 +761,8 @@ export default function ViewDocumentPage() {
         </div>
       </div>
 
-      {/* Response buttons — shown below PDF for quote & proposal documents */}
-      {(['quote', 'proposal'].includes(normalizeDocumentType(docData?.documentType ?? '') ?? '')) && (
+      {/* Response buttons — shown below PDF for documents that support client response (quote, proposal) */}
+      {(getDocumentTypeConfig(docData?.documentType ?? '')?.capabilities.supports_client_response === true) && (
         <div className="max-w-4xl mx-auto px-2 sm:px-4 py-4">
           {quotationResponse ? (
             <div className={cn(

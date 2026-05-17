@@ -48,7 +48,32 @@ export interface DocumentTypeConfig {
    */
   prefix: string
   capabilities: {
+    /**
+     * Whether this document type supports e-signatures.
+     * When true AND showSignatureFields is NOT false, the send card shows
+     * "Send & Sign", creates a signature request, and the /sign/[token] page
+     * is used by the recipient.
+     *
+     * Types that MUST be signed: contract, sow, change_order, nda
+     * Types that CAN optionally be signed: quote, proposal (user chooses via
+     * the showSignatureFields toggle in the editor)
+     */
     supports_signature: boolean
+    /**
+     * Whether recipients can respond to this document with Accept / Decline /
+     * Request Changes (soft acceptance without a legally-binding signature).
+     *
+     * Industry standard:
+     *   - quote: YES — recipient accepts/declines the price offer
+     *   - proposal: YES — recipient accepts/declines the scope/approach
+     *   - All others: NO — binding docs require signature, not soft acceptance
+     *
+     * When supports_client_response is true AND showSignatureFields is false
+     * (user turned off the signature toggle), the /view page shows the
+     * accept/decline UI instead of the signature pad.
+     * When showSignatureFields is true, the signature pad takes priority.
+     */
+    supports_client_response: boolean
     supports_payment_link: boolean
     supports_linking: boolean
     supports_recurring: boolean
@@ -71,6 +96,7 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     prefix: "INV",
     capabilities: {
       supports_signature: false,
+      supports_client_response: false,
       supports_payment_link: true,
       supports_linking: false,
       supports_recurring: false,
@@ -88,7 +114,10 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     bgColor: "bg-emerald-50",
     prefix: "CTR",
     capabilities: {
+      // Contracts MUST be signed — they are legally binding agreements.
+      // No accept/decline soft flow: both parties sign or negotiate terms.
       supports_signature: true,
+      supports_client_response: false,
       supports_payment_link: false,
       supports_linking: false,
       supports_recurring: false,
@@ -106,10 +135,12 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     bgColor: "bg-amber-50",
     prefix: "QUO",
     capabilities: {
-      // Quotes can be accepted/signed by the client to convert into a binding
-      // commitment. The QuotePDF renders signature blocks gated on
-      // `showSignatureFields`, and the editor exposes the toggle to hide them.
+      // Quotes can optionally be signed (showSignatureFields toggle) OR just
+      // accepted/declined/changed (supports_client_response). When the
+      // signature toggle is off, the recipient sees Accept / Decline /
+      // Request Changes. When on, they see the signature pad.
       supports_signature: true,
+      supports_client_response: true,
       supports_payment_link: false,
       supports_linking: false,
       supports_recurring: false,
@@ -127,10 +158,12 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     bgColor: "bg-violet-50",
     prefix: "PROP",
     capabilities: {
-      // Proposals are typically counter-signed by the client to confirm
-      // acceptance ("Prepared By" / "Accepted By" blocks in the PDF). The
-      // editor exposes a toggle to hide them when not needed.
+      // Proposals typically use soft acceptance (Accept/Decline/Changes) when
+      // in the pitch stage. They can optionally include a counter-signature
+      // block if the user wants the acceptance to be legally binding.
+      // showSignatureFields toggle controls which mode is active.
       supports_signature: true,
+      supports_client_response: true,
       supports_payment_link: false,
       supports_linking: false,
       supports_recurring: false,
@@ -148,7 +181,10 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     bgColor: "bg-cyan-50",
     prefix: "SOW",
     capabilities: {
+      // SOWs are legally binding amendments to contracts — must be signed.
+      // No soft accept/decline: both parties execute the document.
       supports_signature: true,
+      supports_client_response: false,
       supports_payment_link: false,
       supports_linking: true,
       supports_recurring: false,
@@ -166,7 +202,10 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     bgColor: "bg-orange-50",
     prefix: "CO",
     capabilities: {
+      // Change orders are legally binding scope amendments — must be signed.
+      // No soft accept/decline: both parties execute the change order.
       supports_signature: true,
+      supports_client_response: false,
       supports_payment_link: false,
       supports_linking: true,
       supports_recurring: false,
@@ -184,7 +223,10 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     bgColor: "bg-slate-50",
     prefix: "NDA",
     capabilities: {
+      // NDAs are legally binding confidentiality agreements — must be signed.
+      // No soft accept/decline: both parties execute the document.
       supports_signature: true,
+      supports_client_response: false,
       supports_payment_link: false,
       supports_linking: false,
       supports_recurring: false,
@@ -202,7 +244,9 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     bgColor: "bg-teal-50",
     prefix: "ONB",
     capabilities: {
+      // Onboarding forms are intake documents — no signature or acceptance needed.
       supports_signature: false,
+      supports_client_response: false,
       supports_payment_link: false,
       supports_linking: false,
       supports_recurring: false,
@@ -220,7 +264,9 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
     bgColor: "bg-rose-50",
     prefix: "PF",
     capabilities: {
+      // Payment reminders are informational — no signature or acceptance needed.
       supports_signature: false,
+      supports_client_response: false,
       supports_payment_link: false,
       supports_linking: true,
       supports_recurring: false,
