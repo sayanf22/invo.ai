@@ -11,10 +11,10 @@ export default async function EmailCampaignsPage() {
   )
 
   const now = new Date()
-  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString()
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const twoDaysAgo = new Date(now.getTime() - 2 * 86400000).toISOString()
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000).toISOString()
+  const fourteenDaysAgo = new Date(now.getTime() - 14 * 86400000).toISOString()
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000).toISOString()
 
   const [
     { count: dropoffCount },
@@ -23,34 +23,27 @@ export default async function EmailCampaignsPage() {
     { count: allActiveCount },
     { data: campaigns },
     { data: recentEvents },
-    { data: eventCounts },
+    { data: eventRows },
+    { data: allUsers },
   ] = await Promise.all([
     supabase.from("profiles").select("id", { count: "exact", head: true })
-      .eq("onboarding_complete", false)
-      .or(`last_active_at.is.null,last_active_at.lt.${twoDaysAgo}`),
+      .eq("onboarding_complete", false).or(`last_active_at.is.null,last_active_at.lt.${twoDaysAgo}`),
     supabase.from("profiles").select("id", { count: "exact", head: true })
-      .eq("onboarding_complete", true)
-      .or(`last_active_at.is.null,last_active_at.lt.${sevenDaysAgo}`),
+      .eq("onboarding_complete", true).or(`last_active_at.is.null,last_active_at.lt.${sevenDaysAgo}`),
     supabase.from("profiles").select("id", { count: "exact", head: true })
-      .eq("onboarding_complete", true)
-      .or(`last_active_at.is.null,last_active_at.lt.${fourteenDaysAgo}`),
+      .eq("onboarding_complete", true).or(`last_active_at.is.null,last_active_at.lt.${fourteenDaysAgo}`),
     supabase.from("profiles").select("id", { count: "exact", head: true })
       .eq("onboarding_complete", true),
-    supabase.from("admin_email_campaigns").select("*")
-      .order("sent_at", { ascending: false }).limit(50),
-    supabase.from("email_events")
-      .select("id, email, event, subject, tag, event_at, reason, user_id")
-      .gte("event_at", thirtyDaysAgo)
-      .order("event_at", { ascending: false })
-      .limit(100),
-    // Aggregate event counts
-    supabase.from("email_events").select("event")
-      .gte("event_at", thirtyDaysAgo),
+    supabase.from("admin_email_campaigns").select("*").order("sent_at", { ascending: false }).limit(50),
+    supabase.from("email_events").select("id, email, event, subject, tag, event_at, reason, user_id")
+      .gte("event_at", thirtyDaysAgo).order("event_at", { ascending: false }).limit(100),
+    supabase.from("email_events").select("event").gte("event_at", thirtyDaysAgo),
+    supabase.from("profiles").select("id, email, full_name, onboarding_complete, last_active_at")
+      .not("email", "is", null).order("created_at", { ascending: false }).limit(500),
   ])
 
-  // Build aggregates
   const summary: Record<string, number> = {}
-  for (const row of eventCounts ?? []) {
+  for (const row of eventRows ?? []) {
     summary[row.event] = (summary[row.event] ?? 0) + 1
   }
 
@@ -65,6 +58,13 @@ export default async function EmailCampaignsPage() {
       }}
       emailSummary={summary}
       recentEvents={(recentEvents ?? []).slice(0, 100)}
+      users={(allUsers ?? []).map((u: any) => ({
+        id: u.id,
+        email: u.email,
+        name: u.full_name ?? null,
+        onboarding_complete: u.onboarding_complete ?? false,
+        last_active_at: u.last_active_at ?? null,
+      }))}
     />
   )
 }

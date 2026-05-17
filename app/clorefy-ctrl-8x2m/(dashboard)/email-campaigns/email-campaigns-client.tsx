@@ -1,109 +1,117 @@
 "use client"
 
-import { useState } from "react"
-import { Mail, RefreshCw, Users, CheckCircle, AlertCircle, Loader2, Eye, Send, MessageSquare } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import {
+  Mail, RefreshCw, Eye, Send, AlertTriangle,
+  CheckCircle, X, Search, ChevronDown, Users,
+} from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { useAdminTheme } from "@/components/admin/admin-theme-provider"
+import KpiCard from "@/components/admin/kpi-card"
+import DataTable from "@/components/admin/data-table"
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Campaign {
-  id: string
-  segment: string
-  subject: string
-  emails_sent: number
-  emails_failed: number
-  sent_by: string
-  sent_at: string
+  id: string; segment: string; subject: string
+  emails_sent: number; emails_failed: number
+  sent_by: string; sent_at: string
 }
 
-interface SegmentCounts {
-  dropoff: number
-  inactive7: number
-  inactive14: number
-  allActive: number
+interface UserOption {
+  id: string; email: string; name: string | null
+  onboarding_complete: boolean; last_active_at: string | null
+}
+
+interface EmailEvent {
+  id: string; email: string; event: string; subject: string | null
+  tag: string | null; event_at: string; reason: string | null; user_id: string | null
 }
 
 interface Props {
   campaigns: Campaign[]
-  segmentCounts: SegmentCounts
+  segmentCounts: { dropoff: number; inactive7: number; inactive14: number; allActive: number }
   emailSummary: Record<string, number>
-  recentEvents: Array<{
-    id: string
-    email: string
-    event: string
-    subject: string | null
-    tag: string | null
-    event_at: string
-    reason: string | null
-    user_id: string | null
-  }>
+  recentEvents: EmailEvent[]
+  users: UserOption[]
 }
 
-// ── Segment sync actions ──────────────────────────────────────────────────────
-// These sync users to Brevo lists → Brevo automations send the emails.
-// We do NOT send bulk emails directly — that would violate Brevo ToS & CAN-SPAM.
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const SEGMENTS = [
-  {
-    id: "sync-dropoff",
-    label: "Sync onboarding drop-off users",
-    description: "Adds users who never completed onboarding (idle 2+ days) to the 'Onboarding Started' Brevo list. The Brevo automation workflow then sends them the video walkthrough email with a proper unsubscribe link.",
-    countKey: "dropoff" as keyof SegmentCounts,
-    automationNote: "Triggers: Brevo 'Onboarding Started' automation (Email 1 + Email 2)",
-    color: "#DC2626",
-  },
-  {
-    id: "sync-active",
-    label: "Sync active users",
-    description: "Adds completed-onboarding users to the 'Active Users' Brevo list with updated LAST_ACTIVE date. If they've been inactive 7+ days, Brevo's automation sends a re-engagement email.",
-    countKey: "allActive" as keyof SegmentCounts,
-    automationNote: "Triggers: Brevo 'Active Users' automation (Day 7 + Day 14 inactivity)",
-    color: "#2563EB",
-  },
-  {
-    id: "sync-all",
-    label: "Full backfill sync",
-    description: "Syncs ALL users to the correct Brevo list. Run once to catch anyone who was missed. Safe to run anytime — idempotent upsert.",
-    countKey: "allActive" as keyof SegmentCounts,
-    automationNote: "Syncs all users. Daily cron does this automatically at 08:00 UTC.",
-    color: "#059669",
-  },
-]
-
-// ── Direct message state ──────────────────────────────────────────────────────
-
-interface DirectMessageState {
-  userId: string
-  email: string
-  name: string
-  subject: string
-  message: string
+function formatDate(iso: string | null) {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
 }
 
-export default function EmailCampaignsClient({ campaigns: initialCampaigns, segmentCounts, emailSummary, recentEvents }: Props) {
+function statusBadge(event: string, isDark: boolean) {
+  const map: Record<string, [string, string]> = {
+    delivered:    ["#059669", "#F0FDF4"],
+    opened:       ["#7C3AED", "#F5F3FF"],
+    click:        ["#D97757", "#FFF7ED"],
+    sent:         ["#2563EB", "#EFF6FF"],
+    hardBounce:   ["#DC2626", "#FEF2F2"],
+    softBounce:   ["#EA580C", "#FFF7ED"],
+    spam:         ["#B45309", "#FFFBEB"],
+    unsubscribed: ["#6B7280", "#F9FAFB"],
+    blocked:      ["#DC2626", "#FEF2F2"],
+  }
+  const [color, bg] = map[event] ?? ["#6B7280", isDark ? "#18181B" : "#F9FAFB"]
+  return (
+    <span style={{ color, background: bg, padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
+      {event}
+    </span>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export default function EmailCampaignsClient({
+  campaigns: initialCampaigns,
+  segmentCounts,
+  emailSummary,
+  recentEvents,
+  users,
+}: Props) {
   const { theme } = useAdminTheme()
   const isDark = theme === "dark"
 
+  const bg = isDark ? "#000000" : "#F5F5F5"
+  const cardBg = isDark ? "#0A0A0A" : "#FAFAFA"
+  const border = isDark ? "#1A1A1A" : "#E5E5E5"
+  const text = isDark ? "#F5F5F5" : "#0A0A0A"
+  const muted = isDark ? "#71717A" : "#71717A"
+  const headerBg = isDark ? "#000000" : "#F5F5F5"
+
+  // Segment sync state
   const [syncing, setSyncing] = useState<string | null>(null)
   const [previewing, setPreviewing] = useState<string | null>(null)
-  const [results, setResults] = useState<Record<string, { synced: number; failed: number; count?: number } | null>>({})
-  const [error, setError] = useState<string | null>(null)
-  const [campaignLog, setCampaignLog] = useState<Campaign[]>(initialCampaigns)
+  const [syncResults, setSyncResults] = useState<Record<string, { synced: number; failed: number; count?: number }>>({})
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [campaigns, setCampaigns] = useState(initialCampaigns)
 
-  // Direct message modal state
-  const [directMsg, setDirectMsg] = useState<DirectMessageState | null>(null)
-  const [sendingDirect, setSendingDirect] = useState(false)
+  // Direct email state
+  const [directOpen, setDirectOpen] = useState(false)
+  const [directUser, setDirectUser] = useState<UserOption | null>(null)
+  const [directSubject, setDirectSubject] = useState("")
+  const [directMessage, setDirectMessage] = useState("")
+  const [directSending, setDirectSending] = useState(false)
   const [directError, setDirectError] = useState<string | null>(null)
   const [directSuccess, setDirectSuccess] = useState(false)
+  const [userSearch, setUserSearch] = useState("")
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false)
 
-  const bg = isDark ? "#0D0D0D" : "#F9F8F6"
-  const cardBg = isDark ? "#141414" : "#FFFFFF"
-  const border = isDark ? "#222" : "#E5E3DE"
-  const text = isDark ? "#F3F4F6" : "#111827"
-  const muted = isDark ? "#6B7280" : "#9CA3AF"
+  const filteredUsers = userSearch.trim().length > 0
+    ? users.filter(u =>
+        u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+        (u.name ?? "").toLowerCase().includes(userSearch.toLowerCase())
+      ).slice(0, 10)
+    : users.slice(0, 10)
+
+  // ── Sync ────────────────────────────────────────────────────────────────────
 
   async function handleDryRun(segmentId: string) {
     setPreviewing(segmentId)
-    setError(null)
+    setSyncError(null)
     try {
       const res = await fetch("/api/admin/email-campaigns", {
         method: "POST",
@@ -112,18 +120,16 @@ export default function EmailCampaignsClient({ campaigns: initialCampaigns, segm
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Request failed")
-      setResults((prev) => ({ ...prev, [`${segmentId}-dry`]: { synced: data.count, failed: 0, count: data.count } }))
+      setSyncResults(prev => ({ ...prev, [`${segmentId}-dry`]: { synced: data.count, failed: 0, count: data.count } }))
     } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setPreviewing(null)
-    }
+      setSyncError(e.message)
+    } finally { setPreviewing(null) }
   }
 
   async function handleSync(segmentId: string) {
-    if (!confirm(`Sync "${segmentId}" contacts to Brevo? Brevo automations will send emails to qualifying users.`)) return
+    if (!confirm(`Sync "${segmentId}" to Brevo? This updates contact lists so automation emails can go out.`)) return
     setSyncing(segmentId)
-    setError(null)
+    setSyncError(null)
     try {
       const res = await fetch("/api/admin/email-campaigns", {
         method: "POST",
@@ -132,393 +138,314 @@ export default function EmailCampaignsClient({ campaigns: initialCampaigns, segm
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Request failed")
-      setResults((prev) => ({ ...prev, [segmentId]: { synced: data.synced ?? 0, failed: data.failed ?? 0 } }))
-
-      // Refresh log
+      setSyncResults(prev => ({ ...prev, [segmentId]: { synced: data.synced ?? 0, failed: data.failed ?? 0 } }))
       const logRes = await fetch("/api/admin/email-campaigns")
       const logData = await logRes.json()
-      if (logData.campaigns) setCampaignLog(logData.campaigns)
+      if (logData.campaigns) setCampaigns(logData.campaigns)
     } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setSyncing(null)
-    }
+      setSyncError(e.message)
+    } finally { setSyncing(null) }
   }
 
+  // ── Direct email ─────────────────────────────────────────────────────────────
+
   async function handleSendDirect() {
-    if (!directMsg) return
-    setSendingDirect(true)
+    if (!directUser || !directSubject.trim() || !directMessage.trim()) return
+    setDirectSending(true)
     setDirectError(null)
     try {
       const res = await fetch("/api/admin/email-campaigns/direct", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: directMsg.userId,
-          subject: directMsg.subject,
-          message: directMsg.message,
-        }),
+        body: JSON.stringify({ userId: directUser.id, subject: directSubject.trim(), message: directMessage.trim() }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to send")
       setDirectSuccess(true)
       setTimeout(() => {
-        setDirectMsg(null)
+        setDirectOpen(false)
+        setDirectUser(null)
+        setDirectSubject("")
+        setDirectMessage("")
         setDirectSuccess(false)
-      }, 2000)
+      }, 1800)
     } catch (e: any) {
       setDirectError(e.message)
-    } finally {
-      setSendingDirect(false)
-    }
+    } finally { setDirectSending(false) }
   }
 
+  // ── Segment definitions ──────────────────────────────────────────────────────
+
+  const SEGMENTS = [
+    {
+      id: "sync-dropoff",
+      label: "Onboarding drop-off",
+      desc: "Users who signed up but never finished onboarding (idle 2+ days). Syncs to Brevo — automation sends walkthrough email.",
+      count: segmentCounts.dropoff,
+      color: "#DC2626",
+    },
+    {
+      id: "sync-active",
+      label: "Inactive users",
+      desc: "Users who completed onboarding but haven't used the app in 7+ days. Syncs LAST_ACTIVE so automation knows when to send.",
+      count: segmentCounts.inactive7,
+      color: "#D97757",
+    },
+    {
+      id: "sync-all",
+      label: "Full backfill",
+      desc: "Sync all users to the correct Brevo list. Run once to catch anyone missed. The daily cron at 08:00 UTC handles this automatically.",
+      count: segmentCounts.allActive + segmentCounts.dropoff,
+      color: "#2563EB",
+    },
+  ]
+
+  // ── Email event table columns ─────────────────────────────────────────────
+
+  const eventColumns = [
+    { key: "email", header: "Recipient", render: (r: any) => <span style={{ fontFamily: "mono", fontSize: 12 }}>{r.email}</span> },
+    { key: "event", header: "Event", render: (r: any) => statusBadge(r.event, isDark) },
+    { key: "tag", header: "Tag", render: (r: any) => <span style={{ color: muted, fontSize: 12 }}>{r.tag ?? "—"}</span> },
+    { key: "subject", header: "Subject", render: (r: any) => <span style={{ color: muted, fontSize: 12, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{r.subject ?? "—"}</span> },
+    { key: "event_at", header: "When", render: (r: any) => <span style={{ color: muted, fontSize: 12 }}>{formatDistanceToNow(new Date(r.event_at), { addSuffix: true })}</span> },
+    { key: "reason", header: "Reason", render: (r: any) => <span style={{ color: "#DC2626", fontSize: 12 }}>{r.reason ?? "—"}</span> },
+  ]
+
+  const campaignColumns = [
+    { key: "segment", header: "Action", render: (r: any) => <span style={{ fontWeight: 600, fontSize: 13 }}>{r.segment}</span> },
+    { key: "emails_sent", header: "Synced", render: (r: any) => <span style={{ color: "#059669", fontWeight: 600 }}>{r.emails_sent}</span> },
+    { key: "emails_failed", header: "Failed", render: (r: any) => <span style={{ color: r.emails_failed > 0 ? "#DC2626" : muted, fontWeight: r.emails_failed > 0 ? 600 : 400 }}>{r.emails_failed}</span> },
+    { key: "sent_by", header: "By", render: (r: any) => <span style={{ color: muted, fontSize: 12 }}>{r.sent_by}</span> },
+    { key: "sent_at", header: "When", render: (r: any) => <span style={{ color: muted, fontSize: 12 }}>{formatDistanceToNow(new Date(r.sent_at), { addSuffix: true })}</span> },
+  ]
+
   return (
-    <div style={{ background: bg, minHeight: "100vh", padding: "32px 24px" }}>
-      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", background: bg, padding: "32px 32px 64px" }}>
 
-        {/* Header */}
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: isDark ? "#1A1A1A" : "#F0EDEA", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Mail size={20} color="#D97757" />
-            </div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: text, margin: 0 }}>Email Campaigns</h1>
-          </div>
-          <p style={{ color: muted, fontSize: 14, margin: 0 }}>
-            Sync users to Brevo contact lists. Brevo automations handle email delivery with proper unsubscribe links (required by Gmail/Yahoo/Outlook).
-          </p>
-        </div>
-
-        {/* How it works banner */}
-        <div style={{ background: isDark ? "#1A1A1A" : "#EFF6FF", border: `1.5px solid ${isDark ? "#333" : "#BFDBFE"}`, borderRadius: 12, padding: "14px 18px", marginBottom: 28 }}>
-          <p style={{ color: isDark ? "#93C5FD" : "#1D4ED8", fontSize: 13, margin: 0, fontWeight: 600 }}>
-            ℹ️ How this works
-          </p>
-          <p style={{ color: isDark ? "#6B7280" : "#3B82F6", fontSize: 13, margin: "4px 0 0", lineHeight: 1.6 }}>
-            Clicking "Sync" updates Brevo contact lists. Brevo's pre-built automation workflows then send emails at the right time — not this dashboard. 
-            You must build the 2 automation workflows in <a href="https://app.brevo.com" target="_blank" rel="noopener noreferrer" style={{ color: "#D97757" }}>app.brevo.com → Automations</a> for emails to go out.
-            The daily cron at 08:00 UTC auto-syncs all users.
-          </p>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", gap: 10, alignItems: "center" }}>
-            <AlertCircle size={16} color="#DC2626" />
-            <span style={{ color: "#DC2626", fontSize: 14 }}>{error}</span>
-          </div>
-        )}
-
-        {/* Segment sync cards */}
-        <div style={{ marginBottom: 40 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 16 }}>List Sync</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {SEGMENTS.map((seg) => {
-              const count = segmentCounts[seg.countKey]
-              const result = results[seg.id]
-              const dryResult = results[`${seg.id}-dry`]
-              const isSyncing = syncing === seg.id
-              const isPreviewing = previewing === seg.id
-
-              return (
-                <div key={seg.id} style={{ background: cardBg, border: `1.5px solid ${border}`, borderRadius: 14, padding: "18px 20px" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: text }}>{seg.label}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: seg.color, background: `${seg.color}18`, padding: "2px 8px", borderRadius: 6 }}>
-                          {count} users
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 13, color: muted, margin: "0 0 4px", lineHeight: 1.5 }}>{seg.description}</p>
-                      <p style={{ fontSize: 12, color: isDark ? "#4B5563" : "#9CA3AF", margin: 0, fontStyle: "italic" }}>{seg.automationNote}</p>
-
-                      {dryResult && (
-                        <div style={{ marginTop: 8, fontSize: 13, color: "#2563EB", background: "#EFF6FF", borderRadius: 6, padding: "6px 10px", display: "inline-block" }}>
-                          👁 Dry run: {dryResult.count} users would be synced
-                        </div>
-                      )}
-                      {result && (
-                        <div style={{ marginTop: 8, fontSize: 13, color: "#059669", background: "#F0FDF4", borderRadius: 6, padding: "6px 10px", display: "inline-block" }}>
-                          <CheckCircle size={13} style={{ display: "inline", marginRight: 4 }} />
-                          Synced: {result.synced} · Failed: {result.failed}
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                      <button
-                        onClick={() => handleDryRun(seg.id)}
-                        disabled={!!syncing || !!previewing}
-                        style={{ padding: "8px 14px", borderRadius: 8, border: `1.5px solid ${border}`, background: "transparent", color: text, fontSize: 13, fontWeight: 500, cursor: syncing || previewing ? "not-allowed" : "pointer", opacity: syncing || previewing ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6 }}
-                      >
-                        {isPreviewing ? <Loader2 size={13} /> : <Eye size={13} />}
-                        Dry run
-                      </button>
-                      <button
-                        onClick={() => handleSync(seg.id)}
-                        disabled={!!syncing || !!previewing}
-                        style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: isSyncing ? "#9CA3AF" : seg.color, color: "#fff", fontSize: 13, fontWeight: 600, cursor: syncing || previewing ? "not-allowed" : "pointer", opacity: syncing && !isSyncing ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6 }}
-                      >
-                        {isSyncing ? <Loader2 size={13} /> : <RefreshCw size={13} />}
-                        {isSyncing ? "Syncing..." : "Sync"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Direct email to user */}
-        <div style={{ marginBottom: 40 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 8 }}>Direct Email to User</h2>
-          <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>Send a direct 1:1 message to a specific user from the admin. Uses the transactional API correctly — not bulk.</p>
-          <div style={{ background: cardBg, border: `1.5px solid ${border}`, borderRadius: 14, padding: "20px" }}>
-            <div style={{ display: "grid", gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>User Email</label>
-                <input
-                  type="email"
-                  placeholder="user@example.com"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${border}`, background: bg, color: text, fontSize: 14 }}
-                  onChange={(e) => setDirectMsg((prev) => prev ? { ...prev, email: e.target.value } : { userId: "", email: e.target.value, name: "", subject: "", message: "" })}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Subject</label>
-                <input
-                  type="text"
-                  placeholder="Following up on your Clorefy account"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${border}`, background: bg, color: text, fontSize: 14 }}
-                  value={directMsg?.subject ?? ""}
-                  onChange={(e) => setDirectMsg((prev) => prev ? { ...prev, subject: e.target.value } : { userId: "", email: "", name: "", subject: e.target.value, message: "" })}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Message</label>
-                <textarea
-                  rows={5}
-                  placeholder="Write your message here..."
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${border}`, background: bg, color: text, fontSize: 14, resize: "vertical" }}
-                  value={directMsg?.message ?? ""}
-                  onChange={(e) => setDirectMsg((prev) => prev ? { ...prev, message: e.target.value } : { userId: "", email: "", name: "", subject: "", message: e.target.value })}
-                />
-              </div>
-              {directError && (
-                <div style={{ color: "#DC2626", fontSize: 13, background: "#FEF2F2", padding: "8px 12px", borderRadius: 8 }}>{directError}</div>
-              )}
-              {directSuccess && (
-                <div style={{ color: "#059669", fontSize: 13, background: "#F0FDF4", padding: "8px 12px", borderRadius: 8 }}>
-                  <CheckCircle size={13} style={{ display: "inline", marginRight: 4 }} />Email sent successfully
-                </div>
-              )}
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <DirectSendButton
-                  email={directMsg?.email ?? ""}
-                  subject={directMsg?.subject ?? ""}
-                  message={directMsg?.message ?? ""}
-                  onSend={handleSendDirect}
-                  sending={sendingDirect}
-                  border={border}
-                  text={text}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Email tracking stats (from Brevo webhooks) */}
-        <div style={{ marginBottom: 40 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 16 }}>Email Tracking — Last 30 Days</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 12, marginBottom: 20 }}>
-            {[
-              { label: "Sent", key: "sent", color: "#2563EB" },
-              { label: "Delivered", key: "delivered", color: "#059669" },
-              { label: "Opened", key: "opened", color: "#7C3AED" },
-              { label: "Clicked", key: "click", color: "#D97757" },
-              { label: "Hard Bounce", key: "hardBounce", color: "#DC2626" },
-              { label: "Spam", key: "spam", color: "#EA580C" },
-              { label: "Unsub", key: "unsubscribed", color: "#6B7280" },
-            ].map(({ label, key, color }) => (
-              <div key={key} style={{ background: cardBg, border: `1.5px solid ${border}`, borderRadius: 12, padding: "14px 16px" }}>
-                <div style={{ fontSize: 22, fontWeight: 700, color }}>{emailSummary[key] ?? 0}</div>
-                <div style={{ fontSize: 11, color: muted, marginTop: 2, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Delivery/open rate pills */}
-          {(emailSummary["sent"] ?? 0) > 0 && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
-              {[
-                { label: "Delivery rate", value: `${Math.round(((emailSummary["delivered"] ?? 0) / ((emailSummary["sent"] ?? 0) + (emailSummary["request"] ?? 0))) * 100)}%`, color: "#059669" },
-                { label: "Open rate", value: `${(emailSummary["delivered"] ?? 0) > 0 ? Math.round(((emailSummary["opened"] ?? 0) / (emailSummary["delivered"] ?? 1)) * 100) : 0}%`, color: "#7C3AED" },
-                { label: "Click rate", value: `${(emailSummary["opened"] ?? 0) > 0 ? Math.round(((emailSummary["click"] ?? 0) / (emailSummary["opened"] ?? 1)) * 100) : 0}%`, color: "#D97757" },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={{ padding: "6px 14px", borderRadius: 20, background: cardBg, border: `1.5px solid ${border}`, fontSize: 13, fontWeight: 600 }}>
-                  <span style={{ color: muted }}>{label}: </span>
-                  <span style={{ color }}>{value}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Recent events table */}
-          {recentEvents.length > 0 && (
-            <div style={{ background: cardBg, border: `1.5px solid ${border}`, borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ padding: "12px 16px", borderBottom: `1px solid ${border}`, fontSize: 13, fontWeight: 600, color: text }}>Recent email events</div>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${border}` }}>
-                      {["Email", "Event", "Tag", "Subject", "When", "Reason"].map((h) => (
-                        <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 600, color: muted, whiteSpace: "nowrap" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentEvents.slice(0, 30).map((ev, i) => {
-                      const eventColors: Record<string, string> = {
-                        delivered: "#059669", opened: "#7C3AED", click: "#D97757",
-                        hardBounce: "#DC2626", softBounce: "#EA580C", spam: "#B45309",
-                        unsubscribed: "#6B7280", sent: "#2563EB", blocked: "#DC2626",
-                      }
-                      const color = eventColors[ev.event] ?? muted
-                      return (
-                        <tr key={ev.id} style={{ borderBottom: i < recentEvents.slice(0, 30).length - 1 ? `1px solid ${border}` : "none" }}>
-                          <td style={{ padding: "10px 14px", fontSize: 12, color: text }}>{ev.email}</td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, color, background: `${color}15`, padding: "2px 8px", borderRadius: 4 }}>{ev.event}</span>
-                          </td>
-                          <td style={{ padding: "10px 14px", fontSize: 11, color: muted }}>{ev.tag ?? "—"}</td>
-                          <td style={{ padding: "10px 14px", fontSize: 12, color: muted, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.subject ?? "—"}</td>
-                          <td style={{ padding: "10px 14px", fontSize: 11, color: muted, whiteSpace: "nowrap" }}>{formatDistanceToNow(new Date(ev.event_at), { addSuffix: true })}</td>
-                          <td style={{ padding: "10px 14px", fontSize: 11, color: "#DC2626" }}>{ev.reason ?? "—"}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {recentEvents.length === 0 && (
-                <p style={{ color: muted, fontSize: 13, padding: "20px 16px", textAlign: "center" }}>No events yet. Events appear here once Brevo automations start sending emails.</p>
-              )}
-            </div>
-          )}
-          {recentEvents.length === 0 && (
-            <div style={{ background: cardBg, border: `1.5px solid ${border}`, borderRadius: 14, padding: "32px 20px", textAlign: "center" }}>
-              <Mail size={28} color={muted} style={{ marginBottom: 12 }} />
-              <p style={{ color: muted, fontSize: 13, margin: 0 }}>No email events yet. Events will appear here once Brevo starts sending via automations.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Campaign history */}
+      {/* Page header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32 }}>
         <div>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 16 }}>Activity Log</h2>
-          {campaignLog.length === 0 ? (
-            <div style={{ background: cardBg, border: `1.5px solid ${border}`, borderRadius: 14, padding: "32px 20px", textAlign: "center" }}>
-              <Mail size={32} color={muted} style={{ marginBottom: 12 }} />
-              <p style={{ color: muted, fontSize: 14 }}>No activity yet.</p>
-            </div>
-          ) : (
-            <div style={{ background: cardBg, border: `1.5px solid ${border}`, borderRadius: 14, overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${border}` }}>
-                    {["Action", "Note", "Synced", "Failed", "By", "When"].map((h) => (
-                      <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: muted, whiteSpace: "nowrap" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaignLog.map((c, i) => (
-                    <tr key={c.id} style={{ borderBottom: i < campaignLog.length - 1 ? `1px solid ${border}` : "none" }}>
-                      <td style={{ padding: "12px 16px", fontSize: 13, color: text, fontWeight: 500 }}>{c.segment}</td>
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: muted, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.subject}</td>
-                      <td style={{ padding: "12px 16px" }}><span style={{ fontSize: 13, fontWeight: 600, color: "#059669" }}>{c.emails_sent}</span></td>
-                      <td style={{ padding: "12px 16px" }}><span style={{ fontSize: 13, fontWeight: 600, color: c.emails_failed > 0 ? "#DC2626" : muted }}>{c.emails_failed}</span></td>
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: muted }}>{c.sent_by}</td>
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: muted, whiteSpace: "nowrap" }}>{formatDistanceToNow(new Date(c.sent_at), { addSuffix: true })}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Cron status note */}
-        <div style={{ marginTop: 32, padding: "16px 20px", background: isDark ? "#1A1A1A" : "#F0EDEA", borderRadius: 12 }}>
-          <p style={{ fontSize: 13, color: muted, marginBottom: 4, fontWeight: 600 }}>⏰ Automated daily sync</p>
-          <p style={{ fontSize: 13, color: muted, margin: 0 }}>
-            Supabase pg_cron runs a full sync every day at 08:00 UTC. This keeps Brevo lists up to date automatically. 
-            Free Brevo plan: 300 emails/day via automations. Current users: ~17.
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <Mail size={20} style={{ color: "#D97757" }} />
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: text, margin: 0 }}>Email Campaigns</h1>
+          </div>
+          <p style={{ color: muted, fontSize: 13, margin: 0 }}>
+            Lifecycle emails via Brevo automation. Daily cron at 08:00 UTC auto-syncs. Use controls below for manual sync or direct 1:1 emails.
           </p>
         </div>
-
+        <button
+          onClick={() => setDirectOpen(true)}
+          style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 8, border: "none", background: isDark ? "#F5F5F5" : "#0A0A0A", color: isDark ? "#0A0A0A" : "#F5F5F5", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+        >
+          <Send size={14} />
+          Send direct email
+        </button>
       </div>
 
-      {/* Direct email user lookup helper */}
-      {directMsg && directMsg.email && !directMsg.userId && (
-        <UserLookup
-          email={directMsg.email}
-          onFound={(userId, name) => setDirectMsg((prev) => prev ? { ...prev, userId, name } : null)}
-          border={border}
-        />
+      {/* KPI cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 32 }}>
+        <KpiCard title="Sent (30d)" value={(emailSummary["sent"] ?? 0) + (emailSummary["request"] ?? 0)} />
+        <KpiCard title="Delivered" value={emailSummary["delivered"] ?? 0} />
+        <KpiCard title="Opened" value={emailSummary["opened"] ?? 0} />
+        <KpiCard title="Clicked" value={emailSummary["click"] ?? 0} />
+        <KpiCard title="Hard Bounce" value={emailSummary["hardBounce"] ?? 0} />
+        <KpiCard title="Spam" value={emailSummary["spam"] ?? 0} />
+        <KpiCard title="Unsubscribed" value={emailSummary["unsubscribed"] ?? 0} />
+      </div>
+
+      {/* Error */}
+      {syncError && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 8, background: isDark ? "#1A0000" : "#FEF2F2", border: `1px solid #FECACA`, marginBottom: 20 }}>
+          <AlertTriangle size={14} color="#DC2626" />
+          <span style={{ color: "#DC2626", fontSize: 13 }}>{syncError}</span>
+          <button onClick={() => setSyncError(null)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer" }}><X size={14} color="#DC2626" /></button>
+        </div>
       )}
+
+      {/* Segment sync */}
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 600, color: text, margin: "0 0 12px" }}>Brevo List Sync</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {SEGMENTS.map(seg => {
+            const result = syncResults[seg.id]
+            const dryResult = syncResults[`${seg.id}-dry`]
+            const isSyncing = syncing === seg.id
+            const isPreviewing = previewing === seg.id
+            const busy = !!syncing || !!previewing
+
+            return (
+              <div key={seg.id} style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: text }}>{seg.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: seg.color, background: `${seg.color}1A`, padding: "2px 7px", borderRadius: 4 }}>{seg.count}</span>
+                    {dryResult && <span style={{ fontSize: 11, color: "#2563EB" }}>Preview: {dryResult.count} users</span>}
+                    {result && <span style={{ fontSize: 11, color: "#059669" }}>✓ {result.synced} synced</span>}
+                  </div>
+                  <p style={{ fontSize: 12, color: muted, margin: 0 }}>{seg.desc}</p>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button
+                    onClick={() => handleDryRun(seg.id)}
+                    disabled={busy}
+                    style={{ padding: "7px 12px", borderRadius: 6, border: `1px solid ${border}`, background: "transparent", color: text, fontSize: 12, fontWeight: 500, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.5 : 1, display: "flex", alignItems: "center", gap: 5 }}
+                  >
+                    <Eye size={12} />{isPreviewing ? "..." : "Preview"}
+                  </button>
+                  <button
+                    onClick={() => handleSync(seg.id)}
+                    disabled={busy}
+                    style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: busy && !isSyncing ? muted : seg.color, color: "#fff", fontSize: 12, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer", opacity: busy && !isSyncing ? 0.4 : 1, display: "flex", alignItems: "center", gap: 5 }}
+                  >
+                    <RefreshCw size={12} style={{ animation: isSyncing ? "spin 1s linear infinite" : "none" }} />
+                    {isSyncing ? "Syncing…" : "Sync now"}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* Email events */}
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 600, color: text, margin: "0 0 12px" }}>Email Events — last 30 days</h2>
+        <DataTable
+          columns={eventColumns as any}
+          data={(recentEvents as any[]).slice(0, 50)}
+          emptyState={<p style={{ color: muted, fontSize: 13 }}>No events yet — events appear once Brevo starts sending via automations.</p>}
+        />
+      </section>
+
+      {/* Campaign log */}
+      <section>
+        <h2 style={{ fontSize: 14, fontWeight: 600, color: text, margin: "0 0 12px" }}>Activity Log</h2>
+        <DataTable
+          columns={campaignColumns as any}
+          data={campaigns as any[]}
+          emptyState={<p style={{ color: muted, fontSize: 13 }}>No activity yet.</p>}
+        />
+      </section>
+
+      {/* Direct email modal */}
+      {directOpen && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setDirectOpen(false) }}
+        >
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 14, width: "100%", maxWidth: 520, padding: 28 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: text, margin: 0 }}>Send direct email</h2>
+              <button onClick={() => setDirectOpen(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+                <X size={18} color={muted} />
+              </button>
+            </div>
+
+            {/* User picker */}
+            <div style={{ marginBottom: 16, position: "relative" }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: muted, display: "block", marginBottom: 6 }}>To</label>
+              <div
+                style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${border}`, background: bg, color: text, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                onClick={() => setUserDropdownOpen(v => !v)}
+              >
+                {directUser ? (
+                  <span>{directUser.email} {directUser.name ? `(${directUser.name})` : ""}</span>
+                ) : (
+                  <span style={{ color: muted }}>Select a user…</span>
+                )}
+                <ChevronDown size={14} color={muted} />
+              </div>
+              {userDropdownOpen && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: cardBg, border: `1px solid ${border}`, borderRadius: 8, zIndex: 10, marginTop: 4, maxHeight: 280, overflow: "auto" }}>
+                  <div style={{ padding: "8px 12px", borderBottom: `1px solid ${border}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderRadius: 6, border: `1px solid ${border}`, background: bg }}>
+                      <Search size={12} color={muted} />
+                      <input
+                        autoFocus
+                        value={userSearch}
+                        onChange={e => setUserSearch(e.target.value)}
+                        placeholder="Search email or name…"
+                        style={{ border: "none", background: "transparent", fontSize: 12, color: text, outline: "none", flex: 1 }}
+                      />
+                    </div>
+                  </div>
+                  {filteredUsers.length === 0 && (
+                    <p style={{ padding: "12px 16px", color: muted, fontSize: 12, margin: 0 }}>No users found</p>
+                  )}
+                  {filteredUsers.map(u => (
+                    <div
+                      key={u.id}
+                      onClick={() => { setDirectUser(u); setUserDropdownOpen(false); setUserSearch("") }}
+                      style={{ padding: "10px 16px", cursor: "pointer", borderBottom: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = isDark ? "#111" : "#f0f0f0")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "")}
+                    >
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: text }}>{u.email}</div>
+                        {u.name && <div style={{ fontSize: 11, color: muted }}>{u.name}</div>}
+                      </div>
+                      <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: u.onboarding_complete ? "#F0FDF4" : "#FEF2F2", color: u.onboarding_complete ? "#059669" : "#DC2626", fontWeight: 600 }}>
+                        {u.onboarding_complete ? "active" : "no onboarding"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Subject */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: muted, display: "block", marginBottom: 6 }}>Subject</label>
+              <input
+                type="text"
+                placeholder="Following up on your Clorefy account"
+                value={directSubject}
+                onChange={e => setDirectSubject(e.target.value)}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${border}`, background: bg, color: text, fontSize: 13, outline: "none" }}
+              />
+            </div>
+
+            {/* Message */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: muted, display: "block", marginBottom: 6 }}>Message</label>
+              <textarea
+                rows={5}
+                placeholder="Write your message here…"
+                value={directMessage}
+                onChange={e => setDirectMessage(e.target.value)}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${border}`, background: bg, color: text, fontSize: 13, outline: "none", resize: "vertical" }}
+              />
+            </div>
+
+            {directError && (
+              <div style={{ color: "#DC2626", fontSize: 12, background: isDark ? "#1A0000" : "#FEF2F2", padding: "8px 12px", borderRadius: 6, marginBottom: 14 }}>{directError}</div>
+            )}
+            {directSuccess && (
+              <div style={{ color: "#059669", fontSize: 12, background: "#F0FDF4", padding: "8px 12px", borderRadius: 6, marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                <CheckCircle size={13} /> Email sent successfully
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                onClick={() => setDirectOpen(false)}
+                style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${border}`, background: "transparent", color: text, fontSize: 13, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendDirect}
+                disabled={!directUser || !directSubject.trim() || !directMessage.trim() || directSending}
+                style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: (!directUser || !directSubject.trim() || !directMessage.trim() || directSending) ? muted : isDark ? "#F5F5F5" : "#0A0A0A", color: isDark ? "#0A0A0A" : "#F5F5F5", fontSize: 13, fontWeight: 600, cursor: (!directUser || !directSubject.trim() || !directMessage.trim() || directSending) ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 7 }}
+              >
+                <Send size={13} />{directSending ? "Sending…" : "Send email"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
-  )
-}
-
-// ── Helper: Send button with validation ───────────────────────────────────────
-
-function DirectSendButton({
-  email, subject, message, onSend, sending, border, text
-}: {
-  email: string; subject: string; message: string; onSend: () => void; sending: boolean; border: string; text: string
-}) {
-  const valid = email.includes("@") && subject.trim().length >= 3 && message.trim().length >= 10
-  return (
-    <button
-      onClick={onSend}
-      disabled={!valid || sending}
-      style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: valid && !sending ? "#1C1A17" : "#9CA3AF", color: "#fff", fontSize: 14, fontWeight: 600, cursor: valid && !sending ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 8 }}
-    >
-      {sending ? <Loader2 size={14} /> : <Send size={14} />}
-      {sending ? "Sending..." : "Send email"}
-    </button>
-  )
-}
-
-// ── Helper: look up user ID from email ────────────────────────────────────────
-
-function UserLookup({ email, onFound, border }: { email: string; onFound: (id: string, name: string) => void; border: string }) {
-  const [checking, setChecking] = useState(false)
-
-  async function lookup() {
-    if (!email.includes("@")) return
-    setChecking(true)
-    try {
-      const res = await fetch(`/api/admin/users?search=${encodeURIComponent(email)}&pageSize=1`)
-      const data = await res.json()
-      const user = data.users?.[0]
-      if (user) onFound(user.id, user.full_name || "")
-    } catch { /* ignore */ }
-    finally { setChecking(false) }
-  }
-
-  return (
-    <button
-      onClick={lookup}
-      disabled={checking}
-      style={{ position: "fixed", bottom: 24, right: 24, padding: "10px 16px", borderRadius: 8, border: `1.5px solid ${border}`, background: "#fff", color: "#111827", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
-    >
-      {checking ? <Loader2 size={13} /> : null}
-      Look up user ID
-    </button>
   )
 }
