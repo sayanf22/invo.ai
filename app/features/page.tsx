@@ -4,8 +4,8 @@ import { AnimatedCard } from "@/components/landing/animated-card"
 import { Breadcrumbs } from "@/components/seo/breadcrumbs"
 import {
     FileText, Wand2, Globe, Zap, Shield, Palette,
-    CheckCircle, ArrowRight, Languages,
-    Stamp, Calculator, PenTool, Users
+    CheckCircle, ArrowRight,
+    Stamp, Calculator, PenTool, Bell, RefreshCw, CreditCard, Mail
 } from "lucide-react"
 import Link from "next/link"
 
@@ -14,70 +14,70 @@ const tabs: TabData[] = [
     { id: "customize", label: "Customize", icon: "Palette" },
     { id: "comply", label: "Comply", icon: "Shield" },
     { id: "export", label: "Export", icon: "FileText" },
-    { id: "integrate", label: "Integrate", icon: "Zap" },
+    { id: "send", label: "Send & Collect", icon: "Zap" },
 ]
 
 const tabContent: Record<string, TabContentData> = {
     generate: {
-        title: "AI-powered document generation",
-        desc: "Describe what you need in plain language. Clorefy generates professional invoices, contracts, proposals, NDAs, SOWs, change orders, and 9 document types in seconds.",
+        title: "AI document generation",
+        desc: "Describe what you need in plain language. Clorefy generates invoices, contracts, proposals, NDAs, SOWs, change orders, and all 9 document types in seconds.",
         features: [
-            { icon: "Wand2", name: "Smart AI drafting", detail: "Turn a few sentences into a complete, formatted document" },
-            { icon: "FileText", name: "9 document types", detail: "Invoices, contracts, quotes, proposals, NDAs, SOWs, change orders, onboarding forms, and payment reminders" },
-            { icon: "Globe", name: "Global compliance", detail: "Tax-aware generation for every country — GST, VAT, sales tax auto-applied" },
+            { icon: "Wand2", name: "9 document types", detail: "Invoice, Contract, Quote, Proposal, SOW, NDA, Change Order, Client Onboarding Form, Payment Follow-up" },
+            { icon: "FileText", name: "Smart AI drafting", detail: "Turn a few sentences into a complete, formatted document — your business details auto-filled" },
+            { icon: "Globe", name: "Global tax compliance", detail: "GST, VAT, HST, Sales Tax — calculated automatically based on your country and registration status" },
         ]
     },
     customize: {
         title: "Make every document yours",
-        desc: "Your brand, your rules. Customize colors, fonts, layouts, and create reusable templates that match your identity.",
+        desc: "Your logo, your colors, your fonts. Choose from 9 PDF templates and customize them to match your brand.",
         features: [
-            { icon: "Palette", name: "Brand customization", detail: "Upload logos, set brand colors, choose fonts that match your identity" },
-            { icon: "PenTool", name: "Template library", detail: "Save custom templates and reuse them across documents" },
-            { icon: "Users", name: "Team consistency", detail: "Shared templates ensure every document looks professional" },
+            { icon: "Palette", name: "9 PDF templates", detail: "Modern, Classic, Bold, Minimal, Elegant, Corporate, Creative, Warm, Geometric" },
+            { icon: "PenTool", name: "Custom logo & branding", detail: "Upload your logo — it appears on every document you generate" },
+            { icon: "FileText", name: "Editable after generation", detail: "Edit any field after the AI generates it — full manual control in the editor" },
         ]
     },
     comply: {
         title: "Stay compliant, automatically",
-        desc: "Built-in tax calculations, jurisdiction-aware clauses, and regulatory compliance checks — so you never miss a detail.",
+        desc: "Country-specific tax rules, mandatory fields, and legal requirements are injected automatically at generation time — no manual lookup needed.",
         features: [
-            { icon: "Calculator", name: "Auto tax calculation", detail: "GST, VAT, sales tax — calculated automatically based on location" },
-            { icon: "Shield", name: "Legal compliance", detail: "Jurisdiction-aware clauses that update as regulations change" },
-            { icon: "Stamp", name: "Audit trail", detail: "Every document version is tracked and verifiable" },
+            { icon: "Calculator", name: "Auto tax calculation", detail: "GST (India), VAT (UK/EU/UAE), HST/GST (Canada), Sales Tax (USA) — auto-applied" },
+            { icon: "Shield", name: "Tax registration aware", detail: "If you're not tax-registered, taxRate stays 0. Registered businesses get correct rates applied" },
+            { icon: "Stamp", name: "Signature audit trail", detail: "E-signed contracts record IP, timestamp, signer identity, and document hash for verification" },
         ]
     },
     export: {
-        title: "Export & share instantly",
-        desc: "Professional PDFs, shareable links, e-signatures — everything you need to close deals faster.",
+        title: "Export in any format",
+        desc: "Download as PDF, Word document, or image. Share via link. Send directly to clients by email — all from the same screen.",
         features: [
-            { icon: "FileText", name: "Perfect PDFs", detail: "Pixel-perfect PDF exports with your branding" },
-            { icon: "Globe", name: "Shareable links", detail: "Send documents via link — no attachments needed" },
-            { icon: "PenTool", name: "E-signatures", detail: "Built-in signing workflow for contracts and proposals" },
+            { icon: "FileText", name: "PDF export", detail: "Pixel-perfect PDFs with your branding, all tiers" },
+            { icon: "Globe", name: "DOCX export", detail: "Word-compatible .docx files — Starter, Pro, and Agency" },
+            { icon: "PenTool", name: "Image export (PNG/JPG)", detail: "Export as image for social or sharing — Pro and Agency" },
         ]
     },
-    integrate: {
-        title: "Connects to your workflow",
-        desc: "Export, share, and collaborate on documents with your team. Multiple formats, shareable links, and version history built in.",
+    send: {
+        title: "Send, collect, and follow up",
+        desc: "Email documents directly to clients, attach a payment link, and let automated reminders handle the follow-up.",
         features: [
-            { icon: "Zap", name: "Instant Export", detail: "Download as PDF, DOCX, or image in one click" },
-            { icon: "Languages", name: "Version History", detail: "Track every change with full document version history" },
-            { icon: "Globe", name: "Shareable Links", detail: "Send documents via link — clients view and sign online" },
+            { icon: "Zap", name: "Email to clients", detail: "Send any document via email with AI-written message — directly from the app" },
+            { icon: "Globe", name: "Payment links", detail: "Attach Razorpay, Stripe, or Cashfree payment links — clients pay in one click" },
+            { icon: "FileText", name: "Auto follow-up reminders", detail: "Automated payment reminders up to 37 days after the due date — paid tiers" },
         ]
     }
 }
 
 const featureGrid = [
     { icon: Wand2, name: "AI Generation", desc: "Natural language to documents" },
-    { icon: Palette, name: "Custom Branding", desc: "Your logo, colors, and style" },
+    { icon: Palette, name: "Custom Branding", desc: "Your logo, colors, and 9 templates" },
     { icon: Calculator, name: "Auto Tax", desc: "GST, VAT, sales tax calculated" },
-    { icon: Globe, name: "Multi-Currency", desc: "150+ currencies supported" },
-    { icon: Languages, name: "Multi-Language", desc: "Generate in 50+ languages" },
-    { icon: Shield, name: "E-Signatures", desc: "Built-in signing workflow" },
+    { icon: Globe, name: "Multi-Currency", desc: "Generate in any currency" },
+    { icon: Bell, name: "Payment Reminders", desc: "Auto follow-up until paid" },
+    { icon: Shield, name: "E-Signatures", desc: "Built-in signing with audit trail" },
     { icon: FileText, name: "PDF Export", desc: "Pixel-perfect documents" },
-    { icon: Zap, name: "Quick Export", desc: "PDF, DOCX, and images" },
-    { icon: Users, name: "Team Sharing", desc: "Collaborate on templates" },
-    { icon: Stamp, name: "Audit Trail", desc: "Version tracking & history" },
-    { icon: CheckCircle, name: "Compliance", desc: "Legal-ready documents" },
-    { icon: Zap, name: "Smart Templates", desc: "Learn from your patterns" },
+    { icon: Zap, name: "DOCX & Image Export", desc: "PDF, DOCX, PNG, JPG" },
+    { icon: RefreshCw, name: "Recurring Invoices", desc: "Weekly, monthly, or quarterly" },
+    { icon: Stamp, name: "Signature Audit", desc: "Verified e-sign records" },
+    { icon: CheckCircle, name: "Global Compliance", desc: "150+ country tax rules" },
+    { icon: CreditCard, name: "Payment Links", desc: "Razorpay, Stripe, Cashfree" },
 ]
 
 export default function FeaturesPage() {
@@ -95,11 +95,11 @@ export default function FeaturesPage() {
                     <div className="max-w-5xl mx-auto text-center relative z-10">
                         <AnimatedCard>
                             <h1 className="font-display text-5xl sm:text-7xl font-medium tracking-tight text-[var(--landing-text-dark)] mb-6 leading-[1.1]">
-                                Do more with <br />
-                                <span className="font-serif italic text-[var(--landing-amber)]">intelligent documents</span>
+                                Everything you actually <br />
+                                <span className="font-serif italic text-[var(--landing-amber)]">get with Clorefy</span>
                             </h1>
                             <p className="text-xl sm:text-2xl text-[var(--landing-text-muted)] max-w-2xl mx-auto mb-10">
-                                AI-powered document creation that turns your ideas into professional invoices, contracts, and proposals.
+                                9 document types. Global tax compliance. Email, payment links, and reminders. No separate tools needed.
                             </p>
                         </AnimatedCard>
 
@@ -115,9 +115,9 @@ export default function FeaturesPage() {
                     <div className="max-w-6xl mx-auto">
                         <AnimatedCard>
                             <div className="text-center mb-16">
-                                <h2 className="font-display text-4xl sm:text-5xl font-bold mb-4">Everything you need</h2>
+                                <h2 className="font-display text-4xl sm:text-5xl font-bold mb-4">What&apos;s included</h2>
                                 <p className="text-lg text-[var(--landing-text-muted)] max-w-xl mx-auto">
-                                    A complete document platform built for modern businesses.
+                                    Every feature below is built and working in the app today.
                                 </p>
                             </div>
                         </AnimatedCard>
