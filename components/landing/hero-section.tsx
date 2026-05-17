@@ -27,8 +27,8 @@ export function HeroSection() {
 
                 <div className="relative z-10 max-w-6xl mx-auto text-center px-4 sm:px-6">
 
-                    {/* Main heading */}
-                    <motion.div
+                    {/* Main heading — must be h1 for SEO */}
+                    <motion.h1
                         initial={{ opacity: 0, y: 30 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
@@ -80,7 +80,7 @@ export function HeroSection() {
                                 style={{ background: "linear-gradient(90deg, #1C1A17 0%, #1C1A1700 100%)" }}
                             />
                         </span>
-                    </motion.div>
+                    </motion.h1>
 
                     {/* Subtitle — plain English: what it is + what you get */}
                     <motion.p

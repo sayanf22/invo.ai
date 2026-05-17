@@ -29,11 +29,11 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Clorefy - AI Document Generation Platform with Auto Payment Reminders",
+    default: "Clorefy — AI Invoice & Document Generator",
     template: "%s | Clorefy",
   },
   description:
-    "Clorefy is an AI document generation platform — create invoices, contracts, proposals, NDAs, SOWs, quotes, and more from a plain-language prompt. Auto-emails to clients, attaches Razorpay/Stripe payment links, sends payment reminders for 37 days, and runs recurring billing. GST, VAT & sales tax compliant for every country worldwide. Free plan, no credit card.",
+    "Create invoices, contracts, proposals, NDAs and more with AI in seconds. Auto-emails clients, attaches payment links, and chases overdue bills. Global tax compliance. Free plan.",
   keywords: [
     // Core intent keywords — match what people actually search
     "invoice generator", "free invoice generator", "online invoice generator",
@@ -98,9 +98,9 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   openGraph: {
-    title: "Clorefy - AI Document Generation Platform with Auto Payment Reminders",
+    title: "Clorefy — AI Invoice & Document Generator",
     description:
-      "Generate professional business documents with AI. Auto-email clients, attach payment links, chase overdue bills, and run recurring billing. Built for global document workflows. Free plan available.",
+      "Create invoices, contracts, proposals, NDAs and more with AI in seconds. Auto-emails clients, attaches payment links, and chases overdue bills. Free plan.",
     url: "https://clorefy.com",
     siteName: "Clorefy",
     locale: "en_US",
@@ -116,9 +116,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Clorefy - AI Document Generation Platform with Auto Reminders",
+    title: "Clorefy — AI Invoice & Document Generator",
     description:
-      "Generate professional business documents with AI. Auto-email clients, attach payment links, and chase overdue bills. Free plan.",
+      "Create invoices, contracts, proposals, NDAs with AI. Auto-emails, payment links, reminders. Free plan.",
     images: ["/favicon.png"],
   },
   robots: {
