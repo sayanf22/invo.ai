@@ -23,6 +23,57 @@ function esc(str: string | null | undefined): string {
     .replace(/'/g, "&#x27;")
 }
 
+/** Returns personalized context based on business type for email copy */
+function getUseCase(businessType?: string | null): {
+  docType: string
+  pitch: string
+  urgency: string
+  examplePrompt: string
+} {
+  const t = (businessType ?? "").toLowerCase()
+
+  if (t.includes("freelan") || t.includes("consultant")) {
+    return {
+      docType: "invoice",
+      pitch: "Once your profile is set up, you can generate a professional invoice with GSTIN, payment terms, and a payment link in under 30 seconds. No more copying client details into spreadsheets.",
+      urgency: "As a freelancer, every invoice you send without the right tax details is a risk. Clorefy handles it automatically.",
+      examplePrompt: "Invoice Acme Corp ₹15,000 for logo design, 7 days, UPI",
+    }
+  }
+  if (t.includes("agenc") || t.includes("studio")) {
+    return {
+      docType: "proposal",
+      pitch: "Agencies using Clorefy generate proposals, SOWs, and invoices from a single prompt — no more copying client details between HoneyBook, Google Docs, and your billing tool.",
+      urgency: "Your clients are waiting on proposals. Clorefy gets you from brief to signed SOW in under 5 minutes.",
+      examplePrompt: "Brand strategy proposal for Nexus Co, $12,000, 6 weeks, 50% upfront",
+    }
+  }
+  if (t.includes("develop") || t.includes("engineer") || t.includes("tech")) {
+    return {
+      docType: "SOW",
+      pitch: "Set up your profile once and Clorefy generates compliant SOWs, contracts, and invoices from a single prompt — with IP clauses, milestone payments, and the right tax rules for your client's country.",
+      urgency: "Your next project scope should be a signed document, not a Slack message. Takes 30 seconds.",
+      examplePrompt: "Fixed-fee SOW for fintech web app, Next.js + Supabase, $18,000, 3 milestones",
+    }
+  }
+  if (t.includes("sale") || t.includes("business")) {
+    return {
+      docType: "quote",
+      pitch: "After a discovery call, Clorefy generates a quote or proposal instantly — with your branding, correct tax, and a payment link. No waiting for the accounts team.",
+      urgency: "Deals go cold while you're formatting quotes. Clorefy gets it out in 30 seconds.",
+      examplePrompt: "Quote Pinnacle Retail for 50 seats, enterprise plan, Net-30",
+    }
+  }
+
+  // Default
+  return {
+    docType: "document",
+    pitch: "Once set up, Clorefy generates invoices, contracts, quotes, and proposals from a simple description — with your business details, correct taxes, and professional formatting.",
+    urgency: "You're one 2-minute setup away from never manually writing a business document again.",
+    examplePrompt: "Invoice [client] ₹10,000 for [service], due in 7 days",
+  }
+}
+
 function emailWrapper(content: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -82,27 +133,33 @@ function emailWrapper(content: string): string {
 
 // ── Template 1: Onboarding Drop-off (Email 1 of 2) ────────────────────────────
 
-export function onboardingDropoffEmail1(firstName?: string | null): string {
+export function onboardingDropoffEmail1(
+  firstName?: string | null,
+  businessType?: string | null
+): string {
   const name = esc(firstName) || "there"
+  // Personalize the use-case context based on business type
+  const useCase = getUseCase(businessType)
+
   return emailWrapper(`
     <div class="body">
       <h1>Your account is set up — finish in 2 minutes</h1>
       <p>Hey ${name},</p>
-      <p>You created your Clorefy account but didn't finish setting up your business profile yet. That profile is what makes every document feel professional and accurate — it's worth the 2 minutes.</p>
+      <p>You created your Clorefy account but didn't finish the setup. That 2-minute profile is what makes every ${useCase.docType} look professional — it fills in your business name, address, tax ID, and payment details automatically.</p>
 
       <div class="video-box">
         <p>📹 Watch the quick walkthrough (2 min)</p>
         <a href="${ONBOARDING_VIDEO}">${ONBOARDING_VIDEO}</a>
       </div>
 
-      <p>Once you're done, Clorefy will know your business name, address, tax ID, and bank details — so every invoice, contract, or proposal you generate is ready to send without editing.</p>
+      <p>${useCase.pitch}</p>
 
       <a href="${APP_URL}/onboarding" class="cta-btn">Complete my setup →</a>
 
       <hr class="divider">
 
       <div class="feedback-box">
-        <p>Ran into something confusing? Tell us what happened and we'll fix it.</p>
+        <p>Ran into something confusing? Tell us and we'll help.</p>
         <a href="mailto:${SUPPORT_EMAIL}" class="cta-btn-secondary">Get help from support</a>
       </div>
 
@@ -113,27 +170,32 @@ export function onboardingDropoffEmail1(firstName?: string | null): string {
 
 // ── Template 2: Onboarding Drop-off (Email 2 — final nudge) ──────────────────
 
-export function onboardingDropoffEmail2(firstName?: string | null): string {
+export function onboardingDropoffEmail2(
+  firstName?: string | null,
+  businessType?: string | null
+): string {
   const name = esc(firstName) || "there"
+  const useCase = getUseCase(businessType)
+
   return emailWrapper(`
     <div class="body">
-      <h1>One last thing before we stop</h1>
+      <h1>One last nudge — then we'll leave you alone</h1>
       <p>Hey ${name},</p>
-      <p>We sent you a reminder yesterday about finishing your Clorefy setup. Just checking in once more — your account is ready and waiting.</p>
-      <p>Completing the 5-step profile means you can generate a compliant invoice or contract in under 30 seconds. No templates to fill, no tax rules to look up — you just describe what you need.</p>
+      <p>We sent you a note a few days ago about finishing your Clorefy setup. Just one more check-in — and after this we'll stop.</p>
+      <p>${useCase.urgency}</p>
 
       <a href="${APP_URL}/onboarding" class="cta-btn">Finish setup now →</a>
 
       <div class="video-box">
-        <p>Still unsure how it works? Watch this 2-minute demo:</p>
+        <p>Still unsure? Watch this 2-minute demo:</p>
         <a href="${ONBOARDING_VIDEO}">${ONBOARDING_VIDEO}</a>
       </div>
 
       <hr class="divider">
-      <p style="font-size:13px;color:${MUTED};">After today we won't send any more reminders. But your account stays active — you can come back any time at <a href="${APP_URL}" style="color:${AMBER}">clorefy.com</a>.</p>
+      <p style="font-size:13px;color:${MUTED};">Your account stays active forever — you can come back any time at <a href="${APP_URL}" style="color:${AMBER}">clorefy.com</a>.</p>
 
       <div class="feedback-box">
-        <p>Did something put you off? Your feedback helps us improve — even a one-liner helps.</p>
+        <p>Something put you off? A one-liner helps us improve for everyone.</p>
         <a href="mailto:${SUPPORT_EMAIL}?subject=Onboarding feedback" class="cta-btn-secondary">Share feedback</a>
       </div>
     </div>
@@ -142,44 +204,62 @@ export function onboardingDropoffEmail2(firstName?: string | null): string {
 
 // ── Template 3: Inactivity Re-engagement (Day 7) ─────────────────────────────
 
-export function inactivityEmail1(firstName?: string | null): string {
+export function inactivityEmail1(
+  firstName?: string | null,
+  businessType?: string | null,
+  docsCount?: number
+): string {
   const name = esc(firstName) || "there"
+  const useCase = getUseCase(businessType)
+  const hasDocs = (docsCount ?? 0) > 0
+
   return emailWrapper(`
     <div class="body">
-      <h1>Your Clorefy account is ready — you haven't tried it yet</h1>
+      <h1>${hasDocs ? "Come back — your documents are waiting" : "Your Clorefy account is ready"}</h1>
       <p>Hey ${name},</p>
-      <p>You set up your Clorefy profile a week ago but haven't generated a document yet. No worries — we just want to make sure you know how simple it is.</p>
+      <p>${hasDocs
+        ? `You haven't opened Clorefy in a while. Your existing ${useCase.docType}s are saved and ready — and generating a new one takes about 30 seconds.`
+        : `You set up your Clorefy profile but haven't generated a ${useCase.docType} yet. It takes less time than you think.`
+      }</p>
 
-      <p><strong>Here's how it works:</strong></p>
-      <ul style="padding-left:20px;margin-bottom:16px;font-size:15px;line-height:1.8;color:#374151;">
-        <li>Type what you need: <em>"Invoice Acme Corp ₹15,000 for web design, 7 days"</em></li>
-        <li>Clorefy writes the full document with your business details, correct tax rates, and payment terms</li>
-        <li>Send it, get it signed, or attach a payment link — all in one place</li>
-      </ul>
+      <p><strong>Here's how quick it is:</strong></p>
+      <p style="background:${CREAM};border-radius:8px;padding:14px 18px;font-size:14px;color:${BRAND_COLOR};border-left:3px solid ${AMBER}">
+        "${useCase.examplePrompt}"
+      </p>
+      <p>Clorefy writes the whole document — with your business details, correct taxes, and professional formatting. Done.</p>
 
-      <a href="${APP_URL}" class="cta-btn">Generate my first document →</a>
+      <a href="${APP_URL}" class="cta-btn">${hasDocs ? "Open my documents →" : "Generate my first document →"}</a>
 
       <hr class="divider">
 
       <div class="feedback-box">
-        <p>Something not working for you? We'd genuinely like to know.</p>
-        <a href="mailto:${SUPPORT_EMAIL}?subject=Feedback from new user" class="cta-btn-secondary">Send us feedback</a>
+        <p>Something stopped you from using it? Tell us — we're always improving.</p>
+        <a href="mailto:${SUPPORT_EMAIL}?subject=Feedback" class="cta-btn-secondary">Send us feedback</a>
       </div>
-      <p style="font-size:13px;color:${MUTED};">You're on the free plan — generate up to 3 documents before you need to upgrade.</p>
     </div>
   `)
 }
 
 // ── Template 4: Inactivity Re-engagement (Day 14 — final) ────────────────────
 
-export function inactivityEmail2(firstName?: string | null): string {
+export function inactivityEmail2(
+  firstName?: string | null,
+  businessType?: string | null,
+  docsCount?: number
+): string {
   const name = esc(firstName) || "there"
+  const useCase = getUseCase(businessType)
+  const hasDocs = (docsCount ?? 0) > 0
+
   return emailWrapper(`
     <div class="body">
-      <h1>We built Clorefy for you — give it 60 seconds</h1>
+      <h1>We'll stop after this one</h1>
       <p>Hey ${name},</p>
-      <p>This is our last check-in. We won't keep mailing you after this.</p>
-      <p>If you've been busy or just haven't gotten around to it — we get it. But if you're still curious, here's the fastest way to see value: just type one thing you need to send a client.</p>
+      <p>This is the last email we'll send. If Clorefy isn't the right fit right now, no hard feelings.</p>
+      <p>${hasDocs
+        ? `But if you've just been busy — your account is still here with all your ${useCase.docType}s saved.`
+        : `If you haven't had a chance yet, your account is still ready. One ${useCase.docType} takes 30 seconds.`
+      }</p>
 
       <div class="video-box">
         <p>🎬 See it in action (2 minutes):</p>
@@ -190,10 +270,10 @@ export function inactivityEmail2(firstName?: string | null): string {
 
       <hr class="divider">
 
-      <p>If this isn't the right tool for you right now, no hard feelings. We'd love to hear what's missing — it takes 30 seconds and genuinely helps us build something better.</p>
-      <a href="mailto:${SUPPORT_EMAIL}?subject=Why I didn't use Clorefy" class="cta-btn-secondary">Tell us what's missing</a>
+      <p>We'd genuinely love to know what's missing or what stopped you — it takes 30 seconds and directly shapes what we build next.</p>
+      <a href="mailto:${SUPPORT_EMAIL}?subject=Why I stopped using Clorefy" class="cta-btn-secondary">Tell us what's missing</a>
 
-      <p style="font-size:13px;color:${MUTED};margin-top:24px;">After this email we'll stop reaching out. Your account stays active — come back any time.</p>
+      <p style="font-size:13px;color:${MUTED};margin-top:24px;">No more emails after this. Your account stays active.</p>
     </div>
   `)
 }
