@@ -38,44 +38,52 @@ Every AI response is JSON with two keys:
 
 ---
 
-## Supported Countries (All 11 — Available to ALL Tiers)
+## Supported Countries — Global
 
-India · USA · UK · Germany · Canada · Australia · Singapore · UAE · Philippines · France · Netherlands
+Clorefy is a **global document generation platform** that works with every country worldwide. Country-specific compliance rules (GST, VAT, sales tax, mandatory fields, etc.) are auto-applied from the compliance knowledge base.
 
-Each country has 4 compliance templates (invoice, contract, quotation, proposal) = 44 templates total.
-Templates include country-specific tax rates, mandatory fields, legal requirements.
-Auto-injected during generation. All countries available to all tiers including free.
+**Well-tested core markets:** India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands — plus every other ISO 3166-1 country with global formatting support.
+
+Templates are generated dynamically per country × document type, injected via the RAG compliance system at generation time. All countries are available on all tiers including free.
 
 ---
 
-## Document Types (All 4 — Available to ALL Tiers)
+## Document Types (9 — Starter/Pro/Agency get all; Free gets Invoice, Contract, Quote)
 
 | Type | Examples |
 |------|---------|
 | Invoice | Service invoices, product invoices, recurring invoices |
 | Contract | Service agreements, employment contracts, freelance contracts |
-| Quotation | Price quotes, estimates, bids |
+| Quote | Price quotes, estimates, bids |
 | Proposal | Business proposals, project proposals, pitches |
+| Statement of Work (SOW) | Project scope, deliverables, milestones, timelines |
+| Change Order | Scope amendments to existing contracts or SOWs |
+| NDA | Non-Disclosure Agreements, confidentiality agreements |
+| Client Onboarding Form | Intake forms for collecting client requirements |
+| Payment Follow-up | Payment reminder documents referencing unpaid invoices |
 
-All 4 document types are available to every tier. The only limit is the monthly document count.
+Free tier: Invoice, Contract, Quote. Starter/Pro/Agency: all 9 types.
 
 ---
 
 ## The 4 Pricing Tiers
 
-| | Free | Starter | Pro | Agency (Coming Soon) |
+| | Free | Starter | Pro | Agency |
 |--|------|---------|-----|--------|
 | Monthly price | $0 | $9 | $24 | $59 |
 | Yearly price | $0 | $7/mo | $19/mo | $47/mo |
 | Documents/month | 5 | 50 | 150 | Unlimited |
 | Messages/session | 10 | 30 | 50 | Unlimited |
-| Document types | Invoice + Contract | All 4 | All 4 | All 4 |
+| Email sends/month | 5 | 100 | 250 | Unlimited |
+| Document types | Invoice, Contract, Quote | All 9 | All 9 | All 9 |
 | PDF templates | 3 (Modern, Classic, Minimal) | All 9 | All 9 | All 9 |
-| Countries | All 11 | All 11 | All 11 | All 11 |
+| Countries | Global | Global | Global | Global |
 | Export formats | PDF only | PDF + DOCX | PDF + DOCX + Image | All formats |
 | Session history | 7 days | 30 days | 1 year | Forever |
-| Digital signatures | — | — | ✓ | ✓ |
-| Custom logo/branding | — | — | ✓ | ✓ |
+| Digital signatures | ✓ | ✓ | ✓ | ✓ |
+| Recurring invoices | — | ✓ | ✓ | ✓ |
+| Auto-invoice on sign | — | — | ✓ | ✓ |
+| Custom logo/branding | ✓ | ✓ | ✓ | ✓ |
 | Team members | 1 | 1 | 1 | 3 |
 | Priority support | — | — | — | ✓ |
 | AI profile editing | — | ✓ | ✓ | ✓ |
@@ -132,7 +140,7 @@ Design customization: template picker with SVG mini-previews, 12 accent color sw
 
 ### Document Chains
 - After generating a document, users can create related documents for the same client
-- NextStepsBar shows all 4 document types including the current type (for recurring docs like monthly invoices)
+- NextStepsBar shows all 9 document types (and the current type for recurring e.g. monthly invoices)
 - Linked sessions carry over client info, items, and financial data
 - Chain navigation via ChainNavigator component
 
@@ -412,8 +420,8 @@ NEXT_PUBLIC_APP_URL=...            # Auto-detected in production
 3. AI generates response → on success, BOTH user message and assistant message saved to DB
 4. On AI error → error shown in UI only, nothing saved to DB, message count unchanged
 5. User can edit/refine with AI messages (within per-session message cap)
-6. NextStepsBar shows all 4 doc types (including current) for creating related documents
-7. When message limit reached → MessageLimitBanner shows all 4 doc types to start new session
+6. NextStepsBar shows all 9 doc types (including current) for creating related documents
+7. When message limit reached → MessageLimitBanner shows doc types to start new session
 8. Download/export → document finalized
 
 ### Document Chains

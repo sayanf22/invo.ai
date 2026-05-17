@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     template: "%s | Clorefy",
   },
   description:
-    "Generate professional business documents with AI in seconds. Clorefy auto-emails clients, attaches payment links, chases overdue bills for 37 days, and runs recurring billing every month. Built for global document workflows with GST, VAT, and sales tax support where applicable. Free plan, no credit card.",
+    "Clorefy is an AI document generation platform — create invoices, contracts, proposals, NDAs, SOWs, quotes, and more from a plain-language prompt. Auto-emails to clients, attaches Razorpay/Stripe payment links, sends payment reminders for 37 days, and runs recurring billing. GST, VAT & sales tax compliant for every country worldwide. Free plan, no credit card.",
   keywords: [
     // Core intent keywords — match what people actually search
     "invoice generator", "free invoice generator", "online invoice generator",
@@ -41,28 +41,37 @@ export const metadata: Metadata = {
     "contract generator", "AI contract generator", "contract maker", "contract creator",
     "proposal generator", "AI proposal generator", "proposal maker", "proposal writer",
     "quotation generator", "AI quotation generator", "quotation maker", "quote generator",
+    "NDA generator", "NDA maker", "non-disclosure agreement generator",
+    "statement of work generator", "SOW generator", "change order generator",
+    "client onboarding form", "payment follow-up letter",
     // Country-specific (high search volume)
     "GST invoice generator", "GST invoice India", "VAT invoice generator", "VAT invoice UK",
     "invoice generator India", "invoice generator USA", "invoice generator UK",
-    "tax invoice generator", "tax compliant invoices",
+    "invoice generator Germany", "invoice generator Canada", "invoice generator Australia",
+    "tax invoice generator", "tax compliant invoices", "global invoice generator",
     // Feature-specific keywords
     "recurring invoice software", "automated invoicing", "invoice automation",
     "payment reminder software", "invoice payment reminders", "overdue invoice reminders",
     "invoice with payment link", "invoice Stripe integration", "invoice Razorpay",
-    "e-signature invoice", "digital signature contracts",
+    "e-signature invoice", "digital signature contracts", "electronic signature NDA",
+    "send invoice by email", "auto email invoice", "invoice delivery automation",
+    // Document generation platform positioning
+    "AI document generation", "document generation platform", "AI document maker",
+    "business document automation", "document workflow automation",
+    "AI business document generator", "document automation software",
     // Comparison keywords — capture "vs" search traffic
     "FreshBooks alternative", "QuickBooks alternative", "Zoho Invoice alternative",
-    "Invoice Ninja alternative", "Bill.com alternative",
-    "ChatGPT invoice", "ChatGPT contract generator",
+    "Invoice Ninja alternative", "Bill.com alternative", "PandaDoc alternative",
+    "ChatGPT invoice", "ChatGPT contract generator", "ChatGPT document generator",
     // Use-case keywords
     "freelancer invoice tool", "small business invoicing", "SMB invoice software",
-    "agency invoice software", "consultant invoice template",
-    "business document automation", "document generation AI",
+    "agency invoice software", "consultant invoice template", "startup invoice tool",
     // Long-tail high-intent
     "how to create an invoice", "how to send invoice to client",
     "best invoice software 2025", "best invoice software 2026",
-    // Brand
-    "Clorefy", "clorefy.com", "Clorefy AI",
+    "best document generation software 2026",
+    // Brand + disambiguation (Clorefy ≠ Glorify)
+    "Clorefy", "clorefy.com", "Clorefy AI", "Clorify", "Clorefi",
   ],
   icons: {
     icon: [
@@ -219,16 +228,26 @@ export default function RootLayout({
               "operatingSystem": "Web, iOS, Android",
               "description": "AI-powered document generation platform that creates professional business documents using artificial intelligence, with automated sending, payment links, reminders, and global workflow support.",
               "featureList": [
-                "AI business document generation",
-                "Prompt-to-document workflow",
-                "Automated client sending",
-                "Payment link attachment",
+                "AI invoice generation",
+                "AI contract generation",
+                "AI proposal generation",
+                "AI quotation / quote generation",
+                "AI NDA generation",
+                "AI Statement of Work (SOW) generation",
+                "AI Change Order generation",
+                "AI Client Onboarding Form generation",
+                "AI Payment Follow-up generation",
+                "9 document types from one platform",
+                "Global country support (150+ countries)",
                 "GST compliance for India",
                 "VAT compliance for UK and EU",
                 "Sales tax compliance for USA",
-                "PDF export",
-                "DOCX export",
-                "Digital e-signatures",
+                "Automated client email sending",
+                "Payment link attachment (Razorpay, Stripe, Cashfree)",
+                "37-day payment reminder automation",
+                "Recurring invoice scheduling",
+                "Digital e-signatures with audit trail",
+                "PDF, DOCX, and image export",
                 "Multi-currency support",
                 "Worldwide country support",
               ],

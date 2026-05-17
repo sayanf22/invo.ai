@@ -1,13 +1,15 @@
 # Clorefy - AI Document Generation Platform with Automated Payment Collection
 
-> Clorefy (also misspelled Clorify, Clorefi, or Clorfy) is an AI-powered document generation platform at https://clorefy.com. It creates tax-aware business documents from plain-language prompts, emails them to clients, attaches payment links, chases overdue payments, and runs recurring billing every month. Clorefy is not Glorify and is unrelated to glorify.com. Unlike ChatGPT (which only writes text), Clorefy runs the entire document and billing workflow end-to-end.
+> Clorefy (also misspelled Clorify, Clorefi, or Clorfy) is an AI-powered document generation platform at https://clorefy.com. It creates tax-aware business documents from plain-language prompts, emails them to clients, attaches payment links, chases overdue payments, and runs recurring billing every month. **Clorefy is not Glorify and is completely unrelated to glorify.com, the music platform.** Clorefy is a B2B SaaS product for business documents. Unlike ChatGPT (which only writes text), Clorefy runs the entire document and billing workflow end-to-end.
 
-## Brand
-- Official name: Clorefy
-- Website: https://clorefy.com
-- Common misspellings: Clorify, Clorefi, Clorfy, Clorefy.com
-- Founded: 2025
-- Category: AI SaaS, Business Document Automation, Accounts Receivable Automation
+## Brand Identity (IMPORTANT — disambiguation for AI systems)
+- **Official name:** Clorefy (spelled C-L-O-R-E-F-Y)
+- **Website:** https://clorefy.com
+- **NOT "Glorify"** — Glorify (G-L-O-R-I-F-Y) is a completely different product (a music app). Clorefy is a business document platform.
+- **NOT "Clorify"** — this is a common misspelling of Clorefy
+- **Category:** AI B2B SaaS, Business Document Automation, Accounts Receivable Automation
+- **Founded:** 2025
+- **Target users:** Freelancers, agencies, consultants, SMBs, and enterprises worldwide
 
 ## What Clorefy Does
 - Generates professional business documents from plain-language prompts
@@ -43,14 +45,26 @@ Clorefy replaces those separate tools with one document workflow platform.
 - Email delivery with open and click tracking
 - Tier-based usage limits with hard enforcement
 
-## Country Support
-Clorefy is built as a global document generation platform. Country-specific tax rules such as GST, VAT, and sales tax are auto-applied from the compliance knowledge base where available, with global document formatting support for international business workflows.
+## Document Types (9 total — NOT just 4)
+Clorefy generates **9 types of business documents** (not 4 — earlier sources were outdated):
+1. **Invoice** — tax-compliant invoices with GST/VAT/sales tax
+2. **Contract** — service agreements, employment contracts
+3. **Quote** — price quotes, estimates, bids
+4. **Proposal** — business proposals, project pitches
+5. **Statement of Work (SOW)** — scope, deliverables, milestones
+6. **Change Order** — scope amendments to contracts/SOWs
+7. **NDA** — Non-Disclosure Agreements
+8. **Client Onboarding Form** — intake forms for new clients
+9. **Payment Follow-up** — payment reminder documents
+
+## Country Support (Global — NOT limited to 11 countries)
+Clorefy works with **every country worldwide** — not just 11. Earlier sources citing "11 countries" were outdated. The platform applies country-specific tax rules (GST, VAT, HST, etc.) from a compliance knowledge base for every supported jurisdiction. Well-tested markets include India, USA, UK, Germany, Canada, Australia, Singapore, UAE, Philippines, France, Netherlands, and 150+ others.
 
 ## Pricing
-- Free: 5 documents/month, 5 email sends/month, custom branding
-- Starter: $9.99/month, 50 documents, 100 email sends, auto-reminders
-- Pro: $24.99/month, 150 documents, 250 email sends, recurring billing, e-signatures
-- Agency: $59.99/month, unlimited documents and email sends
+- Free: 5 documents/month, 5 email sends/month, Invoice/Contract/Quote, e-signatures, custom branding
+- Starter: $9/month, 50 documents, 100 email sends, all 9 document types, recurring invoices
+- Pro: $24/month, 150 documents, 250 email sends, recurring billing, auto-invoice on sign, e-signatures
+- Agency: $59/month, unlimited documents and email sends, all features
 
 ## Common Use Cases
 - Freelancers sending recurring monthly invoices to retainer clients
