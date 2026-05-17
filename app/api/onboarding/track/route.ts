@@ -14,6 +14,7 @@ import { authenticateRequest } from "@/lib/api-auth"
 import { ONBOARDING_PHASES } from "@/lib/onboarding-utils"
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database.types"
+import { syncOnboardingComplete, updateLastActive } from "@/lib/brevo"
 
 /** Valid phases for this endpoint (includes 'completed' unlike support submit). */
 const VALID_PHASES = [...ONBOARDING_PHASES, "completed"] as const
@@ -132,6 +133,17 @@ export async function POST(request: NextRequest) {
     if (profileError) {
       console.error("Profile last_active_at update error:", profileError.message)
       // Silently succeed — don't block onboarding
+    }
+
+    // Sync to Brevo (fire-and-forget)
+    try {
+      if (phase === "completed" && auth.user.email) {
+        await syncOnboardingComplete(auth.user.email)
+      } else if (auth.user.email) {
+        await updateLastActive(auth.user.email)
+      }
+    } catch (brevoErr) {
+      console.error("[brevo] sync error (non-fatal):", brevoErr)
     }
 
     return successResponse
