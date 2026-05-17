@@ -21,8 +21,9 @@ import { toast } from "sonner"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 import { SenderSignFirstModal } from "@/components/sender-sign-first-modal"
-
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
+
+interface ChatSendCardProps {
   sessionId: string
   invoiceData: InvoiceData
   documentType: string
