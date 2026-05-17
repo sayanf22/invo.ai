@@ -58,38 +58,51 @@ export async function GET(request: NextRequest) {
         )
     }
 
-    // Sync user to Brevo (fire-and-forget — never blocks the redirect)
-    try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user?.email) {
-            // Fetch profile to check onboarding state
+    // Sync user to Brevo — completely non-blocking (don't await, don't delay redirect)
+    // Uses service role to bypass RLS when reading the profile.
+    const doBrevoSync = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user?.email) return
+
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+            // Use service role key to bypass RLS — anon key cannot read profiles
+            const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+            if (!supabaseUrl || !serviceKey) return
+
             const profileRes = await fetch(
-                `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=onboarding_complete,full_name,created_at`,
+                `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=onboarding_complete,full_name,created_at`,
                 {
                     headers: {
-                        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                        Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+                        apikey: serviceKey,
+                        Authorization: `Bearer ${serviceKey}`,
                     },
+                    signal: AbortSignal.timeout(3000),
                 }
             )
-            if (profileRes.ok) {
-                const profiles = await profileRes.json()
-                const profile = profiles[0]
-                const isNewUser = profile
-                    ? (Date.now() - new Date(profile.created_at).getTime()) < 60_000
-                    : false
-                await syncUserOnLogin({
-                    email: user.email,
-                    firstName: profile?.full_name?.split(" ")[0] ?? null,
-                    isNewUser,
-                    onboardingComplete: profile?.onboarding_complete ?? false,
-                    signupAt: profile?.created_at ?? null,
-                })
-            }
+            if (!profileRes.ok) return
+
+            const profiles = await profileRes.json()
+            const profile = profiles[0]
+            const isNewUser = profile
+                ? (Date.now() - new Date(profile.created_at).getTime()) < 120_000 // 2 min window
+                : false
+
+            await syncUserOnLogin({
+                email: user.email,
+                firstName: profile?.full_name?.split(" ")[0] ?? null,
+                isNewUser,
+                onboardingComplete: profile?.onboarding_complete ?? false,
+                signupAt: profile?.created_at ?? null,
+            })
+        } catch (syncErr) {
+            // Non-fatal — Brevo sync must never affect login
+            console.error("[brevo] sync error (non-fatal):", syncErr)
         }
-    } catch (syncErr) {
-        console.error("[brevo] sync error (non-fatal):", syncErr)
     }
+
+    // Fire-and-forget — don't block the redirect
+    doBrevoSync().catch(() => {})
 
     // Redirect directly to the intended destination
     // The auth-provider on the client will pick up the session from cookies

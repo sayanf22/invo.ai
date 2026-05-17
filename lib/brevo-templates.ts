@@ -12,6 +12,17 @@ const SUPPORT_EMAIL = "support@clorefy.com"
 const APP_URL = "https://clorefy.com"
 const ONBOARDING_VIDEO = "https://youtu.be/37OXbkavJPs"
 
+/** Escape HTML special chars — prevents XSS in email templates from user-controlled strings */
+function esc(str: string | null | undefined): string {
+  if (!str) return ""
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;")
+}
+
 function emailWrapper(content: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -72,7 +83,7 @@ function emailWrapper(content: string): string {
 // ── Template 1: Onboarding Drop-off (Email 1 of 2) ────────────────────────────
 
 export function onboardingDropoffEmail1(firstName?: string | null): string {
-  const name = firstName ? firstName : "there"
+  const name = esc(firstName) || "there"
   return emailWrapper(`
     <div class="body">
       <h1>Your account is set up — finish in 2 minutes</h1>
@@ -103,7 +114,7 @@ export function onboardingDropoffEmail1(firstName?: string | null): string {
 // ── Template 2: Onboarding Drop-off (Email 2 — final nudge) ──────────────────
 
 export function onboardingDropoffEmail2(firstName?: string | null): string {
-  const name = firstName ? firstName : "there"
+  const name = esc(firstName) || "there"
   return emailWrapper(`
     <div class="body">
       <h1>One last thing before we stop</h1>
@@ -132,7 +143,7 @@ export function onboardingDropoffEmail2(firstName?: string | null): string {
 // ── Template 3: Inactivity Re-engagement (Day 7) ─────────────────────────────
 
 export function inactivityEmail1(firstName?: string | null): string {
-  const name = firstName ? firstName : "there"
+  const name = esc(firstName) || "there"
   return emailWrapper(`
     <div class="body">
       <h1>Your Clorefy account is ready — you haven't tried it yet</h1>
@@ -162,7 +173,7 @@ export function inactivityEmail1(firstName?: string | null): string {
 // ── Template 4: Inactivity Re-engagement (Day 14 — final) ────────────────────
 
 export function inactivityEmail2(firstName?: string | null): string {
-  const name = firstName ? firstName : "there"
+  const name = esc(firstName) || "there"
   return emailWrapper(`
     <div class="body">
       <h1>We built Clorefy for you — give it 60 seconds</h1>
@@ -190,7 +201,7 @@ export function inactivityEmail2(firstName?: string | null): string {
 // ── Template 5: Welcome / Onboarding complete ────────────────────────────────
 
 export function welcomeCompleteEmail(firstName?: string | null): string {
-  const name = firstName ? firstName : "there"
+  const name = esc(firstName) || "there"
   return emailWrapper(`
     <div class="body">
       <h1>You're all set, ${name} — let's create your first document</h1>

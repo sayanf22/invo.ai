@@ -1,16 +1,20 @@
 /**
  * Brevo integration — contact sync & transactional email sending.
  * All calls use plain fetch() — works in Cloudflare Workers edge runtime.
+ *
+ * IMPORTANT: env vars are read INSIDE functions, never at module level.
+ * Cloudflare Workers inject bindings at request time, not at module init.
  */
 
-const BREVO_API_KEY = process.env.BREVO_API_KEY || ""
-const ONBOARDING_LIST_ID = Number(process.env.BREVO_ONBOARDING_LIST_ID || 4)
-const ACTIVE_LIST_ID = Number(process.env.BREVO_ACTIVE_LIST_ID || 5)
 const BASE = "https://api.brevo.com/v3"
 
-const brevoHeaders = {
-  "api-key": BREVO_API_KEY,
-  "Content-Type": "application/json",
+/** Read env vars at call time — safe for Cloudflare Workers. */
+function cfg() {
+  return {
+    apiKey: process.env.BREVO_API_KEY ?? "",
+    onboardingListId: Number(process.env.BREVO_ONBOARDING_LIST_ID ?? 4),
+    activeListId: Number(process.env.BREVO_ACTIVE_LIST_ID ?? 5),
+  }
 }
 
 /** Fire-and-forget wrapper — logs errors, never throws */
@@ -19,16 +23,26 @@ async function brevoCall(
   path: string,
   body?: unknown
 ): Promise<{ ok: boolean; status: number; json: unknown }> {
-  if (!BREVO_API_KEY) return { ok: false, status: 0, json: null }
+  const { apiKey } = cfg()
+  if (!apiKey) {
+    console.warn("[brevo] BREVO_API_KEY not set — skipping call to", path)
+    return { ok: false, status: 0, json: null }
+  }
   try {
     const res = await fetch(`${BASE}${path}`, {
       method,
-      headers: brevoHeaders,
+      headers: {
+        "api-key": apiKey,
+        "Content-Type": "application/json",
+      },
       body: body ? JSON.stringify(body) : undefined,
     })
     const text = await res.text()
     let json: unknown
     try { json = JSON.parse(text) } catch { json = { raw: text } }
+    if (!res.ok) {
+      console.error(`[brevo] ${method} ${path} → ${res.status}:`, text.slice(0, 200))
+    }
     return { ok: res.ok, status: res.status, json }
   } catch (err) {
     console.error("[brevo] fetch error:", err)
@@ -57,27 +71,34 @@ export async function syncUserOnLogin({
   signupAt?: string | null
 }): Promise<void> {
   const today = new Date().toISOString().split("T")[0] // YYYY-MM-DD
+  const { onboardingListId, activeListId } = cfg()
 
   const attributes: Record<string, unknown> = {
     LAST_ACTIVE: today,
   }
-  if (firstName) attributes.FIRSTNAME = firstName
-  if (signupAt) attributes.SIGNUP_AT = signupAt.split("T")[0]
+  // Only set safe string values — never trust user input in attribute keys
+  if (firstName && typeof firstName === "string") {
+    attributes.FIRSTNAME = firstName.slice(0, 64) // cap length
+  }
+  if (signupAt && typeof signupAt === "string") {
+    attributes.SIGNUP_AT = signupAt.split("T")[0]
+  }
 
-  // Only set ONBOARDING_COMPLETE if it's false (don't overwrite true)
+  // Only set ONBOARDING_COMPLETE = false, never overwrite an existing true
   if (!onboardingComplete) {
     attributes.ONBOARDING_COMPLETE = false
   }
 
-  const listIds = onboardingComplete
-    ? [ACTIVE_LIST_ID]
-    : isNewUser
-    ? [ONBOARDING_LIST_ID]
-    : undefined // existing partial users: don't change list, just update attrs
+  const listIds =
+    onboardingComplete
+      ? [activeListId]
+      : isNewUser
+      ? [onboardingListId]
+      : undefined // existing partial users: don't change list, just update attrs
 
   await brevoCall("POST", "/contacts", {
     email,
-    listIds,
+    ...(listIds ? { listIds } : {}),
     updateEnabled: true,
     attributes,
   })
@@ -89,10 +110,11 @@ export async function syncUserOnLogin({
  */
 export async function syncOnboardingComplete(email: string): Promise<void> {
   const today = new Date().toISOString().split("T")[0]
+  const { activeListId, onboardingListId } = cfg()
 
   await brevoCall("POST", "/contacts", {
     email,
-    listIds: [ACTIVE_LIST_ID],
+    listIds: [activeListId],
     updateEnabled: true,
     attributes: {
       ONBOARDING_COMPLETE: true,
@@ -100,11 +122,13 @@ export async function syncOnboardingComplete(email: string): Promise<void> {
     },
   })
 
-  // Remove from onboarding list (they graduated)
-  await brevoCall("POST", "/contacts/lists/remove", {
-    emails: [email],
-    listId: ONBOARDING_LIST_ID,
-  }).catch(() => {}) // non-critical
+  // Remove from onboarding list — correct Brevo v3 endpoint
+  // POST /contacts/lists/{listId}/contacts/remove
+  await brevoCall(
+    "POST",
+    `/contacts/lists/${onboardingListId}/contacts/remove`,
+    { emails: [email] }
+  )
 }
 
 /**
@@ -178,8 +202,8 @@ export async function sendBulkTransactionalEmails(
     if (ok) sent++
     else failed++
 
-    // Small delay to avoid rate limiting (free tier: ~50/sec)
-    await new Promise((r) => setTimeout(r, 50))
+    // Throttle: ~20 emails/sec to stay well within Brevo free-tier limits
+    await new Promise<void>((r) => setTimeout(r, 50))
   }
 
   return { sent, failed }

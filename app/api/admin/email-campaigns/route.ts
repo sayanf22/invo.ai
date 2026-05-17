@@ -87,19 +87,20 @@ export async function POST(request: NextRequest) {
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
 
   let contacts: BulkEmailContact[] = []
-  let subject = ""
-  let getHtml: (c: BulkEmailContact) => string
+  let subject: string = ""
+  let getHtml: (c: BulkEmailContact) => string = () => ""
   let tags: string[] = []
 
   // ── Build target list per segment ──────────────────────────────────────────
 
   if (segment === "onboarding-dropoff-1") {
-    // Users who never completed onboarding, last active > 2h ago
+    // Users who never completed onboarding, last active > 2 days ago
+    // Also catches users with NULL last_active_at (signed up but never logged in again)
     const { data } = await supabase
       .from("profiles")
       .select("id, email, full_name, last_active_at, created_at")
       .eq("onboarding_complete", false)
-      .lt("last_active_at", twoDaysAgo)
+      .or(`last_active_at.is.null,last_active_at.lt.${twoDaysAgo}`)
     contacts = (data ?? []).map((u: any) => ({
       email: u.email,
       name: u.full_name?.split(" ")[0] ?? undefined,
@@ -109,12 +110,12 @@ export async function POST(request: NextRequest) {
     tags = ["onboarding-dropoff", "email-1"]
 
   } else if (segment === "onboarding-dropoff-2") {
-    // Same segment, 2nd email — only those who got email 1 and still didn't complete
+    // Same segment, 2nd email
     const { data } = await supabase
       .from("profiles")
       .select("id, email, full_name, last_active_at")
       .eq("onboarding_complete", false)
-      .lt("last_active_at", twoDaysAgo)
+      .or(`last_active_at.is.null,last_active_at.lt.${twoDaysAgo}`)
     contacts = (data ?? []).map((u: any) => ({
       email: u.email,
       name: u.full_name?.split(" ")[0] ?? undefined,
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
       .from("profiles")
       .select("id, email, full_name, last_active_at")
       .eq("onboarding_complete", true)
-      .lt("last_active_at", sevenDaysAgo)
+      .or(`last_active_at.is.null,last_active_at.lt.${sevenDaysAgo}`)
     contacts = (data ?? []).map((u: any) => ({
       email: u.email,
       name: u.full_name?.split(" ")[0] ?? undefined,
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
       .from("profiles")
       .select("id, email, full_name, last_active_at")
       .eq("onboarding_complete", true)
-      .lt("last_active_at", fourteenDaysAgo)
+      .or(`last_active_at.is.null,last_active_at.lt.${fourteenDaysAgo}`)
     contacts = (data ?? []).map((u: any) => ({
       email: u.email,
       name: u.full_name?.split(" ")[0] ?? undefined,
