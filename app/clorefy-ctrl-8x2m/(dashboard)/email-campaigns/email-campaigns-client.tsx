@@ -99,6 +99,12 @@ export default function EmailCampaignsClient({
   const [directSuccess, setDirectSuccess] = useState(false)
   const [userSearch, setUserSearch] = useState("")
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiTone, setAiTone] = useState<"friendly" | "professional" | "urgent">("friendly")
+  const [aiIntent, setAiIntent] = useState("")
+  const [userKpis, setUserKpis] = useState<{
+    daysSinceActive: number; docsGenerated: number; tier: string | null; onboardingComplete: boolean
+  } | null>(null)
 
   const filteredUsers = userSearch.trim().length > 0
     ? users.filter(u =>
@@ -145,6 +151,28 @@ export default function EmailCampaignsClient({
     } catch (e: any) {
       setSyncError(e.message)
     } finally { setSyncing(null) }
+  }
+
+  // ── AI generate ──────────────────────────────────────────────────────────────
+
+  async function handleAiGenerate() {
+    if (!directUser) return
+    setAiGenerating(true)
+    setDirectError(null)
+    try {
+      const res = await fetch("/api/admin/email-campaigns/ai-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: directUser.id, intent: aiIntent.trim() || undefined, tone: aiTone }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "AI generation failed")
+      setDirectSubject(data.subject ?? "")
+      setDirectMessage(data.message ?? "")
+      if (data.userContext) setUserKpis(data.userContext)
+    } catch (e: any) {
+      setDirectError(e.message)
+    } finally { setAiGenerating(false) }
   }
 
   // ── Direct email ─────────────────────────────────────────────────────────────
@@ -375,7 +403,7 @@ export default function EmailCampaignsClient({
                   {filteredUsers.map(u => (
                     <div
                       key={u.id}
-                      onClick={() => { setDirectUser(u); setUserDropdownOpen(false); setUserSearch("") }}
+                      onClick={() => { setDirectUser(u); setUserDropdownOpen(false); setUserSearch(""); setUserKpis(null); setAiIntent("") }}
                       style={{ padding: "10px 16px", cursor: "pointer", borderBottom: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}
                       onMouseEnter={e => (e.currentTarget.style.background = isDark ? "#111" : "#f0f0f0")}
                       onMouseLeave={e => (e.currentTarget.style.background = "")}
@@ -393,8 +421,65 @@ export default function EmailCampaignsClient({
               )}
             </div>
 
+            {/* User KPIs (shown after user selected) */}
+            {directUser && userKpis && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                {[
+                  { label: "Inactive", value: `${userKpis.daysSinceActive}d` },
+                  { label: "Docs", value: String(userKpis.docsGenerated) },
+                  { label: "Tier", value: userKpis.tier ?? "free" },
+                  { label: "Onboarding", value: userKpis.onboardingComplete ? "✓" : "✗" },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ padding: "4px 10px", borderRadius: 6, background: isDark ? "#1A1A1A" : "#F0F0F0", fontSize: 11, color: muted }}>
+                    <span style={{ fontWeight: 600 }}>{label}: </span>{value}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* AI Generation section */}
+            {directUser && (
+              <div style={{ marginBottom: 16, padding: "14px 16px", borderRadius: 10, border: `1px solid ${border}`, background: isDark ? "#0A0A0A" : "#FAFAFA" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: text }}>✨ Generate with AI</span>
+                  <span style={{ fontSize: 11, color: muted }}>Uses this user's actual usage data</span>
+                </div>
+
+                {/* Tone selector */}
+                <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                  {(["friendly", "professional", "urgent"] as const).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setAiTone(t)}
+                      style={{ padding: "5px 10px", borderRadius: 6, border: `1px solid ${aiTone === t ? text : border}`, background: aiTone === t ? (isDark ? "#F5F5F5" : "#0A0A0A") : "transparent", color: aiTone === t ? (isDark ? "#0A0A0A" : "#F5F5F5") : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Optional intent */}
+                <input
+                  type="text"
+                  placeholder="Optional context: e.g. "came back after 2 weeks idle""
+                  value={aiIntent}
+                  onChange={e => setAiIntent(e.target.value)}
+                  maxLength={500}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 7, border: `1px solid ${border}`, background: bg, color: text, fontSize: 12, outline: "none", marginBottom: 10 }}
+                />
+
+                <button
+                  onClick={handleAiGenerate}
+                  disabled={aiGenerating || !directUser}
+                  style={{ width: "100%", padding: "9px", borderRadius: 7, border: "none", background: aiGenerating ? muted : "#7C3AED", color: "#fff", fontSize: 13, fontWeight: 600, cursor: aiGenerating ? "not-allowed" : "pointer" }}
+                >
+                  {aiGenerating ? "Generating…" : "Generate subject + message →"}
+                </button>
+              </div>
+            )}
+
             {/* Subject */}
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: muted, display: "block", marginBottom: 6 }}>Subject</label>
               <input
                 type="text"
@@ -409,11 +494,11 @@ export default function EmailCampaignsClient({
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: muted, display: "block", marginBottom: 6 }}>Message</label>
               <textarea
-                rows={5}
-                placeholder="Write your message here…"
+                rows={6}
+                placeholder="Write your message here — or use Generate with AI above"
                 value={directMessage}
                 onChange={e => setDirectMessage(e.target.value)}
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${border}`, background: bg, color: text, fontSize: 13, outline: "none", resize: "vertical" }}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${border}`, background: bg, color: text, fontSize: 13, outline: "none", resize: "vertical", lineHeight: 1.6 }}
               />
             </div>
 
