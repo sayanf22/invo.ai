@@ -19,10 +19,10 @@ import { authFetch } from "@/lib/auth-fetch"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { InvoiceData } from "@/lib/invoice-types"
+import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 import { SenderSignFirstModal } from "@/components/sender-sign-first-modal"
-import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
-interface ChatSendCardProps {
+import { usePaymentMethods } from "@/hooks/use-payment-methods"
   sessionId: string
   invoiceData: InvoiceData
   documentType: string
@@ -133,10 +133,17 @@ export function ChatSendCard({
   }, [hasAnyGateway, gatewayLoading])
 
   const isInvoice = documentType.toLowerCase() === "invoice"
-  const isSignable = ["contract", "quote", "quotation", "proposal"].includes(documentType.toLowerCase())
+  // Use the registry to determine if this document type supports signatures
+  // AND check if the user has kept the signature section enabled (showSignatureFields !== false).
+  // This is the single source of truth — changing the registry automatically propagates here.
+  const docTypeConfig = getDocumentTypeConfig(documentType)
+  const typeSupportsSignatures = docTypeConfig?.capabilities.supports_signature === true
+  const signatureFieldsOn = invoiceData.showSignatureFields !== false
+  // isSignable = the document CAN have signatures AND the user wants them
+  const isSignable = typeSupportsSignatures && signatureFieldsOn
   const isContract = documentType.toLowerCase() === "contract"
   const isPaidTier = userTier !== "free"
-  const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
+  const docLabel = docTypeConfig?.label || (documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase())
   const actionLabel = isSignable ? `Send & Sign ${docLabel}` : `Send ${docLabel}`
   const ref = invoiceData.invoiceNumber || invoiceData.referenceNumber || ""
   const total = calcTotal(invoiceData)
@@ -217,10 +224,9 @@ export function ChatSendCard({
     setIsSending(true)
     setError(null)
     try {
-      const supportsSignatures = ["contract", "quote", "quotation", "proposal"].includes(documentType.toLowerCase())
+      const supportsSignatures = typeSupportsSignatures
       // Only create a signature request when the document type supports it AND
       // the user hasn't turned off the signature section via the editor toggle.
-      const signatureFieldsOn = invoiceData.showSignatureFields !== false
       const shouldRequestSignature = supportsSignatures && signatureFieldsOn
 
       // For signature-supporting documents, create a signature request first
@@ -385,7 +391,7 @@ export function ChatSendCard({
             </div>
             <div>
               <p className="text-sm font-semibold text-foreground leading-tight">
-                {isSignable ? `Send & Sign` : `Send ${docLabel}`}
+                {actionLabel}
               </p>
               {ref && <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{ref}</p>}
             </div>
@@ -640,59 +646,72 @@ export function ChatSendCard({
               }
             </button>
 
-            {/* Lock confirmation — clean monochromatic inline dialog */}
+            {/* Lock confirmation — fixed overlay so it doesn't require scrolling on mobile */}
             {showLockConfirm && (
-              <div className="rounded-2xl border border-border/60 bg-card overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
-                style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04)" }}
+              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-6"
+                role="dialog" aria-modal="true"
               >
-                <div className="px-4 pt-4 pb-4 space-y-3.5">
-                  {/* Header */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-foreground/6 dark:bg-foreground/10 border border-border/40 flex items-center justify-center shrink-0 mt-0.5">
-                      <Lock className="w-3.5 h-3.5 text-foreground/70" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground leading-tight">Lock &amp; Send</p>
-                      <p className="text-[11.5px] text-muted-foreground mt-0.5 leading-relaxed">
-                        Once sent, this document will be locked. You can unlock it from the chat at any time to make edits.
-                      </p>
-                    </div>
+                {/* Backdrop */}
+                <div
+                  className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
+                  onClick={() => setShowLockConfirm(false)}
+                />
+                {/* Card — bottom sheet on mobile, centered modal on desktop */}
+                <div className="relative w-full sm:max-w-sm rounded-2xl sm:rounded-2xl rounded-b-2xl bg-card border border-border/60 overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 duration-200"
+                  style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)" }}
+                >
+                  {/* Handle (mobile) */}
+                  <div className="flex justify-center pt-3 pb-0 sm:hidden">
+                    <div className="w-8 h-1 rounded-full bg-border/70" />
                   </div>
+                  <div className="px-5 pt-4 pb-5 space-y-4">
+                    {/* Header */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-foreground/6 dark:bg-foreground/10 border border-border/40 flex items-center justify-center shrink-0 mt-0.5">
+                        <Lock className="w-4 h-4 text-foreground/70" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground leading-tight">Lock &amp; Send</p>
+                        <p className="text-[11.5px] text-muted-foreground mt-1 leading-relaxed">
+                          Once sent, this document will be locked. You can unlock it from the chat at any time to make edits.
+                        </p>
+                      </div>
+                    </div>
 
-                  {/* Divider */}
-                  <div className="h-px bg-border/40 -mx-0" />
+                    {/* Divider */}
+                    <div className="h-px bg-border/40" />
 
-                  {/* Actions */}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowLockConfirm(false)}
-                      className="flex-1 py-2 rounded-xl text-sm font-medium border border-border/60 bg-background text-foreground/80 hover:bg-muted/40 hover:text-foreground transition-all duration-150 active:scale-[0.97]"
-                    >
-                      Go back
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isSending || isAutoSigning}
-                      onClick={() => {
-                        setShowLockConfirm(false)
-                        const signFieldsOn = invoiceData.showSignatureFields !== false
-                        if (isContract && !senderAlreadySigned && signFieldsOn) {
-                          if (hasSavedSignature) {
-                            autoSignWithSaved()
+                    {/* Actions */}
+                    <div className="flex gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowLockConfirm(false)}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-border/60 bg-background text-foreground/80 hover:bg-muted/40 hover:text-foreground transition-all duration-150 active:scale-[0.97]"
+                      >
+                        Go back
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSending || isAutoSigning}
+                        onClick={() => {
+                          setShowLockConfirm(false)
+                          if (isContract && !senderAlreadySigned && signatureFieldsOn) {
+                            if (hasSavedSignature) {
+                              autoSignWithSaved()
+                            } else {
+                              setShowSignFirst(true)
+                            }
                           } else {
-                            setShowSignFirst(true)
+                            handleSend()
                           }
-                        } else {
-                          handleSend()
-                        }
-                      }}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold bg-foreground text-background hover:bg-foreground/90 transition-all duration-150 active:scale-[0.97] disabled:opacity-50"
-                      style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.06)" }}
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>{actionLabel}</span>
-                    </button>
+                        }}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold bg-foreground text-background hover:bg-foreground/90 transition-all duration-150 active:scale-[0.97] disabled:opacity-50"
+                        style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.06)" }}
+                      >
+                        <Send className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{actionLabel}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

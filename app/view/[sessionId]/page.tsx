@@ -408,8 +408,9 @@ export default function ViewDocumentPage() {
             if (pay) setPayment(pay as PaymentInfo)
 
             // Check for existing quotation response (authenticated user)
-            // Normalize so both "quote" and legacy "quotation" trigger the lookup
-            if (normalizeDocumentType(session.document_type) === 'quote') {
+            // Normalize so "quote", legacy "quotation", and "proposal" all trigger the lookup
+            const normalizedType = normalizeDocumentType(session.document_type)
+            if (normalizedType === 'quote' || normalizedType === 'proposal') {
               const { data: existingResponse } = await (supabase as any)
                 .from('quotation_responses')
                 .select('response_type, responded_at')
@@ -564,10 +565,10 @@ export default function ViewDocumentPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId,
-          responseType,
+          response: responseType,      // field name the API expects
           clientName: quotationClientName,
           clientEmail: quotationClientEmail,
-          reason,
+          note: reason,               // field name the API expects
         }),
       })
       const data = await res.json()
@@ -761,8 +762,8 @@ export default function ViewDocumentPage() {
         </div>
       </div>
 
-      {/* Quote response buttons — shown below PDF viewer for quote documents (handles legacy "quotation" too) */}
-      {normalizeDocumentType(docData?.documentType ?? '') === 'quote' && (
+      {/* Response buttons — shown below PDF for quote & proposal documents */}
+      {(['quote', 'proposal'].includes(normalizeDocumentType(docData?.documentType ?? '') ?? '')) && (
         <div className="max-w-4xl mx-auto px-2 sm:px-4 py-4">
           {quotationResponse ? (
             <div className={cn(
@@ -777,22 +778,22 @@ export default function ViewDocumentPage() {
               {quotationResponse.response_type === 'declined' && <XCircle className="w-5 h-5 shrink-0" />}
               {quotationResponse.response_type === 'changes_requested' && <Edit3 className="w-5 h-5 shrink-0" />}
               <p className="text-sm font-medium">
-                {quotationResponse.response_type === 'accepted' && `You accepted this quotation on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
-                {quotationResponse.response_type === 'declined' && `You declined this quotation on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
+                {quotationResponse.response_type === 'accepted' && `You accepted this ${docType.toLowerCase()} on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
+                {quotationResponse.response_type === 'declined' && `You declined this ${docType.toLowerCase()} on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
                 {quotationResponse.response_type === 'changes_requested' && `You requested changes on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
               </p>
             </div>
           ) : (
             <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-              <p className="text-sm font-semibold text-foreground">Respond to this Quotation</p>
-              <p className="text-xs text-muted-foreground">Let the sender know your decision on this quotation.</p>
+              <p className="text-sm font-semibold text-foreground">Respond to this {docType}</p>
+              <p className="text-xs text-muted-foreground">Let the sender know your decision on this {docType.toLowerCase()}.</p>
               <div className="flex flex-wrap gap-2 pt-1">
                 <Button
                   className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]"
                   onClick={() => { setQuotationReason(''); setQuotationDialogOpen('accept') }}
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Accept Quotation
+                  Accept
                 </Button>
                 <Button
                   variant="outline"
