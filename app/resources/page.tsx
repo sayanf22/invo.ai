@@ -2,7 +2,7 @@
 
 import { LandingLayout } from "@/components/landing/landing-layout"
 import { motion } from "framer-motion"
-import { FileText, MessageCircle, HelpCircle, ArrowRight, BookOpen, Shield } from "lucide-react"
+import { FileText, MessageCircle, HelpCircle, ArrowRight, BookOpen, Shield, Wand2 } from "lucide-react"
 import Link from "next/link"
 
 const resources = [
@@ -11,54 +11,42 @@ const resources = [
         title: "Tips, guides & product updates",
         desc: "How-to articles on creating invoices, contracts, proposals, and more — plus updates on new Clorefy features.",
         icon: BookOpen,
-        color: "bg-orange-50 text-[var(--landing-amber)]",
         href: "/blog",
-        live: true,
     },
     {
         category: "Pricing",
         title: "Free, Starter, Pro & Agency plans",
         desc: "Detailed plan comparison — what each plan includes, document limits, export formats, and feature availability.",
         icon: FileText,
-        color: "bg-stone-100 text-stone-600",
         href: "/pricing",
-        live: true,
     },
     {
         category: "Features",
         title: "What's built into Clorefy",
         desc: "A complete list of every feature available — document types, export formats, payment integrations, and compliance support.",
-        icon: FileText,
-        color: "bg-blue-50 text-blue-600",
+        icon: Wand2,
         href: "/features",
-        live: true,
     },
     {
         category: "Privacy & Security",
         title: "How your data is protected",
         desc: "Row-level security, CSRF protection, rate limiting, and payment processing via Razorpay, Stripe, and Cashfree.",
         icon: Shield,
-        color: "bg-green-50 text-green-600",
         href: "/privacy",
-        live: true,
     },
     {
         category: "Support",
         title: "Contact support",
         desc: "Email us at support@clorefy.com. We respond within 24 hours on business days (Mon–Fri, 10 AM – 7 PM IST).",
         icon: MessageCircle,
-        color: "bg-rose-50 text-rose-600",
         href: "/contact",
-        live: true,
     },
     {
         category: "Legal",
         title: "Terms, Privacy & Refund Policy",
         desc: "Full terms of service, privacy policy, and cancellation/refund policy — all in plain language.",
         icon: HelpCircle,
-        color: "bg-purple-50 text-purple-600",
         href: "/terms",
-        live: true,
     },
 ]
 
@@ -101,12 +89,12 @@ export default function ResourcesPage() {
                                     href={res.href}
                                     className="group flex items-start gap-5 p-7 rounded-2xl bg-white border-[2px] border-[var(--landing-dark)] shadow-[3px_3px_0px_0px_rgba(26,26,26,1)] hover:shadow-[5px_5px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 transition-all h-full"
                                 >
-                                    <div className={`w-12 h-12 rounded-xl ${res.color} flex items-center justify-center shrink-0`}>
+                                    <div className="w-12 h-12 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[var(--landing-amber)] shrink-0">
                                         <res.icon size={22} />
                                     </div>
                                     <div className="flex-1">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1 block">{res.category}</span>
-                                        <h3 className="font-display text-lg font-bold mb-1.5 group-hover:text-[var(--landing-amber)] transition-colors">{res.title}</h3>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--landing-text-muted)] mb-1 block">{res.category}</span>
+                                        <h3 className="font-display text-lg font-bold mb-1.5 text-[var(--landing-text-dark)] group-hover:text-[var(--landing-amber)] transition-colors">{res.title}</h3>
                                         <p className="text-[var(--landing-text-muted)] leading-relaxed text-sm mb-3">{res.desc}</p>
                                         <span className="inline-flex items-center text-[var(--landing-dark)] font-bold text-sm">
                                             Explore <ArrowRight size={13} className="ml-1 transition-transform group-hover:translate-x-1" />

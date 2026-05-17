@@ -129,8 +129,8 @@ export default function ContactPage() {
 
                                 {sent ? (
                                     <div className="px-7 py-14 text-center">
-                                        <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-                                            <CheckCircle className="w-7 h-7 text-green-600" />
+                                        <div className="w-14 h-14 rounded-full bg-orange-50 border-[2px] border-[var(--landing-dark)] shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] flex items-center justify-center mx-auto mb-4">
+                                            <CheckCircle className="w-7 h-7 text-[var(--landing-amber)]" />
                                         </div>
                                         <h4 className="font-display font-bold text-xl text-[var(--landing-text-dark)] mb-2">Message sent</h4>
                                         <p className="text-sm text-[var(--landing-text-muted)]">We&apos;ll get back to you within 24 hours on business days.</p>

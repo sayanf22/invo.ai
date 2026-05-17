@@ -122,12 +122,14 @@ export default function FeaturesPage() {
                             </div>
                         </AnimatedCard>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             {featureGrid.map((item, i) => (
-                                <AnimatedCard key={item.name} delay={i * 0.05}>
-                                    <div className="p-6 rounded-2xl bg-[var(--landing-cream)] border border-stone-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
-                                        <item.icon size={22} className="text-[var(--landing-amber)] mb-3" />
-                                        <p className="font-bold text-sm mb-1">{item.name}</p>
+                                <AnimatedCard key={item.name} delay={i * 0.04}>
+                                    <div className="p-5 rounded-2xl bg-white border-[2px] border-[var(--landing-dark)] shadow-[3px_3px_0px_0px_rgba(26,26,26,1)] hover:shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 transition-all duration-200">
+                                        <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center mb-3">
+                                            <item.icon size={18} className="text-[var(--landing-amber)]" />
+                                        </div>
+                                        <p className="font-bold text-sm text-[var(--landing-text-dark)] mb-1">{item.name}</p>
                                         <p className="text-xs text-[var(--landing-text-muted)]">{item.desc}</p>
                                     </div>
                                 </AnimatedCard>

@@ -192,9 +192,9 @@ export default function BusinessPage() {
                                     whileInView={{ opacity: 1, y: 0 }}
                                     viewport={{ once: true }}
                                     transition={{ delay: i * 0.05 }}
-                                    className="flex items-start gap-4 p-5 rounded-2xl bg-white border border-stone-100 hover:shadow-sm transition-all"
+                                    className="flex items-start gap-4 p-5 rounded-2xl bg-white border-[2px] border-[var(--landing-dark)] shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] hover:shadow-[3px_3px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 transition-all"
                                 >
-                                    <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[var(--landing-amber)] shrink-0 mt-0.5">
+                                    <div className="w-9 h-9 rounded-xl bg-[var(--landing-cream)] flex items-center justify-center text-[var(--landing-amber)] shrink-0 mt-0.5">
                                         <item.icon size={18} />
                                     </div>
                                     <div>
