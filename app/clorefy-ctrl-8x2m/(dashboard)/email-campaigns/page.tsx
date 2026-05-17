@@ -10,8 +10,10 @@ export default async function EmailCampaignsPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
   const now = Date.now()
+  const thirtyDaysAgo = new Date(now - 30 * 86400000).toISOString()
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
 
   const [
     { data: profiles },
@@ -58,6 +60,11 @@ export default async function EmailCampaignsPage() {
     emailSummary[ev.event] = (emailSummary[ev.event] ?? 0) + 1
   }
 
+  // Emails queued today (from send_log created today)
+  const sentToday = (sendLogs ?? []).filter(
+    (l: any) => new Date(l.sent_at) >= todayStart
+  ).length
+
   const users = (profiles ?? []).map((p: any) => {
     const sentEmails = sendLogMap.get(p.id) ?? []
     const lastEvent = emailEventMap.get(p.email) ?? null
@@ -67,9 +74,18 @@ export default async function EmailCampaignsPage() {
       : Math.floor((now - new Date(p.created_at).getTime()) / 86400000)
     const daysSinceSignup = Math.floor((now - new Date(p.created_at).getTime()) / 86400000)
 
+    // Determine last email sent for "timer since last email" display
+    const lastSentAt = sentEmails.length > 0
+      ? sentEmails.reduce((latest, s) => new Date(s.sent_at) > new Date(latest.sent_at) ? s : latest)
+      : null
+
     let category = "active"
     if (!p.onboarding_complete && daysSinceSignup >= 2) category = "dropoff"
     else if (p.onboarding_complete && daysSinceActive >= 7) category = "inactive"
+
+    // Auto-stopped = got both emails and hasn't come back
+    const hasBothEmails = sentEmails.some(s => s.email_type === "inactive_1") &&
+      sentEmails.some(s => s.email_type === "inactive_2")
 
     return {
       id: p.id as string,
@@ -84,8 +100,10 @@ export default async function EmailCampaignsPage() {
       docs_count: docsCount,
       sent_emails: sentEmails,
       last_email_event: lastEvent,
+      last_sent_at: lastSentAt?.sent_at ?? null,
       category,
       never_emailed: sentEmails.length === 0,
+      auto_stopped: hasBothEmails && p.onboarding_complete,
     }
   })
 
@@ -94,8 +112,9 @@ export default async function EmailCampaignsPage() {
       users={users}
       campaigns={campaigns ?? []}
       emailSummary={emailSummary}
-      recentEvents={(emailEvents ?? []).slice(0, 50).map((e: any) => ({
-        id: e.id ?? `${e.email}-${e.event_at}`,
+      sentToday={sentToday}
+      recentEvents={(emailEvents ?? []).slice(0, 100).map((e: any) => ({
+        id: `${e.email}-${e.event_at}`,
         email: e.email,
         event: e.event,
         subject: e.subject ?? null,

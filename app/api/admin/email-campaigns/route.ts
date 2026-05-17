@@ -118,10 +118,18 @@ export async function GET(request: NextRequest) {
     emailSummary[ev.event] = (emailSummary[ev.event] ?? 0) + 1
   }
 
+  // Count emails queued today (from send_log)
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
+  const sentTodayCount = (sendLogs ?? []).filter(
+    (l: any) => new Date(l.sent_at) >= todayStart
+  ).length
+
   return NextResponse.json({
     users: usersWithStatus,
     campaigns: campaigns ?? [],
     emailSummary,
+    sentToday: sentTodayCount,
     recentEvents: (emailEvents ?? []).slice(0, 50),
   })
 }

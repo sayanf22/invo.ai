@@ -17,7 +17,7 @@ interface UserRow {
   onboarding_complete: boolean; last_active_at: string | null; created_at: string
   tier: string; days_since_active: number; days_since_signup: number
   docs_count: number; sent_emails: SentEmail[]; last_email_event: LastEmailEvent | null
-  category: string; never_emailed: boolean
+  last_sent_at: string | null; category: string; never_emailed: boolean; auto_stopped: boolean
 }
 
 interface EmailEvent {
@@ -30,15 +30,16 @@ interface Props {
   campaigns: any[]
   emailSummary: Record<string, number>
   recentEvents: EmailEvent[]
+  sentToday: number
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const CATEGORY_LABEL: Record<string, string> = {
-  dropoff: "Drop-off", inactive: "Inactive", active: "Active",
-}
 const CATEGORY_COLOR: Record<string, string> = {
   dropoff: "#DC2626", inactive: "#D97757", active: "#059669",
+}
+const CATEGORY_LABEL: Record<string, string> = {
+  dropoff: "Drop-off", inactive: "Inactive", active: "Active",
 }
 const EVENT_COLOR: Record<string, [string, string]> = {
   delivered: ["#059669","#F0FDF4"], opened: ["#7C3AED","#F5F3FF"],
@@ -59,51 +60,55 @@ function EventBadge({ event }: { event: string }) {
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 
-export default function EmailCampaignsClient({ users, campaigns, emailSummary, recentEvents }: Props) {
+export default function EmailCampaignsClient({ users, campaigns, emailSummary, recentEvents, sentToday }: Props) {
   const { theme } = useAdminTheme()
   const isMobile = useIsMobile()
   const isDark = theme === "dark"
 
-  const cardBg   = isDark ? "#0A0A0A" : "#FAFAFA"
-  const border   = isDark ? "#1A1A1A" : "#E5E5E5"
-  const text     = isDark ? "#F5F5F5" : "#0A0A0A"
-  const muted    = isDark ? "#71717A" : "#71717A"
-  const hoverBg  = isDark ? "#111111" : "#F0F0F0"
-  const inputBg  = isDark ? "#000000" : "#FFFFFF"
+  const cardBg  = isDark ? "#0A0A0A" : "#FAFAFA"
+  const border  = isDark ? "#1A1A1A" : "#E5E5E5"
+  const text    = isDark ? "#F5F5F5" : "#0A0A0A"
+  const muted   = isDark ? "#71717A" : "#71717A"
+  const hoverBg = isDark ? "#111111" : "#F0F0F0"
+  const inputBg = isDark ? "#000000" : "#FFFFFF"
 
   // Filters
-  const [search, setSearch] = useState("")
-  const [filterCat, setFilterCat] = useState<"all"|"dropoff"|"inactive"|"active">("all")
+  const [search, setSearch]           = useState("")
+  const [filterCat, setFilterCat]     = useState<"all"|"dropoff"|"inactive"|"active"|"stopped">("all")
   const [filterEmail, setFilterEmail] = useState<"all"|"emailed"|"never">("all")
-  const [activeTab, setActiveTab] = useState<"users"|"events">("users")
+  const [activeTab, setActiveTab]     = useState<"users"|"events">("users")
 
-  // Email modal
-  const [modalUser, setModalUser] = useState<UserRow | null>(null)
-  const [subject, setSubject] = useState("")
-  const [message, setMessage] = useState("")
-  const [sending, setSending] = useState(false)
-  const [aiGenerating, setAiGenerating] = useState(false)
-  const [aiTone, setAiTone] = useState<"friendly"|"professional"|"urgent">("friendly")
-  const [aiIntent, setAiIntent] = useState("")
-  const [sendError, setSendError] = useState<string | null>(null)
+  // Modal
+  const [modalUser, setModalUser]     = useState<UserRow | null>(null)
+  const [subject, setSubject]         = useState("")
+  const [message, setMessage]         = useState("")
+  const [sending, setSending]         = useState(false)
+  const [aiGenerating, setAiGen]      = useState(false)
+  const [aiTone, setAiTone]           = useState<"friendly"|"professional"|"urgent">("friendly")
+  const [aiIntent, setAiIntent]       = useState("")
+  const [sendError, setSendError]     = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState(false)
+
+  // Derived counts
+  const dropoffCount      = users.filter(u => u.category === "dropoff").length
+  const inactiveCount     = users.filter(u => u.category === "inactive").length
+  const neverEmailedCount = users.filter(u => u.never_emailed).length
+  const stoppedCount      = users.filter(u => u.auto_stopped).length
 
   // Filtered users
   const filtered = useMemo(() => users.filter(u => {
+    if (filterCat === "stopped") return u.auto_stopped
     if (filterCat !== "all" && u.category !== filterCat) return false
     if (filterEmail === "emailed" && u.never_emailed) return false
     if (filterEmail === "never" && !u.never_emailed) return false
     if (search.trim()) {
       const q = search.toLowerCase()
-      if (!u.email.toLowerCase().includes(q) && !(u.name ?? "").toLowerCase().includes(q)) return false
+      return u.email.toLowerCase().includes(q) || (u.name ?? "").toLowerCase().includes(q)
     }
     return true
   }), [users, filterCat, filterEmail, search])
 
-  const dropoffCount = users.filter(u => u.category === "dropoff").length
-  const inactiveCount = users.filter(u => u.category === "inactive").length
-  const neverEmailedCount = users.filter(u => u.never_emailed).length
-
+  // Open modal
   function openEmail(u: UserRow) {
     setModalUser(u)
     setSubject("")
@@ -113,9 +118,10 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
     setAiIntent("")
   }
 
+  // AI generate email
   async function handleAiGenerate() {
     if (!modalUser) return
-    setAiGenerating(true)
+    setAiGen(true)
     setSendError(null)
     try {
       const res = await fetch("/api/admin/email-campaigns/ai-draft", {
@@ -128,9 +134,10 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
       setSubject(data.subject ?? "")
       setMessage(data.message ?? "")
     } catch (e: any) { setSendError(e.message) }
-    finally { setAiGenerating(false) }
+    finally { setAiGen(false) }
   }
 
+  // Send email
   async function handleSend() {
     if (!modalUser || !subject.trim() || !message.trim()) return
     setSending(true)
@@ -149,25 +156,28 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
     finally { setSending(false) }
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <div>
-      {/* Page header */}
+      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
           <Mail size={18} style={{ color: "#D97757", flexShrink: 0 }} />
           <h1 className="text-lg font-bold" style={{ color: text, margin: 0 }}>Email Outreach</h1>
         </div>
         <p className="text-xs" style={{ color: muted }}>
-          All users, their email history, and what was sent. Click any row to send. Lifecycle emails run automatically via Brevo at 08:00 UTC.
+          All users with email history. Click any row to send. Lifecycle emails run automatically at 08:00 UTC daily.
         </p>
       </div>
 
-      {/* KPI cards — 2 columns on mobile, 4 on tablet, 7 on desktop */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
         <KpiCard title="Total users" value={users.length} />
         <KpiCard title="Drop-off" value={dropoffCount} description="Never onboarded" />
         <KpiCard title="Inactive 7d+" value={inactiveCount} description="Idle users" />
         <KpiCard title="Never emailed" value={neverEmailedCount} />
+        <KpiCard title="Queued today" value={sentToday} description="Cron today" />
         <KpiCard title="Delivered" value={emailSummary["delivered"] ?? 0} description="30 days" />
         <KpiCard title="Opened" value={emailSummary["opened"] ?? 0} description="30 days" />
         <KpiCard title="Clicked" value={emailSummary["click"] ?? 0} description="30 days" />
@@ -179,12 +189,12 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className="px-4 py-2 text-sm font-semibold capitalize transition-colors"
+            className="px-4 py-2 text-sm font-semibold capitalize"
             style={{
               background: "transparent", border: "none",
               borderBottom: activeTab === tab ? `2px solid ${text}` : "2px solid transparent",
-              color: activeTab === tab ? text : muted, cursor: "pointer",
-              marginBottom: -1,
+              color: activeTab === tab ? text : muted,
+              cursor: "pointer", marginBottom: -1,
             }}
           >
             {tab === "users" ? "Users" : "Email Events"}
@@ -195,9 +205,10 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
       {/* ── USERS TAB ── */}
       {activeTab === "users" && (
         <>
-          {/* Filters — stack on mobile */}
+          {/* Filters */}
           <div className="flex flex-wrap gap-2 mb-4 items-center">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[180px]" style={{ border: `1px solid ${border}`, background: cardBg }}>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[160px]"
+              style={{ border: `1px solid ${border}`, background: cardBg }}>
               <Search size={13} style={{ color: muted, flexShrink: 0 }} />
               <input
                 value={search}
@@ -213,24 +224,19 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
               )}
             </div>
 
-            <select
-              value={filterCat}
-              onChange={e => setFilterCat(e.target.value as any)}
+            <select value={filterCat} onChange={e => setFilterCat(e.target.value as any)}
               className="text-sm px-3 py-2 rounded-lg cursor-pointer outline-none"
-              style={{ border: `1px solid ${border}`, background: cardBg, color: text }}
-            >
+              style={{ border: `1px solid ${border}`, background: cardBg, color: text }}>
               <option value="all">All ({users.length})</option>
               <option value="dropoff">Drop-off ({dropoffCount})</option>
               <option value="inactive">Inactive ({inactiveCount})</option>
               <option value="active">Active</option>
+              <option value="stopped">Auto-stopped ({stoppedCount})</option>
             </select>
 
-            <select
-              value={filterEmail}
-              onChange={e => setFilterEmail(e.target.value as any)}
+            <select value={filterEmail} onChange={e => setFilterEmail(e.target.value as any)}
               className="text-sm px-3 py-2 rounded-lg cursor-pointer outline-none"
-              style={{ border: `1px solid ${border}`, background: cardBg, color: text }}
-            >
+              style={{ border: `1px solid ${border}`, background: cardBg, color: text }}>
               <option value="all">All email status</option>
               <option value="never">Never emailed</option>
               <option value="emailed">Already emailed</option>
@@ -239,15 +245,13 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
             <span className="text-xs ml-auto" style={{ color: muted }}>{filtered.length} users</span>
           </div>
 
-          {/* Users list — cards on mobile, table on desktop */}
+          {/* Users table */}
           <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${border}`, background: cardBg }}>
-
-            {/* Desktop table header — hidden on mobile */}
-            <div
-              className="hidden sm:grid text-xs uppercase tracking-wider font-semibold px-4 py-3"
-              style={{ gridTemplateColumns: "minmax(160px,1fr) 80px 60px 70px 140px 90px 70px", gap: "12px", background: isDark ? "#000" : "#F0F0F0", borderBottom: `1px solid ${border}`, color: muted }}
-            >
-              <span>User</span><span>Status</span><span>Idle</span><span>Docs</span><span>Emails Sent</span><span>Last Event</span><span>Action</span>
+            {/* Desktop header */}
+            <div className="hidden sm:grid text-xs uppercase tracking-wider font-semibold px-4 py-3"
+              style={{ gridTemplateColumns: "minmax(160px,1fr) 80px 60px 60px 150px 90px 70px", gap: "12px", background: isDark ? "#000" : "#F0F0F0", borderBottom: `1px solid ${border}`, color: muted }}>
+              <span>User</span><span>Status</span><span>Idle</span><span>Docs</span>
+              <span>Auto emails</span><span>Last event</span><span>Action</span>
             </div>
 
             {filtered.length === 0 && (
@@ -255,30 +259,27 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
             )}
 
             {filtered.map((u, i) => (
-              <div
-                key={u.id}
+              <div key={u.id}
                 onClick={() => openEmail(u)}
                 style={{ borderTop: i > 0 ? `1px solid ${border}` : "none", cursor: "pointer" }}
                 onMouseEnter={e => (e.currentTarget.style.background = hoverBg)}
-                onMouseLeave={e => (e.currentTarget.style.background = "")}
-              >
+                onMouseLeave={e => (e.currentTarget.style.background = "")}>
+
                 {/* Desktop row */}
-                <div
-                  className="hidden sm:grid items-center px-4 py-3 text-sm"
-                  style={{ gridTemplateColumns: "minmax(160px,1fr) 80px 60px 70px 140px 90px 70px", gap: "12px" }}
-                >
+                <div className="hidden sm:grid items-center px-4 py-3"
+                  style={{ gridTemplateColumns: "minmax(160px,1fr) 80px 60px 60px 150px 90px 70px", gap: "12px" }}>
                   <div className="min-w-0">
-                    <div className="font-medium truncate" style={{ color: text, fontSize: 13 }}>{u.email}</div>
-                    {u.name && <div className="truncate" style={{ color: muted, fontSize: 11 }}>{u.name}</div>}
+                    <div className="font-medium truncate text-sm" style={{ color: text }}>{u.email}</div>
+                    {u.name && <div className="truncate text-xs" style={{ color: muted }}>{u.name}</div>}
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: CATEGORY_COLOR[u.category], background: `${CATEGORY_COLOR[u.category]}1A`, padding: "2px 7px", borderRadius: 4, whiteSpace: "nowrap" }}>
-                    {CATEGORY_LABEL[u.category]}
+                  <span style={{ fontSize: 10, fontWeight: 700, color: u.auto_stopped ? "#6B7280" : CATEGORY_COLOR[u.category], background: `${u.auto_stopped ? "#6B7280" : CATEGORY_COLOR[u.category]}1A`, padding: "2px 7px", borderRadius: 4, whiteSpace: "nowrap" }}>
+                    {u.auto_stopped ? "Stopped" : CATEGORY_LABEL[u.category]}
                   </span>
-                  <span style={{ fontSize: 12, color: u.days_since_active >= 7 ? "#D97757" : muted }}>{u.days_since_active}d</span>
-                  <span style={{ fontSize: 12, color: u.docs_count > 0 ? text : muted }}>{u.docs_count}</span>
+                  <span className="text-xs" style={{ color: u.days_since_active >= 7 ? "#D97757" : muted }}>{u.days_since_active}d</span>
+                  <span className="text-xs" style={{ color: u.docs_count > 0 ? text : muted }}>{u.docs_count}</span>
                   <div className="flex flex-wrap gap-1">
                     {u.sent_emails.length === 0
-                      ? <span style={{ fontSize: 11, color: muted }}>None</span>
+                      ? <span className="text-xs" style={{ color: muted }}>None</span>
                       : u.sent_emails.map((s, j) => (
                         <span key={j} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: isDark ? "#1A1A1A" : "#E5E5E5", color: muted, whiteSpace: "nowrap" }}>
                           {s.email_type.replace("_", " #")}
@@ -286,45 +287,37 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
                       ))
                     }
                   </div>
-                  <div>{u.last_email_event ? <EventBadge event={u.last_email_event.event} /> : <span style={{ fontSize: 11, color: muted }}>—</span>}</div>
-                  <button
-                    onClick={e => { e.stopPropagation(); openEmail(u) }}
-                    className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors"
-                    style={{ border: `1px solid ${border}`, background: "transparent", color: text, cursor: "pointer" }}
-                  >
+                  <div>{u.last_email_event ? <EventBadge event={u.last_email_event.event} /> : <span className="text-xs" style={{ color: muted }}>—</span>}</div>
+                  <button onClick={e => { e.stopPropagation(); openEmail(u) }}
+                    className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold"
+                    style={{ border: `1px solid ${border}`, background: "transparent", color: text, cursor: "pointer" }}>
                     <Mail size={11} /> Email
                   </button>
                 </div>
 
                 {/* Mobile card */}
                 <div className="sm:hidden px-4 py-3">
-                  <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex items-start justify-between gap-3 mb-1.5">
                     <div className="min-w-0 flex-1">
                       <div className="font-medium text-sm truncate" style={{ color: text }}>{u.name ?? u.email}</div>
                       {u.name && <div className="text-xs truncate" style={{ color: muted }}>{u.email}</div>}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span style={{ fontSize: 10, fontWeight: 700, color: CATEGORY_COLOR[u.category], background: `${CATEGORY_COLOR[u.category]}1A`, padding: "2px 6px", borderRadius: 4 }}>
-                        {CATEGORY_LABEL[u.category]}
+                      <span style={{ fontSize: 10, fontWeight: 700, color: u.auto_stopped ? "#6B7280" : CATEGORY_COLOR[u.category], background: `${u.auto_stopped ? "#6B7280" : CATEGORY_COLOR[u.category]}1A`, padding: "2px 6px", borderRadius: 4 }}>
+                        {u.auto_stopped ? "Stopped" : CATEGORY_LABEL[u.category]}
                       </span>
-                      <button
-                        onClick={e => { e.stopPropagation(); openEmail(u) }}
+                      <button onClick={e => { e.stopPropagation(); openEmail(u) }}
                         className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold"
-                        style={{ border: `1px solid ${border}`, background: "transparent", color: text, cursor: "pointer" }}
-                      >
+                        style={{ border: `1px solid ${border}`, background: "transparent", color: text, cursor: "pointer" }}>
                         <Mail size={11} />
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                    <span className="text-xs" style={{ color: muted }}>Idle: <span style={{ color: u.days_since_active >= 7 ? "#D97757" : text }}>{u.days_since_active}d</span></span>
-                    <span className="text-xs" style={{ color: muted }}>Docs: <span style={{ color: text }}>{u.docs_count}</span></span>
-                    <span className="text-xs" style={{ color: muted }}>
-                      Emails: <span style={{ color: text }}>{u.sent_emails.length === 0 ? "None" : u.sent_emails.map(s => s.email_type.replace("_", " #")).join(", ")}</span>
-                    </span>
-                    {u.last_email_event && (
-                      <span className="text-xs" style={{ color: muted }}>Last: <EventBadge event={u.last_email_event.event} /></span>
-                    )}
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: muted }}>
+                    <span>Idle: <span style={{ color: u.days_since_active >= 7 ? "#D97757" : text }}>{u.days_since_active}d</span></span>
+                    <span>Docs: <span style={{ color: text }}>{u.docs_count}</span></span>
+                    <span>Emails: <span style={{ color: text }}>{u.sent_emails.length === 0 ? "None" : u.sent_emails.map(s => s.email_type.replace("_"," #")).join(", ")}</span></span>
+                    {u.last_email_event && <span>Event: <EventBadge event={u.last_email_event.event} /></span>}
                   </div>
                 </div>
               </div>
@@ -336,36 +329,33 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
       {/* ── EVENTS TAB ── */}
       {activeTab === "events" && (
         <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${border}`, background: cardBg }}>
-          {/* Desktop header */}
-          <div className="hidden sm:grid px-4 py-3 text-xs uppercase tracking-wider font-semibold" style={{ gridTemplateColumns: "1fr 100px 100px 160px 80px 110px", gap: "12px", background: isDark ? "#000" : "#F0F0F0", borderBottom: `1px solid ${border}`, color: muted }}>
+          <div className="hidden sm:grid px-4 py-3 text-xs uppercase tracking-wider font-semibold"
+            style={{ gridTemplateColumns: "1fr 100px 100px 160px 80px 110px", gap: "12px", background: isDark ? "#000" : "#F0F0F0", borderBottom: `1px solid ${border}`, color: muted }}>
             <span>Recipient</span><span>Event</span><span>Tag</span><span>Subject</span><span>Reason</span><span>When</span>
           </div>
-
           {recentEvents.length === 0 && (
-            <div className="p-8 text-center text-sm" style={{ color: muted }}>No email events yet. Events appear once Brevo automations start sending.</div>
+            <div className="p-8 text-center text-sm" style={{ color: muted }}>No events yet — events appear once Brevo automations start sending.</div>
           )}
-
           {recentEvents.map((ev, i) => (
             <div key={ev.id} style={{ borderTop: i > 0 ? `1px solid ${border}` : "none" }}>
-              {/* Desktop */}
-              <div className="hidden sm:grid items-center px-4 py-3 text-sm" style={{ gridTemplateColumns: "1fr 100px 100px 160px 80px 110px", gap: "12px" }}>
-                <span className="truncate" style={{ fontSize: 12, color: text }}>{ev.email}</span>
+              <div className="hidden sm:grid items-center px-4 py-3"
+                style={{ gridTemplateColumns: "1fr 100px 100px 160px 80px 110px", gap: "12px" }}>
+                <span className="truncate text-sm" style={{ color: text }}>{ev.email}</span>
                 <EventBadge event={ev.event} />
-                <span style={{ fontSize: 11, color: muted }}>{ev.tag ?? "—"}</span>
-                <span className="truncate" style={{ fontSize: 12, color: muted }}>{ev.subject ?? "—"}</span>
-                <span style={{ fontSize: 11, color: "#DC2626" }}>{ev.reason ?? "—"}</span>
-                <span style={{ fontSize: 11, color: muted, whiteSpace: "nowrap" }}>{formatDistanceToNow(new Date(ev.event_at), { addSuffix: true })}</span>
+                <span className="text-xs" style={{ color: muted }}>{ev.tag ?? "—"}</span>
+                <span className="truncate text-xs" style={{ color: muted }}>{ev.subject ?? "—"}</span>
+                <span className="text-xs" style={{ color: "#DC2626" }}>{ev.reason ?? "—"}</span>
+                <span className="text-xs whitespace-nowrap" style={{ color: muted }}>{formatDistanceToNow(new Date(ev.event_at), { addSuffix: true })}</span>
               </div>
-              {/* Mobile */}
               <div className="sm:hidden px-4 py-3">
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-xs truncate flex-1" style={{ color: text }}>{ev.email}</span>
                   <EventBadge event={ev.event} />
                 </div>
-                <div className="flex gap-3 flex-wrap">
-                  {ev.tag && <span className="text-xs" style={{ color: muted }}>Tag: {ev.tag}</span>}
-                  {ev.reason && <span className="text-xs" style={{ color: "#DC2626" }}>{ev.reason}</span>}
-                  <span className="text-xs" style={{ color: muted }}>{formatDistanceToNow(new Date(ev.event_at), { addSuffix: true })}</span>
+                <div className="flex flex-wrap gap-2 text-xs" style={{ color: muted }}>
+                  {ev.tag && <span>Tag: {ev.tag}</span>}
+                  {ev.reason && <span style={{ color: "#DC2626" }}>{ev.reason}</span>}
+                  <span>{formatDistanceToNow(new Date(ev.event_at), { addSuffix: true })}</span>
                 </div>
               </div>
             </div>
@@ -384,7 +374,7 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
             className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl overflow-auto"
             style={{ background: cardBg, border: `1px solid ${border}`, maxHeight: "92vh", padding: isMobile ? "20px 16px 32px" : "28px" }}
           >
-            {/* Modal header */}
+            {/* Header */}
             <div className="flex items-start justify-between mb-4">
               <div className="min-w-0 flex-1 mr-4">
                 <h2 className="text-base font-bold truncate" style={{ color: text, margin: 0 }}>
@@ -399,59 +389,42 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
 
             {/* User KPIs */}
             <div className="flex flex-wrap gap-3 mb-4 p-3 rounded-lg text-xs" style={{ background: isDark ? "#0A0A0A" : "#F0F0F0", border: `1px solid ${border}` }}>
-              <span style={{ color: muted }}>Status: <strong style={{ color: CATEGORY_COLOR[modalUser.category] }}>{CATEGORY_LABEL[modalUser.category]}</strong></span>
+              <span style={{ color: muted }}>Status: <strong style={{ color: modalUser.auto_stopped ? "#6B7280" : CATEGORY_COLOR[modalUser.category] }}>{modalUser.auto_stopped ? "Auto-stopped" : CATEGORY_LABEL[modalUser.category]}</strong></span>
               <span style={{ color: muted }}>Idle: <strong style={{ color: text }}>{modalUser.days_since_active}d</strong></span>
               <span style={{ color: muted }}>Docs: <strong style={{ color: text }}>{modalUser.docs_count}</strong></span>
               <span style={{ color: muted }}>Tier: <strong style={{ color: text }}>{modalUser.tier}</strong></span>
               <span style={{ color: muted }}>
-                Sent: <strong style={{ color: text }}>
-                  {modalUser.sent_emails.length === 0 ? "None" : modalUser.sent_emails.map(s => s.email_type.replace("_", " #")).join(", ")}
+                Auto-emails: <strong style={{ color: text }}>
+                  {modalUser.sent_emails.length === 0 ? "None" : modalUser.sent_emails.map(s => s.email_type.replace("_"," #")).join(", ")}
                 </strong>
               </span>
+              {modalUser.auto_stopped && (
+                <span style={{ color: "#D97757" }}>⚠ Auto-stopped. This manual email will still send.</span>
+              )}
             </div>
 
-            {/* AI Draft box */}
-            <div className="mb-4 p-4 rounded-xl" style={{ border: `1px solid ${isDark ? "#1A1A1A" : "#E5E5E5"}`, background: isDark ? "#050505" : "#FAFAFA" }}>
+            {/* AI Draft */}
+            <div className="mb-4 p-4 rounded-xl" style={{ border: `1px solid ${border}`, background: isDark ? "#050505" : "#FAFAFA" }}>
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-bold" style={{ color: "#7C3AED" }}>✨ AI Draft</span>
-                <span className="text-xs" style={{ color: muted }}>Personalised using this user's real data</span>
+                <span className="text-xs" style={{ color: muted }}>Uses this user's real usage data</span>
               </div>
-
-              {/* Tone pills */}
               <div className="flex gap-2 mb-3">
                 {(["friendly","professional","urgent"] as const).map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setAiTone(t)}
+                  <button key={t} onClick={() => setAiTone(t)}
                     className="px-3 py-1 rounded-lg text-xs font-semibold capitalize"
-                    style={{
-                      border: `1px solid ${aiTone === t ? "#7C3AED" : border}`,
-                      background: aiTone === t ? "#7C3AED" : "transparent",
-                      color: aiTone === t ? "#fff" : muted,
-                      cursor: "pointer",
-                    }}
-                  >
+                    style={{ border: `1px solid ${aiTone === t ? "#7C3AED" : border}`, background: aiTone === t ? "#7C3AED" : "transparent", color: aiTone === t ? "#fff" : muted, cursor: "pointer" }}>
                     {t}
                   </button>
                 ))}
               </div>
-
-              <input
-                type="text"
-                placeholder="Optional context: "inactive 2 weeks", "never used app"…"
-                value={aiIntent}
-                onChange={e => setAiIntent(e.target.value)}
-                maxLength={300}
+              <input type="text" placeholder="Optional context: "inactive 2 weeks", "never used app"…"
+                value={aiIntent} onChange={e => setAiIntent(e.target.value)} maxLength={300}
                 className="w-full text-sm rounded-lg outline-none mb-3"
-                style={{ padding: "8px 10px", border: `1px solid ${border}`, background: inputBg, color: text }}
-              />
-
-              <button
-                onClick={handleAiGenerate}
-                disabled={aiGenerating}
+                style={{ padding: "8px 10px", border: `1px solid ${border}`, background: inputBg, color: text }} />
+              <button onClick={handleAiGenerate} disabled={aiGenerating}
                 className="w-full py-2.5 rounded-lg text-sm font-semibold"
-                style={{ background: aiGenerating ? muted : "#7C3AED", color: "#fff", border: "none", cursor: aiGenerating ? "not-allowed" : "pointer" }}
-              >
+                style={{ background: aiGenerating ? muted : "#7C3AED", color: "#fff", border: "none", cursor: aiGenerating ? "not-allowed" : "pointer" }}>
                 {aiGenerating ? "Generating…" : "Generate subject + message →"}
               </button>
             </div>
@@ -459,27 +432,19 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
             {/* Subject */}
             <div className="mb-3">
               <label className="block text-xs font-semibold mb-1.5" style={{ color: muted }}>Subject</label>
-              <input
-                type="text"
-                value={subject}
-                onChange={e => setSubject(e.target.value)}
+              <input type="text" value={subject} onChange={e => setSubject(e.target.value)}
                 placeholder="e.g. Quick check-in from Clorefy"
                 className="w-full text-sm rounded-lg outline-none"
-                style={{ padding: "10px 12px", border: `1px solid ${border}`, background: inputBg, color: text }}
-              />
+                style={{ padding: "10px 12px", border: `1px solid ${border}`, background: inputBg, color: text }} />
             </div>
 
             {/* Message */}
             <div className="mb-4">
               <label className="block text-xs font-semibold mb-1.5" style={{ color: muted }}>Message</label>
-              <textarea
-                rows={isMobile ? 5 : 6}
-                value={message}
-                onChange={e => setMessage(e.target.value)}
+              <textarea rows={isMobile ? 5 : 6} value={message} onChange={e => setMessage(e.target.value)}
                 placeholder="Write your message — or use AI Draft above"
                 className="w-full text-sm rounded-lg outline-none resize-y leading-relaxed"
-                style={{ padding: "10px 12px", border: `1px solid ${border}`, background: inputBg, color: text }}
-              />
+                style={{ padding: "10px 12px", border: `1px solid ${border}`, background: inputBg, color: text }} />
             </div>
 
             {sendError && (
@@ -493,24 +458,19 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
 
             {/* Actions */}
             <div className="flex gap-3">
-              <button
-                onClick={() => setModalUser(null)}
+              <button onClick={() => setModalUser(null)}
                 className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm"
-                style={{ border: `1px solid ${border}`, background: "transparent", color: text, cursor: "pointer" }}
-              >
+                style={{ border: `1px solid ${border}`, background: "transparent", color: text, cursor: "pointer" }}>
                 Cancel
               </button>
-              <button
-                onClick={handleSend}
-                disabled={!subject.trim() || !message.trim() || sending}
+              <button onClick={handleSend} disabled={!subject.trim() || !message.trim() || sending}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
                 style={{
                   background: (!subject.trim() || !message.trim() || sending) ? muted : isDark ? "#F5F5F5" : "#0A0A0A",
                   color: isDark ? "#0A0A0A" : "#F5F5F5",
                   border: "none",
                   cursor: (!subject.trim() || !message.trim() || sending) ? "not-allowed" : "pointer",
-                }}
-              >
+                }}>
                 <Send size={13} />{sending ? "Sending…" : "Send email"}
               </button>
             </div>
