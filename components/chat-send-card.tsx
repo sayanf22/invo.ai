@@ -72,18 +72,8 @@ export function ChatSendCard({
   // Check if user has any payment gateway connected
   const { hasAnyGateway, loading: gatewayLoading } = usePaymentMethods()
 
-  // Restore sent state from localStorage on mount (persists across refresh)
-  const sentKey = `clorefy_sent_${sessionId}`
-  const [step, setStep] = useState<Step>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(sentKey)
-        if (saved) return "sent"
-      } catch {}
-    }
-    // Always start at compose so the user can review / edit the email
-    return "compose"
-  })
+  // Always start at compose so the user can review / edit the email
+  const [step, setStep] = useState<Step>("compose")
   const [slideDir, setSlideDir] = useState<SlideDir>("right")
   const [email, setEmail] = useState(detectedEmail)
   const [message, setMessage] = useState("")
@@ -261,8 +251,6 @@ export function ChatSendCard({
           }
           setSlideDir("right")
           setStep("sent")
-          // Persist sent state so it survives page refresh
-          try { localStorage.setItem(sentKey, "1") } catch {}
           onLockDocument?.()
           onSent()
           return
@@ -298,8 +286,6 @@ export function ChatSendCard({
         }
         setSlideDir("right")
         setStep("sent")
-        // Persist sent state so it survives page refresh
-        try { localStorage.setItem(sentKey, "1") } catch {}
         onLockDocument?.()
         onSent()
       } else {
