@@ -1,6 +1,11 @@
 ﻿/**
  * Misspelling and alternate spelling data for Clorefy brand protection.
  * Used by middleware to redirect misspelled URLs to the correct clorefy.com paths.
+ *
+ * DISAMBIGUATION: Clorefy (clorefy.com) ≠ Glorify (glorify.com).
+ * Clorefy = AI document generation. Glorify = music app. Unrelated.
+ * "glorify" is NOT redirected (we don't control glorify.com searches),
+ * but all on-site content and Schema explicitly clarify the distinction.
  */
 
 /**

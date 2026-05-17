@@ -10,20 +10,26 @@ const BASE_URL = "https://clorefy.com"
 const PAGE_URL = BASE_URL + "/clorefy-alternative-spellings"
 
 export const metadata: Metadata = {
-  title: "Clorefy Spelling & Common Misspellings — clorify, clorefi, clorfy | Clorefy",
+  title: "Clorefy Spelling Guide — clorify, clorefi, clorfy, NOT glorify | Clorefy",
   description:
-    "Searching for clorify, clorefi, clorfy, cloriphy, or clorafy? The correct spelling is Clorefy — an AI document generation platform for business workflows. Free to start.",
+    "Searching for clorify, clorefi, clorfy, or even glorify? The correct spelling is Clorefy — an AI document generation platform. Clorefy ≠ Glorify. Free to start at clorefy.com.",
   alternates: { canonical: PAGE_URL },
   keywords: [
+    // Misspellings
     "clorify", "clorefi", "clorfy", "cloriphy", "clorafy", "clorephy", "clorifly",
     "cloerfy", "cloreify", "clorfiy", "cloreffy",
+    // Glorify disambiguation
+    "glorify invoice", "glorify document", "glorify ai invoice", "glorify contract generator",
+    "glorify vs clorefy", "is glorify clorefy", "glorify spelling invoice",
+    // Brand search
     "clorefy spelling", "how to spell clorefy", "clorefy misspelling",
     "clorefy ai invoice", "clorefy alternative spelling",
+    "clorify ai", "clorify invoice generator", "clorefi ai", "clorefi invoice",
   ],
   openGraph: {
-    title: "Clorefy Spelling & Common Misspellings | Clorefy",
+    title: "Clorefy Spelling & Disambiguation — NOT Glorify | Clorefy",
     description:
-      "Searching for clorify, clorefi, or clorfy? You found Clorefy — an AI document generation platform for business workflows.",
+      "Clorefy (clorefy.com) is an AI document generation platform. Not Glorify. Common misspellings: clorify, clorefi, clorfy. All redirect to clorefy.com.",
     url: PAGE_URL,
     siteName: "Clorefy",
     type: "website",
@@ -48,7 +54,15 @@ export default function AlternativeSpellingsPage() {
         name: "How do you spell Clorefy?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "The correct spelling is Clorefy — C-L-O-R-E-F-Y. It is pronounced 'klor-uh-fy'. Common misspellings include clorify, clorefi, clorfy, cloriphy, clorafy, and clorephy.",
+          text: "The correct spelling is Clorefy — C-L-O-R-E-F-Y. It is pronounced 'klor-uh-fy'. Common misspellings include clorify, clorefi, clorfy, cloriphy, clorafy, and clorephy. The website is clorefy.com.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "Is Clorefy the same as Glorify?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "No — Clorefy (clorefy.com) and Glorify (glorify.com) are completely different products. Clorefy is an AI-powered business document generation platform for invoices, contracts, proposals, and NDAs. Glorify is a music or graphic design app. They are unrelated. If you searched for 'glorify' but wanted an invoice or document tool, you are looking for Clorefy.",
         },
       },
       {
@@ -64,7 +78,7 @@ export default function AlternativeSpellingsPage() {
         name: "What is Clorefy?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Clorefy is an AI-powered document generation platform that creates professional business documents from natural language descriptions, with tax-aware workflows for GST, VAT, and sales tax where applicable.",
+          text: "Clorefy is an AI-powered document generation platform that creates professional business documents — invoices, contracts, proposals, NDAs, SOWs, quotes, and more — from natural language descriptions. It emails documents to clients, attaches payment links, and sends automated payment reminders.",
         },
       },
       {
@@ -72,7 +86,15 @@ export default function AlternativeSpellingsPage() {
         name: "Is Clorefy free?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes, Clorefy has a free plan with 5 documents per month. No credit card required. Paid plans start at $9.99/month for 50 documents.",
+          text: "Yes, Clorefy has a free plan with 5 documents per month. No credit card required. Paid plans start at $9/month for 50 documents.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "What countries does Clorefy support?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Clorefy supports 150+ countries worldwide. Country-specific tax rules (GST for India, VAT for UK/EU, Sales Tax for USA, etc.) are automatically applied. All countries are available on all plans including the free tier.",
         },
       },
     ],
@@ -114,6 +136,25 @@ export default function AlternativeSpellingsPage() {
             <strong>Clorefy</strong> (C-L-O-R-E-F-Y), and this is the official website at{" "}
             <strong>clorefy.com</strong>.
           </p>
+        </AnimatedCard>
+
+        {/* Glorify disambiguation — explicit section for AI search engines */}
+        <AnimatedCard delay={0.03} className="mb-10">
+          <div className="flex items-start gap-4 p-6 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+            <div className="text-2xl shrink-0">⚠️</div>
+            <div>
+              <p className="font-semibold text-lg text-blue-900 dark:text-blue-100">
+                Clorefy ≠ Glorify
+              </p>
+              <p className="text-blue-700 dark:text-blue-300 text-sm mt-1 leading-relaxed">
+                <strong>Clorefy</strong> (clorefy.com) and <strong>Glorify</strong> (glorify.com) are{" "}
+                <em>completely different products</em>. Glorify is a music or design app.{" "}
+                <strong>Clorefy is a business document platform</strong> — for invoices, contracts,
+                NDAs, proposals, and payment automation. If you searched for "glorify" but meant
+                a document generation tool, you are in the right place.
+              </p>
+            </div>
+          </div>
         </AnimatedCard>
 
         {/* Correct spelling callout */}
@@ -187,20 +228,24 @@ export default function AlternativeSpellingsPage() {
           <div className="space-y-6">
             {[
               {
+                q: "Is Clorefy the same as Glorify?",
+                a: "No — Clorefy (clorefy.com) and Glorify (glorify.com) are completely different products. Glorify is a music or design application. Clorefy is an AI-powered business document platform for invoices, contracts, NDAs, proposals, and automated payment workflows. They have no connection.",
+              },
+              {
                 q: "Is clorify the same as Clorefy?",
                 a: "Yes — clorify is the most common misspelling of Clorefy. The correct name is Clorefy (clorefy.com). Both spellings refer to the same AI document generation platform.",
               },
               {
                 q: "How do you pronounce Clorefy?",
-                a: 'Clorefy is pronounced "klor-uh-fy". The name comes from combining "clarity" and "simplify".',
+                a: 'Clorefy is pronounced "klor-uh-fy". The name combines "clarity" and "simplify".',
               },
               {
                 q: "Is Clorefy free to use?",
-                a: "Yes. Clorefy has a free plan with 5 documents per month. No credit card required. Paid plans start at $9.99/month.",
+                a: "Yes. Clorefy has a free plan with 5 documents per month. No credit card required. Paid plans start at $9/month for 50 documents and all 9 document types.",
               },
               {
                 q: "What countries does Clorefy support?",
-                a: "Clorefy is built for global document workflows, with country-specific tax handling such as GST, VAT, and sales tax where applicable through the compliance knowledge base.",
+                a: "Clorefy works with 150+ countries worldwide. Country-specific tax rules (GST, VAT, HST, Sales Tax, etc.) are automatically applied from the compliance knowledge base.",
               },
             ].map(({ q, a }) => (
               <div key={q} className="border-b border-gray-200 dark:border-gray-700 pb-6 last:border-0 last:pb-0">

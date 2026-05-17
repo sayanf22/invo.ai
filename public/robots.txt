@@ -1,0 +1,31 @@
+User-agent: *
+Allow: /
+
+# AI crawlers — allow llms.txt and all public pages
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Disallow admin and auth internals
+Disallow: /clorefy-ctrl-8x2m/
+Disallow: /api/admin/
+Disallow: /api/cron/
+
+Sitemap: https://clorefy.com/sitemap.xml
+
+# LLMs.txt — AI knowledge file (see llms.txt standard)
+# https://clorefy.com/llms.txt

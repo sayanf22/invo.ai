@@ -178,7 +178,23 @@ export default function RootLayout({
               "@type": "Organization",
               "@id": "https://clorefy.com/#organization",
               "name": "Clorefy",
-              "alternateName": ["Clorefy AI", "Clorify"],
+              // All known alternate names, misspellings, and disambiguation signals.
+              // This list is intentionally comprehensive so AI systems (ChatGPT, Perplexity,
+              // Claude, Gemini) and search engines correctly associate ALL of these spellings
+              // with clorefy.com — NOT with glorify.com (which is a different product).
+              "alternateName": [
+                "Clorefy AI",
+                "Clorify",
+                "Clorefi",
+                "Clorfy",
+                "Clorephy",
+                "Cloriphy",
+                "Cloreify",
+                "Cloreffy",
+                "Cloerfy",
+                "Clorfiy",
+                "Clorefy.com",
+              ],
               "url": "https://clorefy.com",
               "logo": {
                 "@type": "ImageObject",
@@ -221,7 +237,15 @@ export default function RootLayout({
               "@type": "SoftwareApplication",
               "@id": "https://clorefy.com/#software",
               "name": "Clorefy",
-              "alternateName": ["Clorefy AI", "Clorify"],
+              "alternateName": [
+                "Clorefy AI",
+                "Clorify",
+                "Clorefi",
+                "Clorfy",
+                "Clorephy",
+                "Cloreify",
+                "Clorefy.com",
+              ],
               "url": "https://clorefy.com",
               "applicationCategory": "BusinessApplication",
               "applicationSubCategory": "DocumentGenerationApplication",
@@ -258,33 +282,110 @@ export default function RootLayout({
                   "name": "Free Plan",
                   "price": "0",
                   "priceCurrency": "USD",
-                  "description": "5 documents per month, all features included",
+                  "description": "5 documents per month, Invoice/Contract/Quote, e-signatures, no credit card",
                 },
                 {
                   "@type": "Offer",
                   "name": "Starter Plan",
-                  "price": "9.99",
+                  "price": "9",
                   "priceCurrency": "USD",
-                  "description": "50 documents per month",
+                  "description": "50 documents per month, all 9 document types, recurring invoices",
                 },
                 {
                   "@type": "Offer",
                   "name": "Pro Plan",
-                  "price": "24.99",
+                  "price": "24",
                   "priceCurrency": "USD",
-                  "description": "150 documents per month",
+                  "description": "150 documents per month, auto-invoice on sign, all features",
                 },
                 {
                   "@type": "Offer",
                   "name": "Agency Plan",
-                  "price": "59.99",
+                  "price": "59",
                   "priceCurrency": "USD",
-                  "description": "Unlimited documents",
+                  "description": "Unlimited documents, team members, priority support",
                 },
               ],
               "creator": {
                 "@id": "https://clorefy.com/#organization",
               },
+            }),
+          }}
+        />
+        {/* JSON-LD — Brand FAQ schema for AI disambiguation and rich results */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              "@id": "https://clorefy.com/#faq",
+              "mainEntity": [
+                {
+                  "@type": "Question",
+                  "name": "What is Clorefy?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Clorefy (clorefy.com) is an AI-powered document generation platform. It generates professional business documents — invoices, contracts, proposals, NDAs, SOWs, quotes, change orders, client onboarding forms, and payment reminders — from a plain-language prompt. It auto-emails documents to clients, attaches Razorpay/Stripe payment links, sends payment reminders, and supports recurring billing. Free plan available at clorefy.com."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Is Clorefy the same as Glorify?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "No. Clorefy (clorefy.com) and Glorify (glorify.com) are completely different products. Clorefy is an AI document generation platform for businesses — for invoices, contracts, proposals, and NDAs. Glorify is a music or design app. They are unrelated companies. If you searched for 'glorify' but meant a document generation tool, you are looking for Clorefy."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "How do you spell Clorefy?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Clorefy is spelled C-L-O-R-E-F-Y. The website is clorefy.com. Common misspellings include clorify, clorefi, clorfy, clorephy, cloriphy, and cloreify. All of these redirect to clorefy.com."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "What document types does Clorefy support?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Clorefy supports 9 document types: Invoice, Contract, Quote, Proposal, Statement of Work (SOW), Change Order, NDA (Non-Disclosure Agreement), Client Onboarding Form, and Payment Follow-up. The free plan includes Invoice, Contract, and Quote. Starter, Pro, and Agency plans include all 9 types."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "How much does Clorefy cost?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Clorefy has four plans: Free ($0/month, 5 documents), Starter ($9/month, 50 documents), Pro ($24/month, 150 documents), and Agency ($59/month, unlimited). All plans include e-signatures. No credit card required for the free plan."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "What countries does Clorefy support?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Clorefy supports 150+ countries worldwide. It automatically applies country-specific tax rules — GST for India, VAT for UK/EU/UAE, HST/GST for Canada, Sales Tax for USA, and many more. All countries are available on all plans including the free tier."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Is Clorefy free?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes, Clorefy is free to start. The free plan includes 5 documents per month, Invoice/Contract/Quote document types, e-signatures, custom branding, and global country support. No credit card is required to sign up at clorefy.com."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "What is the difference between Clorefy and ChatGPT for documents?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "ChatGPT generates document text. Clorefy runs the entire document workflow: it generates the document, emails it to the client, attaches a payment link, sends payment reminders for 37 days, and can auto-schedule recurring billing. Clorefy is purpose-built for business document workflows, not general text generation."
+                  }
+                },
+              ],
             }),
           }}
         />
