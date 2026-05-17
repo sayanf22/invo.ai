@@ -10,60 +10,99 @@ export default async function EmailCampaignsPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const now = new Date()
-  const twoDaysAgo = new Date(now.getTime() - 2 * 86400000).toISOString()
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000).toISOString()
-  const fourteenDaysAgo = new Date(now.getTime() - 14 * 86400000).toISOString()
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000).toISOString()
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
+  const now = Date.now()
 
   const [
-    { count: dropoffCount },
-    { count: inactive7Count },
-    { count: inactive14Count },
-    { count: allActiveCount },
+    { data: profiles },
+    { data: sendLogs },
+    { data: emailEvents },
+    { data: docRows },
     { data: campaigns },
-    { data: recentEvents },
-    { data: eventRows },
-    { data: allUsers },
   ] = await Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true })
-      .eq("onboarding_complete", false).or(`last_active_at.is.null,last_active_at.lt.${twoDaysAgo}`),
-    supabase.from("profiles").select("id", { count: "exact", head: true })
-      .eq("onboarding_complete", true).or(`last_active_at.is.null,last_active_at.lt.${sevenDaysAgo}`),
-    supabase.from("profiles").select("id", { count: "exact", head: true })
-      .eq("onboarding_complete", true).or(`last_active_at.is.null,last_active_at.lt.${fourteenDaysAgo}`),
-    supabase.from("profiles").select("id", { count: "exact", head: true })
-      .eq("onboarding_complete", true),
-    supabase.from("admin_email_campaigns").select("*").order("sent_at", { ascending: false }).limit(50),
-    supabase.from("email_events").select("id, email, event, subject, tag, event_at, reason, user_id")
-      .gte("event_at", thirtyDaysAgo).order("event_at", { ascending: false }).limit(100),
-    supabase.from("email_events").select("event").gte("event_at", thirtyDaysAgo),
-    supabase.from("profiles").select("id, email, full_name, onboarding_complete, last_active_at")
-      .not("email", "is", null).order("created_at", { ascending: false }).limit(500),
+    supabase.from("profiles")
+      .select("id, email, full_name, onboarding_complete, last_active_at, created_at, tier")
+      .not("email", "is", null)
+      .order("created_at", { ascending: false }),
+    supabase.from("user_email_send_log").select("user_id, email_type, sent_at"),
+    supabase.from("email_events")
+      .select("email, event, event_at, subject, tag, reason")
+      .gte("event_at", thirtyDaysAgo)
+      .order("event_at", { ascending: false }),
+    supabase.from("document_sessions").select("user_id"),
+    supabase.from("admin_email_campaigns")
+      .select("*").order("sent_at", { ascending: false }).limit(20),
   ])
 
-  const summary: Record<string, number> = {}
-  for (const row of eventRows ?? []) {
-    summary[row.event] = (summary[row.event] ?? 0) + 1
+  // Build lookups
+  const sendLogMap = new Map<string, Array<{ email_type: string; sent_at: string }>>()
+  for (const log of sendLogs ?? []) {
+    if (!sendLogMap.has(log.user_id)) sendLogMap.set(log.user_id, [])
+    sendLogMap.get(log.user_id)!.push({ email_type: log.email_type, sent_at: log.sent_at })
   }
+
+  const emailEventMap = new Map<string, { event: string; event_at: string }>()
+  for (const ev of emailEvents ?? []) {
+    if (!emailEventMap.has(ev.email)) {
+      emailEventMap.set(ev.email, { event: ev.event, event_at: ev.event_at })
+    }
+  }
+
+  const docCountMap = new Map<string, number>()
+  for (const r of docRows ?? []) {
+    docCountMap.set(r.user_id, (docCountMap.get(r.user_id) ?? 0) + 1)
+  }
+
+  const emailSummary: Record<string, number> = {}
+  for (const ev of emailEvents ?? []) {
+    emailSummary[ev.event] = (emailSummary[ev.event] ?? 0) + 1
+  }
+
+  const users = (profiles ?? []).map((p: any) => {
+    const sentEmails = sendLogMap.get(p.id) ?? []
+    const lastEvent = emailEventMap.get(p.email) ?? null
+    const docsCount = docCountMap.get(p.id) ?? 0
+    const daysSinceActive = p.last_active_at
+      ? Math.floor((now - new Date(p.last_active_at).getTime()) / 86400000)
+      : Math.floor((now - new Date(p.created_at).getTime()) / 86400000)
+    const daysSinceSignup = Math.floor((now - new Date(p.created_at).getTime()) / 86400000)
+
+    let category = "active"
+    if (!p.onboarding_complete && daysSinceSignup >= 2) category = "dropoff"
+    else if (p.onboarding_complete && daysSinceActive >= 7) category = "inactive"
+
+    return {
+      id: p.id as string,
+      email: p.email as string,
+      name: (p.full_name as string | null) ?? null,
+      onboarding_complete: p.onboarding_complete ?? false,
+      last_active_at: p.last_active_at as string | null,
+      created_at: p.created_at as string,
+      tier: (p.tier as string | null) ?? "free",
+      days_since_active: daysSinceActive,
+      days_since_signup: daysSinceSignup,
+      docs_count: docsCount,
+      sent_emails: sentEmails,
+      last_email_event: lastEvent,
+      category,
+      never_emailed: sentEmails.length === 0,
+    }
+  })
 
   return (
     <EmailCampaignsClient
+      users={users}
       campaigns={campaigns ?? []}
-      segmentCounts={{
-        dropoff: dropoffCount ?? 0,
-        inactive7: inactive7Count ?? 0,
-        inactive14: inactive14Count ?? 0,
-        allActive: allActiveCount ?? 0,
-      }}
-      emailSummary={summary}
-      recentEvents={(recentEvents ?? []).slice(0, 100)}
-      users={(allUsers ?? []).map((u: any) => ({
-        id: u.id,
-        email: u.email,
-        name: u.full_name ?? null,
-        onboarding_complete: u.onboarding_complete ?? false,
-        last_active_at: u.last_active_at ?? null,
+      emailSummary={emailSummary}
+      recentEvents={(emailEvents ?? []).slice(0, 50).map((e: any) => ({
+        id: e.id ?? `${e.email}-${e.event_at}`,
+        email: e.email,
+        event: e.event,
+        subject: e.subject ?? null,
+        tag: e.tag ?? null,
+        event_at: e.event_at,
+        reason: e.reason ?? null,
+        user_id: null,
       }))}
     />
   )
