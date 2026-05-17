@@ -420,6 +420,9 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [cancelDocumentOpen, setCancelDocumentOpen] = useState(false)
   const [cancelDocumentLoading, setCancelDocumentLoading] = useState(false)
+  // Ref: true when the document is currently unlocked (status=active or externallyUnlocked).
+  // The sentAt async fetch reads this to avoid re-locking an already-unlocked document.
+  const isUnlockedRef = React.useRef(false)
   const hasContent = data.documentType || data.fromName || data.toName || data.description
 
   const supportsSignatures = supportsSignatureWorkflow(data.documentType || "")
@@ -533,18 +536,30 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       .finally(() => setSignaturesLoading(false))
   }, [sessionId, supportsSignatures])
 
-  // Fetch sent_at for invoice "Sent" badge — reset when session changes
+  // Fetch sent_at for invoice "Sent" badge — reset when session changes.
+  // IMPORTANT: Also fetch status — if status = "active" the document has been
+  // unlocked. In that case we must NOT set sentAt even if the DB still has a
+  // sent_at timestamp (the column is intentionally preserved for audit purposes
+  // but is not a reliable lock signal after an unlock).
   useEffect(() => {
     setSentAt(null)
     if (!sessionId || !user) return
     ;(supabase as any)
       .from("document_sessions")
-      .select("sent_at")
+      .select("sent_at, status")
       .eq("id", sessionId)
       .eq("user_id", user.id)
       .maybeSingle()
-      .then(({ data: s }: { data: { sent_at?: string | null } | null }) => {
-        if (s?.sent_at) setSentAt(s.sent_at)
+      .then(({ data: s }: { data: { sent_at?: string | null; status?: string } | null }) => {
+        // Only treat sent_at as a lock signal when the session is NOT actively
+        // unlocked. "active" means the owner has unlocked the document — the
+        // sent_at column keeps the original send timestamp for the audit trail
+        // but should not lock the UI any more.
+        // Also check isUnlockedRef — this catches the race where the React
+        // state already reflects "active" but the async DB result arrives late.
+        if (s?.sent_at && s?.status !== "active" && !isUnlockedRef.current) {
+          setSentAt(s.sent_at)
+        }
       })
       .catch(() => {})
   }, [sessionId, user, supabase])
@@ -582,6 +597,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   // hasPendingSignatures from keeping the lock state alive.
   useEffect(() => {
     if (externallyUnlocked) {
+      isUnlockedRef.current = true
       setSentAt(null)
       setManualPaid(false)
       // Treat all pending sigs as cancelled in local state. We don't blow away
@@ -593,14 +609,13 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
     }
   }, [externallyUnlocked])
 
-  // When the session status transitions to "cancelled", clear all local lock state
-  // so the preview immediately shows as unlocked/editable.
-  // Bug 5 fix: sentAt is fetched from DB on session load and never cleared by the
-  // cancel flow, so isDocumentLocked stays true even after cancellation.
+  // When the session status transitions to "cancelled" or "active", clear all
+  // local lock state so the preview immediately shows as unlocked/editable.
   useEffect(() => {
     if (documentStatus === "cancelled" || documentStatus === "active") {
       // "cancelled" = owner explicitly cancelled the sent document
       // "active" = owner unlocked the document — clear all lock state
+      isUnlockedRef.current = true
       setSentAt(null)
       setManualPaid(false)
       // Mark all pending (unsigned) signature rows as cancelled in local state.
@@ -613,6 +628,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
       // stamp sentAt so isDocumentLocked=true without waiting for the next DB fetch.
       // This closes the race where the toolbar shows "Locked" but the document is
       // still editable because the async sentAt query hasn't run yet.
+      isUnlockedRef.current = false
       if (!sentAt) {
         setSentAt(new Date().toISOString())
       }
