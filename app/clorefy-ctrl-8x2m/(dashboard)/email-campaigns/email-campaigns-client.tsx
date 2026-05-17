@@ -418,7 +418,7 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
                   </button>
                 ))}
               </div>
-              <input type="text" placeholder="Optional context: "inactive 2 weeks", "never used app"…"
+              <input type="text" placeholder="Optional context: inactive 2 weeks, never used app…"
                 value={aiIntent} onChange={e => setAiIntent(e.target.value)} maxLength={300}
                 className="w-full text-sm rounded-lg outline-none mb-3"
                 style={{ padding: "8px 10px", border: `1px solid ${border}`, background: inputBg, color: text }} />
