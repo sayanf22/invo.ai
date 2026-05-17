@@ -101,39 +101,6 @@ const personas: Persona[] = [
         },
     },
     {
-        id: "lawyers",
-        label: "Lawyers",
-        title: "Precision legal drafting, fast",
-        desc: "Draft NDAs, service contracts, and engagement letters with jurisdiction-specific clauses and e-signature built in. No Word template hunting, no formatting work.",
-        chat: {
-            prompt: "Draft a mutual NDA between Harwood Legal and BlueStone Ventures, 3 years, Delaware law",
-            reply: "NDA drafted — mutual confidentiality, 3-year term, Delaware governing law.",
-        },
-        doc: {
-            kind: "contract",
-            brand: "Harwood Legal LLP",
-            number: "NDA-2026-018",
-            date: "12 May 2026",
-            title: "NON-DISCLOSURE AGREEMENT",
-            fromName: "Harwood Legal LLP",
-            fromMeta: "Wilmington, DE · Attorneys at law",
-            toName: "BlueStone Ventures",
-            toMeta: "General counsel · legal@bluestone.vc",
-            items: [
-                { desc: "1. Confidential Information — scope and protections", qty: "—", rate: "—", amount: "—" },
-                { desc: "2. Permitted Use — evaluation of partnership only", qty: "—", rate: "—", amount: "—" },
-                { desc: "3. Term — 3 years from effective date", qty: "—", rate: "—", amount: "—" },
-                { desc: "4. Governing Law — State of Delaware, USA", qty: "—", rate: "—", amount: "—" },
-            ],
-            currencyLabel: "",
-            subtotal: "",
-            taxLabel: "",
-            taxAmount: "",
-            total: "Ready to sign",
-            footerNote: "Both parties · E-signature enabled",
-        },
-    },
-    {
         id: "developers",
         label: "Developers",
         title: "Ship code, not paperwork",
@@ -458,26 +425,25 @@ export function PersonaTabs() {
                             ))}
                         </div>
 
-                        {/* Persona headline + desc — soft cross-fade with popLayout */}
-                        <motion.div
-                            layout
-                            transition={LAYOUT_SPRING}
-                            className="relative min-h-[120px] sm:min-h-[160px]"
-                        >
-                            <AnimatePresence mode="popLayout" initial={false}>
-                                <motion.div
-                                    key={active}
-                                    initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
-                                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                                    exit={{ opacity: 0, y: -8, filter: "blur(6px)", transition: { duration: DUR_OUT, ease: EASE } }}
-                                    transition={{ duration: DUR_IN, ease: EASE, delay: 0.05 }}
-                                >
-                                    <h3 className="font-serif text-2xl sm:text-3xl text-white mb-2 sm:mb-3">{current.title}.</h3>
-                                    <p className="text-[var(--landing-text-muted)] text-[14px] sm:text-lg mb-5 sm:mb-6 max-w-md leading-relaxed">
-                                        {current.desc}
-                                    </p>
-                                </motion.div>
-                            </AnimatePresence>
+                        {/* Persona headline + desc — fixed height container, no layout spring */}
+                        <div className="relative">
+                            <div className="relative h-[148px] sm:h-[168px] overflow-hidden">
+                                <AnimatePresence mode="popLayout" initial={false}>
+                                    <motion.div
+                                        key={active}
+                                        initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
+                                        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                                        exit={{ opacity: 0, y: -10, filter: "blur(6px)", transition: { duration: DUR_OUT, ease: EASE } }}
+                                        transition={{ duration: DUR_IN, ease: EASE, delay: 0.05 }}
+                                        className="absolute inset-0"
+                                    >
+                                        <h3 className="font-serif text-2xl sm:text-3xl text-white mb-2 sm:mb-3">{current.title}.</h3>
+                                        <p className="text-[var(--landing-text-muted)] text-[14px] sm:text-lg max-w-md leading-relaxed line-clamp-4">
+                                            {current.desc}
+                                        </p>
+                                    </motion.div>
+                                </AnimatePresence>
+                            </div>
 
                             <Link
                                 href="/auth/signup"
@@ -486,16 +452,12 @@ export function PersonaTabs() {
                                 Get Started Free
                                 <ArrowRight size={16} />
                             </Link>
-                        </motion.div>
+                        </div>
                     </div>
 
                     {/* Right side: Actual platform mockup — chat + document preview */}
                     <div className="w-full xl:w-[56%] relative">
-                        <motion.div
-                            layout
-                            transition={LAYOUT_SPRING}
-                            className="relative rounded-xl sm:rounded-2xl overflow-hidden bg-white border border-stone-200 shadow-2xl"
-                        >
+                        <div className="relative rounded-xl sm:rounded-2xl overflow-hidden bg-white border border-stone-200 shadow-2xl">
                             {/* Window chrome — matches the app's split layout */}
                             <div className="h-8 sm:h-9 border-b border-stone-200 bg-[#fbfbfa] flex items-center px-3 sm:px-3.5 gap-2 shrink-0">
                                 <div className="flex gap-1.5">
@@ -610,7 +572,7 @@ export function PersonaTabs() {
                                     </div>
                                 </div>
                             </div>
-                        </motion.div>
+                        </div>
                     </div>
 
                 </div>
