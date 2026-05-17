@@ -84,7 +84,7 @@ export function FeatureTabNav({ tabs, tabContent }: FeatureTabNavProps) {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {content.features.map((feat, i) => {
                   const FeatIcon = iconMap[feat.icon]
                   return (
@@ -93,15 +93,15 @@ export function FeatureTabNav({ tabs, tabContent }: FeatureTabNavProps) {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.1, duration: 0.5 }}
-                      className="group p-8 rounded-[2rem] bg-white border border-stone-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+                      className="p-7 rounded-2xl bg-white border-[2px] border-[var(--landing-dark)] shadow-[3px_3px_0px_0px_rgba(26,26,26,1)] hover:shadow-[5px_5px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 transition-all"
                     >
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-100 to-orange-50 flex items-center justify-center text-[var(--landing-amber)] mb-6 group-hover:scale-110 transition-transform">
-                        {FeatIcon && <FeatIcon size={28} />}
+                      <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center text-[var(--landing-amber)] mb-5">
+                        {FeatIcon && <FeatIcon size={24} />}
                       </div>
-                      <h3 className="font-display text-xl font-bold mb-2">
+                      <h3 className="font-display text-lg font-bold mb-2 text-[var(--landing-text-dark)]">
                         {feat.name}
                       </h3>
-                      <p className="text-[var(--landing-text-muted)] leading-relaxed">
+                      <p className="text-sm text-[var(--landing-text-muted)] leading-relaxed">
                         {feat.detail}
                       </p>
                     </motion.div>

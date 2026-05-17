@@ -292,7 +292,7 @@ export default async function UseCasePage({
                     <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-orange-100/30 via-transparent to-transparent opacity-60 pointer-events-none" />
                     <div className="max-w-5xl mx-auto text-center relative z-10">
                         <AnimatedHero>
-                            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r ${data.color} font-semibold text-sm mb-8 border border-stone-200/30`}>
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-50 text-[var(--landing-amber)] font-semibold text-sm mb-8 border-[2px] border-[var(--landing-dark)] shadow-[2px_2px_0px_0px_rgba(26,26,26,1)]">
                                 <Icon size={16} />
                                 <span className="uppercase tracking-wider text-xs font-bold">{slug.replace(/-/g, " ")}</span>
                             </div>
@@ -327,21 +327,21 @@ export default async function UseCasePage({
                 </section>
 
                 {/* Benefits */}
-                <section className="py-24 px-6 sm:px-10 bg-white rounded-t-[4rem]">
+                <section className="py-20 px-6 sm:px-10 bg-white">
                     <div className="max-w-5xl mx-auto">
                         <AnimatedCard>
-                            <h2 className="font-display text-4xl font-bold mb-12 text-center">
+                            <h2 className="font-display text-4xl font-bold mb-10 text-center tracking-tight">
                                 Why {slug.replace(/-/g, " ")} love Clorefy
                             </h2>
                         </AnimatedCard>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {data.benefits.map((benefit, i) => (
                                 <AnimatedCard key={benefit} delay={i * 0.06}>
-                                    <div className="flex items-center gap-4 p-5 rounded-2xl bg-[var(--landing-cream)] border border-stone-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
-                                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 shrink-0">
-                                            <CheckCircle2 size={18} />
+                                    <div className="flex items-center gap-4 p-5 rounded-2xl bg-white border-[2px] border-[var(--landing-dark)] shadow-[3px_3px_0px_0px_rgba(26,26,26,1)] hover:shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 transition-all">
+                                        <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-[var(--landing-amber)] shrink-0">
+                                            <CheckCircle2 size={17} />
                                         </div>
-                                        <span className="font-medium">{benefit}</span>
+                                        <span className="font-semibold text-sm text-[var(--landing-text-dark)]">{benefit}</span>
                                     </div>
                                 </AnimatedCard>
                             ))}
@@ -362,7 +362,7 @@ export default async function UseCasePage({
                                 <AnimatedCard key={tool.href}>
                                     <Link
                                         href={tool.href}
-                                        className="flex items-center justify-between gap-3 px-5 py-4 rounded-2xl bg-[var(--landing-cream)] border border-stone-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group"
+                                        className="flex items-center justify-between gap-3 px-5 py-4 rounded-2xl bg-white border-[2px] border-[var(--landing-dark)] shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] hover:shadow-[3px_3px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 transition-all group"
                                     >
                                         <span className="font-medium text-sm">{tool.label}</span>
                                         <ArrowRight size={16} className="text-[var(--landing-amber)] transition-transform group-hover:translate-x-1" />
@@ -386,7 +386,7 @@ export default async function UseCasePage({
                                         <Link
                                             key={key}
                                             href={`/use-cases/${key}`}
-                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--landing-cream)] border border-stone-200 text-sm font-semibold hover:bg-stone-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
+                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border-[2px] border-[var(--landing-dark)] shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] text-sm font-semibold hover:shadow-[3px_3px_0px_0px_rgba(26,26,26,1)] hover:-translate-y-0.5 transition-all"
                                         >
                                             <OtherIcon size={16} />
                                             {key.charAt(0).toUpperCase() + key.slice(1)}
