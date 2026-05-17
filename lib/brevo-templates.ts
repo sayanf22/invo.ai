@@ -95,9 +95,9 @@ function emailWrapper(content: string): string {
     p { font-size: 15px; line-height: 1.65; color: #374151; margin-bottom: 16px; }
     .cta-btn { display: inline-block; background: ${BRAND_COLOR}; color: #ffffff !important; font-size: 15px; font-weight: 600; padding: 14px 28px; border-radius: 10px; text-decoration: none; margin: 8px 0 24px; }
     .cta-btn-secondary { display: inline-block; border: 2px solid ${BRAND_COLOR}; color: ${BRAND_COLOR} !important; font-size: 14px; font-weight: 600; padding: 12px 24px; border-radius: 10px; text-decoration: none; margin: 4px 0 24px; }
-    .video-box { background: ${CREAM}; border-radius: 12px; padding: 20px 24px; margin: 20px 0; border-left: 3px solid ${AMBER}; }
+    .video-box { background: ${CREAM}; border-radius: 12px; padding: 16px 20px; margin: 20px 0; }
     .video-box p { margin-bottom: 8px; font-size: 14px; color: ${MUTED}; }
-    .video-box a { color: ${BRAND_COLOR}; font-weight: 600; word-break: break-all; }
+    .video-cta { display: block; background: ${BRAND_COLOR}; color: #ffffff !important; font-size: 15px; font-weight: 600; padding: 14px 20px; border-radius: 10px; text-decoration: none; text-align: center; letter-spacing: -0.2px; }
     .divider { border: none; border-top: 1px solid #E5E3DE; margin: 24px 0; }
     .feedback-box { background: #fafafa; border-radius: 12px; padding: 20px 24px; margin: 20px 0; }
     .feedback-box p { font-size: 14px; color: ${MUTED}; margin-bottom: 10px; }
@@ -148,8 +148,8 @@ export function onboardingDropoffEmail1(
       <p>You created your Clorefy account but didn't finish the setup. That 2-minute profile is what makes every ${useCase.docType} look professional — it fills in your business name, address, tax ID, and payment details automatically.</p>
 
       <div class="video-box">
-        <p>📹 Watch the quick walkthrough (2 min)</p>
-        <a href="${ONBOARDING_VIDEO}">${ONBOARDING_VIDEO}</a>
+        <p>📹 Quick walkthrough — see it done in 2 minutes</p>
+        <a href="${ONBOARDING_VIDEO}" class="video-cta">▶ Watch how to set up Clorefy (2 min)</a>
       </div>
 
       <p>${useCase.pitch}</p>
@@ -187,8 +187,8 @@ export function onboardingDropoffEmail2(
       <a href="${APP_URL}/onboarding" class="cta-btn">Finish setup now →</a>
 
       <div class="video-box">
-        <p>Still unsure? Watch this 2-minute demo:</p>
-        <a href="${ONBOARDING_VIDEO}">${ONBOARDING_VIDEO}</a>
+        <p>Still unsure? See it in action:</p>
+        <a href="${ONBOARDING_VIDEO}" class="video-cta">▶ Watch how to set up Clorefy (2 min)</a>
       </div>
 
       <hr class="divider">
@@ -263,7 +263,7 @@ export function inactivityEmail2(
 
       <div class="video-box">
         <p>🎬 See it in action (2 minutes):</p>
-        <a href="${ONBOARDING_VIDEO}">${ONBOARDING_VIDEO}</a>
+        <a href="${ONBOARDING_VIDEO}" class="video-cta">▶ Watch how to set up Clorefy (2 min)</a>
       </div>
 
       <a href="${APP_URL}" class="cta-btn">Open Clorefy →</a>
