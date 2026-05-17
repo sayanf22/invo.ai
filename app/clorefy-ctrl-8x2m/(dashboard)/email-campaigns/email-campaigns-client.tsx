@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Mail, Send, X, Search, CheckCircle, AlertTriangle, ChevronDown } from "lucide-react"
+import { Mail, Send, X, Search, CheckCircle } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { useAdminTheme } from "@/components/admin/admin-theme-provider"
+import { useIsMobile } from "@/hooks/use-mobile"
 import KpiCard from "@/components/admin/kpi-card"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -24,14 +25,9 @@ interface EmailEvent {
   tag: string | null; event_at: string; reason: string | null; user_id: string | null
 }
 
-interface Campaign {
-  id: string; segment: string; subject: string
-  emails_sent: number; emails_failed: number; sent_by: string; sent_at: string
-}
-
 interface Props {
   users: UserRow[]
-  campaigns: Campaign[]
+  campaigns: any[]
   emailSummary: Record<string, number>
   recentEvents: EmailEvent[]
 }
@@ -39,94 +35,77 @@ interface Props {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const CATEGORY_LABEL: Record<string, string> = {
-  dropoff: "Onboarding drop-off",
-  inactive: "Inactive 7d+",
-  active: "Active",
+  dropoff: "Drop-off", inactive: "Inactive", active: "Active",
 }
-
 const CATEGORY_COLOR: Record<string, string> = {
-  dropoff: "#DC2626",
-  inactive: "#D97757",
-  active: "#059669",
+  dropoff: "#DC2626", inactive: "#D97757", active: "#059669",
 }
-
 const EVENT_COLOR: Record<string, [string, string]> = {
-  delivered: ["#059669", "#F0FDF4"],
-  opened:    ["#7C3AED", "#F5F3FF"],
-  click:     ["#D97757", "#FFF7ED"],
-  sent:      ["#2563EB", "#EFF6FF"],
-  hardBounce:["#DC2626", "#FEF2F2"],
-  softBounce:["#EA580C", "#FFF7ED"],
-  spam:      ["#B45309", "#FFFBEB"],
-  unsubscribed:["#6B7280", "#F9FAFB"],
-  blocked:   ["#DC2626", "#FEF2F2"],
+  delivered: ["#059669","#F0FDF4"], opened: ["#7C3AED","#F5F3FF"],
+  click: ["#D97757","#FFF7ED"], sent: ["#2563EB","#EFF6FF"],
+  hardBounce: ["#DC2626","#FEF2F2"], softBounce: ["#EA580C","#FFF7ED"],
+  spam: ["#B45309","#FFFBEB"], unsubscribed: ["#6B7280","#F9FAFB"],
+  blocked: ["#DC2626","#FEF2F2"],
 }
 
-function emailEventBadge(event: string) {
-  const [color, bg] = EVENT_COLOR[event] ?? ["#6B7280", "#F9FAFB"]
-  return <span style={{ color, background: bg, padding: "2px 7px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>{event}</span>
-}
-
-function emailTypeBadge(type: string) {
-  const labels: Record<string, string> = {
-    dropoff_1: "Drop-off #1", dropoff_2: "Drop-off #2",
-    inactive_1: "Inactive #1", inactive_2: "Inactive #2",
-  }
-  return <span style={{ padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: "#F0F0F0", color: "#555" }}>{labels[type] ?? type}</span>
+function EventBadge({ event }: { event: string }) {
+  const [color, bg] = EVENT_COLOR[event] ?? ["#6B7280","#F9FAFB"]
+  return (
+    <span style={{ color, background: bg, padding: "2px 7px", borderRadius: 4, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+      {event}
+    </span>
+  )
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function EmailCampaignsClient({ users, campaigns, emailSummary, recentEvents }: Props) {
   const { theme } = useAdminTheme()
+  const isMobile = useIsMobile()
   const isDark = theme === "dark"
 
-  const bg = isDark ? "#000" : "#F5F5F5"
-  const cardBg = isDark ? "#0A0A0A" : "#FAFAFA"
-  const border = isDark ? "#1A1A1A" : "#E5E5E5"
-  const text = isDark ? "#F5F5F5" : "#0A0A0A"
-  const muted = isDark ? "#71717A" : "#71717A"
-  const rowHover = isDark ? "#111" : "#F0F0F0"
+  const cardBg   = isDark ? "#0A0A0A" : "#FAFAFA"
+  const border   = isDark ? "#1A1A1A" : "#E5E5E5"
+  const text     = isDark ? "#F5F5F5" : "#0A0A0A"
+  const muted    = isDark ? "#71717A" : "#71717A"
+  const hoverBg  = isDark ? "#111111" : "#F0F0F0"
+  const inputBg  = isDark ? "#000000" : "#FFFFFF"
 
   // Filters
   const [search, setSearch] = useState("")
-  const [filterCategory, setFilterCategory] = useState<"all" | "dropoff" | "inactive" | "active">("all")
-  const [filterEmailed, setFilterEmailed] = useState<"all" | "emailed" | "never">("all")
-  const [activeTab, setActiveTab] = useState<"users" | "events">("users")
+  const [filterCat, setFilterCat] = useState<"all"|"dropoff"|"inactive"|"active">("all")
+  const [filterEmail, setFilterEmail] = useState<"all"|"emailed"|"never">("all")
+  const [activeTab, setActiveTab] = useState<"users"|"events">("users")
 
-  // Email modal state
+  // Email modal
   const [modalUser, setModalUser] = useState<UserRow | null>(null)
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [sending, setSending] = useState(false)
   const [aiGenerating, setAiGenerating] = useState(false)
-  const [aiTone, setAiTone] = useState<"friendly" | "professional" | "urgent">("friendly")
+  const [aiTone, setAiTone] = useState<"friendly"|"professional"|"urgent">("friendly")
   const [aiIntent, setAiIntent] = useState("")
   const [sendError, setSendError] = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState(false)
 
   // Filtered users
-  const filtered = useMemo(() => {
-    return users.filter(u => {
-      if (filterCategory !== "all" && u.category !== filterCategory) return false
-      if (filterEmailed === "emailed" && u.never_emailed) return false
-      if (filterEmailed === "never" && !u.never_emailed) return false
-      if (search.trim()) {
-        const q = search.toLowerCase()
-        if (!u.email.toLowerCase().includes(q) && !(u.name ?? "").toLowerCase().includes(q)) return false
-      }
-      return true
-    })
-  }, [users, filterCategory, filterEmailed, search])
+  const filtered = useMemo(() => users.filter(u => {
+    if (filterCat !== "all" && u.category !== filterCat) return false
+    if (filterEmail === "emailed" && u.never_emailed) return false
+    if (filterEmail === "never" && !u.never_emailed) return false
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      if (!u.email.toLowerCase().includes(q) && !(u.name ?? "").toLowerCase().includes(q)) return false
+    }
+    return true
+  }), [users, filterCat, filterEmail, search])
 
-  // Stats
   const dropoffCount = users.filter(u => u.category === "dropoff").length
   const inactiveCount = users.filter(u => u.category === "inactive").length
   const neverEmailedCount = users.filter(u => u.never_emailed).length
 
-  // Open email modal
-  function openEmail(user: UserRow) {
-    setModalUser(user)
+  function openEmail(u: UserRow) {
+    setModalUser(u)
     setSubject("")
     setMessage("")
     setSendError(null)
@@ -134,7 +113,6 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
     setAiIntent("")
   }
 
-  // AI generate
   async function handleAiGenerate() {
     if (!modalUser) return
     setAiGenerating(true)
@@ -149,12 +127,10 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
       if (!res.ok) throw new Error(data.error || "AI generation failed")
       setSubject(data.subject ?? "")
       setMessage(data.message ?? "")
-    } catch (e: any) {
-      setSendError(e.message)
-    } finally { setAiGenerating(false) }
+    } catch (e: any) { setSendError(e.message) }
+    finally { setAiGenerating(false) }
   }
 
-  // Send email
   async function handleSend() {
     if (!modalUser || !subject.trim() || !message.trim()) return
     setSending(true)
@@ -169,49 +145,46 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
       if (!res.ok) throw new Error(data.error || "Failed")
       setSendSuccess(true)
       setTimeout(() => { setModalUser(null); setSendSuccess(false) }, 1600)
-    } catch (e: any) {
-      setSendError(e.message)
-    } finally { setSending(false) }
+    } catch (e: any) { setSendError(e.message) }
+    finally { setSending(false) }
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: bg, padding: "32px 32px 64px" }}>
-
-      {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 3 }}>
-          <Mail size={20} color="#D97757" />
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: text, margin: 0 }}>Email Outreach</h1>
+    <div>
+      {/* Page header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Mail size={18} style={{ color: "#D97757", flexShrink: 0 }} />
+          <h1 className="text-lg font-bold" style={{ color: text, margin: 0 }}>Email Outreach</h1>
         </div>
-        <p style={{ color: muted, fontSize: 13, margin: 0 }}>
-          All your users, their email history, and what was sent. Click any row to send a direct email.
-          Lifecycle emails (drop-off, inactivity) run automatically via Brevo at 08:00 UTC daily.
+        <p className="text-xs" style={{ color: muted }}>
+          All users, their email history, and what was sent. Click any row to send. Lifecycle emails run automatically via Brevo at 08:00 UTC.
         </p>
       </div>
 
-      {/* KPI cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 12, marginBottom: 28 }}>
+      {/* KPI cards — 2 columns on mobile, 4 on tablet, 7 on desktop */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
         <KpiCard title="Total users" value={users.length} />
-        <KpiCard title="Drop-off" value={dropoffCount} description="Didn't finish onboarding" />
-        <KpiCard title="Inactive 7d+" value={inactiveCount} description="Completed but idle" />
-        <KpiCard title="Never emailed" value={neverEmailedCount} description="No lifecycle email yet" />
-        <KpiCard title="Delivered (30d)" value={emailSummary["delivered"] ?? 0} />
-        <KpiCard title="Opened (30d)" value={emailSummary["opened"] ?? 0} />
-        <KpiCard title="Clicked (30d)" value={emailSummary["click"] ?? 0} />
+        <KpiCard title="Drop-off" value={dropoffCount} description="Never onboarded" />
+        <KpiCard title="Inactive 7d+" value={inactiveCount} description="Idle users" />
+        <KpiCard title="Never emailed" value={neverEmailedCount} />
+        <KpiCard title="Delivered" value={emailSummary["delivered"] ?? 0} description="30 days" />
+        <KpiCard title="Opened" value={emailSummary["opened"] ?? 0} description="30 days" />
+        <KpiCard title="Clicked" value={emailSummary["click"] ?? 0} description="30 days" />
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: `1px solid ${border}` }}>
-        {(["users", "events"] as const).map(tab => (
+      <div className="flex mb-4" style={{ borderBottom: `1px solid ${border}` }}>
+        {(["users","events"] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
+            className="px-4 py-2 text-sm font-semibold capitalize transition-colors"
             style={{
-              padding: "8px 18px", fontSize: 13, fontWeight: 600,
               background: "transparent", border: "none",
               borderBottom: activeTab === tab ? `2px solid ${text}` : "2px solid transparent",
-              color: activeTab === tab ? text : muted,
-              cursor: "pointer", textTransform: "capitalize",
+              color: activeTab === tab ? text : muted, cursor: "pointer",
+              marginBottom: -1,
             }}
           >
             {tab === "users" ? "Users" : "Email Events"}
@@ -222,116 +195,138 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
       {/* ── USERS TAB ── */}
       {activeTab === "users" && (
         <>
-          {/* Filters */}
-          <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            {/* Search */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, border: `1px solid ${border}`, background: cardBg, flex: "1 1 200px", maxWidth: 300 }}>
-              <Search size={13} color={muted} />
+          {/* Filters — stack on mobile */}
+          <div className="flex flex-wrap gap-2 mb-4 items-center">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[180px]" style={{ border: `1px solid ${border}`, background: cardBg }}>
+              <Search size={13} style={{ color: muted, flexShrink: 0 }} />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search email or name…"
-                style={{ border: "none", background: "transparent", fontSize: 13, color: text, outline: "none", flex: 1 }}
+                placeholder="Search…"
+                className="text-sm bg-transparent outline-none flex-1 min-w-0"
+                style={{ color: text }}
               />
-              {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer" }}><X size={12} color={muted} /></button>}
+              {search && (
+                <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                  <X size={12} style={{ color: muted }} />
+                </button>
+              )}
             </div>
 
-            {/* Category filter */}
             <select
-              value={filterCategory}
-              onChange={e => setFilterCategory(e.target.value as any)}
-              style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${border}`, background: cardBg, color: text, fontSize: 13, cursor: "pointer" }}
+              value={filterCat}
+              onChange={e => setFilterCat(e.target.value as any)}
+              className="text-sm px-3 py-2 rounded-lg cursor-pointer outline-none"
+              style={{ border: `1px solid ${border}`, background: cardBg, color: text }}
             >
-              <option value="all">All users ({users.length})</option>
+              <option value="all">All ({users.length})</option>
               <option value="dropoff">Drop-off ({dropoffCount})</option>
-              <option value="inactive">Inactive 7d+ ({inactiveCount})</option>
+              <option value="inactive">Inactive ({inactiveCount})</option>
               <option value="active">Active</option>
             </select>
 
-            {/* Email filter */}
             <select
-              value={filterEmailed}
-              onChange={e => setFilterEmailed(e.target.value as any)}
-              style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${border}`, background: cardBg, color: text, fontSize: 13, cursor: "pointer" }}
+              value={filterEmail}
+              onChange={e => setFilterEmail(e.target.value as any)}
+              className="text-sm px-3 py-2 rounded-lg cursor-pointer outline-none"
+              style={{ border: `1px solid ${border}`, background: cardBg, color: text }}
             >
               <option value="all">All email status</option>
-              <option value="never">Never emailed ({neverEmailedCount})</option>
-              <option value="emailed">Emailed</option>
+              <option value="never">Never emailed</option>
+              <option value="emailed">Already emailed</option>
             </select>
 
-            <span style={{ color: muted, fontSize: 12, marginLeft: "auto" }}>{filtered.length} users</span>
+            <span className="text-xs ml-auto" style={{ color: muted }}>{filtered.length} users</span>
           </div>
 
-          {/* Users table */}
-          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 10, overflow: "hidden" }}>
-            {/* Table header */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 90px 100px 130px 90px 80px", gap: 12, padding: "10px 16px", background: isDark ? "#000" : "#F0F0F0", borderBottom: `1px solid ${border}` }}>
-              {["User", "Status", "Inactive", "Docs", "Emails Sent", "Last Event", "Action"].map(h => (
-                <span key={h} style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</span>
-              ))}
+          {/* Users list — cards on mobile, table on desktop */}
+          <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${border}`, background: cardBg }}>
+
+            {/* Desktop table header — hidden on mobile */}
+            <div
+              className="hidden sm:grid text-xs uppercase tracking-wider font-semibold px-4 py-3"
+              style={{ gridTemplateColumns: "minmax(160px,1fr) 80px 60px 70px 140px 90px 70px", gap: "12px", background: isDark ? "#000" : "#F0F0F0", borderBottom: `1px solid ${border}`, color: muted }}
+            >
+              <span>User</span><span>Status</span><span>Idle</span><span>Docs</span><span>Emails Sent</span><span>Last Event</span><span>Action</span>
             </div>
 
             {filtered.length === 0 && (
-              <div style={{ padding: "32px", textAlign: "center", color: muted, fontSize: 13 }}>No users match your filters</div>
+              <div className="p-8 text-center text-sm" style={{ color: muted }}>No users match your filters</div>
             )}
 
             {filtered.map((u, i) => (
               <div
                 key={u.id}
-                style={{
-                  display: "grid", gridTemplateColumns: "1fr 90px 90px 100px 130px 90px 80px",
-                  gap: 12, padding: "11px 16px", alignItems: "center",
-                  borderTop: i > 0 ? `1px solid ${border}` : "none",
-                  cursor: "pointer", transition: "background 0.1s",
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = rowHover)}
-                onMouseLeave={e => (e.currentTarget.style.background = "")}
                 onClick={() => openEmail(u)}
+                style={{ borderTop: i > 0 ? `1px solid ${border}` : "none", cursor: "pointer" }}
+                onMouseEnter={e => (e.currentTarget.style.background = hoverBg)}
+                onMouseLeave={e => (e.currentTarget.style.background = "")}
               >
-                {/* User */}
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
-                  {u.name && <div style={{ fontSize: 11, color: muted }}>{u.name}</div>}
-                </div>
-
-                {/* Status badge */}
-                <div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: CATEGORY_COLOR[u.category], background: `${CATEGORY_COLOR[u.category]}18`, padding: "2px 7px", borderRadius: 4 }}>
-                    {u.category === "dropoff" ? "Drop-off" : u.category === "inactive" ? "Inactive" : "Active"}
-                  </span>
-                </div>
-
-                {/* Days idle */}
-                <div style={{ fontSize: 12, color: u.days_since_active >= 7 ? "#D97757" : muted }}>{u.days_since_active}d</div>
-
-                {/* Docs count */}
-                <div style={{ fontSize: 12, color: u.docs_count > 0 ? text : muted }}>{u.docs_count} doc{u.docs_count !== 1 ? "s" : ""}</div>
-
-                {/* Emails sent */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                  {u.sent_emails.length === 0
-                    ? <span style={{ fontSize: 11, color: muted }}>None</span>
-                    : u.sent_emails.map((s, j) => (
-                      <span key={j} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: isDark ? "#1A1A1A" : "#E5E5E5", color: muted }}>{s.email_type.replace("_", " #")}</span>
-                    ))
-                  }
-                </div>
-
-                {/* Last event */}
-                <div>
-                  {u.last_email_event
-                    ? emailEventBadge(u.last_email_event.event)
-                    : <span style={{ fontSize: 11, color: muted }}>—</span>
-                  }
-                </div>
-
-                {/* Action button */}
-                <button
-                  onClick={e => { e.stopPropagation(); openEmail(u) }}
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 6, border: `1px solid ${border}`, background: "transparent", color: text, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                {/* Desktop row */}
+                <div
+                  className="hidden sm:grid items-center px-4 py-3 text-sm"
+                  style={{ gridTemplateColumns: "minmax(160px,1fr) 80px 60px 70px 140px 90px 70px", gap: "12px" }}
                 >
-                  <Mail size={11} /> Email
-                </button>
+                  <div className="min-w-0">
+                    <div className="font-medium truncate" style={{ color: text, fontSize: 13 }}>{u.email}</div>
+                    {u.name && <div className="truncate" style={{ color: muted, fontSize: 11 }}>{u.name}</div>}
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: CATEGORY_COLOR[u.category], background: `${CATEGORY_COLOR[u.category]}1A`, padding: "2px 7px", borderRadius: 4, whiteSpace: "nowrap" }}>
+                    {CATEGORY_LABEL[u.category]}
+                  </span>
+                  <span style={{ fontSize: 12, color: u.days_since_active >= 7 ? "#D97757" : muted }}>{u.days_since_active}d</span>
+                  <span style={{ fontSize: 12, color: u.docs_count > 0 ? text : muted }}>{u.docs_count}</span>
+                  <div className="flex flex-wrap gap-1">
+                    {u.sent_emails.length === 0
+                      ? <span style={{ fontSize: 11, color: muted }}>None</span>
+                      : u.sent_emails.map((s, j) => (
+                        <span key={j} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: isDark ? "#1A1A1A" : "#E5E5E5", color: muted, whiteSpace: "nowrap" }}>
+                          {s.email_type.replace("_", " #")}
+                        </span>
+                      ))
+                    }
+                  </div>
+                  <div>{u.last_email_event ? <EventBadge event={u.last_email_event.event} /> : <span style={{ fontSize: 11, color: muted }}>—</span>}</div>
+                  <button
+                    onClick={e => { e.stopPropagation(); openEmail(u) }}
+                    className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors"
+                    style={{ border: `1px solid ${border}`, background: "transparent", color: text, cursor: "pointer" }}
+                  >
+                    <Mail size={11} /> Email
+                  </button>
+                </div>
+
+                {/* Mobile card */}
+                <div className="sm:hidden px-4 py-3">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-sm truncate" style={{ color: text }}>{u.name ?? u.email}</div>
+                      {u.name && <div className="text-xs truncate" style={{ color: muted }}>{u.email}</div>}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span style={{ fontSize: 10, fontWeight: 700, color: CATEGORY_COLOR[u.category], background: `${CATEGORY_COLOR[u.category]}1A`, padding: "2px 6px", borderRadius: 4 }}>
+                        {CATEGORY_LABEL[u.category]}
+                      </span>
+                      <button
+                        onClick={e => { e.stopPropagation(); openEmail(u) }}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold"
+                        style={{ border: `1px solid ${border}`, background: "transparent", color: text, cursor: "pointer" }}
+                      >
+                        <Mail size={11} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    <span className="text-xs" style={{ color: muted }}>Idle: <span style={{ color: u.days_since_active >= 7 ? "#D97757" : text }}>{u.days_since_active}d</span></span>
+                    <span className="text-xs" style={{ color: muted }}>Docs: <span style={{ color: text }}>{u.docs_count}</span></span>
+                    <span className="text-xs" style={{ color: muted }}>
+                      Emails: <span style={{ color: text }}>{u.sent_emails.length === 0 ? "None" : u.sent_emails.map(s => s.email_type.replace("_", " #")).join(", ")}</span>
+                    </span>
+                    {u.last_email_event && (
+                      <span className="text-xs" style={{ color: muted }}>Last: <EventBadge event={u.last_email_event.event} /></span>
+                    )}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -340,26 +335,39 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
 
       {/* ── EVENTS TAB ── */}
       {activeTab === "events" && (
-        <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 10, overflow: "hidden" }}>
-          {/* Table header */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 120px 150px 100px 120px", gap: 12, padding: "10px 16px", background: isDark ? "#000" : "#F0F0F0", borderBottom: `1px solid ${border}` }}>
-            {["Recipient", "Event", "Tag", "Subject", "Reason", "When"].map(h => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</span>
-            ))}
+        <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${border}`, background: cardBg }}>
+          {/* Desktop header */}
+          <div className="hidden sm:grid px-4 py-3 text-xs uppercase tracking-wider font-semibold" style={{ gridTemplateColumns: "1fr 100px 100px 160px 80px 110px", gap: "12px", background: isDark ? "#000" : "#F0F0F0", borderBottom: `1px solid ${border}`, color: muted }}>
+            <span>Recipient</span><span>Event</span><span>Tag</span><span>Subject</span><span>Reason</span><span>When</span>
           </div>
+
           {recentEvents.length === 0 && (
-            <div style={{ padding: "32px", textAlign: "center", color: muted, fontSize: 13 }}>
-              No email events yet. Events appear here once Brevo automations start sending.
-            </div>
+            <div className="p-8 text-center text-sm" style={{ color: muted }}>No email events yet. Events appear once Brevo automations start sending.</div>
           )}
+
           {recentEvents.map((ev, i) => (
-            <div key={ev.id} style={{ display: "grid", gridTemplateColumns: "1fr 100px 120px 150px 100px 120px", gap: 12, padding: "10px 16px", borderTop: i > 0 ? `1px solid ${border}` : "none", alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.email}</span>
-              <span>{emailEventBadge(ev.event)}</span>
-              <span style={{ fontSize: 11, color: muted }}>{ev.tag ?? "—"}</span>
-              <span style={{ fontSize: 12, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.subject ?? "—"}</span>
-              <span style={{ fontSize: 11, color: "#DC2626" }}>{ev.reason ?? "—"}</span>
-              <span style={{ fontSize: 11, color: muted, whiteSpace: "nowrap" }}>{formatDistanceToNow(new Date(ev.event_at), { addSuffix: true })}</span>
+            <div key={ev.id} style={{ borderTop: i > 0 ? `1px solid ${border}` : "none" }}>
+              {/* Desktop */}
+              <div className="hidden sm:grid items-center px-4 py-3 text-sm" style={{ gridTemplateColumns: "1fr 100px 100px 160px 80px 110px", gap: "12px" }}>
+                <span className="truncate" style={{ fontSize: 12, color: text }}>{ev.email}</span>
+                <EventBadge event={ev.event} />
+                <span style={{ fontSize: 11, color: muted }}>{ev.tag ?? "—"}</span>
+                <span className="truncate" style={{ fontSize: 12, color: muted }}>{ev.subject ?? "—"}</span>
+                <span style={{ fontSize: 11, color: "#DC2626" }}>{ev.reason ?? "—"}</span>
+                <span style={{ fontSize: 11, color: muted, whiteSpace: "nowrap" }}>{formatDistanceToNow(new Date(ev.event_at), { addSuffix: true })}</span>
+              </div>
+              {/* Mobile */}
+              <div className="sm:hidden px-4 py-3">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-xs truncate flex-1" style={{ color: text }}>{ev.email}</span>
+                  <EventBadge event={ev.event} />
+                </div>
+                <div className="flex gap-3 flex-wrap">
+                  {ev.tag && <span className="text-xs" style={{ color: muted }}>Tag: {ev.tag}</span>}
+                  {ev.reason && <span className="text-xs" style={{ color: "#DC2626" }}>{ev.reason}</span>}
+                  <span className="text-xs" style={{ color: muted }}>{formatDistanceToNow(new Date(ev.event_at), { addSuffix: true })}</span>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -368,51 +376,60 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
       {/* ── EMAIL MODAL ── */}
       {modalUser && (
         <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6"
+          style={{ background: "rgba(0,0,0,0.65)" }}
           onClick={e => { if (e.target === e.currentTarget) setModalUser(null) }}
         >
-          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 14, width: "100%", maxWidth: 540, padding: 28, maxHeight: "90vh", overflow: "auto" }}>
-
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-              <div>
-                <h2 style={{ fontSize: 16, fontWeight: 700, color: text, margin: "0 0 2px" }}>Email {modalUser.name ?? modalUser.email}</h2>
-                <p style={{ color: muted, fontSize: 12, margin: 0 }}>{modalUser.email}</p>
+          <div
+            className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl overflow-auto"
+            style={{ background: cardBg, border: `1px solid ${border}`, maxHeight: "92vh", padding: isMobile ? "20px 16px 32px" : "28px" }}
+          >
+            {/* Modal header */}
+            <div className="flex items-start justify-between mb-4">
+              <div className="min-w-0 flex-1 mr-4">
+                <h2 className="text-base font-bold truncate" style={{ color: text, margin: 0 }}>
+                  Email {modalUser.name ?? modalUser.email}
+                </h2>
+                <p className="text-xs mt-0.5 truncate" style={{ color: muted }}>{modalUser.email}</p>
               </div>
-              <button onClick={() => setModalUser(null)} style={{ background: "none", border: "none", cursor: "pointer" }}>
-                <X size={18} color={muted} />
+              <button onClick={() => setModalUser(null)} style={{ background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
+                <X size={18} style={{ color: muted }} />
               </button>
             </div>
 
             {/* User KPIs */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18, padding: "12px 14px", borderRadius: 8, background: isDark ? "#0A0A0A" : "#F0F0F0", border: `1px solid ${border}` }}>
-              {[
-                { label: "Status", value: CATEGORY_LABEL[modalUser.category] ?? modalUser.category, color: CATEGORY_COLOR[modalUser.category] },
-                { label: "Idle", value: `${modalUser.days_since_active}d`, color: undefined },
-                { label: "Docs", value: String(modalUser.docs_count), color: undefined },
-                { label: "Tier", value: modalUser.tier, color: undefined },
-                { label: "Emails", value: modalUser.sent_emails.length === 0 ? "None sent" : modalUser.sent_emails.map(s => s.email_type.replace("_", " #")).join(", "), color: undefined },
-              ].map(({ label, value, color }) => (
-                <div key={label}>
-                  <span style={{ fontSize: 11, color: muted }}>{label}: </span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: color ?? text }}>{value}</span>
-                </div>
-              ))}
+            <div className="flex flex-wrap gap-3 mb-4 p-3 rounded-lg text-xs" style={{ background: isDark ? "#0A0A0A" : "#F0F0F0", border: `1px solid ${border}` }}>
+              <span style={{ color: muted }}>Status: <strong style={{ color: CATEGORY_COLOR[modalUser.category] }}>{CATEGORY_LABEL[modalUser.category]}</strong></span>
+              <span style={{ color: muted }}>Idle: <strong style={{ color: text }}>{modalUser.days_since_active}d</strong></span>
+              <span style={{ color: muted }}>Docs: <strong style={{ color: text }}>{modalUser.docs_count}</strong></span>
+              <span style={{ color: muted }}>Tier: <strong style={{ color: text }}>{modalUser.tier}</strong></span>
+              <span style={{ color: muted }}>
+                Sent: <strong style={{ color: text }}>
+                  {modalUser.sent_emails.length === 0 ? "None" : modalUser.sent_emails.map(s => s.email_type.replace("_", " #")).join(", ")}
+                </strong>
+              </span>
             </div>
 
-            {/* AI section */}
-            <div style={{ marginBottom: 18, padding: "14px 16px", borderRadius: 10, border: `1px solid ${border}`, background: isDark ? "#050505" : "#FAFAFA" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED" }}>✨ AI Draft</span>
-                <span style={{ fontSize: 11, color: muted }}>Generates using this user's real data</span>
+            {/* AI Draft box */}
+            <div className="mb-4 p-4 rounded-xl" style={{ border: `1px solid ${isDark ? "#1A1A1A" : "#E5E5E5"}`, background: isDark ? "#050505" : "#FAFAFA" }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-sm font-bold" style={{ color: "#7C3AED" }}>✨ AI Draft</span>
+                <span className="text-xs" style={{ color: muted }}>Personalised using this user's real data</span>
               </div>
 
-              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                {(["friendly", "professional", "urgent"] as const).map(t => (
+              {/* Tone pills */}
+              <div className="flex gap-2 mb-3">
+                {(["friendly","professional","urgent"] as const).map(t => (
                   <button
                     key={t}
                     onClick={() => setAiTone(t)}
-                    style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${aiTone === t ? "#7C3AED" : border}`, background: aiTone === t ? "#7C3AED" : "transparent", color: aiTone === t ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                    className="px-3 py-1 rounded-lg text-xs font-semibold capitalize"
+                    style={{
+                      border: `1px solid ${aiTone === t ? "#7C3AED" : border}`,
+                      background: aiTone === t ? "#7C3AED" : "transparent",
+                      color: aiTone === t ? "#fff" : muted,
+                      cursor: "pointer",
+                    }}
                   >
                     {t}
                   </button>
@@ -421,66 +438,78 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
 
               <input
                 type="text"
-                placeholder="Optional: "came back after 2 weeks" or "never tried the app""
+                placeholder="Optional context: "inactive 2 weeks", "never used app"…"
                 value={aiIntent}
                 onChange={e => setAiIntent(e.target.value)}
                 maxLength={300}
-                style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${border}`, background: bg, color: text, fontSize: 12, outline: "none", marginBottom: 10 }}
+                className="w-full text-sm rounded-lg outline-none mb-3"
+                style={{ padding: "8px 10px", border: `1px solid ${border}`, background: inputBg, color: text }}
               />
 
               <button
                 onClick={handleAiGenerate}
                 disabled={aiGenerating}
-                style={{ width: "100%", padding: "9px", borderRadius: 7, border: "none", background: aiGenerating ? muted : "#7C3AED", color: "#fff", fontSize: 13, fontWeight: 600, cursor: aiGenerating ? "not-allowed" : "pointer" }}
+                className="w-full py-2.5 rounded-lg text-sm font-semibold"
+                style={{ background: aiGenerating ? muted : "#7C3AED", color: "#fff", border: "none", cursor: aiGenerating ? "not-allowed" : "pointer" }}
               >
                 {aiGenerating ? "Generating…" : "Generate subject + message →"}
               </button>
             </div>
 
             {/* Subject */}
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: muted, display: "block", marginBottom: 5 }}>Subject</label>
+            <div className="mb-3">
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: muted }}>Subject</label>
               <input
                 type="text"
                 value={subject}
                 onChange={e => setSubject(e.target.value)}
                 placeholder="e.g. Quick check-in from Clorefy"
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${border}`, background: bg, color: text, fontSize: 13, outline: "none" }}
+                className="w-full text-sm rounded-lg outline-none"
+                style={{ padding: "10px 12px", border: `1px solid ${border}`, background: inputBg, color: text }}
               />
             </div>
 
             {/* Message */}
-            <div style={{ marginBottom: 18 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: muted, display: "block", marginBottom: 5 }}>Message</label>
+            <div className="mb-4">
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: muted }}>Message</label>
               <textarea
-                rows={6}
+                rows={isMobile ? 5 : 6}
                 value={message}
                 onChange={e => setMessage(e.target.value)}
                 placeholder="Write your message — or use AI Draft above"
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${border}`, background: bg, color: text, fontSize: 13, outline: "none", resize: "vertical", lineHeight: 1.6 }}
+                className="w-full text-sm rounded-lg outline-none resize-y leading-relaxed"
+                style={{ padding: "10px 12px", border: `1px solid ${border}`, background: inputBg, color: text }}
               />
             </div>
 
             {sendError && (
-              <div style={{ color: "#DC2626", fontSize: 12, background: "#FEF2F2", padding: "8px 12px", borderRadius: 6, marginBottom: 14 }}>{sendError}</div>
+              <div className="text-xs p-3 rounded-lg mb-3" style={{ background: "#FEF2F2", color: "#DC2626" }}>{sendError}</div>
             )}
             {sendSuccess && (
-              <div style={{ color: "#059669", fontSize: 12, background: "#F0FDF4", padding: "8px 12px", borderRadius: 6, marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
+              <div className="flex items-center gap-2 text-xs p-3 rounded-lg mb-3" style={{ background: "#F0FDF4", color: "#059669" }}>
                 <CheckCircle size={13} /> Email sent to {modalUser.email}
               </div>
             )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            {/* Actions */}
+            <div className="flex gap-3">
               <button
                 onClick={() => setModalUser(null)}
-                style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${border}`, background: "transparent", color: text, fontSize: 13, cursor: "pointer" }}
+                className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm"
+                style={{ border: `1px solid ${border}`, background: "transparent", color: text, cursor: "pointer" }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSend}
                 disabled={!subject.trim() || !message.trim() || sending}
-                style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: (!subject.trim() || !message.trim() || sending) ? muted : isDark ? "#F5F5F5" : "#0A0A0A", color: isDark ? "#0A0A0A" : "#F5F5F5", fontSize: 13, fontWeight: 600, cursor: (!subject.trim() || !message.trim() || sending) ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 7 }}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
+                style={{
+                  background: (!subject.trim() || !message.trim() || sending) ? muted : isDark ? "#F5F5F5" : "#0A0A0A",
+                  color: isDark ? "#0A0A0A" : "#F5F5F5",
+                  border: "none",
+                  cursor: (!subject.trim() || !message.trim() || sending) ? "not-allowed" : "pointer",
+                }}
               >
                 <Send size={13} />{sending ? "Sending…" : "Send email"}
               </button>
