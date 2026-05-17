@@ -25,6 +25,17 @@ interface SegmentCounts {
 interface Props {
   campaigns: Campaign[]
   segmentCounts: SegmentCounts
+  emailSummary: Record<string, number>
+  recentEvents: Array<{
+    id: string
+    email: string
+    event: string
+    subject: string | null
+    tag: string | null
+    event_at: string
+    reason: string | null
+    user_id: string | null
+  }>
 }
 
 // ── Segment sync actions ──────────────────────────────────────────────────────
@@ -68,7 +79,7 @@ interface DirectMessageState {
   message: string
 }
 
-export default function EmailCampaignsClient({ campaigns: initialCampaigns, segmentCounts }: Props) {
+export default function EmailCampaignsClient({ campaigns: initialCampaigns, segmentCounts, emailSummary, recentEvents }: Props) {
   const { theme } = useAdminTheme()
   const isDark = theme === "dark"
 
@@ -317,6 +328,92 @@ export default function EmailCampaignsClient({ campaigns: initialCampaigns, segm
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Email tracking stats (from Brevo webhooks) */}
+        <div style={{ marginBottom: 40 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 16 }}>Email Tracking — Last 30 Days</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 12, marginBottom: 20 }}>
+            {[
+              { label: "Sent", key: "sent", color: "#2563EB" },
+              { label: "Delivered", key: "delivered", color: "#059669" },
+              { label: "Opened", key: "opened", color: "#7C3AED" },
+              { label: "Clicked", key: "click", color: "#D97757" },
+              { label: "Hard Bounce", key: "hardBounce", color: "#DC2626" },
+              { label: "Spam", key: "spam", color: "#EA580C" },
+              { label: "Unsub", key: "unsubscribed", color: "#6B7280" },
+            ].map(({ label, key, color }) => (
+              <div key={key} style={{ background: cardBg, border: `1.5px solid ${border}`, borderRadius: 12, padding: "14px 16px" }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color }}>{emailSummary[key] ?? 0}</div>
+                <div style={{ fontSize: 11, color: muted, marginTop: 2, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Delivery/open rate pills */}
+          {(emailSummary["sent"] ?? 0) > 0 && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+              {[
+                { label: "Delivery rate", value: `${Math.round(((emailSummary["delivered"] ?? 0) / ((emailSummary["sent"] ?? 0) + (emailSummary["request"] ?? 0))) * 100)}%`, color: "#059669" },
+                { label: "Open rate", value: `${(emailSummary["delivered"] ?? 0) > 0 ? Math.round(((emailSummary["opened"] ?? 0) / (emailSummary["delivered"] ?? 1)) * 100) : 0}%`, color: "#7C3AED" },
+                { label: "Click rate", value: `${(emailSummary["opened"] ?? 0) > 0 ? Math.round(((emailSummary["click"] ?? 0) / (emailSummary["opened"] ?? 1)) * 100) : 0}%`, color: "#D97757" },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ padding: "6px 14px", borderRadius: 20, background: cardBg, border: `1.5px solid ${border}`, fontSize: 13, fontWeight: 600 }}>
+                  <span style={{ color: muted }}>{label}: </span>
+                  <span style={{ color }}>{value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recent events table */}
+          {recentEvents.length > 0 && (
+            <div style={{ background: cardBg, border: `1.5px solid ${border}`, borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "12px 16px", borderBottom: `1px solid ${border}`, fontSize: 13, fontWeight: 600, color: text }}>Recent email events</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${border}` }}>
+                      {["Email", "Event", "Tag", "Subject", "When", "Reason"].map((h) => (
+                        <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 600, color: muted, whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentEvents.slice(0, 30).map((ev, i) => {
+                      const eventColors: Record<string, string> = {
+                        delivered: "#059669", opened: "#7C3AED", click: "#D97757",
+                        hardBounce: "#DC2626", softBounce: "#EA580C", spam: "#B45309",
+                        unsubscribed: "#6B7280", sent: "#2563EB", blocked: "#DC2626",
+                      }
+                      const color = eventColors[ev.event] ?? muted
+                      return (
+                        <tr key={ev.id} style={{ borderBottom: i < recentEvents.slice(0, 30).length - 1 ? `1px solid ${border}` : "none" }}>
+                          <td style={{ padding: "10px 14px", fontSize: 12, color: text }}>{ev.email}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color, background: `${color}15`, padding: "2px 8px", borderRadius: 4 }}>{ev.event}</span>
+                          </td>
+                          <td style={{ padding: "10px 14px", fontSize: 11, color: muted }}>{ev.tag ?? "—"}</td>
+                          <td style={{ padding: "10px 14px", fontSize: 12, color: muted, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.subject ?? "—"}</td>
+                          <td style={{ padding: "10px 14px", fontSize: 11, color: muted, whiteSpace: "nowrap" }}>{formatDistanceToNow(new Date(ev.event_at), { addSuffix: true })}</td>
+                          <td style={{ padding: "10px 14px", fontSize: 11, color: "#DC2626" }}>{ev.reason ?? "—"}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {recentEvents.length === 0 && (
+                <p style={{ color: muted, fontSize: 13, padding: "20px 16px", textAlign: "center" }}>No events yet. Events appear here once Brevo automations start sending emails.</p>
+              )}
+            </div>
+          )}
+          {recentEvents.length === 0 && (
+            <div style={{ background: cardBg, border: `1.5px solid ${border}`, borderRadius: 14, padding: "32px 20px", textAlign: "center" }}>
+              <Mail size={28} color={muted} style={{ marginBottom: 12 }} />
+              <p style={{ color: muted, fontSize: 13, margin: 0 }}>No email events yet. Events will appear here once Brevo starts sending via automations.</p>
+            </div>
+          )}
         </div>
 
         {/* Campaign history */}

@@ -14,6 +14,7 @@ export default async function EmailCampaignsPage() {
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString()
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
   const [
     { count: dropoffCount },
@@ -21,6 +22,8 @@ export default async function EmailCampaignsPage() {
     { count: inactive14Count },
     { count: allActiveCount },
     { data: campaigns },
+    { data: recentEvents },
+    { data: eventCounts },
   ] = await Promise.all([
     supabase.from("profiles").select("id", { count: "exact", head: true })
       .eq("onboarding_complete", false)
@@ -35,7 +38,21 @@ export default async function EmailCampaignsPage() {
       .eq("onboarding_complete", true),
     supabase.from("admin_email_campaigns").select("*")
       .order("sent_at", { ascending: false }).limit(50),
+    supabase.from("email_events")
+      .select("id, email, event, subject, tag, event_at, reason, user_id")
+      .gte("event_at", thirtyDaysAgo)
+      .order("event_at", { ascending: false })
+      .limit(100),
+    // Aggregate event counts
+    supabase.from("email_events").select("event")
+      .gte("event_at", thirtyDaysAgo),
   ])
+
+  // Build aggregates
+  const summary: Record<string, number> = {}
+  for (const row of eventCounts ?? []) {
+    summary[row.event] = (summary[row.event] ?? 0) + 1
+  }
 
   return (
     <EmailCampaignsClient
@@ -46,6 +63,8 @@ export default async function EmailCampaignsPage() {
         inactive14: inactive14Count ?? 0,
         allActive: allActiveCount ?? 0,
       }}
+      emailSummary={summary}
+      recentEvents={(recentEvents ?? []).slice(0, 100)}
     />
   )
 }
