@@ -553,7 +553,10 @@ async function updateLastActive(userId: string): Promise<void> {
 // ── Matcher: run middleware on all routes except static files ───────────
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot)).*)",
+    // Exclude Next.js internals, all static file extensions, AND well-known
+    // SEO/crawler files (robots.txt, llms.txt, sitemap.xml) so they are served
+    // directly by the edge runtime with no middleware overhead.
+    "/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|llms\\.txt|llms-full\\.txt|sitemap\\.xml|sitemap\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot|txt|xml)).*)",
     "/clorefy-ctrl-8x2m/:path*",
   ],
 }
