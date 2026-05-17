@@ -20,11 +20,11 @@ const tabs: TabData[] = [
 const tabContent: Record<string, TabContentData> = {
     generate: {
         title: "AI-powered document generation",
-        desc: "Describe what you need in plain language. Clorefy generates professional invoices, contracts, quotations, and proposals in seconds.",
+        desc: "Describe what you need in plain language. Clorefy generates professional invoices, contracts, proposals, NDAs, SOWs, change orders, and 9 document types in seconds.",
         features: [
             { icon: "Wand2", name: "Smart AI drafting", detail: "Turn a few sentences into a complete, formatted document" },
-            { icon: "FileText", name: "Multiple document types", detail: "Invoices, contracts, quotations, proposals, and more" },
-            { icon: "Globe", name: "Multi-currency support", detail: "Generate documents in any currency with correct formatting" },
+            { icon: "FileText", name: "9 document types", detail: "Invoices, contracts, quotes, proposals, NDAs, SOWs, change orders, onboarding forms, and payment reminders" },
+            { icon: "Globe", name: "Global compliance", detail: "Tax-aware generation for every country — GST, VAT, sales tax auto-applied" },
         ]
     },
     customize: {

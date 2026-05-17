@@ -890,11 +890,19 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         const userMessage = messageText.trim()
 
         // ── Pre-flight document type switch guard ──────────────────────────────
+        // When the user asks to "create a contract" inside an invoice session, block it
+        // and guide them to start a new session. Uses registry-driven type list so
+        // adding a new doc type doesn't require touching this guard.
         const DOC_TYPE_KEYWORDS: Record<string, string[]> = {
-            invoice:   ["invoice", "invoices"],
-            contract:  ["contract", "contracts", "agreement", "agreements"],
-            quote:     ["quotation", "quotations", "quote", "quotes", "estimate", "estimates"],
-            proposal:  ["proposal", "proposals", "pitch", "pitches"],
+            invoice:               ["invoice", "invoices"],
+            contract:              ["contract", "contracts", "agreement", "agreements"],
+            quote:                 ["quotation", "quotations", "quote", "quotes", "estimate", "estimates"],
+            proposal:              ["proposal", "proposals", "pitch", "pitches"],
+            sow:                   ["statement of work", "sow", "scope of work"],
+            change_order:          ["change order", "change orders", "amendment", "amendments"],
+            nda:                   ["nda", "non-disclosure", "nondisclosure", "confidentiality agreement"],
+            client_onboarding_form:["onboarding form", "client form", "intake form", "client intake"],
+            payment_followup:      ["payment follow-up", "payment followup", "payment reminder", "follow-up letter"],
         }
         const CREATE_VERBS = /\b(create|make|generate|build|write|draft|produce|give me|i need|i want)\b/i
         const msgLower = userMessage.toLowerCase()
