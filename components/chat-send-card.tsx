@@ -143,9 +143,17 @@ export function ChatSendCard({
   // isSignable = the document CAN have signatures AND the user wants them
   const isSignable = typeSupportsSignatures && signatureFieldsOn
   const isContract = documentType.toLowerCase() === "contract"
-  const isPaidTier = userTier !== "free"
+  // Tier-based feature gates (read from prop)
+  const isPaidTier = userTier !== "free"           // starter, pro, agency
+  // E-signatures available on all tiers (free, starter, pro, agency)
+  const canUseSignatures = isSignable
+  // Recurring invoices require Starter+
+  const canUseRecurring = isPaidTier
+  // Auto-invoice on sign is a Pro+ feature
+  const canUseAutoInvoice = userTier === "pro" || userTier === "agency"
   const docLabel = docTypeConfig?.label || (documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase())
-  const actionLabel = isSignable ? `Send & Sign ${docLabel}` : `Send ${docLabel}`
+  // Action label: if user CAN sign → "Send & Sign", else just "Send"
+  const actionLabel = canUseSignatures ? `Send & Sign ${docLabel}` : `Send ${docLabel}`
   const ref = invoiceData.invoiceNumber || invoiceData.referenceNumber || ""
   const total = calcTotal(invoiceData)
 
@@ -227,8 +235,9 @@ export function ChatSendCard({
     try {
       const supportsSignatures = typeSupportsSignatures
       // Only create a signature request when the document type supports it AND
-      // the user hasn't turned off the signature section via the editor toggle.
-      const shouldRequestSignature = supportsSignatures && signatureFieldsOn
+      // the user hasn't turned off the signature section via the editor toggle
+      // AND the user's tier allows signatures (Pro+).
+      const shouldRequestSignature = supportsSignatures && signatureFieldsOn && canUseSignatures
 
       // For signature-supporting documents, create a signature request first
       if (shouldRequestSignature) {
@@ -555,8 +564,9 @@ export function ChatSendCard({
               </label>
             )}
 
-            {/* Recurring invoice — invoices only */}
+            {/* Recurring invoice — invoices only, paid tier only */}
             {isInvoice && (
+              canUseRecurring ? (
               <div className="rounded-xl border border-border/30 bg-muted/20 overflow-hidden">
                 <label className="flex items-center justify-between px-3.5 py-2.5 cursor-pointer">
                   <div className="flex items-center gap-2.5">
@@ -595,22 +605,32 @@ export function ChatSendCard({
                   </div>
                 )}
               </div>
+              ) : (
+              <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-muted/20 border border-border/30 opacity-70">
+                <Repeat2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-medium text-foreground block">Make recurring</span>
+                  <span className="text-[10px] text-muted-foreground">Starter plan required</span>
+                </div>
+                <a href="/pricing" className="text-[10px] font-semibold text-primary hover:underline shrink-0">Upgrade</a>
+              </div>
+              )
             )}
 
-            {/* Auto-invoice on sign — contracts only */}
+            {/* Auto-invoice on sign — contracts only, Pro+ */}
             {isContract && (
               <label className={cn(
                 "flex items-center justify-between px-3.5 py-2.5 rounded-xl border cursor-pointer",
                 autoInvoiceOnSign
                   ? "bg-muted/40 border-border/50"
                   : "bg-muted/30 border-border/30",
-                !isPaidTier && "opacity-60 cursor-not-allowed"
+                !canUseAutoInvoice && "opacity-60 cursor-not-allowed"
               )}>
                 <div className="flex items-center gap-2.5">
                   <FileText className={cn("w-4 h-4", autoInvoiceOnSign ? "text-foreground" : "text-muted-foreground")} />
                   <div>
                     <span className="text-xs font-medium text-foreground block">Auto-send invoice on signing</span>
-                    {!isPaidTier && <span className="text-[10px] text-amber-600 dark:text-amber-400">Paid plan required</span>}
+                    {!canUseAutoInvoice && <span className="text-[10px] text-muted-foreground">Pro plan required</span>}
                   </div>
                 </div>
                 <div className={cn(
@@ -618,7 +638,7 @@ export function ChatSendCard({
                   autoInvoiceOnSign ? "bg-foreground" : "bg-muted-foreground/20"
                 )}>
                   <input type="checkbox" checked={autoInvoiceOnSign}
-                    onChange={e => isPaidTier && setAutoInvoiceOnSign(e.target.checked)}
+                    onChange={e => canUseAutoInvoice && setAutoInvoiceOnSign(e.target.checked)}
                     className="sr-only" />
                   <span className={cn(
                     "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200",

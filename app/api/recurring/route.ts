@@ -66,6 +66,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "frequency must be weekly, monthly, or quarterly" }, { status: 400 })
   }
 
+  // Recurring invoices are a paid-tier feature (starter, pro, agency)
+  const { getUserTier } = await import("@/lib/cost-protection")
+  const userTier = await getUserTier(auth.supabase, auth.user.id)
+  if (userTier === "free") {
+    return NextResponse.json(
+      {
+        error: "Recurring invoices require a paid plan",
+        tier: userTier,
+        message: "Upgrade to Starter or higher to schedule recurring invoices.",
+      },
+      { status: 403 }
+    )
+  }
+
   // Verify session ownership and it's an invoice
   const { data: session, error: sessionError } = await auth.supabase
     .from("document_sessions")

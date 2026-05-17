@@ -38,7 +38,7 @@ Once the cap is hit, the user must start a new session (which counts as a new do
 | Countries | All 11 | All 11 | All 11 | All 11 |
 | Export formats | PDF only | PDF + DOCX | PDF + DOCX + Image | All formats |
 | Session history | 30 days | 30 days | 1 year | Forever |
-| Digital signatures | — | — | ✓ | ✓ |
+| Digital signatures | ✓ | ✓ | ✓ | ✓ |
 | Custom logo/branding | ✓ | ✓ | ✓ | ✓ |
 | Team members | 1 | 1 | 1 | 3 |
 | Priority support | — | — | — | ✓ |
