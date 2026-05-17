@@ -10,14 +10,6 @@ export default async function EmailCampaignsPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Fetch existing campaign logs
-  const { data: campaigns } = await supabase
-    .from("admin_email_campaigns")
-    .select("*")
-    .order("sent_at", { ascending: false })
-    .limit(50)
-
-  // Fetch segment counts for display
   const now = new Date()
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -28,26 +20,21 @@ export default async function EmailCampaignsPage() {
     { count: inactive7Count },
     { count: inactive14Count },
     { count: allActiveCount },
+    { data: campaigns },
   ] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
+    supabase.from("profiles").select("id", { count: "exact", head: true })
       .eq("onboarding_complete", false)
-      .lt("last_active_at", twoDaysAgo),
-    supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
+      .or(`last_active_at.is.null,last_active_at.lt.${twoDaysAgo}`),
+    supabase.from("profiles").select("id", { count: "exact", head: true })
       .eq("onboarding_complete", true)
-      .lt("last_active_at", sevenDaysAgo),
-    supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
+      .or(`last_active_at.is.null,last_active_at.lt.${sevenDaysAgo}`),
+    supabase.from("profiles").select("id", { count: "exact", head: true })
       .eq("onboarding_complete", true)
-      .lt("last_active_at", fourteenDaysAgo),
-    supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
+      .or(`last_active_at.is.null,last_active_at.lt.${fourteenDaysAgo}`),
+    supabase.from("profiles").select("id", { count: "exact", head: true })
       .eq("onboarding_complete", true),
+    supabase.from("admin_email_campaigns").select("*")
+      .order("sent_at", { ascending: false }).limit(50),
   ])
 
   return (

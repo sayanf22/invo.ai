@@ -1,9 +1,26 @@
 /**
- * Brevo integration — contact sync & transactional email sending.
- * All calls use plain fetch() — works in Cloudflare Workers edge runtime.
+ * Brevo integration — contact sync & lifecycle email automation.
  *
- * IMPORTANT: env vars are read INSIDE functions, never at module level.
- * Cloudflare Workers inject bindings at request time, not at module init.
+ * ARCHITECTURE — READ BEFORE MODIFYING:
+ *
+ * Re-engagement and drop-off emails go through Brevo AUTOMATIONS (list-based
+ * workflows), NOT the transactional SMTP API. Reasons:
+ *   1. Brevo ToS: transactional API is for triggered 1:1 emails (order confirm,
+ *      password reset). Using it for bulk marketing is a ToS violation.
+ *   2. CAN-SPAM / GDPR: marketing/lifecycle emails require unsubscribe links.
+ *      Brevo automations add these automatically; raw SMTP does not.
+ *   3. Gmail/Yahoo 2024 enforcement: bulk senders must support one-click
+ *      unsubscribe. Automation handles this; raw API does not.
+ *
+ * The admin "Email Campaigns" dashboard triggers automation by MOVING contacts
+ * into the correct Brevo list. The automation workflow then fires.
+ *
+ * The transactional SMTP API is used ONLY for:
+ *   - Admin sending a direct 1:1 message to a specific user from the dashboard
+ *   - This is clearly admin-to-user communication, not marketing
+ *
+ * All calls use plain fetch() — works in Cloudflare Workers edge runtime.
+ * Env vars are read INSIDE functions — safe for Cloudflare Workers.
  */
 
 const BASE = "https://api.brevo.com/v3"
@@ -17,7 +34,7 @@ function cfg() {
   }
 }
 
-/** Fire-and-forget wrapper — logs errors, never throws */
+/** Brevo REST API wrapper — logs errors, never throws */
 async function brevoCall(
   method: string,
   path: string,
@@ -50,12 +67,12 @@ async function brevoCall(
   }
 }
 
-// ── Contact sync ──────────────────────────────────────────────────────────────
+// ── Contact sync — keeps lists accurate so automations fire correctly ─────────
 
 /**
- * Called on every login / signup.
- * Creates or updates the contact in Brevo with LAST_ACTIVE.
- * New users (no onboarding) go to the Onboarding Started list.
+ * Called on every login.
+ * Creates or updates the Brevo contact and places them in the right list
+ * so the correct automation workflow fires.
  */
 export async function syncUserOnLogin({
   email,
@@ -70,21 +87,18 @@ export async function syncUserOnLogin({
   onboardingComplete: boolean
   signupAt?: string | null
 }): Promise<void> {
-  const today = new Date().toISOString().split("T")[0] // YYYY-MM-DD
+  const today = new Date().toISOString().split("T")[0]
   const { onboardingListId, activeListId } = cfg()
 
   const attributes: Record<string, unknown> = {
     LAST_ACTIVE: today,
   }
-  // Only set safe string values — never trust user input in attribute keys
   if (firstName && typeof firstName === "string") {
-    attributes.FIRSTNAME = firstName.slice(0, 64) // cap length
+    attributes.FIRSTNAME = firstName.slice(0, 64)
   }
   if (signupAt && typeof signupAt === "string") {
     attributes.SIGNUP_AT = signupAt.split("T")[0]
   }
-
-  // Only set ONBOARDING_COMPLETE = false, never overwrite an existing true
   if (!onboardingComplete) {
     attributes.ONBOARDING_COMPLETE = false
   }
@@ -94,7 +108,7 @@ export async function syncUserOnLogin({
       ? [activeListId]
       : isNewUser
       ? [onboardingListId]
-      : undefined // existing partial users: don't change list, just update attrs
+      : undefined
 
   await brevoCall("POST", "/contacts", {
     email,
@@ -105,8 +119,9 @@ export async function syncUserOnLogin({
 }
 
 /**
- * Called when onboarding is fully completed.
- * Moves user from Onboarding Started → Active Users and marks ONBOARDING_COMPLETE.
+ * Called when onboarding completes.
+ * Moves contact to Active Users list → triggers inactivity automation.
+ * Removes from Onboarding list → stops drop-off automation.
  */
 export async function syncOnboardingComplete(email: string): Promise<void> {
   const today = new Date().toISOString().split("T")[0]
@@ -122,8 +137,7 @@ export async function syncOnboardingComplete(email: string): Promise<void> {
     },
   })
 
-  // Remove from onboarding list — correct Brevo v3 endpoint
-  // POST /contacts/lists/{listId}/contacts/remove
+  // Correct Brevo v3 endpoint to remove from a list
   await brevoCall(
     "POST",
     `/contacts/lists/${onboardingListId}/contacts/remove`,
@@ -132,8 +146,7 @@ export async function syncOnboardingComplete(email: string): Promise<void> {
 }
 
 /**
- * Updates LAST_ACTIVE date for an existing contact.
- * Called on any meaningful app interaction.
+ * Updates LAST_ACTIVE date — keeps automation inactivity timer accurate.
  */
 export async function updateLastActive(email: string): Promise<void> {
   const today = new Date().toISOString().split("T")[0]
@@ -142,7 +155,7 @@ export async function updateLastActive(email: string): Promise<void> {
   })
 }
 
-// ── Transactional email sending ───────────────────────────────────────────────
+// ── Transactional email — 1:1 admin-to-user messages ONLY ────────────────────
 
 export interface TransactionalEmailParams {
   to: string
@@ -154,8 +167,9 @@ export interface TransactionalEmailParams {
 }
 
 /**
- * Sends a transactional email via Brevo.
- * Returns true on success, false on failure (never throws).
+ * Sends a single transactional email.
+ * Use ONLY for direct admin-to-user messages from the dashboard.
+ * NOT for bulk campaigns — those go through Brevo Automations.
  */
 export async function sendTransactionalEmail(
   params: TransactionalEmailParams
@@ -171,7 +185,7 @@ export async function sendTransactionalEmail(
   return result.ok
 }
 
-// ── Batch email send ──────────────────────────────────────────────────────────
+// ── Brevo list management for cron-based automation sync ──────────────────────
 
 export interface BulkEmailContact {
   email: string
@@ -179,32 +193,51 @@ export interface BulkEmailContact {
 }
 
 /**
- * Sends an email to a list of contacts one-by-one (respects Brevo rate limits).
- * Returns counts of sent/failed.
+ * Re-adds a contact to the Onboarding Started list if they dropped off.
+ * This re-triggers the drop-off automation for contacts who are already
+ * in Brevo but fell out of the list tracking.
+ *
+ * Called by the daily cron job — not by user-facing code.
  */
-export async function sendBulkTransactionalEmails(
-  contacts: BulkEmailContact[],
-  subject: string,
-  getHtml: (contact: BulkEmailContact) => string,
-  tags: string[]
-): Promise<{ sent: number; failed: number }> {
-  let sent = 0
-  let failed = 0
+export async function addToOnboardingList(contact: BulkEmailContact): Promise<boolean> {
+  const { onboardingListId } = cfg()
+  const today = new Date().toISOString().split("T")[0]
 
-  for (const contact of contacts) {
-    const ok = await sendTransactionalEmail({
-      to: contact.email,
-      toName: contact.name,
-      subject,
-      htmlContent: getHtml(contact),
-      tags,
-    })
-    if (ok) sent++
-    else failed++
+  const result = await brevoCall("POST", "/contacts", {
+    email: contact.email,
+    listIds: [onboardingListId],
+    updateEnabled: true,
+    attributes: {
+      ONBOARDING_COMPLETE: false,
+      ...(contact.name ? { FIRSTNAME: contact.name.slice(0, 64) } : {}),
+      LAST_ACTIVE: today,
+    },
+  })
+  return result.ok
+}
 
-    // Throttle: ~20 emails/sec to stay well within Brevo free-tier limits
-    await new Promise<void>((r) => setTimeout(r, 50))
-  }
+/**
+ * Get count of contacts in a Brevo list.
+ * Used by admin dashboard.
+ */
+export async function getListContactCount(listId: number): Promise<number> {
+  const result = await brevoCall("GET", `/contacts/lists/${listId}`)
+  if (!result.ok || !result.json) return 0
+  const data = result.json as Record<string, unknown>
+  return Number(data.totalSubscribers ?? 0)
+}
 
-  return { sent, failed }
+/**
+ * Check if a contact is in the Brevo blocklist (unsubscribed or hard-bounced).
+ * Returns true if they're blocked and should NOT receive any emails.
+ */
+export async function isContactBlocked(email: string): Promise<boolean> {
+  const result = await brevoCall(
+    "GET",
+    `/smtp/blockedContacts?email=${encodeURIComponent(email)}&limit=1`
+  )
+  if (!result.ok || !result.json) return false
+  const data = result.json as Record<string, unknown>
+  const contacts = data.contacts as unknown[]
+  return Array.isArray(contacts) && contacts.length > 0
 }

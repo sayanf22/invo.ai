@@ -222,3 +222,31 @@ export function welcomeCompleteEmail(firstName?: string | null): string {
     </div>
   `)
 }
+
+// ── Template 6: Admin direct email to user ────────────────────────────────────
+
+export function adminDirectEmailTemplate({
+  firstName,
+  subject,
+  message,
+  adminEmail,
+}: {
+  firstName?: string | null
+  subject: string
+  message: string
+  adminEmail: string
+}): string {
+  const name = esc(firstName) || "there"
+  // Convert newlines to <br> — message is already escaped below
+  const escapedMsg = esc(message).replace(/\n/g, "<br>")
+
+  return emailWrapper(`
+    <div class="body">
+      <h1>${esc(subject)}</h1>
+      <p>Hey ${name},</p>
+      <p>${escapedMsg}</p>
+      <hr class="divider">
+      <p style="font-size:13px;color:${MUTED};">This message was sent by the Clorefy team (${esc(adminEmail)}). Reply to this email or reach us at <a href="mailto:${SUPPORT_EMAIL}" style="color:${AMBER}">${SUPPORT_EMAIL}</a>.</p>
+    </div>
+  `)
+}
