@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useRef } from "react"
 import { createClient, clearAuthTokens, resetSupabaseClient, clearCorruptedAuthTokens } from "@/lib/supabase"
 import type { User, Session, SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database.types"
@@ -23,6 +23,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [session, setSession] = useState<Session | null>(null)
     const [isLoading, setIsLoading] = useState(true)
+    // Guard: record a login event at most once per page session (never blocks login)
+    const loginTrackedRef = useRef(false)
 
     useEffect(() => {
         let mounted = true
@@ -105,7 +107,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setSession(session)
                 setUser(session?.user ?? null)
                 // Record login location/IP once per real sign-in (server dedups by IP/30min)
-                if (event === "SIGNED_IN") {
+                if (event === "SIGNED_IN" && !loginTrackedRef.current) {
+                    loginTrackedRef.current = true
                     try {
                         fetch("/api/auth/track-login", {
                             method: "POST",
@@ -113,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             body: JSON.stringify({ method: session?.user?.app_metadata?.provider ?? "password" }),
                             keepalive: true,
                         }).catch(() => {})
-                    } catch { /* non-blocking */ }
+                    } catch { /* non-blocking — never affects login */ }
                 }
             } else if (event === "SIGNED_OUT") {
                 clearAuthTokens()
