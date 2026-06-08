@@ -21,6 +21,7 @@ export default async function EmailCampaignsPage() {
     { data: emailEvents },
     { data: docRows },
     { data: campaigns },
+    { data: manualEmails },
   ] = await Promise.all([
     supabase.from("profiles")
       .select("id, email, full_name, onboarding_complete, last_active_at, created_at, tier")
@@ -34,6 +35,10 @@ export default async function EmailCampaignsPage() {
     supabase.from("document_sessions").select("user_id"),
     supabase.from("admin_email_campaigns")
       .select("*").order("sent_at", { ascending: false }).limit(20),
+    supabase.from("audit_logs")
+      .select("user_id, created_at")
+      .eq("action", "admin.direct_email")
+      .order("created_at", { ascending: false }),
   ])
 
   // Build lookups
@@ -43,11 +48,30 @@ export default async function EmailCampaignsPage() {
     sendLogMap.get(log.user_id)!.push({ email_type: log.email_type, sent_at: log.sent_at })
   }
 
-  const emailEventMap = new Map<string, { event: string; event_at: string }>()
+  // Manual (admin 1:1) emails per user
+  const manualMap = new Map<string, { count: number; last_sent_at: string | null }>()
+  for (const m of manualEmails ?? []) {
+    if (!m.user_id) continue
+    const cur = manualMap.get(m.user_id) ?? { count: 0, last_sent_at: null }
+    cur.count += 1
+    if (!cur.last_sent_at) cur.last_sent_at = m.created_at
+    manualMap.set(m.user_id, cur)
+  }
+
+  // Per-email engagement stats
+  type EmailStats = {
+    last_event: { event: string; event_at: string } | null
+    delivered: number; opened: number; clicked: number; bounced: number; last_opened_at: string | null
+  }
+  const emailStatsMap = new Map<string, EmailStats>()
   for (const ev of emailEvents ?? []) {
-    if (!emailEventMap.has(ev.email)) {
-      emailEventMap.set(ev.email, { event: ev.event, event_at: ev.event_at })
-    }
+    const s = emailStatsMap.get(ev.email) ?? { last_event: null, delivered: 0, opened: 0, clicked: 0, bounced: 0, last_opened_at: null }
+    if (!s.last_event) s.last_event = { event: ev.event, event_at: ev.event_at }
+    if (ev.event === "delivered") s.delivered += 1
+    else if (ev.event === "opened" || ev.event === "uniqueOpened") { s.opened += 1; if (!s.last_opened_at) s.last_opened_at = ev.event_at }
+    else if (ev.event === "click") s.clicked += 1
+    else if (ev.event === "hardBounce" || ev.event === "softBounce" || ev.event === "blocked") s.bounced += 1
+    emailStatsMap.set(ev.email, s)
   }
 
   const docCountMap = new Map<string, number>()
@@ -67,25 +91,22 @@ export default async function EmailCampaignsPage() {
 
   const users = (profiles ?? []).map((p: any) => {
     const sentEmails = sendLogMap.get(p.id) ?? []
-    const lastEvent = emailEventMap.get(p.email) ?? null
+    const manual = manualMap.get(p.id) ?? { count: 0, last_sent_at: null }
+    const stats = emailStatsMap.get(p.email) ?? null
     const docsCount = docCountMap.get(p.id) ?? 0
     const daysSinceActive = p.last_active_at
       ? Math.floor((now - new Date(p.last_active_at).getTime()) / 86400000)
       : Math.floor((now - new Date(p.created_at).getTime()) / 86400000)
     const daysSinceSignup = Math.floor((now - new Date(p.created_at).getTime()) / 86400000)
 
-    // Determine last email sent for "timer since last email" display
-    const lastSentAt = sentEmails.length > 0
-      ? sentEmails.reduce((latest, s) => new Date(s.sent_at) > new Date(latest.sent_at) ? s : latest)
-      : null
-
     let category = "active"
     if (!p.onboarding_complete && daysSinceSignup >= 2) category = "dropoff"
     else if (p.onboarding_complete && daysSinceActive >= 7) category = "inactive"
 
-    // Auto-stopped = got both emails and hasn't come back
-    const hasBothEmails = sentEmails.some(s => s.email_type === "inactive_1") &&
-      sentEmails.some(s => s.email_type === "inactive_2")
+    const autoStopped = sentEmails.some(s => s.email_type === "inactive_2" || s.email_type === "dropoff_2")
+    const autoSentCount = sentEmails.length
+    const manualSentCount = manual.count
+    const totalSentCount = autoSentCount + manualSentCount
 
     return {
       id: p.id as string,
@@ -99,11 +120,20 @@ export default async function EmailCampaignsPage() {
       days_since_signup: daysSinceSignup,
       docs_count: docsCount,
       sent_emails: sentEmails,
-      last_email_event: lastEvent,
-      last_sent_at: lastSentAt?.sent_at ?? null,
+      auto_sent_count: autoSentCount,
+      manual_sent_count: manualSentCount,
+      total_sent_count: totalSentCount,
+      last_manual_sent_at: manual.last_sent_at,
+      last_email_event: stats?.last_event ?? null,
+      opened: (stats?.opened ?? 0) > 0,
+      open_count: stats?.opened ?? 0,
+      delivered_count: stats?.delivered ?? 0,
+      clicked_count: stats?.clicked ?? 0,
+      bounced: (stats?.bounced ?? 0) > 0,
+      last_opened_at: stats?.last_opened_at ?? null,
       category,
-      never_emailed: sentEmails.length === 0,
-      auto_stopped: hasBothEmails && p.onboarding_complete,
+      never_emailed: totalSentCount === 0,
+      auto_stopped: autoStopped,
     }
   })
 

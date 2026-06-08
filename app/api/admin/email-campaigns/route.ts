@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     { data: emailEvents },
     { data: docRows },
     { data: campaigns },
+    { data: manualEmails },
   ] = await Promise.all([
     supabase.from("profiles")
       .select("id, email, full_name, onboarding_complete, last_active_at, created_at, tier")
@@ -44,28 +45,61 @@ export async function GET(request: NextRequest) {
     supabase.from("user_email_send_log")
       .select("user_id, email_type, sent_at"),
     supabase.from("email_events")
-      .select("email, event, event_at, subject, tag")
+      .select("id, email, event, event_at, subject, tag, reason, user_id")
       .gte("event_at", thirtyDaysAgo)
       .order("event_at", { ascending: false }),
     supabase.from("document_sessions")
       .select("user_id"),
     supabase.from("admin_email_campaigns")
       .select("*").order("sent_at", { ascending: false }).limit(30),
+    // Manual 1:1 admin emails — logged in audit_logs (no time limit, full history)
+    supabase.from("audit_logs")
+      .select("user_id, created_at, metadata")
+      .eq("action", "admin.direct_email")
+      .order("created_at", { ascending: false }),
   ])
 
-  // Build per-user email send log
+  // Build per-user lifecycle (auto) email send log
   const sendLogMap = new Map<string, Array<{ email_type: string; sent_at: string }>>()
   for (const log of sendLogs ?? []) {
     if (!sendLogMap.has(log.user_id)) sendLogMap.set(log.user_id, [])
     sendLogMap.get(log.user_id)!.push({ email_type: log.email_type, sent_at: log.sent_at })
   }
 
-  // Build per-email latest event
-  const emailEventMap = new Map<string, { event: string; event_at: string }>()
+  // Build per-user manual (admin 1:1) email count + last sent timestamp
+  const manualMap = new Map<string, { count: number; last_sent_at: string | null }>()
+  for (const m of manualEmails ?? []) {
+    if (!m.user_id) continue
+    const cur = manualMap.get(m.user_id) ?? { count: 0, last_sent_at: null }
+    cur.count += 1
+    if (!cur.last_sent_at) cur.last_sent_at = m.created_at // first row = most recent (ordered desc)
+    manualMap.set(m.user_id, cur)
+  }
+
+  // Build per-email engagement stats (delivered/opened/clicked counts + latest event + last opened)
+  type EmailStats = {
+    last_event: { event: string; event_at: string } | null
+    delivered: number
+    opened: number
+    clicked: number
+    bounced: number
+    last_opened_at: string | null
+  }
+  const emailStatsMap = new Map<string, EmailStats>()
   for (const ev of emailEvents ?? []) {
-    if (!emailEventMap.has(ev.email)) {
-      emailEventMap.set(ev.email, { event: ev.event, event_at: ev.event_at })
+    const s = emailStatsMap.get(ev.email) ?? {
+      last_event: null, delivered: 0, opened: 0, clicked: 0, bounced: 0, last_opened_at: null,
     }
+    // events are ordered desc — first seen is the latest
+    if (!s.last_event) s.last_event = { event: ev.event, event_at: ev.event_at }
+    if (ev.event === "delivered") s.delivered += 1
+    else if (ev.event === "opened" || ev.event === "uniqueOpened") {
+      s.opened += 1
+      if (!s.last_opened_at) s.last_opened_at = ev.event_at
+    }
+    else if (ev.event === "click") s.clicked += 1
+    else if (ev.event === "hardBounce" || ev.event === "softBounce" || ev.event === "blocked") s.bounced += 1
+    emailStatsMap.set(ev.email, s)
   }
 
   // Build doc count map
@@ -79,7 +113,8 @@ export async function GET(request: NextRequest) {
   // Enrich each user
   const usersWithStatus = (profiles ?? []).map((p: any) => {
     const sentEmails = sendLogMap.get(p.id) ?? []
-    const lastEvent = emailEventMap.get(p.email) ?? null
+    const manual = manualMap.get(p.id) ?? { count: 0, last_sent_at: null }
+    const stats = emailStatsMap.get(p.email) ?? null
     const docsCount = docCountMap.get(p.id) ?? 0
     const daysSinceActive = p.last_active_at
       ? Math.floor((now - new Date(p.last_active_at).getTime()) / 86400000)
@@ -94,6 +129,15 @@ export async function GET(request: NextRequest) {
       category = "inactive"
     }
 
+    const autoSentCount = sentEmails.length
+    const manualSentCount = manual.count
+    const totalSentCount = autoSentCount + manualSentCount
+
+    // Auto-stopped = received the final email in a lifecycle track
+    const autoStopped = sentEmails.some(
+      (e) => e.email_type === "inactive_2" || e.email_type === "dropoff_2"
+    )
+
     return {
       id: p.id as string,
       email: p.email as string,
@@ -106,9 +150,22 @@ export async function GET(request: NextRequest) {
       days_since_signup: daysSinceSignup,
       docs_count: docsCount,
       sent_emails: sentEmails,
-      last_email_event: lastEvent,
+      // ── Email send breakdown ──
+      auto_sent_count: autoSentCount,
+      manual_sent_count: manualSentCount,
+      total_sent_count: totalSentCount,
+      last_manual_sent_at: manual.last_sent_at,
+      // ── Engagement (last 30 days) ──
+      last_email_event: stats?.last_event ?? null,
+      opened: (stats?.opened ?? 0) > 0,
+      open_count: stats?.opened ?? 0,
+      delivered_count: stats?.delivered ?? 0,
+      clicked_count: stats?.clicked ?? 0,
+      bounced: (stats?.bounced ?? 0) > 0,
+      last_opened_at: stats?.last_opened_at ?? null,
       category,
-      never_emailed: sentEmails.length === 0,
+      auto_stopped: autoStopped,
+      never_emailed: totalSentCount === 0,
     }
   })
 

@@ -17,7 +17,13 @@ interface UserRow {
   onboarding_complete: boolean; last_active_at: string | null; created_at: string
   tier: string; days_since_active: number; days_since_signup: number
   docs_count: number; sent_emails: SentEmail[]; last_email_event: LastEmailEvent | null
-  last_sent_at: string | null; category: string; never_emailed: boolean; auto_stopped: boolean
+  category: string; never_emailed: boolean; auto_stopped: boolean
+  // Send breakdown
+  auto_sent_count: number; manual_sent_count: number; total_sent_count: number
+  last_manual_sent_at: string | null
+  // Engagement (last 30 days)
+  opened: boolean; open_count: number; delivered_count: number; clicked_count: number
+  bounced: boolean; last_opened_at: string | null
 }
 
 interface EmailEvent {
@@ -58,6 +64,36 @@ function EventBadge({ event }: { event: string }) {
   )
 }
 
+/** Compact open/delivery indicator for a user row */
+function OpenIndicator({ u }: { u: UserRow }) {
+  if (u.never_emailed) return <span style={{ fontSize: 11, color: "#9CA3AF" }}>—</span>
+  if (u.opened) {
+    return (
+      <span style={{ color: "#7C3AED", background: "#F5F3FF", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+        ✓ Opened{u.open_count > 1 ? ` ×${u.open_count}` : ""}
+      </span>
+    )
+  }
+  if (u.bounced) {
+    return <span style={{ color: "#DC2626", background: "#FEF2F2", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>Bounced</span>
+  }
+  if (u.delivered_count > 0) {
+    return <span style={{ color: "#059669", background: "#F0FDF4", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600 }}>Delivered · not opened</span>
+  }
+  return <span style={{ color: "#6B7280", background: "#F3F4F6", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600 }}>Sent</span>
+}
+
+/** Sent count chip — auto + manual breakdown */
+function SentChip({ u }: { u: UserRow }) {
+  if (u.total_sent_count === 0) return <span style={{ fontSize: 11, color: "#9CA3AF" }}>None</span>
+  return (
+    <span style={{ fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+      <span title="Total emails sent">{u.total_sent_count}</span>
+      <span style={{ color: "#9CA3AF", fontWeight: 500 }}> ({u.auto_sent_count} auto · {u.manual_sent_count} manual)</span>
+    </span>
+  )
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function EmailCampaignsClient({ users, campaigns, emailSummary, recentEvents, sentToday }: Props) {
@@ -75,7 +111,7 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
   // Filters
   const [search, setSearch]           = useState("")
   const [filterCat, setFilterCat]     = useState<"all"|"dropoff"|"inactive"|"active"|"stopped">("all")
-  const [filterEmail, setFilterEmail] = useState<"all"|"emailed"|"never">("all")
+  const [filterEmail, setFilterEmail] = useState<"all"|"emailed"|"never"|"opened"|"notopened">("all")
   const [activeTab, setActiveTab]     = useState<"users"|"events">("users")
 
   // Modal
@@ -101,6 +137,8 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
     if (filterCat !== "all" && u.category !== filterCat) return false
     if (filterEmail === "emailed" && u.never_emailed) return false
     if (filterEmail === "never" && !u.never_emailed) return false
+    if (filterEmail === "opened" && !u.opened) return false
+    if (filterEmail === "notopened" && (u.never_emailed || u.opened)) return false
     if (search.trim()) {
       const q = search.toLowerCase()
       return u.email.toLowerCase().includes(q) || (u.name ?? "").toLowerCase().includes(q)
@@ -240,6 +278,8 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
               <option value="all">All email status</option>
               <option value="never">Never emailed</option>
               <option value="emailed">Already emailed</option>
+              <option value="opened">Opened</option>
+              <option value="notopened">Not opened</option>
             </select>
 
             <span className="text-xs ml-auto" style={{ color: muted }}>{filtered.length} users</span>
@@ -249,9 +289,9 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
           <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${border}`, background: cardBg }}>
             {/* Desktop header */}
             <div className="hidden sm:grid text-xs uppercase tracking-wider font-semibold px-4 py-3"
-              style={{ gridTemplateColumns: "minmax(160px,1fr) 80px 60px 60px 150px 90px 70px", gap: "12px", background: isDark ? "#000" : "#F0F0F0", borderBottom: `1px solid ${border}`, color: muted }}>
+              style={{ gridTemplateColumns: "minmax(150px,1fr) 76px 48px 46px 150px 160px 64px", gap: "12px", background: isDark ? "#000" : "#F0F0F0", borderBottom: `1px solid ${border}`, color: muted }}>
               <span>User</span><span>Status</span><span>Idle</span><span>Docs</span>
-              <span>Auto emails</span><span>Last event</span><span>Action</span>
+              <span>Emails sent</span><span>Engagement</span><span>Action</span>
             </div>
 
             {filtered.length === 0 && (
@@ -267,7 +307,7 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
 
                 {/* Desktop row */}
                 <div className="hidden sm:grid items-center px-4 py-3"
-                  style={{ gridTemplateColumns: "minmax(160px,1fr) 80px 60px 60px 150px 90px 70px", gap: "12px" }}>
+                  style={{ gridTemplateColumns: "minmax(150px,1fr) 76px 48px 46px 150px 160px 64px", gap: "12px" }}>
                   <div className="min-w-0">
                     <div className="font-medium truncate text-sm" style={{ color: text }}>{u.email}</div>
                     {u.name && <div className="truncate text-xs" style={{ color: muted }}>{u.name}</div>}
@@ -277,17 +317,8 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
                   </span>
                   <span className="text-xs" style={{ color: u.days_since_active >= 7 ? "#D97757" : muted }}>{u.days_since_active}d</span>
                   <span className="text-xs" style={{ color: u.docs_count > 0 ? text : muted }}>{u.docs_count}</span>
-                  <div className="flex flex-wrap gap-1">
-                    {u.sent_emails.length === 0
-                      ? <span className="text-xs" style={{ color: muted }}>None</span>
-                      : u.sent_emails.map((s, j) => (
-                        <span key={j} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: isDark ? "#1A1A1A" : "#E5E5E5", color: muted, whiteSpace: "nowrap" }}>
-                          {s.email_type.replace("_", " #")}
-                        </span>
-                      ))
-                    }
-                  </div>
-                  <div>{u.last_email_event ? <EventBadge event={u.last_email_event.event} /> : <span className="text-xs" style={{ color: muted }}>—</span>}</div>
+                  <div style={{ color: text }}><SentChip u={u} /></div>
+                  <div><OpenIndicator u={u} /></div>
                   <button onClick={e => { e.stopPropagation(); openEmail(u) }}
                     className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold"
                     style={{ border: `1px solid ${border}`, background: "transparent", color: text, cursor: "pointer" }}>
@@ -316,9 +347,9 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: muted }}>
                     <span>Idle: <span style={{ color: u.days_since_active >= 7 ? "#D97757" : text }}>{u.days_since_active}d</span></span>
                     <span>Docs: <span style={{ color: text }}>{u.docs_count}</span></span>
-                    <span>Emails: <span style={{ color: text }}>{u.sent_emails.length === 0 ? "None" : u.sent_emails.map(s => s.email_type.replace("_"," #")).join(", ")}</span></span>
-                    {u.last_email_event && <span>Event: <EventBadge event={u.last_email_event.event} /></span>}
+                    <span>Sent: <span style={{ color: text }}>{u.total_sent_count === 0 ? "None" : `${u.total_sent_count} (${u.auto_sent_count}a/${u.manual_sent_count}m)`}</span></span>
                   </div>
+                  <div className="mt-1.5"><OpenIndicator u={u} /></div>
                 </div>
               </div>
             ))}
@@ -393,11 +424,14 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
               <span style={{ color: muted }}>Idle: <strong style={{ color: text }}>{modalUser.days_since_active}d</strong></span>
               <span style={{ color: muted }}>Docs: <strong style={{ color: text }}>{modalUser.docs_count}</strong></span>
               <span style={{ color: muted }}>Tier: <strong style={{ color: text }}>{modalUser.tier}</strong></span>
-              <span style={{ color: muted }}>
-                Auto-emails: <strong style={{ color: text }}>
-                  {modalUser.sent_emails.length === 0 ? "None" : modalUser.sent_emails.map(s => s.email_type.replace("_"," #")).join(", ")}
-                </strong>
-              </span>
+              <span style={{ color: muted }}>Total sent: <strong style={{ color: text }}>{modalUser.total_sent_count}</strong> <span style={{ color: muted }}>({modalUser.auto_sent_count} auto · {modalUser.manual_sent_count} manual)</span></span>
+              <span style={{ color: muted }}>Engagement: <strong style={{ color: text }}>
+                {modalUser.never_emailed ? "No emails yet"
+                  : modalUser.opened ? `Opened ×${modalUser.open_count}`
+                  : modalUser.bounced ? "Bounced"
+                  : modalUser.delivered_count > 0 ? "Delivered, not opened"
+                  : "Sent"}
+              </strong></span>
               {modalUser.auto_stopped && (
                 <span style={{ color: "#D97757" }}>⚠ Auto-stopped. This manual email will still send.</span>
               )}
