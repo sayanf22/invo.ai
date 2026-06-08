@@ -17,6 +17,7 @@ const PANEL = "#FAFAFA"        // subtle inset panel
 const BORDER = "#ECECEE"       // hairline borders
 const SUPPORT_EMAIL = "support@clorefy.com"
 const APP_URL = "https://clorefy.com"
+const ICON_URL = "https://clorefy.com/favicon.png"
 const ONBOARDING_VIDEO = "https://youtu.be/37OXbkavJPs"
 
 /** Escape HTML special chars — prevents XSS from user-controlled strings */
@@ -136,7 +137,16 @@ function emailWrapper(content: string): string {
   <div class="wrap">
     <div class="card">
       <div class="head">
-        <div class="logo">Clore<span>fy</span></div>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
+          <tr>
+            <td style="padding-right:8px;vertical-align:middle;">
+              <img src="${ICON_URL}" width="28" height="28" alt="Clorefy" style="display:block;width:28px;height:28px;border-radius:7px;">
+            </td>
+            <td style="vertical-align:middle;">
+              <span class="logo">Clore<span>fy</span></span>
+            </td>
+          </tr>
+        </table>
       </div>
       ${content}
     </div>
@@ -159,11 +169,11 @@ export function onboardingDropoffEmail1(
   const useCase = getUseCase(businessType)
   return emailWrapper(`
     <div class="body">
-      <h1>You're 2 minutes from your first ${useCase.docType}</h1>
+      <h1>You're 1 minute from your first ${useCase.docType}</h1>
       <p>Hey ${name}, you created your Clorefy account but haven't finished your business profile yet.</p>
       <p>That quick setup is what lets Clorefy fill in your business name, tax ID, and payment details on every document — automatically. ${useCase.pitch}</p>
       ${ctaButton(`${APP_URL}/onboarding`, "Complete my setup")}
-      <p style="margin-top:18px;"><a href="${ONBOARDING_VIDEO}" class="link-amber">▶ Watch the 2-minute walkthrough</a></p>
+      <p style="margin-top:18px;"><a href="${ONBOARDING_VIDEO}" class="link-amber">▶ Watch the 1-minute walkthrough</a></p>
       <hr class="divider">
       <p class="fine">Free forever. No card needed. Stuck on something? Just reply — we're real people.</p>
     </div>
@@ -181,9 +191,9 @@ export function onboardingDropoffEmail2(
     <div class="body">
       <h1>One last nudge</h1>
       <p>Hey ${name}, we mentioned finishing your Clorefy setup a few days ago. This is our final check-in.</p>
-      <p>${useCase.urgency}</p>
+      <p>Completing your profile takes 1 minute and means you can generate a professional invoice, contract, or proposal in under 30 seconds — just describe what you need.</p>
       ${ctaButton(`${APP_URL}/onboarding`, "Finish setup now")}
-      <p style="margin-top:18px;"><a href="${ONBOARDING_VIDEO}" class="link-amber">▶ Watch how it works (2 min)</a></p>
+      <p style="margin-top:18px;"><a href="${ONBOARDING_VIDEO}" class="link-amber">▶ Watch how it works (1 min)</a></p>
       <hr class="divider">
       <p class="fine">Your account stays active forever — come back any time at <a href="${APP_URL}" class="link-amber">clorefy.com</a>. Something put you off? A one-line reply helps us improve.</p>
     </div>
