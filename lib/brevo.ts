@@ -241,3 +241,78 @@ export async function isContactBlocked(email: string): Promise<boolean> {
   const contacts = data.contacts as unknown[]
   return Array.isArray(contacts) && contacts.length > 0
 }
+
+
+// ── Transactional event reconciliation (API pull — complements the webhook) ───
+
+/** Raw event shape from GET /v3/smtp/statistics/events */
+export interface BrevoTxEvent {
+  email: string
+  date: string
+  messageId?: string
+  event: string
+  subject?: string
+  tag?: string
+  ip?: string
+  link?: string
+  reason?: string
+  templateId?: number
+}
+
+/**
+ * Normalise Brevo's statistics-API event names to the same vocabulary the
+ * webhook stores, so both sources reconcile cleanly in `email_events`.
+ */
+export function normalizeBrevoEvent(e: string): string {
+  const map: Record<string, string> = {
+    requests: "request", request: "request",
+    delivered: "delivered",
+    opened: "opened", uniqueOpened: "uniqueOpened",
+    clicks: "click", click: "click",
+    hardBounces: "hardBounce", hardBounce: "hardBounce",
+    softBounces: "softBounce", softBounce: "softBounce",
+    blocked: "blocked", spam: "spam",
+    unsubscribed: "unsubscribed", invalid: "blocked",
+    deferred: "deferred", loadedByProxy: "loadedByProxy", error: "error",
+  }
+  return map[e] ?? e
+}
+
+/**
+ * Pull recent transactional email events from the Brevo statistics API.
+ * Paginates up to `maxEvents`. Best-effort — returns whatever it can.
+ */
+export async function fetchTransactionalEvents(options: {
+  days?: number
+  maxEvents?: number
+} = {}): Promise<BrevoTxEvent[]> {
+  const { apiKey } = cfg()
+  if (!apiKey) return []
+
+  const days = Math.min(Math.max(options.days ?? 7, 1), 90)
+  const maxEvents = Math.min(options.maxEvents ?? 2000, 10000)
+  const pageSize = 1000
+  const out: BrevoTxEvent[] = []
+
+  for (let offset = 0; offset < maxEvents; offset += pageSize) {
+    const limit = Math.min(pageSize, maxEvents - offset)
+    try {
+      const res = await fetch(
+        `${BASE}/smtp/statistics/events?limit=${limit}&offset=${offset}&days=${days}&sort=desc`,
+        {
+          method: "GET",
+          headers: { "api-key": apiKey, accept: "application/json" },
+          signal: AbortSignal.timeout(15000),
+        }
+      )
+      if (!res.ok) break
+      const data = (await res.json()) as { events?: BrevoTxEvent[] }
+      const events = data.events ?? []
+      out.push(...events)
+      if (events.length < limit) break // last page
+    } catch {
+      break
+    }
+  }
+  return out
+}
