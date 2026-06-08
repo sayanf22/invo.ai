@@ -155,7 +155,7 @@ export function LandingFooter() {
                     <h4 className="font-display text-lg text-[var(--landing-text-dark)] mb-2">
                         Available Worldwide
                     </h4>
-                    <p className="text-sm text-[var(--landing-text-dark)]/60 mb-5 max-w-2xl">
+                    <p className="text-sm font-medium text-[var(--landing-text-dark)]/70 mb-5 max-w-2xl leading-relaxed">
                         Clorefy works in 150+ countries with automatic, country-specific tax rules. These are some of our most-used markets — your country is supported too.
                     </p>
                     <div className="space-y-4">
@@ -181,7 +181,7 @@ export function LandingFooter() {
                                 ))}
                             </div>
                         ))}
-                        <p className="text-sm text-[var(--landing-text-dark)]/50 pt-1">
+                        <p className="text-sm font-medium text-[var(--landing-text-dark)]/60 pt-1 leading-relaxed">
                             + 140 more countries — GST, VAT, HST, Sales Tax and local tax rules applied automatically.
                         </p>
                     </div>
