@@ -19,6 +19,18 @@ const SUPPORT_EMAIL = "support@clorefy.com"
 const APP_URL = "https://clorefy.com"
 const ICON_URL = "https://clorefy.com/favicon.png"
 const ONBOARDING_VIDEO = "https://youtu.be/37OXbkavJPs"
+const ONBOARDING_THUMB = "https://img.youtube.com/vi/37OXbkavJPs/hqdefault.jpg"
+const DOC_VIDEO = "https://youtu.be/CkMqIpStBxA"
+const DOC_THUMB = "https://img.youtube.com/vi/CkMqIpStBxA/hqdefault.jpg"
+
+/** Modern, fun, short subject lines (with preview text). Used by callers/admin. */
+export const EMAIL_SUBJECTS = {
+  onboarding1: "Your first doc is 1 click away ✨",
+  onboarding2: "One last nudge 👋",
+  inactive1: "Miss us yet? 👀",
+  inactive2: "Okay, last one 🙈",
+  welcome: "You're in 🎉 Let's make your first doc",
+} as const
 
 /** Escape HTML special chars — prevents XSS from user-controlled strings */
 function esc(str: string | null | undefined): string {
@@ -90,6 +102,33 @@ function ctaButton(href: string, label: string): string {
       </td>
     </tr>
   </table>`
+}
+
+// ── Video thumbnail card (clickable, with play overlay) ──────────────────────
+function videoCard(href: string, thumb: string, label: string): string {
+  return `
+  <a href="${href}" target="_blank" style="text-decoration:none;display:block;margin:22px 0;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:440px;margin:0 auto;border-collapse:separate;">
+      <tr>
+        <td style="border-radius:12px;overflow:hidden;border:1px solid ${BORDER};">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            <tr>
+              <td background="${thumb}" bgcolor="#18181B" valign="middle" align="center" height="200" style="background-image:url('${thumb}');background-size:cover;background-position:center;height:200px;border-radius:12px 12px 0 0;">
+                <div style="width:56px;height:56px;line-height:56px;border-radius:50%;background:rgba(255,255,255,0.95);text-align:center;margin:0 auto;">
+                  <span style="font-size:20px;color:#18181B;">&#9654;</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#ffffff;padding:13px 16px;border-radius:0 0 12px 12px;">
+                <span style="font-size:14px;font-weight:600;color:${INK};">${label}</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </a>`
 }
 
 // ── Email shell (clean, centered, minimal) ───────────────────────────────────
@@ -169,18 +208,18 @@ export function onboardingDropoffEmail1(
   const useCase = getUseCase(businessType)
   return emailWrapper(`
     <div class="body">
-      <h1>You're 1 minute from your first ${useCase.docType}</h1>
-      <p>Hey ${name}, you created your Clorefy account but haven't finished your business profile yet.</p>
-      <p>That quick setup is what lets Clorefy fill in your business name, tax ID, and payment details on every document — automatically. ${useCase.pitch}</p>
-      ${ctaButton(`${APP_URL}/onboarding`, "Complete my setup")}
-      <p style="margin-top:18px;"><a href="${ONBOARDING_VIDEO}" class="link-amber">▶ Watch the 1-minute walkthrough</a></p>
+      <h1>Your first ${useCase.docType} is 1 click away ✨</h1>
+      <p>Hey ${name} 👋 — you're <em>almost</em> there. You created your Clorefy account but haven't set up your business profile yet.</p>
+      <p>It takes about a minute, and then Clorefy fills in your business name, tax ID, and payment details on every document — automatically. ${useCase.pitch}</p>
+      ${ctaButton(`${APP_URL}/onboarding`, "Finish setup → 1 min")}
+      ${videoCard(ONBOARDING_VIDEO, ONBOARDING_THUMB, "▶ Watch: set up Clorefy in 1 minute")}
       <hr class="divider">
-      <p class="fine">Free forever. No card needed. Stuck on something? Just reply — we're real people.</p>
+      <p class="fine">Free forever. No card needed. Stuck on something? Just hit reply — real humans here. 🙂</p>
     </div>
   `)
 }
 
-// ── Template 2: Onboarding Drop-off (Email 2 — final nudge) ──────────────────
+// ── Template 2: Onboarding Drop-off (final nudge) ────────────────────────────
 export function onboardingDropoffEmail2(
   firstName?: string | null,
   businessType?: string | null
@@ -189,13 +228,13 @@ export function onboardingDropoffEmail2(
   const useCase = getUseCase(businessType)
   return emailWrapper(`
     <div class="body">
-      <h1>One last nudge</h1>
-      <p>Hey ${name}, we mentioned finishing your Clorefy setup a few days ago. This is our final check-in.</p>
-      <p>Completing your profile takes 1 minute and means you can generate a professional invoice, contract, or proposal in under 30 seconds — just describe what you need.</p>
-      ${ctaButton(`${APP_URL}/onboarding`, "Finish setup now")}
-      <p style="margin-top:18px;"><a href="${ONBOARDING_VIDEO}" class="link-amber">▶ Watch how it works (1 min)</a></p>
+      <h1>One last nudge 👋</h1>
+      <p>Hey ${name}, we'll keep this short. Your Clorefy account is set up and waiting — just the 1-minute profile left.</p>
+      <p>Finish it and your next ${useCase.docType} writes itself in under 30 seconds. Seriously, just describe what you need and watch it appear.</p>
+      ${ctaButton(`${APP_URL}/onboarding`, "Finish setup → 1 min")}
+      ${videoCard(ONBOARDING_VIDEO, ONBOARDING_THUMB, "▶ See how it works (1 min)")}
       <hr class="divider">
-      <p class="fine">Your account stays active forever — come back any time at <a href="${APP_URL}" class="link-amber">clorefy.com</a>. Something put you off? A one-line reply helps us improve.</p>
+      <p class="fine">Your account stays active forever — pop back any time at <a href="${APP_URL}" class="link-amber">clorefy.com</a>. Not feeling it? A one-line reply tells us why. 🙏</p>
     </div>
   `)
 }
@@ -211,21 +250,22 @@ export function inactivityEmail1(
   const hasDocs = (docsCount ?? 0) > 0
   return emailWrapper(`
     <div class="body">
-      <h1>${hasDocs ? "Your documents are waiting" : "Haven't seen you in a while"}</h1>
+      <h1>Miss us yet? 👀</h1>
       <p>Hey ${name}, ${hasDocs
-        ? `you haven't opened Clorefy in about a week. Your ${useCase.docType}s are saved and ready — and a new one takes about 30 seconds.`
-        : `you set up your profile but haven't created a ${useCase.docType} yet. It's faster than you'd think.`}</p>
-      <p class="label">Just describe what you need:</p>
+        ? `you've been away about a week. Your ${useCase.docType}s are right where you left them — and a fresh one takes about 30 seconds.`
+        : `you set up your profile but haven't made a ${useCase.docType} yet. Spoiler: it's ridiculously fast.`}</p>
+      <p class="label">Try typing something like this:</p>
       <div class="prompt">"${useCase.examplePrompt}"</div>
-      <p>Clorefy writes the whole document — your details, the correct taxes, and a payment link. Done.</p>
-      ${ctaButton(APP_URL, hasDocs ? "Open my documents" : "Create my first document")}
+      <p>Clorefy writes the whole thing — your details, the right taxes, a payment link. You just hit send. 🚀</p>
+      ${ctaButton(APP_URL, hasDocs ? "Jump back in" : "Make my first doc")}
+      ${videoCard(DOC_VIDEO, DOC_THUMB, "▶ Watch: create a document in seconds")}
       <hr class="divider">
-      <p class="fine">Something stopped you? We'd genuinely like to know — just reply. It shapes what we build next.</p>
+      <p class="fine">Something stopped you? We'd genuinely love to know — just reply. It shapes what we build next. 🙏</p>
     </div>
   `)
 }
 
-// ── Template 4: Inactivity Re-engagement (Day 14 — final) ────────────────────
+// ── Template 4: Inactivity Re-engagement (final) ─────────────────────────────
 export function inactivityEmail2(
   firstName?: string | null,
   businessType?: string | null,
@@ -235,14 +275,15 @@ export function inactivityEmail2(
   const useCase = getUseCase(businessType)
   return emailWrapper(`
     <div class="body">
-      <h1>We'll stop after this</h1>
-      <p>Hey ${name}, this is our final check-in. If Clorefy isn't the right fit right now, no hard feelings — your account stays active and you can return any time.</p>
-      <p>If you've just been busy, here's how quick it is to get value:</p>
+      <h1>Okay, last one 🙈</h1>
+      <p>Hey ${name}, we promise this is the final check-in. If Clorefy isn't your thing right now, totally fine — your account stays active and you can wander back any time.</p>
+      <p>But if you've just been busy, here's the 30-second version:</p>
       <div class="prompt">"${useCase.examplePrompt}"</div>
-      <p>Clorefy writes the complete document — with your branding and the correct tax details — in seconds.</p>
-      ${ctaButton(APP_URL, "Open Clorefy")}
+      <p>Describe it, and Clorefy writes the complete document — branding, taxes, the lot. Watch it happen below 👇</p>
+      ${ctaButton(APP_URL, "Give it a go")}
+      ${videoCard(DOC_VIDEO, DOC_THUMB, "▶ Watch: a document in seconds")}
       <hr class="divider">
-      <p class="fine">We'd love to know what's missing — just reply, it takes 30 seconds. No more automatic emails after this.</p>
+      <p class="fine">What's missing for you? A one-line reply genuinely helps. No more automatic emails after this. 👋</p>
     </div>
   `)
 }
