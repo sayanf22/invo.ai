@@ -11,7 +11,10 @@ import KpiCard from "@/components/admin/kpi-card"
 
 interface SentEmail { email_type: string; sent_at: string }
 interface LastEmailEvent { event: string; event_at: string }
-interface EmailHistoryEntry { kind: "auto" | "manual"; label: string; subject: string | null; sent_at: string }
+interface EmailHistoryEntry {
+  kind: "auto" | "manual"; label: string; subject: string | null; sent_at: string
+  open_count: number; click_count: number; opens: string[]; last_opened_at: string | null
+}
 
 interface UserRow {
   id: string; email: string; name: string | null
@@ -164,9 +167,31 @@ function EmailHistory({ u, border, text, muted, isDark }: { u: UserRow; border: 
                         <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", color: accent, background: `${accent}1A`, padding: "1px 6px", borderRadius: 4 }}>
                           {isAuto ? "Auto" : "Manual"}
                         </span>
+                        {h.open_count > 0 ? (
+                          <span
+                            title={h.opens.map(o => format(new Date(o), "d MMM yyyy, h:mm a")).join("\n")}
+                            style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, color: "#059669", background: "#05966915", padding: "1px 6px", borderRadius: 4 }}
+                          >
+                            ✓ Opened{h.open_count > 1 ? ` ×${h.open_count}` : ""}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, color: muted, background: isDark ? "#1A1A1A" : "#EDEDED", padding: "1px 6px", borderRadius: 4 }}>
+                            Not opened
+                          </span>
+                        )}
+                        {h.click_count > 0 && (
+                          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, color: "#D97757", background: "#D9775715", padding: "1px 6px", borderRadius: 4 }}>
+                            Clicked{h.click_count > 1 ? ` ×${h.click_count}` : ""}
+                          </span>
+                        )}
                       </div>
                       {h.subject && (
                         <div className="text-xs truncate mt-0.5" style={{ color: muted }}>"{h.subject}"</div>
+                      )}
+                      {h.open_count > 0 && h.last_opened_at && (
+                        <div style={{ fontSize: 10, color: "#059669", marginTop: 2 }}>
+                          {h.open_count === 1 ? "Opened" : `Last opened`} {format(new Date(h.last_opened_at), "d MMM, h:mm a")}
+                        </div>
                       )}
                     </div>
                     <div className="text-right flex-shrink-0">

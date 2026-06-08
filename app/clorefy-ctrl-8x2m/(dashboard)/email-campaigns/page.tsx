@@ -22,6 +22,7 @@ export default async function EmailCampaignsPage() {
     { data: docRows },
     { data: campaigns },
     { data: manualEmails },
+    { data: engagementEvents },
   ] = await Promise.all([
     supabase.from("profiles")
       .select("id, email, full_name, onboarding_complete, last_active_at, created_at, tier")
@@ -39,6 +40,11 @@ export default async function EmailCampaignsPage() {
       .select("user_id, created_at, metadata")
       .eq("action", "admin.direct_email")
       .order("created_at", { ascending: false }),
+    // All-time open/click events — used to attribute engagement to each send
+    supabase.from("email_events")
+      .select("email, event, event_at, subject")
+      .in("event", ["opened", "uniqueOpened", "click"])
+      .order("event_at", { ascending: false }),
   ])
 
   // Friendly labels for automated lifecycle emails
@@ -50,7 +56,50 @@ export default async function EmailCampaignsPage() {
   }
   const autoEmailLabel = (type: string) => AUTO_EMAIL_LABELS[type] ?? type.replace(/_/g, " ")
 
-  type EmailHistoryEntry = { kind: "auto" | "manual"; label: string; subject: string | null; sent_at: string }
+  // Subject lines per automated email — used to attribute opens/clicks to a send
+  const AUTO_EMAIL_SUBJECTS: Record<string, string> = {
+    dropoff_1: "Your first doc is 1 click away ✨",
+    dropoff_2: "One last nudge 👋",
+    inactive_1: "Miss us yet? 👀",
+    inactive_2: "Okay, last one 🙈",
+  }
+  const autoEmailSubject = (type: string): string | null => AUTO_EMAIL_SUBJECTS[type] ?? null
+
+  type EmailHistoryEntry = {
+    kind: "auto" | "manual"; label: string; subject: string | null; sent_at: string
+    open_count: number; click_count: number; opens: string[]; last_opened_at: string | null
+  }
+
+  // Attribute open/click events to specific sends (history sorted newest-first)
+  const attributeEngagement = (
+    history: EmailHistoryEntry[],
+    events: Array<{ subject: string | null; event: string; event_at: string }>
+  ) => {
+    for (const ev of events) {
+      const subj = (ev.subject ?? "").trim().toLowerCase()
+      if (!subj) continue
+      const evTime = new Date(ev.event_at).getTime()
+      const target = history.find(
+        (h) => (h.subject ?? "").trim().toLowerCase() === subj && new Date(h.sent_at).getTime() <= evTime
+      )
+      if (!target) continue
+      if (ev.event === "click") target.click_count += 1
+      else if (ev.event === "opened" || ev.event === "uniqueOpened") { target.open_count += 1; target.opens.push(ev.event_at) }
+    }
+    for (const h of history) {
+      h.opens.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+      h.last_opened_at = h.opens.length > 0 ? h.opens[h.opens.length - 1] : null
+    }
+  }
+
+  // Per-email all-time open/click list for per-send attribution
+  const engagementByEmail = new Map<string, Array<{ subject: string | null; event: string; event_at: string }>>()
+  for (const ev of engagementEvents ?? []) {
+    const key = (ev.email ?? "").toLowerCase()
+    if (!key) continue
+    if (!engagementByEmail.has(key)) engagementByEmail.set(key, [])
+    engagementByEmail.get(key)!.push({ subject: ev.subject, event: ev.event, event_at: ev.event_at })
+  }
 
   // Build lookups
   const sendLogMap = new Map<string, Array<{ email_type: string; sent_at: string }>>()
@@ -72,6 +121,7 @@ export default async function EmailCampaignsPage() {
       label: "Direct email",
       subject: typeof meta.subject === "string" ? meta.subject : null,
       sent_at: m.created_at,
+      open_count: 0, click_count: 0, opens: [], last_opened_at: null,
     })
     manualMap.set(m.user_id, cur)
   }
@@ -128,10 +178,23 @@ export default async function EmailCampaignsPage() {
 
     // Unified email history (auto lifecycle + manual 1:1), newest first
     const emailHistory: EmailHistoryEntry[] = [
-      ...sentEmails.map(e => ({ kind: "auto" as const, label: autoEmailLabel(e.email_type), subject: null, sent_at: e.sent_at })),
+      ...sentEmails.map(e => ({
+        kind: "auto" as const, label: autoEmailLabel(e.email_type), subject: autoEmailSubject(e.email_type),
+        sent_at: e.sent_at, open_count: 0, click_count: 0, opens: [] as string[], last_opened_at: null as string | null,
+      })),
       ...manual.entries,
     ].sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime())
+
+    // Attribute real open/click events to each send (all-time, by subject + time)
+    attributeEngagement(emailHistory, engagementByEmail.get((p.email ?? "").toLowerCase()) ?? [])
+
     const lastSentAt = emailHistory.length > 0 ? emailHistory[0].sent_at : null
+    const totalOpens = emailHistory.reduce((sum, h) => sum + h.open_count, 0)
+    const totalClicks = emailHistory.reduce((sum, h) => sum + h.click_count, 0)
+    const lastOpenedAt = emailHistory
+      .map(h => h.last_opened_at)
+      .filter((t): t is string => !!t)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null
 
     return {
       id: p.id as string,
@@ -152,12 +215,12 @@ export default async function EmailCampaignsPage() {
       last_sent_at: lastSentAt,
       email_history: emailHistory,
       last_email_event: stats?.last_event ?? null,
-      opened: (stats?.opened ?? 0) > 0,
-      open_count: stats?.opened ?? 0,
+      opened: totalOpens > 0,
+      open_count: totalOpens,
       delivered_count: stats?.delivered ?? 0,
-      clicked_count: stats?.clicked ?? 0,
+      clicked_count: totalClicks,
       bounced: (stats?.bounced ?? 0) > 0,
-      last_opened_at: stats?.last_opened_at ?? null,
+      last_opened_at: lastOpenedAt,
       category,
       never_emailed: totalSentCount === 0,
       auto_stopped: autoStopped,
