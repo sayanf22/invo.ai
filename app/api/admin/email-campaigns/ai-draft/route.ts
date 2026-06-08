@@ -163,18 +163,17 @@ Tone-specific calibration:
 - professional → clean, confident, benefit-led; no emoji
 - urgent → direct and time-aware but never panicky or hypey; no emoji
 
-Rules for the body:
-- Write like a real human, not a marketing template
-- Ground the email in the user's ACTUAL current stage (the "CURRENT STAGE" line in their data). Speak directly to where they actually are or got stuck — e.g. if they're stuck at the AI chat step, the choose-plan step, or have onboarded but made no documents, address THAT specific moment.
-- NEVER invent or guess a problem the data doesn't show. Do not assume "password issues", "login trouble", "technical errors", or any blocker unless their stage data actually indicates it. If you don't know why they stalled, gently ask or offer help — don't fabricate a reason.
-- Be specific — reference their real usage data naturally
-- Never sound spammy or pushy
-- Keep the email body under 180 words
-- End with a soft, relevant CTA that points to the next step at https://clorefy.com (e.g. finish onboarding, pick a plan, create their first document — match it to their stage)
-- For help/support, tell them to email support@clorefy.com. NEVER write "reply to this email", "just reply", or "respond to this message" — replies are not monitored; support@clorefy.com is the only support channel.
-- When offering help, phrase it naturally and professionally — e.g. "if you run into any issues" or "if you have any questions". Do NOT offer vague or salesy things like "a quick walkthrough", "a demo", "a call", "a tour", or "onboarding help" — Clorefy is self-serve software, so frame support as help with issues or questions, not a guided session.
-- Sign off as "The Clorefy Team" — NEVER use a placeholder like "[Your name]", "[Name]", or a bracketed field. Do not invent a personal signature.
-- Do NOT include a greeting line with the recipient's name (the email template adds "Hey {firstName}," automatically) — start directly with the message body
+Rules for the body (this is a real message from a real team — make it intelligent, not generic):
+- Length: 60–110 words. Tight and respectful of their time. No filler, no fluff, no marketing padding.
+- OPEN with their REAL situation, stated as a FACT from the data — e.g. "You finished setting up your account but haven't created your first document yet." Never open with a guess.
+- ABSOLUTELY NO SPECULATION about their feelings, mood, or reasons. These phrasings are BANNED: "Maybe you're...", "Perhaps you...", "I imagine you...", "You might be...", "If you're feeling...", "Not sure if...", "We noticed you might...", "Maybe you're unsure...". If you don't know why they paused, DO NOT invent a reason — instead give a concrete helpful next step OR ask one genuine question.
+- Ask AT MOST ONE question, and only if it's genuinely useful and specific (e.g. "What's the first document you need — an invoice or a contract?"). Never stack rhetorical or hypothetical questions. Do not guess what's holding them back.
+- Give exactly ONE clear, concrete next step tied to their actual stage, linking to https://clorefy.com. Be specific about the payoff (e.g. "create your first invoice in about a minute").
+- Sound like a knowledgeable human, not a template. No hype, no guilt-tripping, no "we'd love to", no fake urgency.
+- NEVER invent a blocker the data doesn't show (no "password issues", "login trouble", "technical errors").
+- For help/support, tell them to email support@clorefy.com. NEVER write "reply to this email", "just reply", or "respond to this message". When offering help, keep it natural — "if you hit any issues or have questions". Do NOT offer a "walkthrough", "demo", "call", "tour", or "onboarding session" — Clorefy is self-serve.
+- Sign off as "The Clorefy Team" — NEVER a placeholder like "[Your name]" or "[Name]".
+- Do NOT include a greeting line with the recipient's name (the template adds "Hey {firstName}," automatically) — start directly with the message body.
 - Tone: ${tone}
 
 Respond ONLY with a JSON object: { "subject": "...", "message": "..." }
@@ -203,7 +202,7 @@ The message should be plain text (no HTML), with natural line breaks.`
       ? `\nALREADY-USED SUBJECTS (do NOT repeat or echo any of these — make something clearly different):\n${previousSubjects.map(s => `- ${s}`).join("\n")}`
       : "",
     intent ? `\nADMIN INTENT: ${intent}` : "",
-    "\nWrite a direct, personalized email for this user. Reference their specific data naturally. The subject must be unique, short, playful-but-credible, and tied to their activity.",
+    "\nWrite a direct, genuinely personalized email grounded in this user's REAL data. State facts, never speculate about their feelings or reasons. One concrete next step. The subject must be unique, short, and tied to their actual activity.",
   ].filter(Boolean).join("\n")
 
   // ── Call DeepSeek ─────────────────────────────────────────────────────────────
@@ -224,7 +223,7 @@ The message should be plain text (no HTML), with natural line breaks.`
       },
       body: JSON.stringify({
         model: "deepseek-chat",
-        temperature: 1.0,
+        temperature: 0.8,
         max_tokens: 500,
         messages: [
           { role: "system", content: systemPrompt },
