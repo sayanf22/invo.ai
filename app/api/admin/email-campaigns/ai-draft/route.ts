@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     { data: docRows },
     { data: businesses },
     { data: sendLogs },
+    { data: pastEmails },
   ] = await Promise.all([
     supabase.from("profiles")
       .select("email, full_name, onboarding_complete, last_active_at, created_at, tier")
@@ -73,6 +74,10 @@ export async function POST(request: NextRequest) {
       .select("business_type, name, country").eq("user_id", userId).limit(1),
     supabase.from("user_email_send_log")
       .select("email_type, sent_at").eq("user_id", userId),
+    // Previously-sent subject lines (manual admin emails) — so we never repeat one
+    supabase.from("audit_logs")
+      .select("metadata, created_at").eq("user_id", userId).eq("action", "admin.direct_email")
+      .order("created_at", { ascending: false }).limit(15),
   ])
 
   const profile = profiles?.[0]
@@ -93,6 +98,20 @@ export async function POST(request: NextRequest) {
     : null
 
   const sentEmailTypes = (sendLogs ?? []).map((l: any) => l.email_type)
+
+  // Collect subjects already used for this user so the AI never repeats one
+  const AUTO_SUBJECTS: Record<string, string> = {
+    dropoff_1: "Your first doc is 1 click away ✨",
+    dropoff_2: "One last nudge 👋",
+    inactive_1: "Miss us yet? 👀",
+    inactive_2: "Okay, last one 🙈",
+  }
+  const previousSubjects = Array.from(new Set([
+    ...sentEmailTypes.map((t: string) => AUTO_SUBJECTS[t]).filter(Boolean),
+    ...(pastEmails ?? [])
+      .map((e: any) => (e.metadata && typeof e.metadata.subject === "string" ? e.metadata.subject : null))
+      .filter(Boolean),
+  ])) as string[]
 
   // Build the user context object for the AI
   const userContext = {
@@ -115,13 +134,25 @@ export async function POST(request: NextRequest) {
 
 You write concise, personal, high-converting emails from the Clorefy team to individual users. These are 1:1 admin emails — not newsletters or bulk campaigns.
 
-Rules:
+THE SUBJECT LINE IS THE MOST IMPORTANT PART. Rules for the subject:
+- Make it UNIQUE and fresh every single time — never reuse a phrasing, structure, or angle from the "ALREADY-USED SUBJECTS" list provided. If that list is given, your subject must be clearly different from all of them.
+- Vary the angle each time: a curiosity gap, a question, a specific observation about their usage, a benefit, a gentle nudge, or a milestone. Rotate styles — do not default to the same pattern.
+- Tie it to the user's ACTUAL activity (docs generated, days inactive, onboarding status, business type). Specific beats generic.
+- Keep it SHORT — ideally 3 to 7 words, always under 50 characters so it shows fully on mobile.
+- Playful and human, but credible. Clorefy handles real invoices and legal contracts, so never sound gimmicky, clickbaity, or like a sale. Curiosity, warmth, and wit — yes. Hype, false urgency, ALL-CAPS — no.
+- Avoid tired clichés: "We miss you", "Quick question", "Just checking in", "Don't miss out".
+- Emoji: at most ONE, only when tone is "friendly", and only if it genuinely fits. Never more than one. None for "professional" or "urgent".
+
+Tone-specific calibration:
+- friendly → warm, light, a little witty; one tasteful emoji allowed
+- professional → clean, confident, benefit-led; no emoji
+- urgent → direct and time-aware but never panicky or hypey; no emoji
+
+Rules for the body:
 - Write like a real human, not a marketing template
 - Be specific — reference the user's actual usage data provided
 - Never sound spammy or pushy
-- Keep subject line under 60 characters
 - Keep the email body under 180 words
-- Never use all-caps, excessive exclamation marks, or emojis in subject
 - Always end with a soft CTA — link to https://clorefy.com
 - Sign off as "The Clorefy Team" — NEVER use a placeholder like "[Your name]", "[Name]", or a bracketed field. Do not invent a personal signature.
 - Do NOT include a greeting line with the recipient's name (the email template adds "Hey {firstName}," automatically) — start directly with the message body
@@ -148,9 +179,12 @@ The message should be plain text (no HTML), with natural line breaks.`
 
   const userPrompt = [
     `USER DATA:\n${dataLines}`,
+    previousSubjects.length > 0
+      ? `\nALREADY-USED SUBJECTS (do NOT repeat or echo any of these — make something clearly different):\n${previousSubjects.map(s => `- ${s}`).join("\n")}`
+      : "",
     intent ? `\nADMIN INTENT: ${intent}` : "",
-    "\nWrite a direct, personalized email for this user. Reference their specific data naturally.",
-  ].join("\n")
+    "\nWrite a direct, personalized email for this user. Reference their specific data naturally. The subject must be unique, short, playful-but-credible, and tied to their activity.",
+  ].filter(Boolean).join("\n")
 
   // ── Call DeepSeek ─────────────────────────────────────────────────────────────
 
@@ -170,7 +204,7 @@ The message should be plain text (no HTML), with natural line breaks.`
       },
       body: JSON.stringify({
         model: "deepseek-chat",
-        temperature: 0.7,
+        temperature: 1.0,
         max_tokens: 500,
         messages: [
           { role: "system", content: systemPrompt },
