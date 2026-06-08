@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Mail, Send, X, Search, CheckCircle } from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
+import { Mail, Send, X, Search, CheckCircle, ChevronDown, Clock, Sparkles, User as UserIcon } from "lucide-react"
+import { formatDistanceToNow, format } from "date-fns"
 import { useAdminTheme } from "@/components/admin/admin-theme-provider"
 import { useIsMobile } from "@/hooks/use-mobile"
 import KpiCard from "@/components/admin/kpi-card"
@@ -11,6 +11,7 @@ import KpiCard from "@/components/admin/kpi-card"
 
 interface SentEmail { email_type: string; sent_at: string }
 interface LastEmailEvent { event: string; event_at: string }
+interface EmailHistoryEntry { kind: "auto" | "manual"; label: string; subject: string | null; sent_at: string }
 
 interface UserRow {
   id: string; email: string; name: string | null
@@ -21,6 +22,8 @@ interface UserRow {
   // Send breakdown
   auto_sent_count: number; manual_sent_count: number; total_sent_count: number
   last_manual_sent_at: string | null
+  last_sent_at: string | null
+  email_history: EmailHistoryEntry[]
   // Engagement (last 30 days)
   opened: boolean; open_count: number; delivered_count: number; clicked_count: number
   bounced: boolean; last_opened_at: string | null
@@ -91,6 +94,93 @@ function SentChip({ u }: { u: UserRow }) {
       <span title="Total emails sent">{u.total_sent_count}</span>
       <span style={{ color: "#9CA3AF", fontWeight: 500 }}> ({u.auto_sent_count} auto · {u.manual_sent_count} manual)</span>
     </span>
+  )
+}
+
+/** Collapsible email history timeline with smooth grid-rows animation */
+function EmailHistory({ u, border, text, muted, isDark }: { u: UserRow; border: string; text: string; muted: string; isDark: boolean }) {
+  const [open, setOpen] = useState(false)
+  const count = u.email_history.length
+
+  return (
+    <div className="mb-4 rounded-xl overflow-hidden" style={{ border: `1px solid ${border}` }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3"
+        style={{ background: isDark ? "#0A0A0A" : "#F0F0F0", border: "none", cursor: "pointer" }}
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: text }}>
+          <Clock size={14} style={{ color: muted }} />
+          Email history
+          <span style={{ fontSize: 11, fontWeight: 600, color: muted, background: isDark ? "#1A1A1A" : "#FFFFFF", padding: "1px 7px", borderRadius: 999, border: `1px solid ${border}` }}>
+            {count}
+          </span>
+        </span>
+        <span className="flex items-center gap-2">
+          {u.last_sent_at && (
+            <span className="text-xs" style={{ color: muted }}>
+              Last: {format(new Date(u.last_sent_at), "d MMM, h:mm a")}
+            </span>
+          )}
+          <ChevronDown
+            size={16}
+            style={{ color: muted, transition: "transform 0.25s ease", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+          />
+        </span>
+      </button>
+
+      {/* Animated collapse via grid-template-rows 0fr → 1fr */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateRows: open ? "1fr" : "0fr",
+          transition: "grid-template-rows 0.3s ease",
+        }}
+      >
+        <div style={{ overflow: "hidden" }}>
+          {count === 0 ? (
+            <div className="px-4 py-4 text-xs" style={{ color: muted }}>No emails sent to this user yet.</div>
+          ) : (
+            <div className="px-4 py-2">
+              {u.email_history.map((h, i) => {
+                const isAuto = h.kind === "auto"
+                const accent = isAuto ? "#D97757" : "#7C3AED"
+                return (
+                  <div
+                    key={`${h.sent_at}-${i}`}
+                    className="flex items-start gap-3 py-2.5"
+                    style={{ borderTop: i > 0 ? `1px solid ${border}` : "none" }}
+                  >
+                    <span
+                      className="flex items-center justify-center rounded-full flex-shrink-0"
+                      style={{ width: 26, height: 26, background: `${accent}1A`, marginTop: 1 }}
+                    >
+                      {isAuto ? <Sparkles size={13} style={{ color: accent }} /> : <UserIcon size={13} style={{ color: accent }} />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium" style={{ color: text }}>{h.label}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", color: accent, background: `${accent}1A`, padding: "1px 6px", borderRadius: 4 }}>
+                          {isAuto ? "Auto" : "Manual"}
+                        </span>
+                      </div>
+                      {h.subject && (
+                        <div className="text-xs truncate mt-0.5" style={{ color: muted }}>"{h.subject}"</div>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-xs" style={{ color: text }}>{format(new Date(h.sent_at), "d MMM yyyy")}</div>
+                      <div style={{ fontSize: 10, color: muted }}>{format(new Date(h.sent_at), "h:mm a")} · {formatDistanceToNow(new Date(h.sent_at), { addSuffix: true })}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -436,6 +526,9 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
                 <span style={{ color: "#D97757" }}>⚠ Auto-stopped. This manual email will still send.</span>
               )}
             </div>
+
+            {/* Collapsible email history — full timeline with date/time */}
+            <EmailHistory u={modalUser} border={border} text={text} muted={muted} isDark={isDark} />
 
             {/* AI Draft */}
             <div className="mb-4 p-4 rounded-xl" style={{ border: `1px solid ${border}`, background: isDark ? "#050505" : "#FAFAFA" }}>

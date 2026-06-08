@@ -20,6 +20,24 @@ function getServiceClient() {
   )
 }
 
+// Friendly labels for automated lifecycle emails (matches Brevo automation tracks)
+const AUTO_EMAIL_LABELS: Record<string, string> = {
+  dropoff_1: "Onboarding nudge",
+  dropoff_2: "Onboarding final nudge",
+  inactive_1: "Win-back #1",
+  inactive_2: "Win-back #2",
+}
+function autoEmailLabel(type: string): string {
+  return AUTO_EMAIL_LABELS[type] ?? type.replace(/_/g, " ")
+}
+
+export interface EmailHistoryEntry {
+  kind: "auto" | "manual"
+  label: string
+  subject: string | null
+  sent_at: string
+}
+
 // ── GET ───────────────────────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
@@ -66,13 +84,20 @@ export async function GET(request: NextRequest) {
     sendLogMap.get(log.user_id)!.push({ email_type: log.email_type, sent_at: log.sent_at })
   }
 
-  // Build per-user manual (admin 1:1) email count + last sent timestamp
-  const manualMap = new Map<string, { count: number; last_sent_at: string | null }>()
+  // Build per-user manual (admin 1:1) email count + last sent timestamp + full history
+  const manualMap = new Map<string, { count: number; last_sent_at: string | null; entries: EmailHistoryEntry[] }>()
   for (const m of manualEmails ?? []) {
     if (!m.user_id) continue
-    const cur = manualMap.get(m.user_id) ?? { count: 0, last_sent_at: null }
+    const cur = manualMap.get(m.user_id) ?? { count: 0, last_sent_at: null, entries: [] }
     cur.count += 1
     if (!cur.last_sent_at) cur.last_sent_at = m.created_at // first row = most recent (ordered desc)
+    const meta = (m.metadata ?? {}) as Record<string, unknown>
+    cur.entries.push({
+      kind: "manual",
+      label: "Direct email",
+      subject: typeof meta.subject === "string" ? meta.subject : null,
+      sent_at: m.created_at,
+    })
     manualMap.set(m.user_id, cur)
   }
 
@@ -113,7 +138,7 @@ export async function GET(request: NextRequest) {
   // Enrich each user
   const usersWithStatus = (profiles ?? []).map((p: any) => {
     const sentEmails = sendLogMap.get(p.id) ?? []
-    const manual = manualMap.get(p.id) ?? { count: 0, last_sent_at: null }
+    const manual = manualMap.get(p.id) ?? { count: 0, last_sent_at: null, entries: [] }
     const stats = emailStatsMap.get(p.email) ?? null
     const docsCount = docCountMap.get(p.id) ?? 0
     const daysSinceActive = p.last_active_at
@@ -138,6 +163,19 @@ export async function GET(request: NextRequest) {
       (e) => e.email_type === "inactive_2" || e.email_type === "dropoff_2"
     )
 
+    // Unified email history (auto lifecycle + manual 1:1), newest first
+    const emailHistory: EmailHistoryEntry[] = [
+      ...sentEmails.map((e) => ({
+        kind: "auto" as const,
+        label: autoEmailLabel(e.email_type),
+        subject: null,
+        sent_at: e.sent_at,
+      })),
+      ...manual.entries,
+    ].sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime())
+
+    const lastSentAt = emailHistory.length > 0 ? emailHistory[0].sent_at : null
+
     return {
       id: p.id as string,
       email: p.email as string,
@@ -155,6 +193,8 @@ export async function GET(request: NextRequest) {
       manual_sent_count: manualSentCount,
       total_sent_count: totalSentCount,
       last_manual_sent_at: manual.last_sent_at,
+      last_sent_at: lastSentAt,
+      email_history: emailHistory,
       // ── Engagement (last 30 days) ──
       last_email_event: stats?.last_event ?? null,
       opened: (stats?.opened ?? 0) > 0,

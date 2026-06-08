@@ -36,10 +36,21 @@ export default async function EmailCampaignsPage() {
     supabase.from("admin_email_campaigns")
       .select("*").order("sent_at", { ascending: false }).limit(20),
     supabase.from("audit_logs")
-      .select("user_id, created_at")
+      .select("user_id, created_at, metadata")
       .eq("action", "admin.direct_email")
       .order("created_at", { ascending: false }),
   ])
+
+  // Friendly labels for automated lifecycle emails
+  const AUTO_EMAIL_LABELS: Record<string, string> = {
+    dropoff_1: "Onboarding nudge",
+    dropoff_2: "Onboarding final nudge",
+    inactive_1: "Win-back #1",
+    inactive_2: "Win-back #2",
+  }
+  const autoEmailLabel = (type: string) => AUTO_EMAIL_LABELS[type] ?? type.replace(/_/g, " ")
+
+  type EmailHistoryEntry = { kind: "auto" | "manual"; label: string; subject: string | null; sent_at: string }
 
   // Build lookups
   const sendLogMap = new Map<string, Array<{ email_type: string; sent_at: string }>>()
@@ -48,13 +59,20 @@ export default async function EmailCampaignsPage() {
     sendLogMap.get(log.user_id)!.push({ email_type: log.email_type, sent_at: log.sent_at })
   }
 
-  // Manual (admin 1:1) emails per user
-  const manualMap = new Map<string, { count: number; last_sent_at: string | null }>()
+  // Manual (admin 1:1) emails per user — count, last sent, full history entries
+  const manualMap = new Map<string, { count: number; last_sent_at: string | null; entries: EmailHistoryEntry[] }>()
   for (const m of manualEmails ?? []) {
     if (!m.user_id) continue
-    const cur = manualMap.get(m.user_id) ?? { count: 0, last_sent_at: null }
+    const cur = manualMap.get(m.user_id) ?? { count: 0, last_sent_at: null, entries: [] }
     cur.count += 1
     if (!cur.last_sent_at) cur.last_sent_at = m.created_at
+    const meta = (m.metadata ?? {}) as Record<string, unknown>
+    cur.entries.push({
+      kind: "manual",
+      label: "Direct email",
+      subject: typeof meta.subject === "string" ? meta.subject : null,
+      sent_at: m.created_at,
+    })
     manualMap.set(m.user_id, cur)
   }
 
@@ -91,7 +109,7 @@ export default async function EmailCampaignsPage() {
 
   const users = (profiles ?? []).map((p: any) => {
     const sentEmails = sendLogMap.get(p.id) ?? []
-    const manual = manualMap.get(p.id) ?? { count: 0, last_sent_at: null }
+    const manual = manualMap.get(p.id) ?? { count: 0, last_sent_at: null, entries: [] }
     const stats = emailStatsMap.get(p.email) ?? null
     const docsCount = docCountMap.get(p.id) ?? 0
     const daysSinceActive = p.last_active_at
@@ -107,6 +125,13 @@ export default async function EmailCampaignsPage() {
     const autoSentCount = sentEmails.length
     const manualSentCount = manual.count
     const totalSentCount = autoSentCount + manualSentCount
+
+    // Unified email history (auto lifecycle + manual 1:1), newest first
+    const emailHistory: EmailHistoryEntry[] = [
+      ...sentEmails.map(e => ({ kind: "auto" as const, label: autoEmailLabel(e.email_type), subject: null, sent_at: e.sent_at })),
+      ...manual.entries,
+    ].sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime())
+    const lastSentAt = emailHistory.length > 0 ? emailHistory[0].sent_at : null
 
     return {
       id: p.id as string,
@@ -124,6 +149,8 @@ export default async function EmailCampaignsPage() {
       manual_sent_count: manualSentCount,
       total_sent_count: totalSentCount,
       last_manual_sent_at: manual.last_sent_at,
+      last_sent_at: lastSentAt,
+      email_history: emailHistory,
       last_email_event: stats?.last_event ?? null,
       opened: (stats?.opened ?? 0) > 0,
       open_count: stats?.opened ?? 0,
