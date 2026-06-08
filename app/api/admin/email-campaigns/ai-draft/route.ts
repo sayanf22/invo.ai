@@ -123,6 +123,8 @@ Rules:
 - Keep the email body under 180 words
 - Never use all-caps, excessive exclamation marks, or emojis in subject
 - Always end with a soft CTA — link to https://clorefy.com
+- Sign off as "The Clorefy Team" — NEVER use a placeholder like "[Your name]", "[Name]", or a bracketed field. Do not invent a personal signature.
+- Do NOT include a greeting line with the recipient's name (the email template adds "Hey {firstName}," automatically) — start directly with the message body
 - Support email: support@clorefy.com
 - Tone: ${tone}
 
