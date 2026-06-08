@@ -574,16 +574,24 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
                 </span>
               </div>
               <p className="text-xs" style={{ color: modalUser.funnel_stuck ? "#9A3412" : text, margin: 0 }}>{modalUser.funnel_detail}</p>
-              {(modalUser.last_login_location || modalUser.last_login_at) && (
+              {(modalUser.last_login_location || modalUser.last_login_at) ? (
                 <p className="text-xs mt-1.5" style={{ color: muted, margin: "6px 0 0" }}>
                   📍 Last login{modalUser.last_login_location ? `: ${modalUser.last_login_location}` : ""}
                   {modalUser.last_login_at ? ` · ${formatDistanceToNow(new Date(modalUser.last_login_at), { addSuffix: true })}` : ""}
                   {modalUser.last_login_ip ? ` · ${modalUser.last_login_ip}` : ""}
                 </p>
+              ) : (
+                <p className="text-xs mt-1.5" style={{ color: muted, margin: "6px 0 0", opacity: 0.7 }}>
+                  📍 Location: not recorded yet (captured on this user's next login)
+                </p>
               )}
-              {modalUser.last_login_device && (
+              {modalUser.last_login_device ? (
                 <p className="text-xs mt-1" style={{ color: muted, margin: "4px 0 0" }}>
                   💻 {modalUser.last_login_device}
+                </p>
+              ) : (
+                <p className="text-xs mt-1" style={{ color: muted, margin: "4px 0 0", opacity: 0.7 }}>
+                  💻 Device: not recorded yet
                 </p>
               )}
             </div>
