@@ -106,35 +106,14 @@ export function LogoUploader({
     }
   }, [previewUrl])
 
-  // ── File selection handler ───────────────────────────────────────────
+  // ── Upload logic (shared) ────────────────────────────────────────────
 
-  const handleFileSelect = useCallback((file: File) => {
-    const validation = validateLogoFile({ type: file.type, size: file.size }, maxSizeMB)
-    if (!validation.valid) {
-      toast.error(validation.error)
-      return
-    }
-
-    // Revoke previous preview
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-
-    const objectUrl = URL.createObjectURL(file)
-    setPreviewUrl(objectUrl)
-    setSelectedFile(file)
-    setState("previewing")
-  }, [maxSizeMB, previewUrl])
-
-  // ── Upload handler ───────────────────────────────────────────────────
-
-  const handleUpload = useCallback(async () => {
-    if (!selectedFile) return
-
+  const doUpload = useCallback(async (file: File) => {
     setState("uploading")
-
     try {
-      // Compress before upload
+      // Compress before upload — reduces size 60-80%, no visible quality loss
       const { compressImage } = await import("@/lib/compress-image")
-      const compressed = await compressImage(selectedFile)
+      const compressed = await compressImage(file)
 
       const formData = new FormData()
       formData.append("file", compressed)
@@ -157,7 +136,6 @@ export function LogoUploader({
       if (dataUrl) warmLogoCache(objectKey, dataUrl)
 
       setState("complete")
-      setCurrentDisplayUrl(previewUrl)
       setSelectedFile(null)
       onUploadComplete(objectKey)
     } catch (err: unknown) {
@@ -165,7 +143,34 @@ export function LogoUploader({
       toast.error(message)
       setState("previewing")
     }
-  }, [selectedFile, previewUrl, onUploadComplete])
+  }, [onUploadComplete])
+
+  // ── File selection handler — auto-uploads immediately ────────────────
+
+  const handleFileSelect = useCallback((file: File) => {
+    const validation = validateLogoFile({ type: file.type, size: file.size }, maxSizeMB)
+    if (!validation.valid) {
+      toast.error(validation.error)
+      return
+    }
+
+    // Revoke previous preview
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+
+    const objectUrl = URL.createObjectURL(file)
+    setPreviewUrl(objectUrl)
+    setSelectedFile(file)
+    setState("previewing")
+    // Auto-upload right away so the logo is always saved — no extra click needed
+    void doUpload(file)
+  }, [maxSizeMB, previewUrl, doUpload])
+
+  // ── Manual upload (retry) handler ────────────────────────────────────
+
+  const handleUpload = useCallback(async () => {
+    if (!selectedFile) return
+    await doUpload(selectedFile)
+  }, [selectedFile, doUpload])
 
   // ── Drag and drop handlers ───────────────────────────────────────────
 
