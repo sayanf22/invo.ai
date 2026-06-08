@@ -13,78 +13,13 @@ import { verifyAdminSession } from "@/lib/admin-auth"
 import { createClient } from "@supabase/supabase-js"
 import { syncUserOnLogin } from "@/lib/brevo"
 import { computeFunnelStage } from "@/lib/funnel-stage"
+import { buildEmailHistory, type RawEmailEvent } from "@/lib/email-history"
 
 function getServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
-}
-
-// Friendly labels for automated lifecycle emails (matches Brevo automation tracks)
-const AUTO_EMAIL_LABELS: Record<string, string> = {
-  dropoff_1: "Onboarding nudge",
-  dropoff_2: "Onboarding final nudge",
-  inactive_1: "Win-back #1",
-  inactive_2: "Win-back #2",
-}
-function autoEmailLabel(type: string): string {
-  return AUTO_EMAIL_LABELS[type] ?? type.replace(/_/g, " ")
-}
-
-// Subject lines used by each automated lifecycle email — used to attribute
-// open/click events (which carry the subject) back to a specific send.
-const AUTO_EMAIL_SUBJECTS: Record<string, string> = {
-  dropoff_1: "Your first doc is 1 click away ✨",
-  dropoff_2: "One last nudge 👋",
-  inactive_1: "Miss us yet? 👀",
-  inactive_2: "Okay, last one 🙈",
-}
-function autoEmailSubject(type: string): string | null {
-  return AUTO_EMAIL_SUBJECTS[type] ?? null
-}
-
-export interface EmailHistoryEntry {
-  kind: "auto" | "manual"
-  label: string
-  subject: string | null
-  sent_at: string
-  open_count: number
-  click_count: number
-  opens: string[]          // timestamps of each open, ascending
-  last_opened_at: string | null
-}
-
-/**
- * Attribute open/click events to specific sends.
- * `history` must be sorted newest-first. Each event is assigned to the most
- * recent send whose subject matches and whose sent_at is at or before the event.
- * Mutates entries in place.
- */
-function attributeEngagement(
-  history: EmailHistoryEntry[],
-  events: Array<{ subject: string | null; event: string; event_at: string }>
-) {
-  for (const ev of events) {
-    const subj = (ev.subject ?? "").trim().toLowerCase()
-    if (!subj) continue
-    const evTime = new Date(ev.event_at).getTime()
-    // history is desc — first match with sent_at <= event time is the latest prior send
-    const target = history.find(
-      (h) => (h.subject ?? "").trim().toLowerCase() === subj && new Date(h.sent_at).getTime() <= evTime
-    )
-    if (!target) continue
-    if (ev.event === "click") {
-      target.click_count += 1
-    } else if (ev.event === "opened" || ev.event === "uniqueOpened") {
-      target.open_count += 1
-      target.opens.push(ev.event_at)
-    }
-  }
-  for (const h of history) {
-    h.opens.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
-    h.last_opened_at = h.opens.length > 0 ? h.opens[h.opens.length - 1] : null
-  }
 }
 
 // ── GET ───────────────────────────────────────────────────────────────────────
@@ -103,7 +38,6 @@ export async function GET(request: NextRequest) {
     { data: emailEvents },
     { data: docRows },
     { data: campaigns },
-    { data: manualEmails },
     { data: engagementEvents },
     { data: progressRows },
   ] = await Promise.all([
@@ -121,15 +55,10 @@ export async function GET(request: NextRequest) {
       .select("user_id"),
     supabase.from("admin_email_campaigns")
       .select("*").order("sent_at", { ascending: false }).limit(30),
-    // Manual 1:1 admin emails — logged in audit_logs (no time limit, full history)
-    supabase.from("audit_logs")
-      .select("user_id, created_at, metadata")
-      .eq("action", "admin.direct_email")
-      .order("created_at", { ascending: false }),
-    // All-time open/click events — used to attribute engagement to each send
+    // All-time email events (with message_id) — the source of truth for the
+    // per-user history + accurate open/click attribution (grouped by message_id)
     supabase.from("email_events")
-      .select("email, event, event_at, subject")
-      .in("event", ["opened", "uniqueOpened", "click"])
+      .select("email, message_id, event, event_at, subject, tag")
       .order("event_at", { ascending: false }),
     // Onboarding progress per user — tells which phase they stalled at
     supabase.from("onboarding_progress")
@@ -142,44 +71,29 @@ export async function GET(request: NextRequest) {
     if (r.user_id) phaseMap.set(r.user_id, r.current_phase ?? null)
   }
 
-  // Build per-email all-time open/click list for per-send attribution
-  const engagementByEmail = new Map<string, Array<{ subject: string | null; event: string; event_at: string }>>()
+  // Group all-time events by recipient email — used to rebuild each user's history
+  const eventsByEmail = new Map<string, RawEmailEvent[]>()
   for (const ev of engagementEvents ?? []) {
     const key = (ev.email ?? "").toLowerCase()
     if (!key) continue
-    if (!engagementByEmail.has(key)) engagementByEmail.set(key, [])
-    engagementByEmail.get(key)!.push({ subject: ev.subject, event: ev.event, event_at: ev.event_at })
+    if (!eventsByEmail.has(key)) eventsByEmail.set(key, [])
+    eventsByEmail.get(key)!.push({
+      message_id: ev.message_id ?? null,
+      event: ev.event,
+      subject: ev.subject ?? null,
+      tag: ev.tag ?? null,
+      event_at: ev.event_at,
+    })
   }
 
-  // Build per-user lifecycle (auto) email send log
+  // Build per-user lifecycle (auto) email send log — used for lifecycle state only
   const sendLogMap = new Map<string, Array<{ email_type: string; sent_at: string }>>()
   for (const log of sendLogs ?? []) {
     if (!sendLogMap.has(log.user_id)) sendLogMap.set(log.user_id, [])
     sendLogMap.get(log.user_id)!.push({ email_type: log.email_type, sent_at: log.sent_at })
   }
 
-  // Build per-user manual (admin 1:1) email count + last sent timestamp + full history
-  const manualMap = new Map<string, { count: number; last_sent_at: string | null; entries: EmailHistoryEntry[] }>()
-  for (const m of manualEmails ?? []) {
-    if (!m.user_id) continue
-    const cur = manualMap.get(m.user_id) ?? { count: 0, last_sent_at: null, entries: [] }
-    cur.count += 1
-    if (!cur.last_sent_at) cur.last_sent_at = m.created_at // first row = most recent (ordered desc)
-    const meta = (m.metadata ?? {}) as Record<string, unknown>
-    cur.entries.push({
-      kind: "manual",
-      label: "Direct email",
-      subject: typeof meta.subject === "string" ? meta.subject : null,
-      sent_at: m.created_at,
-      open_count: 0,
-      click_count: 0,
-      opens: [],
-      last_opened_at: null,
-    })
-    manualMap.set(m.user_id, cur)
-  }
-
-  // Build per-email engagement stats (delivered/opened/clicked counts + latest event + last opened)
+  // Build per-email engagement stats (delivered/bounced counts + latest event)
   type EmailStats = {
     last_event: { event: string; event_at: string } | null
     delivered: number
@@ -216,7 +130,6 @@ export async function GET(request: NextRequest) {
   // Enrich each user
   const usersWithStatus = (profiles ?? []).map((p: any) => {
     const sentEmails = sendLogMap.get(p.id) ?? []
-    const manual = manualMap.get(p.id) ?? { count: 0, last_sent_at: null, entries: [] }
     const stats = emailStatsMap.get(p.email) ?? null
     const docsCount = docCountMap.get(p.id) ?? 0
     const daysSinceActive = p.last_active_at
@@ -232,35 +145,22 @@ export async function GET(request: NextRequest) {
       category = "inactive"
     }
 
-    const autoSentCount = sentEmails.length
-    const manualSentCount = manual.count
-    const totalSentCount = autoSentCount + manualSentCount
-
-    // Auto-stopped = received the final email in a lifecycle track
+    // Auto-stopped = received the final email in a lifecycle track (from send log)
     const autoStopped = sentEmails.some(
       (e) => e.email_type === "inactive_2" || e.email_type === "dropoff_2"
     )
 
-    // Unified email history (auto lifecycle + manual 1:1), newest first
-    const emailHistory: EmailHistoryEntry[] = [
-      ...sentEmails.map((e) => ({
-        kind: "auto" as const,
-        label: autoEmailLabel(e.email_type),
-        subject: autoEmailSubject(e.email_type),
-        sent_at: e.sent_at,
-        open_count: 0,
-        click_count: 0,
-        opens: [] as string[],
-        last_opened_at: null as string | null,
-      })),
-      ...manual.entries,
-    ].sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime())
+    // Build the real email history from Brevo events (grouped by message_id).
+    // This is the source of truth for opens — no subject guessing.
+    const emailHistory = buildEmailHistory(eventsByEmail.get((p.email ?? "").toLowerCase()) ?? [])
 
-    // Attribute real open/click events to each send (all-time, by subject + time)
-    attributeEngagement(emailHistory, engagementByEmail.get((p.email ?? "").toLowerCase()) ?? [])
+    const autoSentCount = emailHistory.filter((h) => h.kind === "auto").length
+    const manualSentCount = emailHistory.filter((h) => h.kind === "manual").length
+    const totalSentCount = emailHistory.length
 
     const lastSentAt = emailHistory.length > 0 ? emailHistory[0].sent_at : null
-    // User-level open totals derived from per-send attribution (all-time, accurate)
+    const lastManualSentAt = emailHistory.find((h) => h.kind === "manual")?.sent_at ?? null
+    // User-level open totals derived from real per-send data (all-time, accurate)
     const totalOpens = emailHistory.reduce((sum, h) => sum + h.open_count, 0)
     const totalClicks = emailHistory.reduce((sum, h) => sum + h.click_count, 0)
     const lastOpenedAt = emailHistory
@@ -294,7 +194,7 @@ export async function GET(request: NextRequest) {
       auto_sent_count: autoSentCount,
       manual_sent_count: manualSentCount,
       total_sent_count: totalSentCount,
-      last_manual_sent_at: manual.last_sent_at,
+      last_manual_sent_at: lastManualSentAt,
       last_sent_at: lastSentAt,
       email_history: emailHistory,
       // ── Engagement (open/click attributed per-send, all-time) ──
