@@ -61,19 +61,66 @@ function resetAttempts(ip: string): void {
   failedAttempts.delete(ip)
 }
 
+// ── DB-backed lockout (persists across Cloudflare isolates & restarts) ─────────
+// The in-memory tracker above is per-isolate, so a determined attacker could
+// spread guesses across isolates. This adds a persistent, cross-instance count
+// of recent failures from audit_logs. Fails safe: if the DB read errors, we fall
+// back to the in-memory limiter (login still protected by password + PIN).
+const DB_WINDOW_MS = 15 * 60 * 1000
+
+async function dbFailureCount(client: ReturnType<typeof getServiceRoleClient>, ip: string): Promise<number> {
+  if (ip === "unknown") return 0
+  try {
+    const since = new Date(Date.now() - DB_WINDOW_MS).toISOString()
+    const { count } = await client
+      .from("audit_logs")
+      .select("id", { count: "exact", head: true })
+      .eq("action", "security.auth_failure")
+      .eq("ip_address", ip)
+      .gte("created_at", since)
+    return count ?? 0
+  } catch {
+    return 0
+  }
+}
+
+async function logFailureToDb(client: ReturnType<typeof getServiceRoleClient>, ip: string): Promise<void> {
+  try {
+    await client.from("audit_logs").insert({
+      user_id: "admin",
+      action: "security.auth_failure",
+      ip_address: ip,
+      metadata: { context: "admin_login" },
+    })
+  } catch { /* non-blocking */ }
+}
+
 export async function POST(request: NextRequest) {
   const ip = getIP(request)
+  const serviceClient = getServiceRoleClient()
 
-  // Brute force check BEFORE parsing body
+  // Brute force check BEFORE parsing body — in-memory (fast) + DB-backed (persistent)
   const bruteCheck = checkBruteForce(ip)
   if (bruteCheck.blocked) {
     return NextResponse.json(
       { error: "Too many failed attempts. Try again later." },
-      {
-        status: 429,
-        headers: { "Retry-After": String(bruteCheck.retryAfter) },
-      }
+      { status: 429, headers: { "Retry-After": String(bruteCheck.retryAfter) } }
     )
+  }
+  // Cross-isolate persistent lockout: block if too many recent DB-logged failures
+  const dbFails = await dbFailureCount(serviceClient, ip)
+  if (dbFails >= MAX_ATTEMPTS) {
+    return NextResponse.json(
+      { error: "Too many failed attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(LOCKOUT_MS / 1000)) } }
+    )
+  }
+
+  // Helper: record a failure in BOTH in-memory and DB (cross-isolate)
+  const fail = (status = 401, msg = "Invalid credentials") => {
+    recordFailure(ip)
+    void logFailureToDb(serviceClient, ip)
+    return NextResponse.json({ error: msg }, { status })
   }
 
   let body: { pin?: string; email?: string; password?: string }
@@ -85,8 +132,7 @@ export async function POST(request: NextRequest) {
 
   const { pin, email, password } = body
   if (!pin || !email || !password) {
-    recordFailure(ip)
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    return fail()
   }
 
   // Add artificial delay to slow down automated attacks (100ms)
@@ -99,15 +145,13 @@ export async function POST(request: NextRequest) {
     .filter(Boolean)
 
   if (!adminEmails.includes(email.toLowerCase())) {
-    recordFailure(ip)
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    return fail()
   }
 
   // Layer 2: Check password against ADMIN_PASSWORD (timing-safe comparison)
   const adminPassword = process.env.ADMIN_PASSWORD
   if (!adminPassword) {
-    recordFailure(ip)
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    return fail()
   }
   // Use timing-safe comparison to prevent timing attacks
   const passwordMatch = (() => {
@@ -119,15 +163,13 @@ export async function POST(request: NextRequest) {
     } catch { return false }
   })()
   if (!passwordMatch) {
-    recordFailure(ip)
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    return fail()
   }
 
   // Layer 3: Check PIN against ADMIN_PIN (timing-safe comparison)
   const adminPin = process.env.ADMIN_PIN
   if (!adminPin) {
-    recordFailure(ip)
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    return fail()
   }
   const pinMatch = (() => {
     try {
@@ -138,8 +180,7 @@ export async function POST(request: NextRequest) {
     } catch { return false }
   })()
   if (!pinMatch) {
-    recordFailure(ip)
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    return fail()
   }
 
   // All layers passed — reset brute force counter
@@ -150,7 +191,6 @@ export async function POST(request: NextRequest) {
 
   // Store session in DB (best-effort)
   try {
-    const serviceClient = getServiceRoleClient()
     const tokenBytes = new TextEncoder().encode(token)
     const hashBuffer = await crypto.subtle.digest("SHA-256", tokenBytes)
     const tokenHash = Array.from(new Uint8Array(hashBuffer))
