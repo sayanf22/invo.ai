@@ -1,18 +1,25 @@
 /**
- * Brevo email HTML templates.
- * Mobile-first, clean design. Works in Gmail, Outlook, Apple Mail.
- * Support email: support@clorefy.com
+ * Brevo email HTML templates — Clorefy landing-page theme.
+ * Mobile-first, single-column, bulletproof (Outlook-safe) buttons, dark-mode aware.
+ * Signature look: cream background, dark header, amber accent, offset-shadow cards.
+ * Works in Gmail, Outlook, Apple Mail, mobile clients.
+ * Support: support@clorefy.com
  */
 
-const BRAND_COLOR = "#1C1A17"
-const AMBER = "#d97757"
-const CREAM = "#F5F4F0"
-const MUTED = "#6b7280"
+// ── Landing theme tokens (mirrors app/globals.css) ───────────────────────────
+const DARK = "#121211"          // --landing-dark
+const DARK_SOFT = "#1F1B16"     // --landing-text-dark
+const CREAM = "#FBF7F0"         // --landing-cream
+const CREAM_DEEP = "#F5EDE0"    // --landing-cream-deep
+const AMBER = "#C67A3C"         // --landing-amber
+const AMBER_LIGHT = "#E8A96A"   // --landing-amber-light
+const MUTED = "#7A7266"         // --landing-text-muted
+const BORDER = "#E7DECF"
 const SUPPORT_EMAIL = "support@clorefy.com"
 const APP_URL = "https://clorefy.com"
 const ONBOARDING_VIDEO = "https://youtu.be/37OXbkavJPs"
 
-/** Escape HTML special chars — prevents XSS in email templates from user-controlled strings */
+/** Escape HTML special chars — prevents XSS from user-controlled strings */
 function esc(str: string | null | undefined): string {
   if (!str) return ""
   return str
@@ -23,7 +30,7 @@ function esc(str: string | null | undefined): string {
     .replace(/'/g, "&#x27;")
 }
 
-/** Returns personalized context based on business type for email copy */
+/** Personalized context based on business type */
 function getUseCase(businessType?: string | null): {
   docType: string
   pitch: string
@@ -35,95 +42,115 @@ function getUseCase(businessType?: string | null): {
   if (t.includes("freelan") || t.includes("consultant")) {
     return {
       docType: "invoice",
-      pitch: "Once your profile is set up, you can generate a professional invoice with GSTIN, payment terms, and a payment link in under 30 seconds. No more copying client details into spreadsheets.",
-      urgency: "As a freelancer, every invoice you send without the right tax details is a risk. Clorefy handles it automatically.",
-      examplePrompt: "Invoice Acme Corp ₹15,000 for logo design, 7 days, UPI",
+      pitch: "Once your profile is set, you can generate a professional invoice — with tax details, payment terms, and a payment link — in under 30 seconds. No more copying client details into spreadsheets.",
+      urgency: "Every invoice you send without the right tax details is a risk. Clorefy handles it automatically, so you get paid faster.",
+      examplePrompt: "Invoice Acme Corp ₹15,000 for logo design, due in 7 days, UPI",
     }
   }
   if (t.includes("agenc") || t.includes("studio")) {
     return {
       docType: "proposal",
-      pitch: "Agencies using Clorefy generate proposals, SOWs, and invoices from a single prompt — no more copying client details between HoneyBook, Google Docs, and your billing tool.",
-      urgency: "Your clients are waiting on proposals. Clorefy gets you from brief to signed SOW in under 5 minutes.",
+      pitch: "Agencies use Clorefy to turn a brief into a polished proposal, SOW, or invoice from a single prompt — no more juggling Google Docs and your billing tool.",
+      urgency: "Your clients are waiting on proposals. Clorefy gets you from brief to signed SOW in minutes, not days.",
       examplePrompt: "Brand strategy proposal for Nexus Co, $12,000, 6 weeks, 50% upfront",
     }
   }
   if (t.includes("develop") || t.includes("engineer") || t.includes("tech")) {
     return {
       docType: "SOW",
-      pitch: "Set up your profile once and Clorefy generates compliant SOWs, contracts, and invoices from a single prompt — with IP clauses, milestone payments, and the right tax rules for your client's country.",
-      urgency: "Your next project scope should be a signed document, not a Slack message. Takes 30 seconds.",
+      pitch: "Set up once and Clorefy generates compliant SOWs, contracts, and invoices from a single prompt — with IP clauses, milestone payments, and the right tax rules for your client's country.",
+      urgency: "Your next project scope should be a signed document, not a Slack thread. Takes about 30 seconds.",
       examplePrompt: "Fixed-fee SOW for fintech web app, Next.js + Supabase, $18,000, 3 milestones",
     }
   }
   if (t.includes("sale") || t.includes("business")) {
     return {
       docType: "quote",
-      pitch: "After a discovery call, Clorefy generates a quote or proposal instantly — with your branding, correct tax, and a payment link. No waiting for the accounts team.",
-      urgency: "Deals go cold while you're formatting quotes. Clorefy gets it out in 30 seconds.",
+      pitch: "After a call, Clorefy generates a quote or proposal instantly — with your branding, correct tax, and a payment link. No waiting on the accounts team.",
+      urgency: "Deals go cold while you format quotes. Clorefy gets one out in 30 seconds.",
       examplePrompt: "Quote Pinnacle Retail for 50 seats, enterprise plan, Net-30",
     }
   }
-
-  // Default
   return {
     docType: "document",
-    pitch: "Once set up, Clorefy generates invoices, contracts, quotes, and proposals from a simple description — with your business details, correct taxes, and professional formatting.",
-    urgency: "You're one 2-minute setup away from never manually writing a business document again.",
+    pitch: "Once set up, Clorefy writes invoices, contracts, quotes, and proposals from a simple description — with your business details, correct taxes, and clean formatting.",
+    urgency: "You're one short setup away from never manually writing a business document again.",
     examplePrompt: "Invoice [client] ₹10,000 for [service], due in 7 days",
   }
 }
 
+// ── Bulletproof button (table-based, survives Outlook) ───────────────────────
+function ctaButton(href: string, label: string, primary = true): string {
+  const bg = primary ? DARK : "#ffffff"
+  const color = primary ? "#ffffff" : DARK_SOFT
+  const border = primary ? DARK : DARK_SOFT
+  return `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 4px;">
+    <tr>
+      <td align="center" style="border-radius:12px;background:${bg};border:2px solid ${border};box-shadow:3px 3px 0 0 ${DARK};">
+        <a href="${href}" target="_blank" style="display:inline-block;padding:14px 30px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;line-height:1;color:${color};text-decoration:none;letter-spacing:-0.2px;">${label}</a>
+      </td>
+    </tr>
+  </table>`
+}
+
+// ── Email shell (single column, offset-shadow card, dark header) ─────────────
 function emailWrapper(content: string): string {
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
   <title>Clorefy</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background-color: ${CREAM}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-text-size-adjust: 100%; }
-    .email-wrap { max-width: 600px; margin: 0 auto; padding: 24px 16px 48px; }
-    .card { background: #ffffff; border-radius: 16px; overflow: hidden; border: 1.5px solid #E5E3DE; }
-    .header { background: ${BRAND_COLOR}; padding: 28px 32px; }
-    .header-logo { color: #ffffff; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
-    .header-logo span { color: ${AMBER}; }
-    .body { padding: 36px 32px; }
-    h1 { font-size: 22px; font-weight: 700; color: ${BRAND_COLOR}; line-height: 1.3; margin-bottom: 12px; }
-    p { font-size: 15px; line-height: 1.65; color: #374151; margin-bottom: 16px; }
-    .cta-btn { display: inline-block; background: ${BRAND_COLOR}; color: #ffffff !important; font-size: 15px; font-weight: 600; padding: 14px 28px; border-radius: 10px; text-decoration: none; margin: 8px 0 24px; }
-    .cta-btn-secondary { display: inline-block; border: 2px solid ${BRAND_COLOR}; color: ${BRAND_COLOR} !important; font-size: 14px; font-weight: 600; padding: 12px 24px; border-radius: 10px; text-decoration: none; margin: 4px 0 24px; }
-    .video-box { background: ${CREAM}; border-radius: 12px; padding: 16px 20px; margin: 20px 0; }
-    .video-box p { margin-bottom: 8px; font-size: 14px; color: ${MUTED}; }
-    .video-cta { display: block; background: ${BRAND_COLOR}; color: #ffffff !important; font-size: 15px; font-weight: 600; padding: 14px 20px; border-radius: 10px; text-decoration: none; text-align: center; letter-spacing: -0.2px; }
-    .divider { border: none; border-top: 1px solid #E5E3DE; margin: 24px 0; }
-    .feedback-box { background: #fafafa; border-radius: 12px; padding: 20px 24px; margin: 20px 0; }
-    .feedback-box p { font-size: 14px; color: ${MUTED}; margin-bottom: 10px; }
-    .footer { padding: 20px 32px 28px; }
-    .footer p { font-size: 12px; color: ${MUTED}; line-height: 1.6; margin-bottom: 4px; }
-    .footer a { color: ${AMBER}; text-decoration: none; }
-    @media (max-width: 600px) {
-      .body, .footer { padding: 24px 20px; }
-      h1 { font-size: 20px; }
-      .cta-btn { width: 100%; text-align: center; padding: 16px 20px; }
-      .cta-btn-secondary { width: 100%; text-align: center; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:${CREAM}; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+    img { border:0; line-height:100%; outline:none; text-decoration:none; }
+    .wrap { max-width:600px; margin:0 auto; padding:32px 16px 48px; }
+    .card { background:#ffffff; border-radius:18px; overflow:hidden; border:2px solid ${DARK}; box-shadow:4px 4px 0 0 ${DARK}; }
+    .hdr { background:${DARK}; padding:22px 32px; }
+    .logo { font-size:21px; font-weight:800; letter-spacing:-0.5px; color:#ffffff; }
+    .logo span { color:${AMBER_LIGHT}; }
+    .body { padding:36px 32px 32px; }
+    .eyebrow { display:inline-block; font-size:12px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:${AMBER}; margin-bottom:14px; }
+    h1 { font-size:24px; font-weight:800; color:${DARK_SOFT}; line-height:1.25; letter-spacing:-0.5px; margin-bottom:14px; }
+    p { font-size:15px; line-height:1.65; color:#3d3a34; margin-bottom:16px; }
+    .lead { font-size:16px; }
+    .prompt { background:${CREAM_DEEP}; border:2px solid ${BORDER}; border-radius:12px; padding:16px 18px; margin:18px 0; font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; font-size:14px; color:${DARK_SOFT}; line-height:1.5; }
+    .prompt b { color:${AMBER}; font-weight:700; }
+    .divider { border:none; border-top:1px solid ${BORDER}; margin:26px 0; }
+    .note { background:${CREAM}; border-radius:12px; padding:18px 20px; margin:18px 0; }
+    .note p { font-size:13px; color:${MUTED}; margin-bottom:10px; }
+    .fine { font-size:13px; color:${MUTED}; }
+    .ftr { padding:22px 32px 28px; }
+    .ftr p { font-size:12px; color:#9a9388; line-height:1.6; margin-bottom:5px; }
+    .ftr a { color:${AMBER}; text-decoration:none; }
+    @media (max-width:600px) {
+      .wrap { padding:20px 12px 36px; }
+      .body, .ftr { padding-left:22px; padding-right:22px; }
+      h1 { font-size:21px; }
+      .card { box-shadow:3px 3px 0 0 ${DARK}; }
+    }
+    @media (prefers-color-scheme: dark) {
+      body, .wrap { background:${DARK} !important; }
     }
   </style>
 </head>
-<body>
-  <div class="email-wrap">
+<body style="background:${CREAM};">
+  <div class="wrap">
     <div class="card">
-      <div class="header">
-        <div class="header-logo">Clore<span>fy</span></div>
+      <div class="hdr">
+        <div class="logo">Clore<span>fy</span></div>
       </div>
       ${content}
-      <div class="footer">
-        <hr class="divider">
-        <p>Questions? Reply to this email or write to us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
-        <p>© Clorefy · <a href="${APP_URL}/privacy">Privacy Policy</a> · <a href="${APP_URL}/contact">Contact</a></p>
-        <p style="margin-top:8px;color:#9ca3af;">You're receiving this because you signed up at clorefy.com.</p>
+      <div class="ftr">
+        <hr class="divider" style="margin:0 0 18px;">
+        <p>Questions? Just reply to this email or write to <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+        <p>© Clorefy · <a href="${APP_URL}/privacy">Privacy</a> · <a href="${APP_URL}/contact">Contact</a></p>
+        <p style="margin-top:8px;color:#b5ada1;">You're receiving this because you signed up at clorefy.com. <a href="{{ unsubscribe }}" style="color:#b5ada1;text-decoration:underline;">Unsubscribe</a></p>
       </div>
     </div>
   </div>
@@ -131,79 +158,59 @@ function emailWrapper(content: string): string {
 </html>`
 }
 
-// ── Template 1: Onboarding Drop-off (Email 1 of 2) ────────────────────────────
-
+// ── Template 1: Onboarding Drop-off (Email 1 of 2) ───────────────────────────
 export function onboardingDropoffEmail1(
   firstName?: string | null,
   businessType?: string | null
 ): string {
   const name = esc(firstName) || "there"
-  // Personalize the use-case context based on business type
   const useCase = getUseCase(businessType)
-
   return emailWrapper(`
     <div class="body">
-      <h1>Your account is set up — finish in 2 minutes</h1>
-      <p>Hey ${name},</p>
-      <p>You created your Clorefy account but didn't finish the setup. That 2-minute profile is what makes every ${useCase.docType} look professional — it fills in your business name, address, tax ID, and payment details automatically.</p>
-
-      <div class="video-box">
-        <p>📹 Quick walkthrough — see it done in 2 minutes</p>
-        <a href="${ONBOARDING_VIDEO}" class="video-cta">▶ Watch how to set up Clorefy (2 min)</a>
-      </div>
-
+      <span class="eyebrow">Finish your setup</span>
+      <h1>You're 2 minutes from your first ${useCase.docType}</h1>
+      <p class="lead">Hey ${name},</p>
+      <p>You created your Clorefy account but haven't finished setting up your business profile yet. That quick setup is what lets Clorefy fill in your business name, address, tax ID, and payment details on every document — automatically.</p>
       <p>${useCase.pitch}</p>
-
-      <a href="${APP_URL}/onboarding" class="cta-btn">Complete my setup →</a>
-
+      ${ctaButton(`${APP_URL}/onboarding`, "Complete my setup →")}
+      <p style="margin-top:18px;"><a href="${ONBOARDING_VIDEO}" style="color:${AMBER};font-weight:600;text-decoration:none;">▶ Watch the 2-minute walkthrough</a></p>
       <hr class="divider">
-
-      <div class="feedback-box">
-        <p>Ran into something confusing? Tell us and we'll help.</p>
-        <a href="mailto:${SUPPORT_EMAIL}" class="cta-btn-secondary">Get help from support</a>
+      <div class="note">
+        <p>Ran into something confusing? We're real people and happy to help.</p>
+        ${ctaButton(`mailto:${SUPPORT_EMAIL}`, "Get help from support", false)}
       </div>
-
-      <p style="font-size:13px;color:${MUTED};">Takes 2 minutes. Free forever. No card needed.</p>
+      <p class="fine">Free forever. No card needed.</p>
     </div>
   `)
 }
 
 // ── Template 2: Onboarding Drop-off (Email 2 — final nudge) ──────────────────
-
 export function onboardingDropoffEmail2(
   firstName?: string | null,
   businessType?: string | null
 ): string {
   const name = esc(firstName) || "there"
   const useCase = getUseCase(businessType)
-
   return emailWrapper(`
     <div class="body">
+      <span class="eyebrow">Last reminder</span>
       <h1>One last nudge — then we'll leave you alone</h1>
-      <p>Hey ${name},</p>
-      <p>We sent you a note a few days ago about finishing your Clorefy setup. Just one more check-in — and after this we'll stop.</p>
+      <p class="lead">Hey ${name},</p>
+      <p>We mentioned finishing your Clorefy setup a few days ago. This is the final check-in.</p>
       <p>${useCase.urgency}</p>
-
-      <a href="${APP_URL}/onboarding" class="cta-btn">Finish setup now →</a>
-
-      <div class="video-box">
-        <p>Still unsure? See it in action:</p>
-        <a href="${ONBOARDING_VIDEO}" class="video-cta">▶ Watch how to set up Clorefy (2 min)</a>
-      </div>
-
+      ${ctaButton(`${APP_URL}/onboarding`, "Finish setup now →")}
+      <p style="margin-top:18px;"><a href="${ONBOARDING_VIDEO}" style="color:${AMBER};font-weight:600;text-decoration:none;">▶ Watch how it works (2 min)</a></p>
       <hr class="divider">
-      <p style="font-size:13px;color:${MUTED};">Your account stays active forever — you can come back any time at <a href="${APP_URL}" style="color:${AMBER}">clorefy.com</a>.</p>
-
-      <div class="feedback-box">
-        <p>Something put you off? A one-liner helps us improve for everyone.</p>
-        <a href="mailto:${SUPPORT_EMAIL}?subject=Onboarding feedback" class="cta-btn-secondary">Share feedback</a>
+      <p class="fine">Your account stays active forever — come back any time at <a href="${APP_URL}" style="color:${AMBER};">clorefy.com</a>.</p>
+      <div class="note">
+        <p>Something put you off? A one-line reply genuinely helps us improve.</p>
+        ${ctaButton(`mailto:${SUPPORT_EMAIL}?subject=Onboarding feedback`, "Share feedback", false)}
       </div>
     </div>
   `)
 }
 
 // ── Template 3: Inactivity Re-engagement (Day 7) ─────────────────────────────
-
 export function inactivityEmail1(
   firstName?: string | null,
   businessType?: string | null,
@@ -212,36 +219,28 @@ export function inactivityEmail1(
   const name = esc(firstName) || "there"
   const useCase = getUseCase(businessType)
   const hasDocs = (docsCount ?? 0) > 0
-
   return emailWrapper(`
     <div class="body">
-      <h1>${hasDocs ? "Come back — your documents are waiting" : "Your Clorefy account is ready"}</h1>
-      <p>Hey ${name},</p>
+      <span class="eyebrow">We saved your spot</span>
+      <h1>${hasDocs ? "Your documents are right where you left them" : "Haven't seen you in a while"}</h1>
+      <p class="lead">Hey ${name},</p>
       <p>${hasDocs
-        ? `You haven't opened Clorefy in a while. Your existing ${useCase.docType}s are saved and ready — and generating a new one takes about 30 seconds.`
-        : `You set up your Clorefy profile but haven't generated a ${useCase.docType} yet. It takes less time than you think.`
-      }</p>
-
-      <p><strong>Here's how quick it is:</strong></p>
-      <p style="background:${CREAM};border-radius:8px;padding:14px 18px;font-size:14px;color:${BRAND_COLOR};border-left:3px solid ${AMBER}">
-        "${useCase.examplePrompt}"
-      </p>
-      <p>Clorefy writes the whole document — with your business details, correct taxes, and professional formatting. Done.</p>
-
-      <a href="${APP_URL}" class="cta-btn">${hasDocs ? "Open my documents →" : "Generate my first document →"}</a>
-
+        ? `You haven't opened Clorefy in about a week. Your existing ${useCase.docType}s are saved and ready — and a new one takes about 30 seconds.`
+        : `You set up your profile but haven't created a ${useCase.docType} yet. It's faster than you'd think.`}</p>
+      <p style="margin-bottom:8px;font-weight:600;color:${DARK_SOFT};">Just describe what you need:</p>
+      <div class="prompt">"${useCase.examplePrompt}"</div>
+      <p>Clorefy writes the whole document — your details, the correct taxes, clean formatting, and a payment link. Done.</p>
+      ${ctaButton(APP_URL, hasDocs ? "Open my documents →" : "Create my first document →")}
       <hr class="divider">
-
-      <div class="feedback-box">
-        <p>Something stopped you from using it? Tell us — we're always improving.</p>
-        <a href="mailto:${SUPPORT_EMAIL}?subject=Feedback" class="cta-btn-secondary">Send us feedback</a>
+      <div class="note">
+        <p>Something stopped you? We'd genuinely like to know — it shapes what we build next.</p>
+        ${ctaButton(`mailto:${SUPPORT_EMAIL}?subject=Feedback`, "Send us feedback", false)}
       </div>
     </div>
   `)
 }
 
 // ── Template 4: Inactivity Re-engagement (Day 14 — final) ────────────────────
-
 export function inactivityEmail2(
   firstName?: string | null,
   businessType?: string | null,
@@ -250,61 +249,47 @@ export function inactivityEmail2(
   const name = esc(firstName) || "there"
   const useCase = getUseCase(businessType)
   const hasDocs = (docsCount ?? 0) > 0
-
   return emailWrapper(`
     <div class="body">
-      <h1>We'll stop after this one</h1>
-      <p>Hey ${name},</p>
-      <p>This is the last email we'll send. If Clorefy isn't the right fit right now, no hard feelings.</p>
+      <span class="eyebrow">Last one, promise</span>
+      <h1>We'll stop after this</h1>
+      <p class="lead">Hey ${name},</p>
+      <p>This is our final check-in. If Clorefy isn't the right fit right now, no hard feelings — your account stays active and you can return any time.</p>
+      <p>If you've just been busy, here's how quick it is to get value:</p>
+      <div class="prompt">"${useCase.examplePrompt}"</div>
       <p>${hasDocs
-        ? `But if you've just been busy — your account is still here with all your ${useCase.docType}s saved.`
-        : `If you haven't had a chance yet, your account is still ready. One ${useCase.docType} takes 30 seconds.`
-      }</p>
-
-      <div class="video-box">
-        <p>🎬 See it in action (2 minutes):</p>
-        <a href="${ONBOARDING_VIDEO}" class="video-cta">▶ Watch how to set up Clorefy (2 min)</a>
-      </div>
-
-      <a href="${APP_URL}" class="cta-btn">Open Clorefy →</a>
-
+        ? `Your account still has all your ${useCase.docType}s saved and ready.`
+        : `One ${useCase.docType} takes about 30 seconds — fully written, with your details and the correct taxes.`}</p>
+      ${ctaButton(APP_URL, "Open Clorefy →")}
       <hr class="divider">
-
-      <p>We'd genuinely love to know what's missing or what stopped you — it takes 30 seconds and directly shapes what we build next.</p>
-      <a href="mailto:${SUPPORT_EMAIL}?subject=Why I stopped using Clorefy" class="cta-btn-secondary">Tell us what's missing</a>
-
-      <p style="font-size:13px;color:${MUTED};margin-top:24px;">No more emails after this. Your account stays active.</p>
+      <p>We'd love to know what's missing — it takes 30 seconds and directly shapes what we build next.</p>
+      ${ctaButton(`mailto:${SUPPORT_EMAIL}?subject=Why I stopped using Clorefy`, "Tell us what's missing", false)}
+      <p class="fine" style="margin-top:22px;">No more automatic emails after this. Your account stays active.</p>
     </div>
   `)
 }
 
 // ── Template 5: Welcome / Onboarding complete ────────────────────────────────
-
 export function welcomeCompleteEmail(firstName?: string | null): string {
   const name = esc(firstName) || "there"
   return emailWrapper(`
     <div class="body">
-      <h1>You're all set, ${name} — let's create your first document</h1>
-      <p>Your business profile is complete. From now on, every invoice, contract, quote, or proposal you generate will have your details, correct tax rates, and professional formatting — automatically.</p>
-
-      <p><strong>Try it right now:</strong></p>
-      <p style="background:${CREAM};border-radius:8px;padding:14px 18px;font-size:14px;color:${BRAND_COLOR};border-left:3px solid ${AMBER}">
-        "Invoice [Client Name] ₹10,000 for [service], due in 7 days"
-      </p>
-
-      <a href="${APP_URL}" class="cta-btn">Generate first document →</a>
-
+      <span class="eyebrow">You're all set</span>
+      <h1>Welcome aboard, ${name} 🎉</h1>
+      <p class="lead">Your business profile is complete. From now on, every invoice, contract, quote, or proposal you generate carries your details, the correct tax rates, and clean formatting — automatically.</p>
+      <p style="margin-bottom:8px;font-weight:600;color:${DARK_SOFT};">Try it right now:</p>
+      <div class="prompt">"Invoice [Client Name] ₹10,000 for [service], due in 7 days"</div>
+      ${ctaButton(APP_URL, "Generate my first document →")}
       <hr class="divider">
-      <p>You're on the <strong>free plan</strong> — you can generate invoices, contracts, and quotes. <a href="${APP_URL}/pricing" style="color:${AMBER}">See all plans →</a></p>
-      <div class="feedback-box">
-        <p>Need help or have questions? We're human — reply to this email or reach us at <a href="mailto:${SUPPORT_EMAIL}" style="color:${AMBER}">${SUPPORT_EMAIL}</a></p>
+      <p>You're on the <b>free plan</b> — generate invoices, contracts, and quotes anytime. <a href="${APP_URL}/pricing" style="color:${AMBER};">See all plans →</a></p>
+      <div class="note">
+        <p>Need help or have a question? We're human — just reply or reach us at <a href="mailto:${SUPPORT_EMAIL}" style="color:${AMBER};">${SUPPORT_EMAIL}</a>.</p>
       </div>
     </div>
   `)
 }
 
-// ── Template 6: Admin direct email to user ────────────────────────────────────
-
+// ── Template 6: Admin direct email to user ───────────────────────────────────
 export function adminDirectEmailTemplate({
   firstName,
   subject,
@@ -317,16 +302,14 @@ export function adminDirectEmailTemplate({
   adminEmail: string
 }): string {
   const name = esc(firstName) || "there"
-  // Convert newlines to <br> — message is already escaped below
   const escapedMsg = esc(message).replace(/\n/g, "<br>")
-
   return emailWrapper(`
     <div class="body">
       <h1>${esc(subject)}</h1>
-      <p>Hey ${name},</p>
+      <p class="lead">Hey ${name},</p>
       <p>${escapedMsg}</p>
       <hr class="divider">
-      <p style="font-size:13px;color:${MUTED};">This message was sent by the Clorefy team (${esc(adminEmail)}). Reply to this email or reach us at <a href="mailto:${SUPPORT_EMAIL}" style="color:${AMBER}">${SUPPORT_EMAIL}</a>.</p>
+      <p class="fine">Sent by the Clorefy team (${esc(adminEmail)}). Reply to this email or reach us at <a href="mailto:${SUPPORT_EMAIL}" style="color:${AMBER};">${SUPPORT_EMAIL}</a>.</p>
     </div>
   `)
 }
