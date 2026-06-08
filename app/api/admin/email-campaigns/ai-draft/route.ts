@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifyAdminSession } from "@/lib/admin-auth"
 import { createClient } from "@supabase/supabase-js"
 import { computeFunnelStage } from "@/lib/funnel-stage"
+import { stripLeadingGreeting } from "@/lib/brevo-templates"
 
 const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
@@ -254,9 +255,10 @@ The message should be plain text (no HTML), with natural line breaks.`
       throw new Error("Missing subject or message in AI response")
     }
 
-    // Sanitize — truncate to safe lengths
+    // Sanitize — truncate to safe lengths + strip any leading greeting the AI
+    // added ("Hi Jean,") since the email template adds its own "Hey {name},"
     aiResponse.subject = String(aiResponse.subject).slice(0, 200)
-    aiResponse.message = String(aiResponse.message).slice(0, 4000)
+    aiResponse.message = stripLeadingGreeting(String(aiResponse.message)).slice(0, 4000)
 
   } catch (err) {
     console.error("[ai-draft] parse/fetch error:", err)

@@ -43,6 +43,30 @@ function esc(str: string | null | undefined): string {
     .replace(/'/g, "&#x27;")
 }
 
+/**
+ * Remove a leading greeting line from a message body (e.g. "Hi Jean,",
+ * "Hello there,", "Hey,", "Dear Sayan,"). The admin email template already
+ * renders its own "Hey {firstName}," line, so any greeting the author (or AI)
+ * included would double up. This strips that first greeting line only.
+ */
+export function stripLeadingGreeting(message: string): string {
+  if (!message) return message
+  const lines = message.split(/\r?\n/)
+  // Skip leading blank lines
+  let i = 0
+  while (i < lines.length && lines[i].trim() === "") i++
+  const first = (lines[i] ?? "").trim()
+  // A greeting: short line starting with a salutation, optionally a name, ending in , or !
+  const greetingRe = /^(hi|hey|hello|hiya|dear|greetings|good (morning|afternoon|evening))\b[^.!?]{0,40}[,!]?$/i
+  if (first && greetingRe.test(first)) {
+    lines.splice(0, i + 1)
+    // Drop a following blank line so we don't leave a gap
+    while (lines.length && lines[0].trim() === "") lines.shift()
+    return lines.join("\n")
+  }
+  return message
+}
+
 /** Personalized context based on business type */
 function getUseCase(businessType?: string | null): {
   docType: string
@@ -316,7 +340,7 @@ export function adminDirectEmailTemplate({
   adminEmail?: string
 }): string {
   const name = esc(firstName) || "there"
-  const escapedMsg = esc(message).replace(/\n/g, "<br>")
+  const escapedMsg = esc(stripLeadingGreeting(message)).replace(/\n/g, "<br>")
   return emailWrapper(`
     <div class="body" style="text-align:left;">
       <h1 style="text-align:left;">${esc(subject)}</h1>
