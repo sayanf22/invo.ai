@@ -172,6 +172,7 @@ Rules for the body:
 - Keep the email body under 180 words
 - End with a soft, relevant CTA that points to the next step at https://clorefy.com (e.g. finish onboarding, pick a plan, create their first document — match it to their stage)
 - For help/support, tell them to email support@clorefy.com. NEVER write "reply to this email", "just reply", or "respond to this message" — replies are not monitored; support@clorefy.com is the only support channel.
+- When offering help, phrase it naturally and professionally — e.g. "if you run into any issues" or "if you have any questions". Do NOT offer vague or salesy things like "a quick walkthrough", "a demo", "a call", "a tour", or "onboarding help" — Clorefy is self-serve software, so frame support as help with issues or questions, not a guided session.
 - Sign off as "The Clorefy Team" — NEVER use a placeholder like "[Your name]", "[Name]", or a bracketed field. Do not invent a personal signature.
 - Do NOT include a greeting line with the recipient's name (the email template adds "Hey {firstName}," automatically) — start directly with the message body
 - Tone: ${tone}
