@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAdminSession } from "@/lib/admin-auth"
 import { createClient } from "@supabase/supabase-js"
+import { computeFunnelStage } from "@/lib/funnel-stage"
 
 const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
@@ -64,9 +65,10 @@ export async function POST(request: NextRequest) {
     { data: businesses },
     { data: sendLogs },
     { data: pastEmails },
+    { data: progressRows },
   ] = await Promise.all([
     supabase.from("profiles")
-      .select("email, full_name, onboarding_complete, last_active_at, created_at, tier")
+      .select("email, full_name, onboarding_complete, plan_selected, last_active_at, created_at, tier, last_login_location, last_login_at")
       .eq("id", userId).limit(1),
     supabase.from("document_sessions")
       .select("id, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(50),
@@ -78,6 +80,9 @@ export async function POST(request: NextRequest) {
     supabase.from("audit_logs")
       .select("metadata, created_at").eq("user_id", userId).eq("action", "admin.direct_email")
       .order("created_at", { ascending: false }).limit(15),
+    // Onboarding progress — tells us exactly which phase they stalled at
+    supabase.from("onboarding_progress")
+      .select("current_phase, completed_at").eq("user_id", userId).limit(1),
   ])
 
   const profile = profiles?.[0]
@@ -98,6 +103,16 @@ export async function POST(request: NextRequest) {
     : null
 
   const sentEmailTypes = (sendLogs ?? []).map((l: any) => l.email_type)
+
+  // Work out exactly where this user is in the journey / where they got stuck
+  const funnel = computeFunnelStage({
+    createdAt: profile.created_at,
+    lastActiveAt: profile.last_active_at,
+    planSelected: profile.plan_selected ?? false,
+    onboardingComplete: profile.onboarding_complete ?? false,
+    onboardingPhase: progressRows?.[0]?.current_phase ?? null,
+    docsCount,
+  })
 
   // Collect subjects already used for this user so the AI never repeats one
   const AUTO_SUBJECTS: Record<string, string> = {
@@ -150,13 +165,15 @@ Tone-specific calibration:
 
 Rules for the body:
 - Write like a real human, not a marketing template
-- Be specific — reference the user's actual usage data provided
+- Ground the email in the user's ACTUAL current stage (the "CURRENT STAGE" line in their data). Speak directly to where they actually are or got stuck — e.g. if they're stuck at the AI chat step, the choose-plan step, or have onboarded but made no documents, address THAT specific moment.
+- NEVER invent or guess a problem the data doesn't show. Do not assume "password issues", "login trouble", "technical errors", or any blocker unless their stage data actually indicates it. If you don't know why they stalled, gently ask or offer help — don't fabricate a reason.
+- Be specific — reference their real usage data naturally
 - Never sound spammy or pushy
 - Keep the email body under 180 words
-- Always end with a soft CTA — link to https://clorefy.com
+- End with a soft, relevant CTA that points to the next step at https://clorefy.com (e.g. finish onboarding, pick a plan, create their first document — match it to their stage)
+- For help/support, tell them to email support@clorefy.com. NEVER write "reply to this email", "just reply", or "respond to this message" — replies are not monitored; support@clorefy.com is the only support channel.
 - Sign off as "The Clorefy Team" — NEVER use a placeholder like "[Your name]", "[Name]", or a bracketed field. Do not invent a personal signature.
 - Do NOT include a greeting line with the recipient's name (the email template adds "Hey {firstName}," automatically) — start directly with the message body
-- Support email: support@clorefy.com
 - Tone: ${tone}
 
 Respond ONLY with a JSON object: { "subject": "...", "message": "..." }
@@ -168,8 +185,10 @@ The message should be plain text (no HTML), with natural line breaks.`
     userContext.businessName ? `Business: ${userContext.businessName}` : null,
     userContext.businessType ? `Business type: ${userContext.businessType}` : null,
     userContext.country ? `Country: ${userContext.country}` : null,
+    profile.last_login_location ? `Last login location: ${profile.last_login_location}` : null,
     `Tier: ${userContext.tier}`,
     `Onboarding: ${userContext.onboardingComplete ? "completed" : "NOT completed"}`,
+    `CURRENT STAGE: ${funnel.detail}`,
     `Signed up: ${daysSinceSignup} days ago`,
     `Last active: ${daysSinceActive} days ago`,
     `Documents generated: ${docsCount}`,
@@ -255,6 +274,9 @@ The message should be plain text (no HTML), with natural line breaks.`
       docsGenerated: docsCount,
       tier: profile.tier,
       onboardingComplete: profile.onboarding_complete,
+      stage: funnel.label,
+      stageDetail: funnel.detail,
+      lastLoginLocation: profile.last_login_location ?? null,
     },
   })
 }

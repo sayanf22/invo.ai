@@ -30,6 +30,9 @@ interface UserRow {
   // Engagement (last 30 days)
   opened: boolean; open_count: number; delivered_count: number; clicked_count: number
   bounced: boolean; last_opened_at: string | null
+  // Journey / location
+  funnel_stage: string; funnel_detail: string; funnel_stuck: boolean
+  last_login_at: string | null; last_login_location: string | null; last_login_ip: string | null
 }
 
 interface EmailEvent {
@@ -425,7 +428,14 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
                   style={{ gridTemplateColumns: "minmax(150px,1fr) 76px 48px 46px 150px 160px 64px", gap: "12px" }}>
                   <div className="min-w-0">
                     <div className="font-medium truncate text-sm" style={{ color: text }}>{u.email}</div>
-                    {u.name && <div className="truncate text-xs" style={{ color: muted }}>{u.name}</div>}
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="truncate" style={{ fontSize: 10, color: u.funnel_stuck ? "#C2410C" : muted }}>
+                        {u.funnel_stuck ? "⚠ " : ""}{u.funnel_stage}
+                      </span>
+                      {u.last_login_location && (
+                        <span className="truncate" style={{ fontSize: 10, color: muted }}>· 📍 {u.last_login_location}</span>
+                      )}
+                    </div>
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 700, color: u.auto_stopped ? "#6B7280" : CATEGORY_COLOR[u.category], background: `${u.auto_stopped ? "#6B7280" : CATEGORY_COLOR[u.category]}1A`, padding: "2px 7px", borderRadius: 4, whiteSpace: "nowrap" }}>
                     {u.auto_stopped ? "Stopped" : CATEGORY_LABEL[u.category]}
@@ -549,6 +559,26 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
               </strong></span>
               {modalUser.auto_stopped && (
                 <span style={{ color: "#D97757" }}>⚠ Auto-stopped. This manual email will still send.</span>
+              )}
+            </div>
+
+            {/* Where the user is / got stuck — the key context for a relevant email */}
+            <div className="mb-4 p-3 rounded-lg" style={{ border: `1px solid ${modalUser.funnel_stuck ? "#D97757" : border}`, background: modalUser.funnel_stuck ? "#FFF7ED" : (isDark ? "#0A0A0A" : "#F0F0F0") }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: modalUser.funnel_stuck ? "#C2410C" : muted }}>
+                  {modalUser.funnel_stuck ? "⚠ Stuck at" : "Journey stage"}
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: modalUser.funnel_stuck ? "#C2410C" : text, background: modalUser.funnel_stuck ? "#FFEDD5" : (isDark ? "#1A1A1A" : "#FFFFFF"), padding: "1px 8px", borderRadius: 999, border: `1px solid ${border}` }}>
+                  {modalUser.funnel_stage}
+                </span>
+              </div>
+              <p className="text-xs" style={{ color: modalUser.funnel_stuck ? "#9A3412" : text, margin: 0 }}>{modalUser.funnel_detail}</p>
+              {(modalUser.last_login_location || modalUser.last_login_at) && (
+                <p className="text-xs mt-1.5" style={{ color: muted, margin: "6px 0 0" }}>
+                  📍 Last login{modalUser.last_login_location ? `: ${modalUser.last_login_location}` : ""}
+                  {modalUser.last_login_at ? ` · ${formatDistanceToNow(new Date(modalUser.last_login_at), { addSuffix: true })}` : ""}
+                  {modalUser.last_login_ip ? ` · ${modalUser.last_login_ip}` : ""}
+                </p>
               )}
             </div>
 

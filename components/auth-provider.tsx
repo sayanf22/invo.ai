@@ -104,6 +104,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
                 setSession(session)
                 setUser(session?.user ?? null)
+                // Record login location/IP once per real sign-in (server dedups by IP/30min)
+                if (event === "SIGNED_IN") {
+                    try {
+                        fetch("/api/auth/track-login", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ method: session?.user?.app_metadata?.provider ?? "password" }),
+                            keepalive: true,
+                        }).catch(() => {})
+                    } catch { /* non-blocking */ }
+                }
             } else if (event === "SIGNED_OUT") {
                 clearAuthTokens()
                 // Clear any persisted session so the next user doesn't see the previous user's work

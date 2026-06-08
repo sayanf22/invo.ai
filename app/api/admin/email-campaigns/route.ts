@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifyAdminSession } from "@/lib/admin-auth"
 import { createClient } from "@supabase/supabase-js"
 import { syncUserOnLogin } from "@/lib/brevo"
+import { computeFunnelStage } from "@/lib/funnel-stage"
 
 function getServiceClient() {
   return createClient(
@@ -104,9 +105,10 @@ export async function GET(request: NextRequest) {
     { data: campaigns },
     { data: manualEmails },
     { data: engagementEvents },
+    { data: progressRows },
   ] = await Promise.all([
     supabase.from("profiles")
-      .select("id, email, full_name, onboarding_complete, last_active_at, created_at, tier")
+      .select("id, email, full_name, onboarding_complete, plan_selected, last_active_at, created_at, tier, last_login_location, last_login_at, last_login_ip")
       .not("email", "is", null)
       .order("created_at", { ascending: false }),
     supabase.from("user_email_send_log")
@@ -129,7 +131,16 @@ export async function GET(request: NextRequest) {
       .select("email, event, event_at, subject")
       .in("event", ["opened", "uniqueOpened", "click"])
       .order("event_at", { ascending: false }),
+    // Onboarding progress per user — tells which phase they stalled at
+    supabase.from("onboarding_progress")
+      .select("user_id, current_phase"),
   ])
+
+  // Map user_id → onboarding phase
+  const phaseMap = new Map<string, string | null>()
+  for (const r of progressRows ?? []) {
+    if (r.user_id) phaseMap.set(r.user_id, r.current_phase ?? null)
+  }
 
   // Build per-email all-time open/click list for per-send attribution
   const engagementByEmail = new Map<string, Array<{ subject: string | null; event: string; event_at: string }>>()
@@ -257,6 +268,16 @@ export async function GET(request: NextRequest) {
       .filter((t): t is string => !!t)
       .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null
 
+    // Where the user is in the journey / where they got stuck
+    const funnel = computeFunnelStage({
+      createdAt: p.created_at,
+      lastActiveAt: p.last_active_at,
+      planSelected: p.plan_selected ?? false,
+      onboardingComplete: p.onboarding_complete ?? false,
+      onboardingPhase: phaseMap.get(p.id) ?? null,
+      docsCount: docsCount,
+    }, now)
+
     return {
       id: p.id as string,
       email: p.email as string,
@@ -287,6 +308,13 @@ export async function GET(request: NextRequest) {
       category,
       auto_stopped: autoStopped,
       never_emailed: totalSentCount === 0,
+      // ── Journey / location ──
+      funnel_stage: funnel.label,
+      funnel_detail: funnel.detail,
+      funnel_stuck: funnel.stuck,
+      last_login_at: (p.last_login_at as string | null) ?? null,
+      last_login_location: (p.last_login_location as string | null) ?? null,
+      last_login_ip: (p.last_login_ip as string | null) ?? null,
     }
   })
 

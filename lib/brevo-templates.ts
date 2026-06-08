@@ -190,7 +190,7 @@ function emailWrapper(content: string): string {
       ${content}
     </div>
     <div class="ftr">
-      <p>Questions? Reply to this email or write to <a href="mailto:${SUPPORT_EMAIL}" style="color:${MUTED};">${SUPPORT_EMAIL}</a></p>
+      <p>Questions? Email us at <a href="mailto:${SUPPORT_EMAIL}" style="color:${MUTED};">${SUPPORT_EMAIL}</a></p>
       <p>© Clorefy · <a href="${APP_URL}/privacy">Privacy</a> · <a href="${APP_URL}/contact">Contact</a></p>
       <p style="margin-top:6px;">You're receiving this because you signed up at clorefy.com.<br><a href="{{ unsubscribe }}">Unsubscribe</a></p>
     </div>
@@ -214,7 +214,7 @@ export function onboardingDropoffEmail1(
       ${ctaButton(`${APP_URL}/onboarding`, "Finish setup → 1 min")}
       ${videoCard(ONBOARDING_VIDEO, ONBOARDING_THUMB, "▶ Watch: set up Clorefy in 1 minute")}
       <hr class="divider">
-      <p class="fine">Free forever. No card needed. Stuck on something? Just hit reply — real humans here. 🙂</p>
+      <p class="fine">Free forever. No card needed. Stuck on something? Email <a href="mailto:${SUPPORT_EMAIL}" class="link-amber">${SUPPORT_EMAIL}</a> — real humans here. 🙂</p>
     </div>
   `)
 }
@@ -234,7 +234,7 @@ export function onboardingDropoffEmail2(
       ${ctaButton(`${APP_URL}/onboarding`, "Finish setup → 1 min")}
       ${videoCard(ONBOARDING_VIDEO, ONBOARDING_THUMB, "▶ See how it works (1 min)")}
       <hr class="divider">
-      <p class="fine">Your account stays active forever — pop back any time at <a href="${APP_URL}" class="link-amber">clorefy.com</a>. Not feeling it? A one-line reply tells us why. 🙏</p>
+      <p class="fine">Your account stays active forever — pop back any time at <a href="${APP_URL}" class="link-amber">clorefy.com</a>. Not feeling it? Tell us why at <a href="mailto:${SUPPORT_EMAIL}" class="link-amber">${SUPPORT_EMAIL}</a>. 🙏</p>
     </div>
   `)
 }
@@ -260,7 +260,7 @@ export function inactivityEmail1(
       ${ctaButton(APP_URL, hasDocs ? "Jump back in" : "Make my first doc")}
       ${videoCard(DOC_VIDEO, DOC_THUMB, "▶ Watch: create a document in seconds")}
       <hr class="divider">
-      <p class="fine">Something stopped you? We'd genuinely love to know — just reply. It shapes what we build next. 🙏</p>
+      <p class="fine">Something stopped you? We'd genuinely love to know — email <a href="mailto:${SUPPORT_EMAIL}" class="link-amber">${SUPPORT_EMAIL}</a>. It shapes what we build next. 🙏</p>
     </div>
   `)
 }
@@ -283,7 +283,7 @@ export function inactivityEmail2(
       ${ctaButton(APP_URL, "Give it a go")}
       ${videoCard(DOC_VIDEO, DOC_THUMB, "▶ Watch: a document in seconds")}
       <hr class="divider">
-      <p class="fine">What's missing for you? A one-line reply genuinely helps. No more automatic emails after this. 👋</p>
+      <p class="fine">What's missing for you? A quick note to <a href="mailto:${SUPPORT_EMAIL}" class="link-amber">${SUPPORT_EMAIL}</a> genuinely helps. No more automatic emails after this. 👋</p>
     </div>
   `)
 }
@@ -299,7 +299,7 @@ export function welcomeCompleteEmail(firstName?: string | null): string {
       <div class="prompt">"Invoice [Client Name] ₹10,000 for [service], due in 7 days"</div>
       ${ctaButton(APP_URL, "Generate my first document")}
       <hr class="divider">
-      <p class="fine">You're on the free plan — generate invoices, contracts, and quotes anytime. <a href="${APP_URL}/pricing" class="link-amber">See all plans</a>. Need help? Just reply.</p>
+      <p class="fine">You're on the free plan — generate invoices, contracts, and quotes anytime. <a href="${APP_URL}/pricing" class="link-amber">See all plans</a>. Need help? Email <a href="mailto:${SUPPORT_EMAIL}" class="link-amber">${SUPPORT_EMAIL}</a>.</p>
     </div>
   `)
 }
@@ -309,12 +309,11 @@ export function adminDirectEmailTemplate({
   firstName,
   subject,
   message,
-  adminEmail,
 }: {
   firstName?: string | null
   subject: string
   message: string
-  adminEmail: string
+  adminEmail?: string
 }): string {
   const name = esc(firstName) || "there"
   const escapedMsg = esc(message).replace(/\n/g, "<br>")
@@ -324,7 +323,7 @@ export function adminDirectEmailTemplate({
       <p>Hey ${name},</p>
       <p>${escapedMsg}</p>
       <hr class="divider">
-      <p class="fine">Sent by the Clorefy team (${esc(adminEmail)}). Reply to this email or reach us at <a href="mailto:${SUPPORT_EMAIL}" class="link-amber">${SUPPORT_EMAIL}</a>.</p>
+      <p class="fine">Sent by the Clorefy team. Questions? Email us at <a href="mailto:${SUPPORT_EMAIL}" class="link-amber">${SUPPORT_EMAIL}</a>.</p>
     </div>
   `)
 }
