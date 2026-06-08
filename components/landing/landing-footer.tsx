@@ -21,8 +21,8 @@ const footerLinks = {
     "Use Cases": [
         { label: "Freelancers", href: "/use-cases/freelancers" },
         { label: "Agencies", href: "/use-cases/agencies" },
-        { label: "Lawyers", href: "/use-cases/lawyers" },
-        { label: "Sales", href: "/use-cases/sales" },
+        { label: "Sales Agents", href: "/use-cases/agents" },
+        { label: "Sales Teams", href: "/use-cases/sales" },
         { label: "Students", href: "/use-cases/students" },
         { label: "Teams", href: "/use-cases/teams" },
     ],
@@ -152,9 +152,12 @@ export function LandingFooter() {
 
                 {/* Countries & Cities — single merged section */}
                 <div className="pt-8 mb-10 border-t border-black/10">
-                    <h4 className="font-display text-lg text-[var(--landing-text-dark)] mb-5">
+                    <h4 className="font-display text-lg text-[var(--landing-text-dark)] mb-2">
                         Available Worldwide
                     </h4>
+                    <p className="text-sm text-[var(--landing-text-dark)]/60 mb-5 max-w-2xl">
+                        Clorefy works in 150+ countries with automatic, country-specific tax rules. These are some of our most-used markets — your country is supported too.
+                    </p>
                     <div className="space-y-4">
                         {countryGroups.map((country) => (
                             <div key={country.name} className="flex flex-wrap items-baseline gap-x-1 gap-y-1">
@@ -178,6 +181,9 @@ export function LandingFooter() {
                                 ))}
                             </div>
                         ))}
+                        <p className="text-sm text-[var(--landing-text-dark)]/50 pt-1">
+                            + 140 more countries — GST, VAT, HST, Sales Tax and local tax rules applied automatically.
+                        </p>
                     </div>
                 </div>
 

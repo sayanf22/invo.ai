@@ -62,9 +62,9 @@ ChatGPT writes text. Clorefy runs the full workflow:
 - Invoice generator (India/GST): https://clorefy.com/tools/invoice-generator/india
 - Invoice generator (USA): https://clorefy.com/tools/invoice-generator/usa
 - Invoice generator (UK/VAT): https://clorefy.com/tools/invoice-generator/uk
-- Contract generator: https://clorefy.com/tools/contract-generator/india
-- NDA generator: https://clorefy.com/tools/nda-generator/india
-- Proposal generator: https://clorefy.com/tools/proposal-generator/india
+- Contract generator: https://clorefy.com/tools/contract-generator/usa
+- Quotation generator: https://clorefy.com/tools/quotation-generator/india
+- Proposal generator: https://clorefy.com/tools/proposal-generator/usa
 
 ## Comparisons
 - vs ChatGPT: ChatGPT writes text; Clorefy writes + emails + collects payment + reminds

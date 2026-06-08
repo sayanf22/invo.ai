@@ -27,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const useCaseSlugs = [
     "freelancers",
     "agencies",
-    "lawyers",
+    "agents",
     "sales",
     "students",
     "teams",
