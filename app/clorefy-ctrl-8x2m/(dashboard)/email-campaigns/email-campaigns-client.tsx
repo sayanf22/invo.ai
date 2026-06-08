@@ -33,6 +33,7 @@ interface UserRow {
   // Journey / location
   funnel_stage: string; funnel_detail: string; funnel_stuck: boolean
   last_login_at: string | null; last_login_location: string | null; last_login_ip: string | null
+  last_login_device: string | null
 }
 
 interface EmailEvent {
@@ -578,6 +579,11 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
                   📍 Last login{modalUser.last_login_location ? `: ${modalUser.last_login_location}` : ""}
                   {modalUser.last_login_at ? ` · ${formatDistanceToNow(new Date(modalUser.last_login_at), { addSuffix: true })}` : ""}
                   {modalUser.last_login_ip ? ` · ${modalUser.last_login_ip}` : ""}
+                </p>
+              )}
+              {modalUser.last_login_device && (
+                <p className="text-xs mt-1" style={{ color: muted, margin: "4px 0 0" }}>
+                  💻 {modalUser.last_login_device}
                 </p>
               )}
             </div>

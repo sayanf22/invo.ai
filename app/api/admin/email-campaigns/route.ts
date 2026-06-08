@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     { data: progressRows },
   ] = await Promise.all([
     supabase.from("profiles")
-      .select("id, email, full_name, onboarding_complete, plan_selected, last_active_at, created_at, tier, last_login_location, last_login_at, last_login_ip")
+      .select("id, email, full_name, onboarding_complete, plan_selected, last_active_at, created_at, tier, last_login_location, last_login_at, last_login_ip, last_login_device")
       .not("email", "is", null)
       .order("created_at", { ascending: false }),
     supabase.from("user_email_send_log")
@@ -315,6 +315,7 @@ export async function GET(request: NextRequest) {
       last_login_at: (p.last_login_at as string | null) ?? null,
       last_login_location: (p.last_login_location as string | null) ?? null,
       last_login_ip: (p.last_login_ip as string | null) ?? null,
+      last_login_device: (p.last_login_device as string | null) ?? null,
     }
   })
 

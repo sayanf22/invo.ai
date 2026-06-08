@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { createClient } from "@supabase/supabase-js"
 import { resolveGeo, formatLocation } from "@/lib/geo"
+import { parseUserAgent } from "@/lib/user-agent"
 
 function getServiceClient() {
   return createClient(
@@ -45,6 +46,14 @@ export async function POST(request: NextRequest) {
   const geo = await resolveGeo(request.headers)
   const userAgent = request.headers.get("user-agent")?.slice(0, 512) ?? null
   const location = formatLocation(geo)
+
+  // Parse device / OS / browser from UA + UA client hints (all passive)
+  const ua = parseUserAgent(userAgent, {
+    model: request.headers.get("sec-ch-ua-model"),
+    platform: request.headers.get("sec-ch-ua-platform"),
+    platformVersion: request.headers.get("sec-ch-ua-platform-version"),
+    mobile: request.headers.get("sec-ch-ua-mobile"),
+  })
 
   // Dedup: skip a fresh row if the same IP logged a session very recently
   try {
@@ -77,6 +86,10 @@ export async function POST(request: NextRequest) {
       longitude: geo.longitude,
       user_agent: userAgent,
       login_method: method,
+      device_type: ua.deviceType,
+      os: ua.osVersion ? `${ua.os} ${ua.osVersion}` : ua.os,
+      browser: ua.browserVersion ? `${ua.browser} ${ua.browserVersion}` : ua.browser,
+      device_model: ua.deviceModel,
     })
   } catch { /* non-critical */ }
 
@@ -88,9 +101,10 @@ export async function POST(request: NextRequest) {
         last_login_at: new Date().toISOString(),
         last_login_ip: geo.ip,
         last_login_location: location,
+        last_login_device: ua.summary,
       })
       .eq("id", userId)
   } catch { /* non-critical */ }
 
-  return NextResponse.json({ ok: true, location })
+  return NextResponse.json({ ok: true, location, device: ua.summary })
 }
