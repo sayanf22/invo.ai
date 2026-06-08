@@ -10,9 +10,9 @@ const BASE_URL = "https://clorefy.com"
 const PAGE_URL = BASE_URL + "/clorefy-alternative-spellings"
 
 export const metadata: Metadata = {
-  title: "Clorefy Spelling Guide — clorify, clorefi, clorfy, NOT glorify | Clorefy",
+  title: "How to Spell Clorefy — The Correct Spelling",
   description:
-    "Searching for clorify, clorefi, clorfy, or even glorify? The correct spelling is Clorefy — an AI document generation platform. Clorefy ≠ Glorify. Free to start at clorefy.com.",
+    "The correct spelling is Clorefy (C-L-O-R-E-F-Y) — an AI platform that generates invoices, contracts, proposals and more. Searched a different spelling? You're in the right place. Free to start at clorefy.com.",
   alternates: { canonical: PAGE_URL },
   keywords: [
     // Misspellings
@@ -27,9 +27,9 @@ export const metadata: Metadata = {
     "clorify ai", "clorify invoice generator", "clorefi ai", "clorefi invoice",
   ],
   openGraph: {
-    title: "Clorefy Spelling & Disambiguation — NOT Glorify | Clorefy",
+    title: "How to Spell Clorefy — The Correct Spelling",
     description:
-      "Clorefy (clorefy.com) is an AI document generation platform. Not Glorify. Common misspellings: clorify, clorefi, clorfy. All redirect to clorefy.com.",
+      "Clorefy (clorefy.com) is an AI document generation platform for invoices, contracts, proposals, and NDAs. Common misspellings like clorify, clorefi, and clorfy all lead here.",
     url: PAGE_URL,
     siteName: "Clorefy",
     type: "website",
