@@ -62,6 +62,7 @@ export function resolveEffectiveTier(subscription: SubscriptionRecord | null | u
 interface TierLimits {
     documentsPerMonth: number  // 0 = unlimited
     messagesPerSession: number // 0 = unlimited
+    chatMessagesPerSession: number // 0 = unlimited; separate cap for chat-only sessions
     emailsPerMonth: number     // 0 = unlimited
     allowedDocTypes: string[]
 }
@@ -70,25 +71,29 @@ const TIER_LIMITS: Record<UserTier, TierLimits> = {
     free: {
         documentsPerMonth: 5,
         messagesPerSession: 10,
-        emailsPerMonth: 5,       // 1 email per document — matches doc limit
+        chatMessagesPerSession: 20,   // advisory chat: more generous than doc session
+        emailsPerMonth: 5,
         allowedDocTypes: ["invoice", "contract", "quote"],
     },
     starter: {
         documentsPerMonth: 50,
         messagesPerSession: 30,
-        emailsPerMonth: 100,     // 2× doc limit — allows resends + follow-ups
+        chatMessagesPerSession: 60,
+        emailsPerMonth: 100,
         allowedDocTypes: [...ALL_DOCUMENT_TYPES],
     },
     pro: {
         documentsPerMonth: 150,
         messagesPerSession: 50,
-        emailsPerMonth: 250,     // comfortable for follow-ups across all docs
+        chatMessagesPerSession: 120,
+        emailsPerMonth: 250,
         allowedDocTypes: [...ALL_DOCUMENT_TYPES],
     },
     agency: {
-        documentsPerMonth: 0,    // unlimited
-        messagesPerSession: 0,   // unlimited
-        emailsPerMonth: 0,       // unlimited
+        documentsPerMonth: 0,
+        messagesPerSession: 0,
+        chatMessagesPerSession: 0,    // unlimited
+        emailsPerMonth: 0,
         allowedDocTypes: [...ALL_DOCUMENT_TYPES],
     },
 }
@@ -218,6 +223,61 @@ export async function checkDocumentLimit(
         return null
     } catch (error) {
         console.error("Document limit check failed:", error)
+        return null // fail open
+    }
+}
+
+// ─── Chat Message Limit Check ─────────────────────────────────────────────────
+
+/**
+ * Check if user can send another message in a CHAT-ONLY session.
+ * These sessions use a separate, more generous limit than document sessions.
+ * Returns null if allowed, or a 429 NextResponse if limit exceeded.
+ */
+export async function checkChatMessageLimit(
+    supabase: SupabaseClient<Database>,
+    userId: string,
+    sessionId: string,
+    userTier: UserTier = "free"
+): Promise<NextResponse | null> {
+    try {
+        const limits = TIER_LIMITS[userTier]
+
+        // Unlimited tier
+        if (limits.chatMessagesPerSession === 0) return null
+
+        const { count, error } = await supabase
+            .from("chat_messages")
+            .select("*", { count: "exact", head: true })
+            .eq("session_id", sessionId)
+            .eq("role", "user")
+
+        if (error) {
+            console.error("Error counting chat messages:", error)
+            return null // fail open
+        }
+
+        // +1 for the in-flight message not yet saved
+        const messageCount = (count || 0) + 1
+
+        if (messageCount > limits.chatMessagesPerSession) {
+            return NextResponse.json(
+                {
+                    error: "Chat message limit reached for this session",
+                    currentMessages: messageCount - 1,
+                    limit: limits.chatMessagesPerSession,
+                    tier: userTier,
+                    message: userTier === "free"
+                        ? `You've used all ${limits.chatMessagesPerSession} chat messages in this session. Upgrade to Starter for ${TIER_LIMITS.starter.chatMessagesPerSession} messages/session.`
+                        : `You've used all ${limits.chatMessagesPerSession} chat messages in this session. Start a new chat or upgrade for more.`,
+                },
+                { status: 429 }
+            )
+        }
+
+        return null
+    } catch (error) {
+        console.error("Chat message limit check failed:", error)
         return null // fail open
     }
 }

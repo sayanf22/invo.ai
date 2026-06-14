@@ -7,7 +7,7 @@ import { classifyIntent, detectMismatch, type DocumentType as IntentDocumentType
 import { buildChatOnlySystemPrompt } from "@/lib/chat-only-prompts"
 import { formatReferenceNumber } from "@/lib/document-type-registry"
 
-import { checkCostLimit, trackUsage, checkMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier, getUserTier } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, checkMessageLimit, checkChatMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier, getUserTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText, stripPromptInjection } from "@/lib/sanitize"
 
@@ -64,9 +64,14 @@ export async function POST(request: NextRequest) {
         }
 
         // Check per-session message limit (if sessionId provided)
-        // Chat-only sessions have no message cap — limit applies only to typed sessions.
+        // Chat-only sessions use a separate (more generous) message limit.
+        // Document sessions use the standard per-session cap.
         const sessionId = (body as any).sessionId
-        if (sessionId && !isChatOnlyMode) {
+        if (sessionId && isChatOnlyMode) {
+            // Chat-only sessions: separate limit (20/60/120/∞ per tier)
+            const chatLimitError = await checkChatMessageLimit(auth.supabase, auth.user.id, sessionId, userTier)
+            if (chatLimitError) return chatLimitError
+        } else if (sessionId && !isChatOnlyMode) {
             const limitError = await checkMessageLimit(auth.supabase, auth.user.id, sessionId, userTier)
             if (limitError) return limitError
 

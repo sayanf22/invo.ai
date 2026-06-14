@@ -176,7 +176,7 @@ export function ChatOnlyScreen({
         async (
             prompt: string,
             options: { sessionId: string; saveAsAssistantId: string; hint?: string }
-        ): Promise<{ ok: boolean; finalContent: string; createCard?: ParsedCreateCard }> => {
+        ): Promise<{ ok: boolean; finalContent: string; createCard?: ParsedCreateCard; rateLimitData?: Record<string, unknown> | null; statusCode?: number }> => {
             const controller = new AbortController()
             abortRef.current?.abort()
             abortRef.current = controller
@@ -203,11 +203,16 @@ export function ChatOnlyScreen({
 
                 if (!res.ok || !res.body) {
                     let errMessage = "Chat is unavailable right now."
+                    let rateLimitData: Record<string, unknown> | null = null
                     try {
                         const data = await res.json()
                         if (data?.error) errMessage = data.error
+                        // Surface rate limit data so the caller can show an upgrade card
+                        if (res.status === 429 || res.status === 403) {
+                            rateLimitData = data
+                        }
                     } catch { /* not JSON */ }
-                    return { ok: false, finalContent: errMessage }
+                    return { ok: false, finalContent: errMessage, rateLimitData, statusCode: res.status }
                 }
 
                 const reader = res.body.getReader()
@@ -421,7 +426,29 @@ export function ChatOnlyScreen({
             setIsLoading(false)
 
             if (!result.ok && !result.finalContent) {
-                // Aborted or hard failure — leave optimistic user message, but remove placeholder
+                // Show an upgrade card for 429 (rate limit) or 403 (type restriction)
+                if ((result.statusCode === 429 || result.statusCode === 403) && result.rateLimitData) {
+                    const d = result.rateLimitData as any
+                    setMessages(prev =>
+                        prev
+                            .filter(m => m.id !== assistantMsgId)
+                            .concat([{
+                                id: newId(),
+                                role: "assistant",
+                                content: "",
+                                upgradeCard: {
+                                    tier: d.tier || "free",
+                                    currentUsage: d.currentMessages,
+                                    limit: d.limit,
+                                    message: d.message || result.finalContent || "Chat limit reached for this session.",
+                                    restrictionType: result.statusCode === 403 ? "document_type" : undefined,
+                                    requestedType: d.requestedType,
+                                },
+                            }])
+                    )
+                    return
+                }
+                // Aborted or hard failure — remove placeholder
                 setMessages(prev => prev.filter(m => m.id !== assistantMsgId))
                 return
             }
@@ -964,7 +991,9 @@ export function ChatOnlyScreen({
                                                         <p className="text-sm font-semibold text-foreground leading-tight">
                                                             {msg.upgradeCard.restrictionType === "document_type"
                                                                 ? `${msg.upgradeCard.requestedType ? msg.upgradeCard.requestedType.charAt(0).toUpperCase() + msg.upgradeCard.requestedType.slice(1) + "s" : "This document type"} need a higher plan`
-                                                                : "Monthly limit reached"
+                                                                : msg.upgradeCard.currentUsage !== undefined
+                                                                    ? "Chat message limit reached"
+                                                                    : "Monthly limit reached"
                                                             }
                                                         </p>
                                                         <p className="text-[12px] text-muted-foreground mt-1 leading-relaxed">
@@ -974,7 +1003,7 @@ export function ChatOnlyScreen({
                                                             msg.upgradeCard.currentUsage !== undefined &&
                                                             msg.upgradeCard.limit !== undefined && (
                                                                 <p className="text-[11px] text-muted-foreground mt-1.5 font-medium">
-                                                                    {msg.upgradeCard.currentUsage} / {msg.upgradeCard.limit} documents used this month
+                                                                    {msg.upgradeCard.currentUsage} / {msg.upgradeCard.limit} messages used in this session
                                                                 </p>
                                                             )}
                                                     </div>
