@@ -180,9 +180,9 @@ export default function AdminOverviewPage() {
   const p = range.period
   const docsValue = p === 'today' ? (data?.totalDocumentsToday ?? 0)
     : p === 'week' ? (data?.totalDocumentsThisWeek ?? 0)
-    : p === 'year' ? (data?.totalDocumentsThisYear ?? 0)
+    : p === 'year' ? (data?.totalDocumentsThisYear ?? data?.totalDocumentsAllTime ?? 0)
     : p === 'all' ? (data?.totalDocumentsAllTime ?? 0)
-    : (data?.totalDocumentsThisMonth ?? 0)  // month + custom
+    : (data?.totalDocuments ?? data?.totalDocumentsThisMonth ?? 0)  // month + custom
 
   const emailsValue = p === 'today' ? (data?.totalEmailsToday ?? 0)
     : p === 'all' ? (data?.totalEmailsAllTime ?? 0)

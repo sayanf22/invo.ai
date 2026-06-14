@@ -94,9 +94,9 @@ export async function GET(request: NextRequest) {
       .eq('success', true)
       .then(r => r),
 
-    // ── 3. Chat messages ─────────────────────────────────────────────────────
+    // ── 3. Chat messages — full count by period ──────────────────────────────
     supabase.from('chat_messages')
-      .select('id, created_at', { count: 'exact', head: true })
+      .select('created_at')
       .then(r => r),
 
     // ── 4. Document emails ───────────────────────────────────────────────────
@@ -132,11 +132,11 @@ export async function GET(request: NextRequest) {
       .gte('created_at', new Date(Date.now() - 60 * 86400000).toISOString())
       .then(r => r),
 
-    // ── 10. Docs trend ───────────────────────────────────────────────────────
+    // ── 10. Docs — ALL time (for accurate all-time + year + month + week + today counts)
+    // Fetch all rows; the dataset is small enough (153 rows currently) to handle in JS
     supabase.from('generation_history')
-      .select('created_at')
+      .select('created_at, document_type')
       .eq('success', true)
-      .gte('created_at', new Date(Date.now() - 60 * 86400000).toISOString())
       .then(r => r),
 
     // ── 11. Revenue trend (6 months) ─────────────────────────────────────────
@@ -223,16 +223,22 @@ export async function GET(request: NextRequest) {
   // ── Document KPIs ─────────────────────────────────────────────────────────
 
   const trendDocsData: any[] = trendDocsResult.status === 'fulfilled' ? ((trendDocsResult.value as any).data ?? []) : []
+  const allTimeDocsCount = trendDocsData.length  // now fetches all rows, so this is accurate
   const docsInPeriod = trendDocsData.filter(d => inPeriod(d.created_at)).length
   const docsInPrev = trendDocsData.filter(d => inPrevPeriod(d.created_at)).length
+  const totalDocuments = docsInPeriod
 
-  // For all-time, query the full count (trendDocs only goes 60 days back)
-  const allTimeDocsCount = docsResult.status === 'fulfilled' ? ((docsResult.value as any).count ?? 0) : 0
-  const totalDocuments = period === 'all' ? allTimeDocsCount : docsInPeriod
+  // Document type breakdown (all time)
+  const docTypeBreakdown: Record<string, number> = {}
+  for (const d of trendDocsData) {
+    const t = d.document_type ?? 'unknown'
+    docTypeBreakdown[t] = (docTypeBreakdown[t] ?? 0) + 1
+  }
 
   // ── Chat message KPIs ─────────────────────────────────────────────────────
 
-  const allTimeMsgs = msgsResult.status === 'fulfilled' ? ((msgsResult.value as any).count ?? 0) : 0
+  const allMsgs: any[] = msgsResult.status === 'fulfilled' ? ((msgsResult.value as any).data ?? []) : []
+  const allTimeMsgs = allMsgs.length
 
   // ── Email KPIs ────────────────────────────────────────────────────────────
 
@@ -290,9 +296,11 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-30)
 
-  // Docs trend
+  // Docs trend — last 60 days for chart
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000)
   const docsByDay: Record<string, number> = {}
   for (const d of trendDocsData) {
+    if (new Date(d.created_at) < sixtyDaysAgo) continue
     const day = (d.created_at as string).slice(0, 10)
     docsByDay[day] = (docsByDay[day] ?? 0) + 1
   }
@@ -371,11 +379,14 @@ export async function GET(request: NextRequest) {
     totalDocumentsThisWeek: trendDocsData.filter(d => inInterval(d.created_at, 7, 'day')).length,
     totalDocumentsThisMonth: trendDocsData.filter(d => inInterval(d.created_at, 30, 'day')).length,
     totalDocumentsThisYear: trendDocsData.filter(d => inInterval(d.created_at, 365, 'day')).length,
+    docTypeBreakdown: Object.entries(docTypeBreakdown).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
 
     // Chat KPIs
     totalMessagesAllTime: allTimeMsgs,
-    totalMessagesToday: 0,   // would need a separate query — omitted for perf
-    totalMessagesThisMonth: 0,
+    totalMessagesToday: allMsgs.filter(m => inInterval(m.created_at, 1, 'day')).length,
+    totalMessagesThisWeek: allMsgs.filter(m => inInterval(m.created_at, 7, 'day')).length,
+    totalMessagesThisMonth: allMsgs.filter(m => inInterval(m.created_at, 30, 'day')).length,
+    totalMessagesInPeriod: allMsgs.filter(m => inPeriod(m.created_at)).length,
 
     // Email KPIs
     totalEmailsSent,

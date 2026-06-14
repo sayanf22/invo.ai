@@ -16,13 +16,20 @@ interface OverviewData {
   totalDocumentsThisWeek: number
   totalDocumentsThisMonth: number
   totalDocumentsThisYear?: number
+  totalDocuments: number
   totalMessagesAllTime: number
   totalMessagesToday?: number
+  totalMessagesThisWeek?: number
   totalMessagesThisMonth?: number
+  totalMessagesInPeriod?: number
   totalAIRequestsThisMonth: number
   totalTokensThisMonth: number
   estimatedAICostThisMonth: number
+  aiRequests?: number
+  aiTokens?: number
+  aiCostINR?: number
   documentsTrend: Array<{ date: string; count: number }>
+  docTypeBreakdown?: Array<{ type: string; count: number }>
 }
 
 function MetricCard({ label, value, sub, icon: Icon, loading, isDark }: {
@@ -86,13 +93,15 @@ export default function DocumentsAnalyticsPage() {
     if (!data) return 0
     if (range.period === 'today') return data.totalDocumentsToday
     if (range.period === 'week') return data.totalDocumentsThisWeek
-    if (range.period === 'year') return data.totalDocumentsThisYear ?? 0
+    if (range.period === 'year') return data.totalDocumentsThisYear ?? data.totalDocumentsAllTime
     if (range.period === 'all') return data.totalDocumentsAllTime
-    return data.totalDocumentsThisMonth
+    // month + custom: use totalDocuments (which = docsInPeriod)
+    return data.totalDocuments ?? data.totalDocumentsThisMonth
   }
   function msgCount(): number {
     if (!data) return 0
     if (range.period === 'today') return data.totalMessagesToday ?? 0
+    if (range.period === 'week') return data.totalMessagesThisWeek ?? 0
     if (range.period === 'all') return data.totalMessagesAllTime
     return data.totalMessagesThisMonth ?? 0
   }
@@ -131,26 +140,28 @@ export default function DocumentsAnalyticsPage() {
       {/* Chat messages */}
       <div>
         <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: isDark ? '#3F3F46' : '#A1A1AA' }}>Chat Messages</p>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard label="All Time" icon={MessageSquare} loading={loading} isDark={isDark}
             value={(data?.totalMessagesAllTime ?? 0).toLocaleString()} />
           <MetricCard label="Today" icon={MessageSquare} loading={loading} isDark={isDark}
-            value={data?.totalMessagesToday ?? 0} />
+            value={(data?.totalMessagesToday ?? 0)} />
+          <MetricCard label="This Week" icon={MessageSquare} loading={loading} isDark={isDark}
+            value={(data?.totalMessagesThisWeek ?? 0)} />
           <MetricCard label="This Month" icon={MessageSquare} loading={loading} isDark={isDark}
-            value={data?.totalMessagesThisMonth ?? 0} />
+            value={(data?.totalMessagesThisMonth ?? 0)} />
         </div>
       </div>
 
       {/* AI usage */}
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: isDark ? '#3F3F46' : '#A1A1AA' }}>AI Usage This Month</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: isDark ? '#3F3F46' : '#A1A1AA' }}>AI Usage — Selected Period</p>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <MetricCard label="AI Requests" icon={FileText} loading={loading} isDark={isDark}
-            value={(data?.totalAIRequestsThisMonth ?? 0).toLocaleString()} />
+            value={(data?.aiRequests ?? data?.totalAIRequestsThisMonth ?? 0).toLocaleString()} />
           <MetricCard label="Tokens Used" icon={FileText} loading={loading} isDark={isDark}
-            value={(data?.totalTokensThisMonth ?? 0).toLocaleString()} />
+            value={(data?.aiTokens ?? data?.totalTokensThisMonth ?? 0).toLocaleString()} />
           <MetricCard label="Est. Cost (₹)" icon={FileText} loading={loading} isDark={isDark}
-            value={`₹${(data?.estimatedAICostThisMonth ?? 0).toLocaleString()}`} />
+            value={`₹${(data?.aiCostINR ?? data?.estimatedAICostThisMonth ?? 0).toLocaleString()}`} />
         </div>
       </div>
 
