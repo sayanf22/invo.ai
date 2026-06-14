@@ -161,6 +161,13 @@ export interface SecurityQueryParams {
 }
 
 export interface SecurityData {
+  // UI-facing field names (what security-client.tsx reads)
+  logs: Array<Record<string, unknown>>
+  total: number
+  bruteForce: Array<{ ip: string; attempts: number; last_seen: string; emails: string[] }>
+  suspicious: Array<{ email: string; requests_per_hour: number }>
+  blockedIPs: Array<Record<string, unknown>>
+  // Legacy / backward-compat names kept for other consumers
   auditLogs: Array<Record<string, unknown>>
   auditLogsTotal: number
   bruteForceEvents: Array<Record<string, unknown>>
@@ -628,10 +635,11 @@ export async function getUserDetail(userId: string): Promise<UserDetail> {
     supabase.from("profiles").select("*").eq("id", userId).single(),
     supabase.from("businesses").select("*").eq("user_id", userId).single(),
     supabase.from("user_usage").select("*").eq("user_id", userId).eq("month", monthKey).single(),
+    // Use generation_history (the correct table for documents per user)
     supabase
-      .from("documents")
-      .select("*")
-      .eq("business_id", userId) // fallback — documents link via business_id
+      .from("generation_history")
+      .select("id, document_type, prompt, success, tokens_used, generation_time_ms, created_at, session_id")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(10),
     supabase
@@ -642,7 +650,7 @@ export async function getUserDetail(userId: string): Promise<UserDetail> {
       .limit(20),
     supabase
       .from("document_emails")
-      .select("id, document_type, status, created_at, recipient_email")
+      .select("id, document_type, status, created_at, recipient_email, subject")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(10),
@@ -658,14 +666,42 @@ export async function getUserDetail(userId: string): Promise<UserDetail> {
       ? (businessRes.value.data as Record<string, unknown>)
       : null
 
-  const usageStats =
+  // Enrich usageStats with all-time document and email counts
+  let usageStats: Record<string, unknown> | null =
     usageRes.status === "fulfilled" && !usageRes.value.error
       ? (usageRes.value.data as Record<string, unknown>)
       : null
 
+  // Add all-time counts even if no monthly row exists
+  const [{ count: allTimeDocsCount }, { count: allTimeEmailsCount }] = await Promise.all([
+    supabase
+      .from("generation_history")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("success", true)
+      .then(r => ({ count: r.count ?? 0 })),
+    supabase
+      .from("document_emails")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .then(r => ({ count: r.count ?? 0 })),
+  ])
+
+  usageStats = {
+    ...(usageStats ?? {}),
+    documents_count_all_time: allTimeDocsCount,
+    emails_count_all_time: allTimeEmailsCount,
+  }
+
   const recentDocuments =
     docsRes.status === "fulfilled" && !docsRes.value.error
-      ? ((docsRes.value.data ?? []) as Array<Record<string, unknown>>)
+      ? ((docsRes.value.data ?? []) as Array<Record<string, unknown>>).map((d: any) => ({
+          ...d,
+          // Expose a human-readable title field for the drawer UI
+          title: d.document_type
+            ? d.document_type.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+            : "Unknown",
+        }))
       : []
 
   const recentAuditLogs =
@@ -679,11 +715,7 @@ export async function getUserDetail(userId: string): Promise<UserDetail> {
       : []
 
   // Total email count for this user (all time)
-  const { count: totalEmailsSent } = await supabase
-    .from("document_emails")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .then(r => ({ count: r.count ?? 0 }))
+  const totalEmailsSent = allTimeEmailsCount
 
   return { profile, business, usageStats, recentDocuments, recentAuditLogs, recentEmails, totalEmailsSent }
 }
@@ -880,8 +912,7 @@ export async function getAIUsage(params: AIUsageQueryParams): Promise<AIUsageDat
         history: [],
         historyTotal: 0,
       }
-    }
-  }
+    }  }
 
   histQuery = histQuery.order("created_at", { ascending: false }).range(histFrom, histTo)
 
@@ -889,6 +920,23 @@ export async function getAIUsage(params: AIUsageQueryParams): Promise<AIUsageDat
 
   if (histError) {
     console.error("getAIUsage history error:", histError)
+  }
+
+  // Enrich history rows with user emails (batch lookup, not per-row)
+  const historyRows = (history ?? []) as Array<Record<string, unknown>>
+  if (historyRows.length > 0) {
+    const rowUserIds = [...new Set(historyRows.map((r) => r.user_id as string).filter(Boolean))]
+    const { data: histProfiles } = await supabase
+      .from("profiles")
+      .select("id, email")
+      .in("id", rowUserIds)
+    const histEmailMap: Record<string, string> = {}
+    for (const p of histProfiles ?? []) {
+      histEmailMap[p.id] = p.email ?? p.id
+    }
+    for (const row of historyRows) {
+      row.user_email = histEmailMap[row.user_id as string] ?? (row.user_id as string)
+    }
   }
 
   return {
@@ -904,130 +952,134 @@ export async function getAIUsage(params: AIUsageQueryParams): Promise<AIUsageDat
     avgGenerationTimeMs,
     successRate,
     errorRate,
-    history: (history ?? []) as Array<Record<string, unknown>>,
+    history: historyRows,
     historyTotal: historyTotal ?? 0,
   }
 }
 
 // ─── 6.6 getRevenue ───────────────────────────────────────────────────────────
 
-const PLAN_PRICES: Record<string, number> = { starter: 9, pro: 24, agency: 59 }
+export interface RevenueQueryParams {
+  page?: number
+  pageSize?: number
+  status?: string
+}
 
-export async function getRevenue(): Promise<RevenueData> {
+export async function getRevenue(params: RevenueQueryParams = {}): Promise<RevenueData> {
   const supabase = getAdminClient()
+  const { page = 1, pageSize = 25, status } = params
   const now = new Date()
   const monthISO = startOfMonth(now).toISOString()
   const USD_TO_INR = 93 // Current approximate rate (April 2026)
 
-  // Get ALL subscriptions (not just active) for payment history
-  const { data: allSubs } = await supabase
-    .from("subscriptions")
-    .select("*")
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  // ── Primary: payment_history table (actual Razorpay payments) ────────────────
+  let phQuery = supabase
+    .from("payment_history")
+    .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(100)
 
-  // Enrich with profile emails and business country
-  const userIds = [...new Set((allSubs ?? []).map((s: any) => s.user_id))]
-  let profileMap: Record<string, { email: string; full_name: string | null }> = {}
-  let businessMap: Record<string, string> = {}
+  if (status) phQuery = phQuery.eq("status", status)
+  phQuery = phQuery.range(from, to)
 
-  if (userIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, email, full_name")
-      .in("id", userIds)
-    for (const p of profiles ?? []) {
-      profileMap[p.id] = { email: p.email ?? '—', full_name: p.full_name }
-    }
+  const { data: paymentRows, count: phTotal } = await phQuery
 
-    const { data: businesses } = await supabase
-      .from("businesses")
-      .select("user_id, country")
-      .in("user_id", userIds)
-    for (const b of businesses ?? []) {
-      businessMap[b.user_id] = b.country ?? '—'
-    }
+  // Enrich with profile + business
+  const phUserIds = [...new Set((paymentRows ?? []).map((r: any) => r.user_id).filter(Boolean))]
+  let phProfileMap: Record<string, { email: string; full_name: string | null }> = {}
+  let phBizMap: Record<string, string> = {}
+  if (phUserIds.length > 0) {
+    const [{ data: phProfiles }, { data: phBiz }] = await Promise.all([
+      supabase.from("profiles").select("id, email, full_name").in("id", phUserIds),
+      supabase.from("businesses").select("user_id, country").in("user_id", phUserIds),
+    ])
+    for (const p of phProfiles ?? []) phProfileMap[p.id] = { email: p.email ?? "—", full_name: p.full_name }
+    for (const b of phBiz ?? []) phBizMap[b.user_id] = b.country ?? "—"
   }
 
-  // MRR from active paid subscriptions
-  const activePaid = (allSubs ?? []).filter((s: any) => s.status === 'active' && s.plan !== 'free')
+  const paymentHistory = (paymentRows ?? []).map((r: any) => {
+    const amountRaw = (r.amount ?? 0) / 100
+    const currency = r.currency ?? "INR"
+    const profile = phProfileMap[r.user_id]
+    return {
+      id: r.id,
+      user_email: profile?.email ?? "—",
+      user_name: profile?.full_name ?? "—",
+      amount: amountRaw,
+      amount_inr: currency === "USD" ? Math.round(amountRaw * USD_TO_INR) : amountRaw,
+      currency,
+      plan: (r.metadata as any)?.plan ?? r.plan ?? "—",
+      billing_cycle: (r.metadata as any)?.billing_cycle ?? "—",
+      date: r.created_at,
+      payment_id: r.razorpay_payment_id ?? "—",
+      subscription_id: (r.metadata as any)?.subscription_id ?? "—",
+      country: phBizMap[r.user_id] ?? "—",
+      status: r.status,
+      period_start: null,
+      period_end: null,
+    }
+  })
+
+  // ── MRR / revenue metrics from subscriptions ────────────────────────────────
+  const { data: allSubs } = await supabase
+    .from("subscriptions")
+    .select("user_id, plan, status, amount_paid, currency, created_at, current_period_start, current_period_end, billing_cycle")
+    .order("created_at", { ascending: false })
+
+  const activePaid = (allSubs ?? []).filter((s: any) => s.status === "active" && s.plan !== "free")
   let mrr = 0
   const planCounts: Record<string, number> = {}
   const planRevenue: Record<string, number> = {}
 
   for (const s of activePaid) {
     const amountInr = (s.amount_paid ?? 0) / 100
-    // If currency is USD, convert to INR for dashboard display
-    const displayAmount = s.currency === 'USD' ? amountInr * USD_TO_INR : amountInr
+    const displayAmount = s.currency === "USD" ? amountInr * USD_TO_INR : amountInr
     mrr += displayAmount
-    const plan = s.plan ?? 'unknown'
+    const plan = s.plan ?? "unknown"
     planCounts[plan] = (planCounts[plan] ?? 0) + 1
     planRevenue[plan] = (planRevenue[plan] ?? 0) + displayAmount
   }
-
   const arr = mrr * 12
+
   const revenueByPlan = Object.entries(planCounts).map(([plan, count]) => ({
     plan,
     count,
     revenue: planRevenue[plan] ?? 0,
   }))
 
-  // Payment history with full details
-  const paymentHistory = (allSubs ?? []).map((s: any) => {
-    const amountRaw = (s.amount_paid ?? 0) / 100
-    const currency = s.currency ?? 'INR'
-    const country = businessMap[s.user_id] ?? '—'
-    const profile = profileMap[s.user_id]
-
-    return {
-      id: s.id,
-      user_email: profile?.email ?? '—',
-      user_name: profile?.full_name ?? '—',
-      amount: amountRaw,
-      amount_inr: currency === 'USD' ? Math.round(amountRaw * USD_TO_INR) : amountRaw,
-      currency,
-      plan: s.plan,
-      billing_cycle: s.billing_cycle ?? '—',
-      date: s.created_at,
-      payment_id: s.razorpay_payment_id ?? '—',
-      subscription_id: s.razorpay_subscription_id ?? '—',
-      country,
-      status: s.status === 'active' && s.plan !== 'free' ? 'paid' : s.status,
-      period_start: s.current_period_start,
-      period_end: s.current_period_end,
-    }
-  })
-
-  // New revenue this month
+  // New revenue this month (from payment_history, most accurate)
   const { data: newSubsThisMonth } = await supabase
-    .from("subscriptions")
-    .select("amount_paid, currency")
+    .from("payment_history")
+    .select("amount, currency")
     .gte("created_at", monthISO)
-    .neq("plan", "free")
+    .eq("status", "captured")
 
-  const newRevenueThisMonth = (newSubsThisMonth ?? []).reduce((sum, s) => {
-    const amt = (s.amount_paid ?? 0) / 100
-    return sum + (s.currency === 'USD' ? amt * USD_TO_INR : amt)
+  const newRevenueThisMonth = (newSubsThisMonth ?? []).reduce((sum, r: any) => {
+    const amt = (r.amount ?? 0) / 100
+    return sum + (r.currency === "USD" ? amt * USD_TO_INR : amt)
   }, 0)
 
   // MoM change
   const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const prevMonthISO = prevDate.toISOString()
-  const { data: prevMonthSubs } = await supabase
-    .from("subscriptions")
-    .select("amount_paid, currency")
+  const { data: prevMonthPayments } = await supabase
+    .from("payment_history")
+    .select("amount, currency")
     .gte("created_at", prevMonthISO)
     .lt("created_at", monthISO)
-    .neq("plan", "free")
+    .eq("status", "captured")
 
-  const prevMonthRevenue = (prevMonthSubs ?? []).reduce((sum, s) => {
-    const amt = (s.amount_paid ?? 0) / 100
-    return sum + (s.currency === 'USD' ? amt * USD_TO_INR : amt)
+  const prevMonthRevenue = (prevMonthPayments ?? []).reduce((sum, r: any) => {
+    const amt = (r.amount ?? 0) / 100
+    return sum + (r.currency === "USD" ? amt * USD_TO_INR : amt)
   }, 0)
 
-  const momChange = prevMonthRevenue > 0
-    ? ((newRevenueThisMonth - prevMonthRevenue) / prevMonthRevenue) * 100
-    : 0
+  const momChange =
+    prevMonthRevenue > 0
+      ? ((newRevenueThisMonth - prevMonthRevenue) / prevMonthRevenue) * 100
+      : 0
 
   return {
     mrr,
@@ -1036,7 +1088,7 @@ export async function getRevenue(): Promise<RevenueData> {
     momChange,
     revenueByPlan,
     paymentHistory: paymentHistory as Array<Record<string, unknown>>,
-    paymentHistoryTotal: paymentHistory.length,
+    paymentHistoryTotal: phTotal ?? 0,
   }
 }
 
@@ -1071,6 +1123,11 @@ export async function getSecurity(params: SecurityQueryParams): Promise<Security
   if (filteredUserIds !== null) {
     if (filteredUserIds.length === 0) {
       return {
+        logs: [],
+        total: 0,
+        bruteForce: [],
+        suspicious: [],
+        blockedIPs: [],
         auditLogs: [],
         auditLogsTotal: 0,
         bruteForceEvents: [],
@@ -1134,6 +1191,27 @@ export async function getSecurity(params: SecurityQueryParams): Promise<Security
     .order("created_at", { ascending: false })
 
   return {
+    logs: (auditLogs ?? []) as Array<Record<string, unknown>>,
+    total: auditLogsTotal ?? 0,
+    bruteForce: (bruteForceEvents ?? []).map((ev: any) => {
+      // Normalize brute force event metadata into a usable shape
+      const meta = ev.metadata as Record<string, unknown> | null
+      const attempts = typeof meta?.failed_attempts === 'number' ? meta.failed_attempts : 1
+      const ip = typeof ev.ip_address === 'string' ? ev.ip_address : (typeof meta?.ip === 'string' ? meta.ip : "unknown")
+      const emails = Array.isArray(meta?.target_emails) ? (meta.target_emails as string[]) : []
+      return {
+        ip,
+        attempts,
+        last_seen: (ev.created_at as string) ?? new Date().toISOString(),
+        emails,
+      }
+    }),
+    suspicious: suspiciousActivity.map((u: any) => ({
+      email: u.email ?? u.id,
+      requests_per_hour: u.requestsLastHour ?? 0,
+    })),
+    blockedIPs: (ipBlocklist ?? []) as Array<Record<string, unknown>>,
+    // Legacy field names kept for backward compatibility with old API consumers
     auditLogs: (auditLogs ?? []) as Array<Record<string, unknown>>,
     auditLogsTotal: auditLogsTotal ?? 0,
     bruteForceEvents: (bruteForceEvents ?? []) as Array<Record<string, unknown>>,

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
 import { FileText, MessageSquare, RefreshCw } from 'lucide-react'
+import TimePeriodPicker, { type TimePeriod } from '@/components/admin/time-period-picker'
 import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -42,7 +43,7 @@ function MetricCard({ label, value, sub, icon: Icon, loading, isDark }: {
           <Icon className="w-4 h-4" style={{ color: isDark ? '#A1A1AA' : '#52525B' }} />
         </div>
       </div>
-      <p className="text-4xl font-bold tracking-tight mb-1.5" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>{value}</p>
+      <p className="text-3xl sm:text-4xl font-bold tracking-tight mb-1.5 truncate" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>{value}</p>
       {sub && <p className="text-xs" style={{ color: '#71717A' }}>{sub}</p>}
     </div>
   )
@@ -53,6 +54,7 @@ export default function DocumentsAnalyticsPage() {
   const isDark = theme === 'dark'
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<TimePeriod>('month')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -78,17 +80,35 @@ export default function DocumentsAnalyticsPage() {
     },
   }
 
+  // Period-aware doc count
+  function docCount(): number {
+    if (!data) return 0
+    if (period === 'today') return data.totalDocumentsToday
+    if (period === 'week') return data.totalDocumentsThisWeek
+    if (period === 'all') return data.totalDocumentsAllTime
+    return data.totalDocumentsThisMonth
+  }
+  function msgCount(): number {
+    if (!data) return 0
+    if (period === 'today') return data.totalMessagesToday
+    if (period === 'all') return data.totalMessagesAllTime
+    return data.totalMessagesThisMonth
+  }
+
   return (
     <div className="space-y-8 pb-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>Documents</h1>
+          <h1 className="text-2xl font-bold" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>Documents & AI</h1>
           <p className="text-sm mt-0.5" style={{ color: '#71717A' }}>Generation counts, chat messages, and AI usage</p>
         </div>
-        <button onClick={fetchData} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-          style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}>
-          <RefreshCw className="w-3 h-3" /> Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <TimePeriodPicker value={period} onChange={setPeriod} />
+          <button onClick={fetchData} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+            style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}>
+            <RefreshCw className="w-3 h-3" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Document counts */}
@@ -127,8 +147,30 @@ export default function DocumentsAnalyticsPage() {
             value={(data?.totalAIRequestsThisMonth ?? 0).toLocaleString()} />
           <MetricCard label="Tokens Used" icon={FileText} loading={loading} isDark={isDark}
             value={(data?.totalTokensThisMonth ?? 0).toLocaleString()} />
-          <MetricCard label="Est. Cost" icon={FileText} loading={loading} isDark={isDark}
+          <MetricCard label="Est. Cost (₹)" icon={FileText} loading={loading} isDark={isDark}
             value={`₹${(data?.estimatedAICostThisMonth ?? 0).toLocaleString()}`} />
+        </div>
+      </div>
+
+      {/* Highlighted period count */}
+      <div className="rounded-2xl border p-5 flex items-center gap-6"
+        style={{ backgroundColor: chartBg, borderColor: chartBorder }}>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: '#71717A' }}>
+            Documents — selected period
+          </p>
+          <p className="text-4xl font-bold" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>
+            {loading ? '—' : docCount().toLocaleString()}
+          </p>
+        </div>
+        <div className="h-10 w-px" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: '#71717A' }}>
+            Messages — selected period
+          </p>
+          <p className="text-4xl font-bold" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>
+            {loading ? '—' : msgCount().toLocaleString()}
+          </p>
         </div>
       </div>
 

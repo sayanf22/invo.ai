@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
 import { Users, FileText, MessageSquare, DollarSign, TrendingUp, Activity, ArrowRight, RefreshCw, Mail } from 'lucide-react'
 import Link from 'next/link'
+import TimePeriodPicker, { type TimePeriod, periodToDateRange } from '@/components/admin/time-period-picker'
 import {
   AreaChart, Area,
   BarChart, Bar,
@@ -25,6 +26,7 @@ interface OverviewData {
   agencyUsers: number
   totalDocumentsAllTime: number
   totalDocumentsToday: number
+  totalDocumentsThisWeek: number
   totalDocumentsThisMonth: number
   totalMessagesAllTime: number
   totalMessagesToday: number
@@ -95,6 +97,7 @@ export default function AdminOverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [period, setPeriod] = useState<TimePeriod>('month')
 
   const fetchData = useCallback(async () => {
     setLoading(true); setError(false)
@@ -107,6 +110,41 @@ export default function AdminOverviewPage() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Pick the right counts based on the selected time period
+  function getDocCount(): number {
+    if (!data) return 0
+    if (period === 'today') return data.totalDocumentsToday
+    if (period === 'week') return data.totalDocumentsThisWeek
+    if (period === 'all') return data.totalDocumentsAllTime
+    return data.totalDocumentsThisMonth // month + year both show this month (year uses allTime via trend)
+  }
+  function getDocSub(): string {
+    if (period === 'today') return `${data?.totalDocumentsThisMonth ?? 0} this month`
+    if (period === 'week') return `${data?.totalDocumentsThisMonth ?? 0} this month`
+    if (period === 'all') return `${data?.totalDocumentsToday ?? 0} today · ${data?.totalDocumentsThisMonth ?? 0} this month`
+    return `${data?.totalDocumentsToday ?? 0} today · ${data?.totalDocumentsThisWeek ?? 0} this week`
+  }
+  function getMsgCount(): number {
+    if (!data) return 0
+    if (period === 'today') return data.totalMessagesToday
+    if (period === 'all') return data.totalMessagesAllTime
+    return data.totalMessagesAllTime // We only have all-time total + today from the API
+  }
+  function getEmailCount(): number {
+    if (!data) return 0
+    if (period === 'today') return data.totalEmailsToday
+    if (period === 'all') return data.totalEmailsAllTime
+    return data.totalEmailsThisMonth
+  }
+  function getEmailSub(): string {
+    if (!data) return ''
+    if (period === 'today') return `${data.totalEmailsThisMonth} this month · ${data.emailsOpenedThisMonth} opened`
+    if (period === 'all') return `${data.totalEmailsToday} today · ${data.emailsOpenedThisMonth} opened this month`
+    return `${data.totalEmailsToday} today · ${data.emailsOpenedThisMonth} opened · ${data.emailsBouncedThisMonth} bounced`
+  }
+
+  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   const chartBg = isDark ? '#0A0A0A' : '#FAFAFA'
   const chartBorder = isDark ? '#1A1A1A' : '#E5E5E5'
@@ -121,21 +159,22 @@ export default function AdminOverviewPage() {
     },
   }
 
-  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-
   return (
     <div className="space-y-8 pb-10">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>Overview</h1>
           <p className="text-sm mt-1" style={{ color: '#71717A' }} suppressHydrationWarning>{today}</p>
         </div>
-        <button onClick={fetchData}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all active:scale-95"
-          style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}>
-          <RefreshCw className="w-3 h-3" /> Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <TimePeriodPicker value={period} onChange={setPeriod} />
+          <button onClick={fetchData}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all active:scale-95"
+            style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}>
+            <RefreshCw className="w-3 h-3" /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -146,7 +185,7 @@ export default function AdminOverviewPage() {
         </div>
       )}
 
-      {/* ── 5 key KPI tiles — each links to its detail page ── */}
+      {/* ── KPI tiles ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiTile label="Total Users" icon={Users} loading={loading} isDark={isDark}
           href="/clorefy-ctrl-8x2m/analytics/engagement"
@@ -154,15 +193,15 @@ export default function AdminOverviewPage() {
           sub={`${data?.dailyActiveUsers ?? 0} active today · ${data?.newSignupsToday ?? 0} new today`} />
         <KpiTile label="Documents" icon={FileText} loading={loading} isDark={isDark}
           href="/clorefy-ctrl-8x2m/analytics/documents"
-          value={(data?.totalDocumentsAllTime ?? 0).toLocaleString()}
-          sub={`${data?.totalDocumentsToday ?? 0} today · ${data?.totalDocumentsThisMonth ?? 0} this month`} />
+          value={getDocCount().toLocaleString()}
+          sub={getDocSub()} />
         <KpiTile label="Emails Sent" icon={Mail} loading={loading} isDark={isDark}
-          href="/clorefy-ctrl-8x2m/analytics/documents"
-          value={(data?.totalEmailsAllTime ?? 0).toLocaleString()}
-          sub={`${data?.totalEmailsToday ?? 0} today · ${data?.totalEmailsThisMonth ?? 0} this month · ${data?.emailsOpenedThisMonth ?? 0} opened`} />
+          href="/clorefy-ctrl-8x2m/email-campaigns"
+          value={getEmailCount().toLocaleString()}
+          sub={getEmailSub()} />
         <KpiTile label="Chat Messages" icon={MessageSquare} loading={loading} isDark={isDark}
           href="/clorefy-ctrl-8x2m/analytics/documents"
-          value={(data?.totalMessagesAllTime ?? 0).toLocaleString()}
+          value={getMsgCount().toLocaleString()}
           sub={`${data?.totalMessagesToday ?? 0} today`} />
         <KpiTile label="MRR" icon={DollarSign} loading={loading} isDark={isDark}
           href="/clorefy-ctrl-8x2m/revenue"
@@ -170,7 +209,42 @@ export default function AdminOverviewPage() {
           sub={`${data?.activePaidUsers ?? 0} paid · ₹${((data?.currentMRR ?? 0) * 12).toLocaleString()} ARR`} />
       </div>
 
-      {/* ── Quick-nav section cards ── */}
+      {/* ── Tier breakdown ── */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: isDark ? '#3F3F46' : '#A1A1AA' }}>
+          Plan Breakdown
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Free', value: data?.freeUsers ?? 0, color: '#71717A' },
+            { label: 'Starter', value: data?.starterUsers ?? 0, color: '#6366F1' },
+            { label: 'Pro', value: data?.proUsers ?? 0, color: '#E07B39' },
+            { label: 'Agency', value: data?.agencyUsers ?? 0, color: '#22C55E' },
+          ].map(({ label, value, color }) => {
+            const total = data?.totalUsers ?? 1
+            const pct = total > 0 ? ((value / total) * 100).toFixed(0) : 0
+            return (
+              <div key={label} className="rounded-2xl border p-4"
+                style={{ backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA', borderColor: isDark ? '#1A1A1A' : '#E5E5E5' }}>
+                {loading ? (
+                  <div className="h-8 rounded animate-pulse" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-xs font-medium" style={{ color: '#71717A' }}>{label}</span>
+                    </div>
+                    <p className="text-2xl font-bold" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>{value.toLocaleString()}</p>
+                    <p className="text-xs mt-0.5" style={{ color: '#52525B' }}>{pct}% of total</p>
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Analytics section cards ── */}
       <div>
         <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: isDark ? '#3F3F46' : '#A1A1AA' }}>
           Analytics Sections

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
 import { Users, TrendingUp, Activity, RefreshCw } from 'lucide-react'
+import TimePeriodPicker, { type TimePeriod } from '@/components/admin/time-period-picker'
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -57,6 +58,7 @@ export default function EngagementPage() {
   const isDark = theme === 'dark'
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<TimePeriod>('month')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -91,10 +93,13 @@ export default function EngagementPage() {
           <h1 className="text-2xl font-bold" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>User Engagement</h1>
           <p className="text-sm mt-0.5" style={{ color: '#71717A' }}>Active users, signups, and plan distribution</p>
         </div>
-        <button onClick={fetchData} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-          style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}>
-          <RefreshCw className="w-3 h-3" /> Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <TimePeriodPicker value={period} onChange={setPeriod} />
+          <button onClick={fetchData} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+            style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}>
+            <RefreshCw className="w-3 h-3" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Active users */}
@@ -108,8 +113,7 @@ export default function EngagementPage() {
           <MetricCard label="MAU" icon={Activity} loading={loading} isDark={isDark}
             value={data?.monthlyActiveUsers ?? 0} sub="Active in last 30 days" />
           <MetricCard label="Paid Users" icon={Users} loading={loading} isDark={isDark}
-            value={data?.activePaidUsers ?? 0} sub="Non-free active accounts" />
-        </div>
+            value={data?.activePaidUsers ?? 0} sub="Non-free active accounts" />        </div>
       </div>
 
       {/* Signups */}

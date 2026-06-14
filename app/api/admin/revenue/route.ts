@@ -7,7 +7,12 @@ export async function GET(request: NextRequest) {
   if (!adminEmail) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   try {
-    const data = await getRevenue()
+    const { searchParams } = new URL(request.url)
+    const data = await getRevenue({
+      page: searchParams.get('page') ? Number(searchParams.get('page')) : undefined,
+      pageSize: searchParams.get('pageSize') ? Number(searchParams.get('pageSize')) : undefined,
+      status: searchParams.get('status') ?? undefined,
+    })
     return NextResponse.json(data)
   } catch (err) {
     console.error('[admin/revenue] Error:', err)
