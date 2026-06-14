@@ -71,21 +71,21 @@ const TIER_LIMITS: Record<UserTier, TierLimits> = {
     free: {
         documentsPerMonth: 5,
         messagesPerSession: 10,
-        chatMessagesPerSession: 20,   // advisory chat: more generous than doc session
+        chatMessagesPerSession: 200,
         emailsPerMonth: 5,
         allowedDocTypes: ["invoice", "contract", "quote"],
     },
     starter: {
         documentsPerMonth: 50,
         messagesPerSession: 30,
-        chatMessagesPerSession: 60,
+        chatMessagesPerSession: 500,
         emailsPerMonth: 100,
         allowedDocTypes: [...ALL_DOCUMENT_TYPES],
     },
     pro: {
         documentsPerMonth: 150,
         messagesPerSession: 50,
-        chatMessagesPerSession: 120,
+        chatMessagesPerSession: 1500,
         emailsPerMonth: 250,
         allowedDocTypes: [...ALL_DOCUMENT_TYPES],
     },
@@ -268,8 +268,10 @@ export async function checkChatMessageLimit(
                     limit: limits.chatMessagesPerSession,
                     tier: userTier,
                     message: userTier === "free"
-                        ? `You've used all ${limits.chatMessagesPerSession} chat messages in this session. Upgrade to Starter for ${TIER_LIMITS.starter.chatMessagesPerSession} messages/session.`
-                        : `You've used all ${limits.chatMessagesPerSession} chat messages in this session. Start a new chat or upgrade for more.`,
+                        ? `You've used all ${limits.chatMessagesPerSession} chat messages in this session. Upgrade to Starter for 500 messages/session.`
+                        : userTier === "starter"
+                        ? `You've used all ${limits.chatMessagesPerSession} chat messages in this session. Upgrade to Pro for 1,500 messages/session.`
+                        : `You've used all ${limits.chatMessagesPerSession} chat messages in this session. Start a new chat or upgrade for unlimited.`,
                 },
                 { status: 429 }
             )
