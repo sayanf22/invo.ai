@@ -83,7 +83,7 @@ function KpiTile({ label, value, sub, icon: Icon, href, loading, isDark }: {
           <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#71717A' }} />
         </div>
       </div>
-      <p className="text-4xl font-bold tracking-tight mb-1.5" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>{value}</p>
+      <p className="text-3xl sm:text-4xl font-bold tracking-tight mb-1.5 truncate" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>{value}</p>
       {sub && <p className="text-xs leading-relaxed" style={{ color: '#71717A' }}>{sub}</p>}
     </Link>
   )
@@ -280,15 +280,15 @@ export default function AdminOverviewPage() {
         ) : (
           <ul>
             {(data?.recentActivity ?? []).slice(0, 10).map((entry, i, arr) => (
-              <li key={i} className="py-2.5 flex items-start gap-3"
+              <li key={i} className="py-2.5 flex flex-wrap sm:flex-nowrap items-start gap-2 sm:gap-3"
                 style={{ borderBottom: i < arr.length - 1 ? `1px solid ${chartBorder}` : undefined }}>
-                <span className="text-[11px] whitespace-nowrap mt-0.5 w-28 shrink-0" style={{ color: '#52525B' }}>
+                <span className="text-[11px] sm:whitespace-nowrap mt-0.5 sm:w-28 shrink-0" style={{ color: '#52525B' }}>
                   {formatDate(entry.created_at as string)}
                 </span>
-                <span className="font-mono text-[11px] mt-0.5 whitespace-nowrap" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>
+                <span className="font-mono text-[11px] mt-0.5 sm:whitespace-nowrap break-all" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>
                   {entry.action as string}
                 </span>
-                <span className="truncate text-[11px]" style={{ color: '#71717A' }}>
+                <span className="text-[11px] break-all" style={{ color: '#71717A' }}>
                   {getActivityEmail(entry)}
                 </span>
               </li>

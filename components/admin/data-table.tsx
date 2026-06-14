@@ -211,7 +211,7 @@ export default function DataTable<T extends Record<string, unknown>>({
       {/* Pagination */}
       {(onPageChange || onPageSizeChange) && (
         <div
-          className="flex items-center justify-between px-4 py-3"
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3"
           style={{ borderTop: `1px solid ${borderColor}` }}
         >
           <div className="flex items-center gap-2 text-xs" style={{ color: textSecondary }}>

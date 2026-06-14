@@ -282,7 +282,7 @@ export default function UsersClient() {
   ]
 
   const bulkActions = (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <button
         onClick={handleExportSelected}
         className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded transition-colors"
@@ -363,13 +363,13 @@ export default function UsersClient() {
             <option value="active">Active</option>
             <option value="suspended">Suspended</option>
           </select>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="date"
               value={dateFrom}
               onChange={e => { setDateFrom(e.target.value); setPage(1) }}
               style={{ backgroundColor: isDark ? '#111111' : '#FAFAFA', borderColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}
-              className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500"
+              className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 min-w-0"
             />
             <span style={{ color: '#71717A' }} className="text-sm">to</span>
             <input
@@ -377,7 +377,7 @@ export default function UsersClient() {
               value={dateTo}
               onChange={e => { setDateTo(e.target.value); setPage(1) }}
               style={{ backgroundColor: isDark ? '#111111' : '#FAFAFA', borderColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}
-              className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500"
+              className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 min-w-0"
             />
           </div>
         </div>

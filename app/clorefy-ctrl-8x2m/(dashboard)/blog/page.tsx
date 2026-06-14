@@ -146,7 +146,7 @@ export default function AdminBlogPage() {
             required
             disabled={generating}
           />
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
@@ -163,11 +163,11 @@ export default function AdminBlogPage() {
             <button
               type="submit"
               disabled={generating}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
             >
               {generating ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating... (~30s)
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating...
                 </>
               ) : (
                 <>
@@ -180,7 +180,7 @@ export default function AdminBlogPage() {
       </div>
 
       {/* Status filter */}
-      <div className="flex gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         <span className="text-sm text-muted-foreground">Status:</span>
         {(["all", "draft", "review", "published", "archived"] as StatusFilter[]).map((s) => (
           <button
@@ -222,8 +222,8 @@ export default function AdminBlogPage() {
         ) : (
           posts.map((p) => (
             <div key={p.id} className="p-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     {p.category}
                   </span>
@@ -242,7 +242,7 @@ export default function AdminBlogPage() {
                   <span className="truncate">/blog/{p.slug}</span>
                 </div>
               </div>
-              <div className="flex gap-1.5 shrink-0">
+              <div className="flex flex-wrap gap-1.5 shrink-0">
                 <a
                   href={`/blog/${p.slug}`}
                   target="_blank"

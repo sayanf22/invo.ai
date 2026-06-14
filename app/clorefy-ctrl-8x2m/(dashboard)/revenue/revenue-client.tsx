@@ -198,11 +198,11 @@ export default function RevenueClient() {
 
       {/* Payment History */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between mb-3">
           <h2 className="text-base font-semibold" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Payment History</h2>
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
             style={{ backgroundColor: isDark ? '#111111' : '#FAFAFA', borderColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}
-            className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500">
+            className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 self-start sm:self-auto">
             <option value="">All Statuses</option>
             <option value="paid">Paid</option>
             <option value="failed">Failed</option>

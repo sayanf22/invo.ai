@@ -159,16 +159,18 @@ export default function SecurityClient() {
       {/* Audit Log Filters */}
       <div className="flex flex-wrap gap-3">
         <input type="text" placeholder="Action…" value={action} onChange={e => { setAction(e.target.value); setPage(1) }}
-          style={inputStyle} className="px-3 py-2 rounded-md border text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500" />
+          style={inputStyle} className="px-3 py-2 rounded-md border text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 min-w-0" />
         <input type="text" placeholder="User email…" value={email} onChange={e => { setEmail(e.target.value); setPage(1) }}
-          style={inputStyle} className="px-3 py-2 rounded-md border text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500" />
+          style={inputStyle} className="px-3 py-2 rounded-md border text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 min-w-0" />
         <input type="text" placeholder="IP address…" value={ip} onChange={e => { setIp(e.target.value); setPage(1) }}
-          style={inputStyle} className="px-3 py-2 rounded-md border text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500" />
-        <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }}
-          style={inputStyle} className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500" />
-        <span style={{ color: '#71717A' }} className="text-sm self-center">to</span>
-        <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }}
-          style={inputStyle} className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500" />
+          style={inputStyle} className="px-3 py-2 rounded-md border text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 min-w-0" />
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }}
+            style={inputStyle} className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 min-w-0" />
+          <span style={{ color: '#71717A' }} className="text-sm">to</span>
+          <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }}
+            style={inputStyle} className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 min-w-0" />
+        </div>
       </div>
 
       {error && (

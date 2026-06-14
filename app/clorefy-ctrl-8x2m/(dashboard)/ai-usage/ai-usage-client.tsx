@@ -227,7 +227,7 @@ export default function AIUsageClient() {
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-4">
           <input type="text" placeholder="User email…" value={userEmail} onChange={e => { setUserEmail(e.target.value); setPage(1) }}
-            style={inputStyle} className="px-3 py-2 rounded-md border text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500" />
+            style={inputStyle} className="px-3 py-2 rounded-md border text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 min-w-0" />
           <select value={docType} onChange={e => { setDocType(e.target.value); setPage(1) }}
             style={inputStyle} className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500">
             <option value="">All Types</option>
@@ -248,11 +248,13 @@ export default function AIUsageClient() {
             <option value="true">Success</option>
             <option value="false">Error</option>
           </select>
-          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }}
-            style={inputStyle} className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500" />
-          <span style={{ color: '#71717A' }} className="text-sm self-center">to</span>
-          <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }}
-            style={inputStyle} className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500" />
+          <div className="flex flex-wrap items-center gap-2">
+            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }}
+              style={inputStyle} className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 min-w-0" />
+            <span style={{ color: '#71717A' }} className="text-sm">to</span>
+            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }}
+              style={inputStyle} className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 min-w-0" />
+          </div>
         </div>
 
         {error && (
