@@ -11,7 +11,7 @@ import { authFetch } from "@/lib/auth-fetch"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { PageLoader } from "@/components/ui/page-loader"
 import { toast } from "sonner"
-import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
+import { COUNTRY_PRICING, detectCountryFromTimezone, detectCountryFromIP, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import Link from "next/link"
@@ -139,8 +139,15 @@ export default function BillingPage() {
         if (!user) { router.push("/auth/login"); return }
         fetchUsage()
         fetchPayments()
-        const detected = detectCountryFromTimezone()
-        setCountryPricing(COUNTRY_PRICING[detected] || COUNTRY_PRICING[DEFAULT_COUNTRY])
+        // Step 1: instant timezone detection
+        const tzCountry = detectCountryFromTimezone()
+        setCountryPricing(COUNTRY_PRICING[tzCountry] || COUNTRY_PRICING[DEFAULT_COUNTRY])
+        // Step 2: refine with IP detection (Cloudflare header, more accurate)
+        detectCountryFromIP().then((ipCountry) => {
+            if (ipCountry && COUNTRY_PRICING[ipCountry]) {
+                setCountryPricing(COUNTRY_PRICING[ipCountry])
+            }
+        })
     }, [user, router, fetchUsage, fetchPayments])
 
     const currentPlan = data?.plan || "free"
@@ -338,7 +345,7 @@ export default function BillingPage() {
             </div>
 
             <p className="text-[11px] text-muted-foreground text-center mt-6">
-                Payments processed securely by Razorpay. All prices in INR. Cancel anytime.{" "}
+                Payments processed securely by Razorpay. Prices shown in {countryPricing.currency} ({countryPricing.country}). Cancel anytime.{" "}
                 <a href="/refund-policy" className="underline">Refund Policy</a> · <a href="/terms" className="underline">Terms</a>
             </p>
 

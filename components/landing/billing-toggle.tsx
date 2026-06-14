@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Check, Minus, ArrowRight, Clock, Zap, Lock } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
+import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing, getValueHint } from "@/lib/pricing"
 import { createClient } from "@/lib/supabase"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -96,8 +96,18 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
-    const detected = detectCountryFromTimezone()
-    setCp(COUNTRY_PRICING[detected] || COUNTRY_PRICING[DEFAULT_COUNTRY])
+    // Step 1: Set timezone-based pricing instantly (no latency)
+    const tzCountry = detectCountryFromTimezone()
+    setCp(COUNTRY_PRICING[tzCountry] ?? COUNTRY_PRICING[DEFAULT_COUNTRY])
+
+    // Step 2: Refine with IP-based detection (Cloudflare cf-ipcountry, more accurate)
+    import('@/lib/pricing').then(({ detectCountryFromIP }) => {
+      detectCountryFromIP().then((ipCountry) => {
+        if (ipCountry && COUNTRY_PRICING[ipCountry]) {
+          setCp(COUNTRY_PRICING[ipCountry])
+        }
+      })
+    })
 
     const supabase = createClient()
     supabase.auth.getSession().then(({ data }) => {
@@ -115,36 +125,52 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
   return (
     <>
       {/* ── Billing toggle — landing style with offset shadow ── */}
-      <div className="inline-flex items-center gap-1 p-1 rounded-full bg-white border-[2px] border-[var(--landing-dark)] shadow-[3px_3px_0px_0px_rgba(18,18,17,1)]">
-        <button
-          onClick={() => setBilling("monthly")}
-          className={`px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 ${
-            billing === "monthly"
-              ? "bg-[var(--landing-dark)] text-white"
-              : "text-[var(--landing-text-muted)] hover:text-[var(--landing-text-dark)]"
-          }`}
-        >
-          Monthly
-        </button>
-        <button
-          onClick={() => setBilling("yearly")}
-          className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 ${
-            billing === "yearly"
-              ? "bg-[var(--landing-dark)] text-white"
-              : "text-[var(--landing-text-muted)] hover:text-[var(--landing-text-dark)]"
-          }`}
-        >
-          Yearly
-          <span
-            className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-              billing === "yearly"
-                ? "bg-[var(--landing-amber)] text-white"
-                : "bg-[var(--landing-amber)]/15 text-[var(--landing-amber)]"
+      <div className="flex flex-col items-center gap-3 mb-2">
+        <div className="inline-flex items-center gap-1 p-1 rounded-full bg-white border-[2px] border-[var(--landing-dark)] shadow-[3px_3px_0px_0px_rgba(18,18,17,1)]">
+          <button
+            onClick={() => setBilling("monthly")}
+            className={`px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 ${
+              billing === "monthly"
+                ? "bg-[var(--landing-dark)] text-white"
+                : "text-[var(--landing-text-muted)] hover:text-[var(--landing-text-dark)]"
             }`}
           >
-            Save 20%
-          </span>
-        </button>
+            Monthly
+          </button>
+          <button
+            onClick={() => setBilling("yearly")}
+            className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 ${
+              billing === "yearly"
+                ? "bg-[var(--landing-dark)] text-white"
+                : "text-[var(--landing-text-muted)] hover:text-[var(--landing-text-dark)]"
+            }`}
+          >
+            Yearly
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                billing === "yearly"
+                  ? "bg-[var(--landing-amber)] text-white"
+                  : "bg-[var(--landing-amber)]/15 text-[var(--landing-amber)]"
+              }`}
+            >
+              Save 20%
+            </span>
+          </button>
+        </div>
+        {/* Country indicator */}
+        {cp.countryCode !== DEFAULT_COUNTRY && (
+          <p className="text-[11px] text-[var(--landing-text-muted)] font-medium">
+            Showing prices for <span className="font-bold text-[var(--landing-text-dark)]">{cp.country}</span>
+            {" · "}
+            <span className="text-[var(--landing-amber)] font-semibold">{cp.currency}</span>
+          </p>
+        )}
+        {cp.countryCode === DEFAULT_COUNTRY && (
+          <p className="text-[11px] text-[var(--landing-text-muted)] font-medium">
+            Prices in <span className="font-bold text-[var(--landing-text-dark)]">Indian Rupees (₹)</span>
+            {" · "}Shown based on your location
+          </p>
+        )}
       </div>
 
       {/* ── Cards ── */}
@@ -280,7 +306,9 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
                       : { backgroundColor: "#faf7f2", color: "var(--landing-text-muted)", borderColor: "#ebe6dd" }
                   }
                 >
-                  {plan.valueHint}
+                  {plan.id === "free" || plan.comingSoon
+                    ? plan.valueHint
+                    : getValueHint(plan.id as "starter" | "pro" | "agency", cp)}
                 </div>
 
                 <p className={`text-sm mb-5 leading-relaxed ${plan.featured ? "text-white/60" : "text-[var(--landing-text-muted)]"}`}>
@@ -443,7 +471,7 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
                 { value: "< 30s", label: "per doc", animated: true },
                 { value: "~$0.13", label: "per doc", highlight: true },
               ]}
-              total={`${formatPrice(COUNTRY_PRICING["US"].pro.yearly, COUNTRY_PRICING["US"])}/mo`}
+              total={`${formatPrice(cp.pro.yearly, cp)}/mo`}
               totalLabel="150 docs"
               variant="featured"
             />
