@@ -17,6 +17,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import { deleteByPrefix } from "@/lib/r2"
+import { deleteBrevoContact } from "@/lib/brevo"
 
 function getServiceRoleClient(): SupabaseClient {
   return createClient(
@@ -106,6 +107,15 @@ export async function deleteUserAccount(
       .remove([`signatures/saved_${userId}.jpg`, `signatures/saved_${userId}.png`])
   } catch {
     /* best-effort */
+  }
+
+  // Remove the Brevo contact so no re-engagement automation can email them again.
+  if (email) {
+    try {
+      await deleteBrevoContact(email)
+    } catch {
+      /* best-effort */
+    }
   }
 
   // 5. Finally remove the auth.users record

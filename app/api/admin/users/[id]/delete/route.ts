@@ -77,9 +77,7 @@ export async function DELETE(
   }
 
   const result = await deleteUserAccount(id, {
-    blockEmail: true,
-    blockReason: 'account_deleted_by_admin',
-    blockedBy: adminEmail,
+    blockEmail: false,
   })
 
   if (!result.success) {

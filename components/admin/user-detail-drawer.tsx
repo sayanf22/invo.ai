@@ -546,9 +546,9 @@ export default function UserDetailDrawer({ userId, onClose, onDeleted }: Props) 
                 <DialogDescription style={{ color: '#71717A' }}>
                   This wipes <span className="font-medium">everything</span> for{' '}
                   <span className="font-mono">{userEmail || 'this user'}</span> — profile, business,
-                  documents, chats, prompts, signatures, files, payments and usage. The email is also
-                  blocked from registering again. This cannot be undone. This is the first of two
-                  confirmations.
+                  documents, chats, prompts, signatures, files, payments and usage. Any scheduled or
+                  automated emails for this user stop immediately. This cannot be undone. This is the
+                  first of two confirmations.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="gap-2">

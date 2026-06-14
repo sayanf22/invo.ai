@@ -147,3 +147,6 @@ end;
 $$;
 
 revoke all on function public.delete_user_account(uuid) from public, anon, authenticated;
+
+-- The trigger function is never meant to be called directly via PostgREST RPC.
+revoke all on function public.prevent_blocked_email_signup() from public, anon, authenticated;

@@ -217,6 +217,16 @@ export async function addToOnboardingList(contact: BulkEmailContact): Promise<bo
 }
 
 /**
+ * Permanently delete a Brevo contact (all lists + automations).
+ * Called when an account is deleted or suspended so we never email them again.
+ * Best-effort — never throws.
+ */
+export async function deleteBrevoContact(email: string): Promise<void> {
+  if (!email) return
+  await brevoCall("DELETE", `/contacts/${encodeURIComponent(email)}`)
+}
+
+/**
  * Get count of contacts in a Brevo list.
  * Used by admin dashboard.
  */

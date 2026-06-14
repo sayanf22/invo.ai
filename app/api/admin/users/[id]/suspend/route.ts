@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAdminSession } from '@/lib/admin-auth'
 import { logAudit } from '@/lib/audit-log'
 import { isValidUUID, getAdminClientIP } from '@/lib/admin-utils'
+import { deleteBrevoContact } from '@/lib/brevo'
 
 export async function PATCH(
   request: NextRequest,
@@ -53,6 +54,8 @@ export async function PATCH(
           { email: email.toLowerCase(), reason: 'account_suspended', blocked_by: adminEmail },
           { onConflict: 'email' }
         )
+        // Stop all re-engagement / automation emails immediately.
+        await deleteBrevoContact(email).catch(() => {})
       } else {
         await supabase
           .from('blocked_emails')

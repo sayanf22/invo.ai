@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profiles, error: pErr } = await supabase
     .from("profiles")
-    .select("id, email, full_name, onboarding_complete, last_active_at, created_at, businesses!left(business_type)")
+    .select("id, email, full_name, onboarding_complete, last_active_at, created_at, suspended_at, businesses!left(business_type)")
     .not("email", "is", null)
 
   if (pErr || !profiles) return NextResponse.json({ error: "Failed to fetch profiles" }, { status: 500 })
@@ -121,6 +121,16 @@ export async function POST(req: NextRequest) {
 
   for (const user of profiles as any[]) {
     if (!user.email) { stats.skipped++; continue }
+
+    // ── Suspended users: never send re-engagement emails. Pull them from both
+    // Brevo lists so any in-flight automation stops, then skip. Their data is
+    // retained — this only affects marketing/automation emails.
+    if (user.suspended_at) {
+      await brevoRemove(user.email, ONBOARDING_LIST)
+      await brevoRemove(user.email, ACTIVE_LIST)
+      stats.skipped++
+      continue
+    }
 
     const uid: string = user.id
     const sent = sentMap.get(uid) ?? new Map<string, Date>()
