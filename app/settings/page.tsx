@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { Settings, Bell, Lock, User, CreditCard, ArrowLeft } from "lucide-react"
 import { PaymentSettings } from "@/components/payment-settings"
+import { DeleteAccountSection } from "@/components/delete-account-section"
 import { motion } from "framer-motion"
 import Link from "next/link"
 
@@ -360,6 +361,8 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
+
+          <DeleteAccountSection />
             </motion.div>
         </TabsContent>
       </Tabs>

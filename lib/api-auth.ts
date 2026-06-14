@@ -165,6 +165,31 @@ export async function authenticateRequest(request?: Request): Promise<AuthResult
             }
         }
 
+        // SECURITY: Block suspended accounts from using ANY authenticated API.
+        // A suspended user keeps a valid JWT until it expires, so we must reject
+        // at the API layer (not just the UI). RLS lets a user read their own
+        // profile, so this single lightweight lookup is sufficient.
+        try {
+            const { data: profile } = await supabase
+                .from("profiles")
+                .select("suspended_at")
+                .eq("id", user.id)
+                .maybeSingle()
+            if (profile?.suspended_at) {
+                return {
+                    user: null,
+                    supabase: null,
+                    error: NextResponse.json(
+                        { error: "Your account has been suspended. Contact support@clorefy.com." },
+                        { status: 403 }
+                    ),
+                }
+            }
+        } catch {
+            // If the suspension check fails (network/db), fail open for normal
+            // operation — middleware + login still enforce suspension on pages.
+        }
+
         return { user, supabase: supabase as SupabaseClient<Database>, error: null }
     } catch (err) {
         console.error("Auth check failed:", err)

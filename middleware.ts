@@ -53,6 +53,43 @@ function cacheIPResult(ip: string, blocked: boolean): void {
   ipBlocklistCache.set(ip, { blocked, expiresAt: Date.now() + ttl })
 }
 
+// ── Suspended-user cache ────────────────────────────────────────────────
+// Suspended status is checked once per minute per user to avoid a DB call on
+// every navigation. A newly suspended user can still load a page for up to
+// 60s, which is acceptable — the API layer (authenticateRequest) blocks all
+// data operations immediately, so they can't actually do anything.
+const SUSPENDED_CACHE_TTL = 60 * 1000 // 1 min
+const suspendedCache = new Map<string, { suspended: boolean; expiresAt: number }>()
+
+async function isUserSuspended(userId: string): Promise<boolean> {
+  const cached = suspendedCache.get(userId)
+  if (cached && Date.now() < cached.expiresAt) return cached.suspended
+
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (supabaseUrl && supabaseKey) {
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=suspended_at`,
+        {
+          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+          signal: AbortSignal.timeout(2000),
+        }
+      )
+      if (res.ok) {
+        const rows = await res.json()
+        const suspended = Array.isArray(rows) && rows.length > 0 && !!rows[0].suspended_at
+        suspendedCache.set(userId, { suspended, expiresAt: Date.now() + SUSPENDED_CACHE_TTL })
+        return suspended
+      }
+    }
+  } catch {
+    // Non-blocking — fail open on pages (API layer still enforces suspension)
+  }
+  return false
+}
+
 function getClientIP(request: NextRequest): string {
   // Cloudflare provides the real IP
   const cfIP = request.headers.get("cf-connecting-ip")
@@ -91,6 +128,7 @@ const PUBLIC_PATHS = [
   "/business",
   "/tools",
   "/blog", // public blog — no auth required
+  "/suspended", // suspended-account notice page — public so suspended users can see why
   "/clorefy-alternative-spellings",
   "/clorefy", // brand name URL — public, no auth needed
   "/clorify", // misspelling redirect — public
@@ -375,6 +413,22 @@ export async function middleware(request: NextRequest) {
     if (nowMs - lastUpdate > LAST_ACTIVE_THROTTLE) {
       lastActiveCache.set(userId, nowMs)
       updateLastActive(userId).catch(() => {})
+    }
+  }
+
+  // ── Suspended account guard ──────────────────────────────────────────
+  // Redirect suspended users to the public /suspended notice page (which
+  // signs them out). Skip public pages and the notice page itself so we
+  // don't loop. The API layer enforces this immediately; this is the page UX.
+  if (
+    isAuthenticated &&
+    userId &&
+    !isPublic &&
+    pathname !== "/suspended"
+  ) {
+    const suspended = await isUserSuspended(userId)
+    if (suspended) {
+      return NextResponse.redirect(new URL("/suspended", request.url))
     }
   }
 

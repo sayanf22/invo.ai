@@ -415,6 +415,7 @@ export default function UsersClient() {
       <UserDetailDrawer
         userId={drawerUserId}
         onClose={() => setDrawerUserId(null)}
+        onDeleted={() => { setDrawerUserId(null); fetchUsers() }}
       />
     </div>
   )

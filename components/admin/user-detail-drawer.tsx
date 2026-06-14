@@ -1,9 +1,17 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { X, Loader2, AlertTriangle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import ConfirmationDialog from './confirmation-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import TierOverrideModal from './tier-override-modal'
 import { useAdminTheme } from './admin-theme-provider'
 
@@ -22,6 +30,7 @@ interface UserDetailData {
 interface Props {
   userId: string | null
   onClose: () => void
+  onDeleted?: () => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -94,7 +103,7 @@ function Skeleton({ isDark }: { isDark: boolean }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function UserDetailDrawer({ userId, onClose }: Props) {
+export default function UserDetailDrawer({ userId, onClose, onDeleted }: Props) {
   const { theme } = useAdminTheme()
   const isDark = theme === 'dark'
   const [data, setData] = useState<UserDetailData | null>(null)
@@ -108,6 +117,12 @@ export default function UserDetailDrawer({ userId, onClose }: Props) {
     destructive?: boolean
   }>({ open: false, title: '', description: '', action: async () => {} })
   const [actionLoading, setActionLoading] = useState(false)
+
+  // ── Delete-account flow (two-step + type-to-confirm) ────────────────
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const fetchUser = useCallback(async (id: string) => {
     setLoading(true)
@@ -140,6 +155,42 @@ export default function UserDetailDrawer({ userId, onClose }: Props) {
   const business = data?.business
   const usage = data?.usageStats
   const isSuspended = !!profile?.suspended_at
+  const userEmail = typeof profile?.email === 'string' ? profile.email : ''
+
+  function closeDeleteDialog() {
+    if (deleteLoading) return
+    setDeleteOpen(false)
+    setDeleteStep(1)
+    setDeleteConfirmEmail('')
+  }
+
+  async function handleDeleteUser() {
+    if (!userId) return
+    if (deleteConfirmEmail.trim().toLowerCase() !== userEmail.toLowerCase()) {
+      toast.error('The email does not match this account.')
+      return
+    }
+    setDeleteLoading(true)
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmEmail: deleteConfirmEmail.trim() }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Failed')
+      toast.success('Account permanently deleted')
+      setDeleteOpen(false)
+      setDeleteStep(1)
+      setDeleteConfirmEmail('')
+      onDeleted?.()
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete account')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
 
   async function runAction(fn: () => Promise<Response>, successMsg: string) {
     setActionLoading(true)
@@ -407,7 +458,7 @@ export default function UserDetailDrawer({ userId, onClose }: Props) {
                               fetch(`/api/admin/users/${userId}/suspend`, {
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ suspend: !isSuspended }),
+                                body: JSON.stringify({ suspended: !isSuspended }),
                               }),
                             isSuspended ? 'User unsuspended' : 'User suspended'
                           )
@@ -432,6 +483,17 @@ export default function UserDetailDrawer({ userId, onClose }: Props) {
                     }}
                   >
                     Reset Password
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDeleteStep(1)
+                      setDeleteConfirmEmail('')
+                      setDeleteOpen(true)
+                    }}
+                    className="px-3 py-1.5 text-sm rounded-md text-white flex items-center gap-1.5 bg-red-700 hover:bg-red-600 active:scale-95 transition-all duration-150"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete Account
                   </button>
                 </div>
               </Section>
@@ -464,6 +526,97 @@ export default function UserDetailDrawer({ userId, onClose }: Props) {
         loading={actionLoading}
         onConfirm={confirmDialog.action}
       />
+
+      {/* Delete Account — two-step + type-to-confirm */}
+      <Dialog open={deleteOpen} onOpenChange={(o) => (o ? setDeleteOpen(true) : closeDeleteDialog())}>
+        <DialogContent
+          style={{
+            backgroundColor: isDark ? '#0A0A0A' : '#FFFFFF',
+            borderColor: isDark ? '#1A1A1A' : '#E5E5E5',
+            color: isDark ? '#F5F5F5' : '#0A0A0A',
+          }}
+        >
+          {deleteStep === 1 ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-500">
+                  <AlertTriangle className="w-5 h-5" />
+                  Permanently delete this account?
+                </DialogTitle>
+                <DialogDescription style={{ color: '#71717A' }}>
+                  This wipes <span className="font-medium">everything</span> for{' '}
+                  <span className="font-mono">{userEmail || 'this user'}</span> — profile, business,
+                  documents, chats, prompts, signatures, files, payments and usage. The email is also
+                  blocked from registering again. This cannot be undone. This is the first of two
+                  confirmations.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2">
+                <button
+                  onClick={closeDeleteDialog}
+                  className="px-4 py-2 rounded-md text-sm active:scale-95 transition-all"
+                  style={{ backgroundColor: isDark ? '#1A1A1A' : '#F0F0F0', color: isDark ? '#F5F5F5' : '#0A0A0A' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setDeleteStep(2)}
+                  className="px-4 py-2 rounded-md text-sm text-white bg-red-700 hover:bg-red-600 active:scale-95 transition-all"
+                >
+                  Continue
+                </button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-500">
+                  <AlertTriangle className="w-5 h-5" />
+                  Final confirmation
+                </DialogTitle>
+                <DialogDescription style={{ color: '#71717A' }}>
+                  Type the user&apos;s email{' '}
+                  <span className="font-mono font-semibold" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
+                    {userEmail}
+                  </span>{' '}
+                  to confirm permanent deletion.
+                </DialogDescription>
+              </DialogHeader>
+              <input
+                value={deleteConfirmEmail}
+                onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                placeholder="Type the email to confirm"
+                autoFocus
+                disabled={deleteLoading}
+                className="w-full px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-red-500"
+                style={{
+                  backgroundColor: isDark ? '#111111' : '#FAFAFA',
+                  borderColor: isDark ? '#1A1A1A' : '#E5E5E5',
+                  color: isDark ? '#F5F5F5' : '#0A0A0A',
+                }}
+              />
+              <DialogFooter className="gap-2">
+                <button
+                  onClick={closeDeleteDialog}
+                  disabled={deleteLoading}
+                  className="px-4 py-2 rounded-md text-sm active:scale-95 transition-all disabled:opacity-50"
+                  style={{ backgroundColor: isDark ? '#1A1A1A' : '#F0F0F0', color: isDark ? '#F5F5F5' : '#0A0A0A' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteUser}
+                  disabled={deleteLoading || deleteConfirmEmail.trim().toLowerCase() !== userEmail.toLowerCase()}
+                  className="px-4 py-2 rounded-md text-sm text-white flex items-center gap-2 bg-red-700 hover:bg-red-600 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  Permanently delete
+                </button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

@@ -39,6 +39,8 @@ export type AuditAction =
     | "admin.tier_change"
     | "admin.user_suspend"
     | "admin.user_unsuspend"
+    | "admin.user_delete"
+    | "account.self_delete"
     | "admin.usage_reset"
     | "admin.announcement_create"
     | "admin.ip_block"

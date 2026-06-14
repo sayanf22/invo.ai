@@ -162,3 +162,67 @@ export async function deleteObject(objectKey: string): Promise<void> {
   const bucket = await getBucketName()
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }))
 }
+
+/**
+ * Delete every object under a key prefix (e.g. "logos/<userId>/").
+ * Best-effort — used when wiping a user's account. Never throws; returns the
+ * number of objects deleted so callers can log it.
+ */
+export async function deleteByPrefix(prefix: string): Promise<number> {
+  let deleted = 0
+
+  // Native R2 binding (Cloudflare Workers)
+  const nativeBucket = await getNativeR2Bucket()
+  if (nativeBucket) {
+    const bucket = nativeBucket as unknown as {
+      list: (opts: { prefix: string; cursor?: string }) => Promise<{
+        objects: Array<{ key: string }>
+        truncated: boolean
+        cursor?: string
+      }>
+      delete: (key: string) => Promise<void>
+    }
+    let cursor: string | undefined
+    do {
+      const listed = await bucket.list({ prefix, cursor })
+      for (const obj of listed.objects) {
+        try {
+          await bucket.delete(obj.key)
+          deleted++
+        } catch {
+          /* best-effort */
+        }
+      }
+      cursor = listed.truncated ? listed.cursor : undefined
+    } while (cursor)
+    return deleted
+  }
+
+  // S3 SDK fallback (local dev)
+  try {
+    const { ListObjectsV2Command, DeleteObjectCommand } = await import("@aws-sdk/client-s3")
+    const client = await getS3Client()
+    const bucket = await getBucketName()
+    let continuationToken: string | undefined
+    do {
+      const listed: any = await client.send(
+        new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: continuationToken })
+      )
+      const contents: Array<{ Key?: string }> = listed.Contents ?? []
+      for (const obj of contents) {
+        if (!obj.Key) continue
+        try {
+          await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: obj.Key }))
+          deleted++
+        } catch {
+          /* best-effort */
+        }
+      }
+      continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined
+    } while (continuationToken)
+  } catch {
+    /* best-effort — storage cleanup failure must not block account deletion */
+  }
+
+  return deleted
+}
