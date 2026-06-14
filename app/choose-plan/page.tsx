@@ -46,9 +46,13 @@ export default function ChoosePlanPage() {
 
     const { subscribe, isProcessing } = useRazorpay({
         onSuccess: async () => {
-            // Mark plan as selected in profile
+            // Mark plan as selected in profile (server-authoritative — protected column)
             if (user) {
-                await supabase.from("profiles").update({ plan_selected: true } as any).eq("id", user.id)
+                await fetch("/api/profile/progress", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ planSelected: true }),
+                })
             }
             toast.success("Plan activated! Let's set up your business profile.")
             router.push("/onboarding?plan_selected=1")
@@ -97,8 +101,12 @@ export default function ChoosePlanPage() {
                 current_period_start: new Date().toISOString(),
             } as any, { onConflict: "user_id" })
 
-            // Mark plan as selected
-            await supabase.from("profiles").update({ plan_selected: true } as any).eq("id", user.id)
+            // Mark plan as selected (server-authoritative — protected column)
+            await fetch("/api/profile/progress", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ planSelected: true }),
+            })
 
             toast.success("Free plan activated! Let's set up your business profile.")
             // Pass plan_selected=1 as a query param so the onboarding page

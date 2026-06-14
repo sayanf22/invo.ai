@@ -87,8 +87,8 @@ export async function POST(request: NextRequest) {
 
     const sigKey = `sb:${objectKey}`
 
-    // Save key to profiles
-    await auth.supabase
+    // Save key to profiles (protected column — service role only)
+    await serviceSupabase
       .from("profiles")
       .update({ saved_signature_url: sigKey } as any)
       .eq("id", auth.user.id)
@@ -112,7 +112,7 @@ export async function DELETE(request: NextRequest) {
       `signatures/saved_${auth.user.id}.png`,
     ]).catch(() => {})
 
-    await auth.supabase
+    await serviceSupabase
       .from("profiles")
       .update({ saved_signature_url: null } as any)
       .eq("id", auth.user.id)

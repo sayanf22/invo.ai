@@ -211,14 +211,14 @@ export default function OnboardingPage() {
                 throw businessError
             }
 
-            // Update profile onboarding status
-            const { error: profileError } = await supabase
-                .from("profiles")
-                .update({ onboarding_complete: true })
-                .eq("id", user.id)
-
-            if (profileError) {
-                throw profileError
+            // Update profile onboarding status (server-authoritative — protected column)
+            const obRes = await fetch("/api/profile/progress", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ onboardingComplete: true }),
+            })
+            if (!obRes.ok) {
+                throw new Error("Failed to mark onboarding complete")
             }
 
             toast.success("🎉 Business profile saved! Welcome to Clorefy")
@@ -245,10 +245,11 @@ export default function OnboardingPage() {
     const handleSkip = async () => {
         if (!user) return
         try {
-            await supabase
-                .from("profiles")
-                .update({ onboarding_complete: true })
-                .eq("id", user.id)
+            await fetch("/api/profile/progress", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ onboardingComplete: true }),
+            })
             
             localStorage.setItem("clorefy_onboarding_skipped", "true")
             localStorage.removeItem("clorefy_onboarding_phase")

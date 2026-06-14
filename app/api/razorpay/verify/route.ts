@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
 import { verifyPaymentSignature, PLANS, isValidPlanId } from "@/lib/razorpay"
 import { logAudit } from "@/lib/audit-log"
+import { createClient } from "@supabase/supabase-js"
 import type { NextRequest } from "next/server"
 
 /**
@@ -93,8 +94,13 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Failed to activate subscription" }, { status: 500 })
         }
 
-        // Mark plan as selected in profile
-        await auth.supabase
+        // Mark plan as selected in profile (protected column — service role only)
+        const svc = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { persistSession: false, autoRefreshToken: false } }
+        )
+        await svc
             .from("profiles")
             .update({ plan_selected: true } as any)
             .eq("id", auth.user.id)
