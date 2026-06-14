@@ -3,9 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
 import { Users, TrendingUp, Activity, RefreshCw } from 'lucide-react'
-import TimePeriodPicker, { type TimePeriod } from '@/components/admin/time-period-picker'
-import {
-  AreaChart, Area,
+import TimePeriodPicker, { type DateRange, rangeToQueryParams } from '@/components/admin/time-period-picker'
+import {  AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -18,6 +17,7 @@ interface OverviewData {
   newSignupsThisMonth: number
   newSignupsThisYear: number
   dailyActiveUsers: number
+  weeklyActiveUsers?: number
   monthlyActiveUsers: number
   activePaidUsers: number
   freeUsers: number
@@ -58,19 +58,19 @@ export default function EngagementPage() {
   const isDark = theme === 'dark'
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [period, setPeriod] = useState<TimePeriod>('month')
+  const [range, setRange] = useState<DateRange>({ period: 'month' })
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (r: DateRange) => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/overview')
+      const res = await fetch(`/api/admin/overview?${rangeToQueryParams(r)}`)
       if (!res.ok) throw new Error('Failed')
       setData(await res.json())
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData(range) }, [fetchData, range])
 
   const chartBg = isDark ? '#0A0A0A' : '#FAFAFA'
   const chartBorder = isDark ? '#1A1A1A' : '#E5E5E5'
@@ -94,8 +94,8 @@ export default function EngagementPage() {
           <p className="text-sm mt-0.5" style={{ color: '#71717A' }}>Active users, signups, and plan distribution</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <TimePeriodPicker value={period} onChange={setPeriod} />
-          <button onClick={fetchData} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+          <TimePeriodPicker value={range} onChange={setRange} />
+          <button onClick={() => fetchData(range)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
             style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}>
             <RefreshCw className="w-3 h-3" /> Refresh
           </button>

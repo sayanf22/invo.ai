@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
 import { FileText, MessageSquare, RefreshCw } from 'lucide-react'
-import TimePeriodPicker, { type TimePeriod } from '@/components/admin/time-period-picker'
+import TimePeriodPicker, { type DateRange, rangeToQueryParams } from '@/components/admin/time-period-picker'
 import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -15,9 +15,10 @@ interface OverviewData {
   totalDocumentsToday: number
   totalDocumentsThisWeek: number
   totalDocumentsThisMonth: number
+  totalDocumentsThisYear?: number
   totalMessagesAllTime: number
-  totalMessagesToday: number
-  totalMessagesThisMonth: number
+  totalMessagesToday?: number
+  totalMessagesThisMonth?: number
   totalAIRequestsThisMonth: number
   totalTokensThisMonth: number
   estimatedAICostThisMonth: number
@@ -54,19 +55,19 @@ export default function DocumentsAnalyticsPage() {
   const isDark = theme === 'dark'
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [period, setPeriod] = useState<TimePeriod>('month')
+  const [range, setRange] = useState<DateRange>({ period: 'month' })
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (r: DateRange) => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/overview')
+      const res = await fetch(`/api/admin/overview?${rangeToQueryParams(r)}`)
       if (!res.ok) throw new Error('Failed')
       setData(await res.json())
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData(range) }, [fetchData, range])
 
   const chartBg = isDark ? '#0A0A0A' : '#FAFAFA'
   const chartBorder = isDark ? '#1A1A1A' : '#E5E5E5'
@@ -83,16 +84,17 @@ export default function DocumentsAnalyticsPage() {
   // Period-aware doc count
   function docCount(): number {
     if (!data) return 0
-    if (period === 'today') return data.totalDocumentsToday
-    if (period === 'week') return data.totalDocumentsThisWeek
-    if (period === 'all') return data.totalDocumentsAllTime
+    if (range.period === 'today') return data.totalDocumentsToday
+    if (range.period === 'week') return data.totalDocumentsThisWeek
+    if (range.period === 'year') return data.totalDocumentsThisYear ?? 0
+    if (range.period === 'all') return data.totalDocumentsAllTime
     return data.totalDocumentsThisMonth
   }
   function msgCount(): number {
     if (!data) return 0
-    if (period === 'today') return data.totalMessagesToday
-    if (period === 'all') return data.totalMessagesAllTime
-    return data.totalMessagesThisMonth
+    if (range.period === 'today') return data.totalMessagesToday ?? 0
+    if (range.period === 'all') return data.totalMessagesAllTime
+    return data.totalMessagesThisMonth ?? 0
   }
 
   return (
@@ -103,8 +105,8 @@ export default function DocumentsAnalyticsPage() {
           <p className="text-sm mt-0.5" style={{ color: '#71717A' }}>Generation counts, chat messages, and AI usage</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <TimePeriodPicker value={period} onChange={setPeriod} />
-          <button onClick={fetchData} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+          <TimePeriodPicker value={range} onChange={(r) => setRange(r)} />
+          <button onClick={() => fetchData(range)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
             style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}>
             <RefreshCw className="w-3 h-3" /> Refresh
           </button>
