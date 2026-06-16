@@ -156,7 +156,16 @@ export function AIInputWithLoading({
               adjustHeight()
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              // Desktop only: Enter submits, Shift+Enter adds a new line.
+              // On mobile (touch / virtual keyboard), Enter always inserts a new line
+              // because there is no Shift key on the soft keyboard — submission is
+              // done exclusively via the send button.
+              // We detect touch via `pointer: coarse` media query, which is the
+              // most reliable cross-browser signal for touchscreen devices.
+              const isTouchDevice =
+                typeof window !== "undefined" &&
+                window.matchMedia("(pointer: coarse)").matches
+              if (e.key === "Enter" && !e.shiftKey && !isTouchDevice) {
                 e.preventDefault()
                 handleSubmit()
               }
@@ -262,7 +271,7 @@ export function AIInputWithLoading({
           </button>
         </div>
         <p className="pl-2 pt-1.5 h-5 text-[11px] text-muted-foreground/50 select-none">
-          {statusText || (isUploading ? "Analyzing file..." : isLoading ? "Generating..." : "Shift+Enter for new line")}
+          {statusText || (isUploading ? "Analyzing file..." : isLoading ? "Generating..." : "")}
         </p>
       </div>
     </div>

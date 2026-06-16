@@ -531,7 +531,10 @@ export function ProfileUpdateChat({
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
+                                const isTouchDevice =
+                                    typeof window !== "undefined" &&
+                                    window.matchMedia("(pointer: coarse)").matches
+                                if (e.key === "Enter" && !e.shiftKey && !isTouchDevice) {
                                     handleSendMessage()
                                 }
                             }}

@@ -155,7 +155,10 @@ const PromptInputTextarea: React.FC<
   }, [value, maxHeight, disableAutosize])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    const isTouchDevice =
+      typeof window !== "undefined" &&
+      window.matchMedia("(pointer: coarse)").matches
+    if (e.key === "Enter" && !e.shiftKey && !isTouchDevice) {
       e.preventDefault()
       onSubmit?.()
     }
