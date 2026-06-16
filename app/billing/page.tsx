@@ -85,8 +85,13 @@ export default function BillingPage() {
     const fetchUsage = useCallback(async () => {
         try {
             const res = await authFetch("/api/usage")
-            if (res.ok) setData(await res.json())
+            if (res.ok) {
+                const json = await res.json()
+                setData(json)
+                return json as UsageData
+            }
         } catch {} finally { setLoading(false) }
+        return null
     }, [])
 
     const fetchPayments = useCallback(async () => {
@@ -101,6 +106,27 @@ export default function BillingPage() {
             if (rows) setPayments(rows as unknown as PaymentRecord[])
         } catch {}
     }, [])
+
+    // Auto-reconcile: if a payment was charged but activation was missed,
+    // recover it silently on load and refresh the UI — no manual refresh needed.
+    const autoReconcile = useCallback(async () => {
+        try {
+            const res = await authFetch("/api/razorpay/reconcile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: "{}",
+            })
+            if (!res.ok) return
+            const result = await res.json()
+            if (result.activated) {
+                const planLabel = (result.plan || "").charAt(0).toUpperCase() + (result.plan || "").slice(1)
+                toast.success(`🎉 ${planLabel} plan activated!`)
+                await fetchUsage()
+                fetchPayments()
+                router.refresh()
+            }
+        } catch { /* silent — non-blocking */ }
+    }, [fetchUsage, fetchPayments, router])
 
     const downloadReceipt = useCallback(async (payment: PaymentRecord) => {
         setDownloadingReceiptId(payment.id)
@@ -137,7 +163,13 @@ export default function BillingPage() {
 
     useEffect(() => {
         if (!user) { router.push("/auth/login"); return }
-        fetchUsage()
+        fetchUsage().then((usage) => {
+            // If still on free after loading, a payment may have been charged but
+            // not activated — attempt a silent reconcile against Razorpay.
+            if (!usage || usage.plan === "free") {
+                autoReconcile()
+            }
+        })
         fetchPayments()
         // Step 1: instant timezone detection
         const tzCountry = detectCountryFromTimezone()
@@ -148,7 +180,7 @@ export default function BillingPage() {
                 setCountryPricing(COUNTRY_PRICING[ipCountry])
             }
         })
-    }, [user, router, fetchUsage, fetchPayments])
+    }, [user, router, fetchUsage, fetchPayments, autoReconcile])
 
     const currentPlan = data?.plan || "free"
 

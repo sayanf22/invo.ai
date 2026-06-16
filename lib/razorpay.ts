@@ -51,6 +51,44 @@ export const RAZORPAY_PLAN_IDS = {
     agency: { monthly: "plan_SeqvmqZpMvvQYS" },
 } as const
 
+/** Reverse-map a Razorpay plan_id back to our internal plan key. */
+export function planIdToPlan(razorpayPlanId: string): PlanId | null {
+    for (const [plan, ids] of Object.entries(RAZORPAY_PLAN_IDS)) {
+        if (ids.monthly === razorpayPlanId) return plan as PlanId
+    }
+    return null
+}
+
+/**
+ * Fetch a subscription from Razorpay by ID (source of truth).
+ * Used by the reconcile endpoint to verify + activate a payment that the
+ * synchronous /verify call missed. Returns the raw subscription entity.
+ */
+export async function getSubscription(subscriptionId: string): Promise<{
+    id: string
+    status: string
+    plan_id: string
+    notes?: Record<string, string>
+    current_start?: number | null
+    current_end?: number | null
+} | null> {
+    const { getSecret } = await import("@/lib/secrets")
+    const keyId = await getSecret("RAZORPAY_KEY_ID")
+    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+    if (!keyId || !keySecret) throw new Error("Razorpay API keys not configured")
+
+    const res = await fetch(`https://api.razorpay.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+        headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+        signal: AbortSignal.timeout(10000),
+    })
+    if (!res.ok) {
+        if (res.status === 404) return null
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error?.error?.description || "Failed to fetch subscription")
+    }
+    return res.json()
+}
+
 export type PlanId = keyof typeof PLANS
 
 /** Known valid plan IDs for validation */
