@@ -302,10 +302,36 @@ function ItemRow({ item, i, data, c, CF, CFB, tRow, tRowAlt, cD, cQ, cR, cA }: {
     const hasDisc = item.discount && item.discount > 0
     const discAmt = hasDisc ? gross * (item.discount / 100) : 0
     const lineTotal = gross - discAmt
+
+    // Parse description: lines starting with "- " or "• " become bullet points.
+    // Everything before the first bullet is the bold title.
+    const rawDesc: string = item.description || `Item ${i + 1}`
+    const allLines = rawDesc.split("\n").map((l: string) => l.trim()).filter(Boolean)
+    const titleLines: string[] = []
+    const bulletLines: string[] = []
+    let sawBullet = false
+    for (const line of allLines) {
+        if (line.startsWith("- ") || line.startsWith("• ") || line.startsWith("* ")) {
+            sawBullet = true
+            bulletLines.push(line.replace(/^[-•*]\s+/, "").trim())
+        } else if (!sawBullet) {
+            titleLines.push(line)
+        } else {
+            bulletLines.push(line)
+        }
+    }
+    const titleText = titleLines.join(" | ") || rawDesc
+
     return (
         <View key={i} style={i % 2 === 1 ? tRowAlt : tRow} wrap={false}>
             <View style={cD}>
-                <Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text>
+                <Text style={{ fontSize: 10, color: c.txt, fontWeight: bulletLines.length > 0 ? 700 : 400 }}>{titleText}</Text>
+                {bulletLines.map((b: string, bi: number) => (
+                    <View key={bi} style={{ flexDirection: "row", marginTop: 3, paddingLeft: 4, ...bNone() }}>
+                        <Text style={{ fontSize: 8.5, color: c.pri, marginRight: 5, marginTop: 0.5, fontWeight: 700 }}>•</Text>
+                        <Text style={{ fontSize: 8.5, color: c.mut, flex: 1, lineHeight: 1.4 }}>{b}</Text>
+                    </View>
+                ))}
             </View>
             <View style={cQ}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
             <View style={cR}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right", ...CF }}>{fmt(item.rate, data.currency)}</Text></View>
