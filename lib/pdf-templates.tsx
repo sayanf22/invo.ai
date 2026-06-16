@@ -2106,7 +2106,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
 
                 {/* â”€â”€ BUDGET BREAKDOWN TABLE â”€â”€ */}
                 {hasItems && (
-                    <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
+                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Budget Breakdown</Text>
                         {/* Accent-colored header (Proposal uses accent, not primary) */}
                         <View style={{ flexDirection: "row", backgroundColor: c.acc, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 2, borderBottomColor: c.pri, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} wrap={false}>
