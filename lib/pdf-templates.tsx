@@ -2133,7 +2133,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 )}
 
                 {/* â”€â”€ TOTAL INVESTMENT â”€â”€ */}
-                {total > 0 && (
+                {total > 0 && !(data as any).hideTotals && (
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                         <View style={{ width: 260, ...bNone() }}>
                             {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
