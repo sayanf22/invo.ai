@@ -898,7 +898,8 @@ interface TotalsBoxProps {
 function TotalsBox({ data, c, config, styles }: TotalsBoxProps) {
     const { sub, disc, tax, total } = calc(data)
 
-    // For Contract and Proposal: only render if total > 0
+    // Hide totals when hideTotals is explicitly set, or when type is Contract/Proposal with zero total
+    if ((data as any).hideTotals) return null
     if ((config.title === "CONTRACT" || config.title === "PROPOSAL") && total <= 0) return null
 
     return (

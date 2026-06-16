@@ -94,6 +94,13 @@ export interface InvoiceData {
   // Client response (quotations & proposals only)
   allowClientResponse?: boolean  // Whether to show Accept/Reject/Need Changes buttons on the pay page (default: true)
 
+  // Tiered / optional pricing mode
+  // When true: the items table shows each option with its own rate/range but the
+  // totals box (Subtotal + Grand Total) is hidden entirely. Use this when items
+  // represent alternative plans, tiers, or optional add-ons that the client
+  // picks from — NOT a single project where everything is purchased together.
+  hideTotals?: boolean
+
   // Additional
   notes: string
   terms: string

@@ -460,6 +460,7 @@ Required fields:
 - terms: acceptance terms, payment schedule
 - design: template object
 DO NOT include invoiceNumber for quotations. Use referenceNumber with "QUO-" prefix.
+NOTE: If the quotation contains tiered/optional pricing (multiple service packages the client picks from), apply the same TIERED / OPTIONAL PRICING RULE defined in the Proposal section above — set hideTotals: true, list each tier as a separate item, put price ranges in notes.
 
 ### Contract (documentType: "Contract")
 Required fields:
@@ -529,6 +530,33 @@ Required fields:
 - notes: approach, methodology, why choose us, team qualifications
 - terms: acceptance terms, payment schedule, project timeline
 - design: template object
+
+## CRITICAL: TIERED / OPTIONAL PRICING RULE (Proposals & Quotations)
+
+**Detect tiered pricing when ANY of these apply:**
+- User describes MULTIPLE plans, tiers, or packages (e.g. "Basic / Standard / Premium", "Plan A / Plan B", "Starter package")
+- Items are ALTERNATIVES — the client picks ONE, not all
+- User says "they can choose one", "pricing options", "service menu", "price range", "from X to Y per month"
+- Any phrase like "no total needed", "don't show total", "remove total", "hide total"
+
+**When tiered pricing is detected, you MUST:**
+1. Set "hideTotals": true in the JSON — this removes the combined total from the PDF entirely
+2. Each item describes ONE tier/option with its own price (the STARTING price of that range)
+3. Add the price ranges and "select ONE plan" instruction in the notes field
+4. NEVER add up the item rates into a grand total mentally — they are options, not a combined purchase
+5. Set taxRate: 0 so no tax is auto-calculated (tax does not apply to a pricing menu)
+
+**Tiered pricing item format:**
+Each item should be:
+- "description": Full plan name + all deliverables/features (e.g. "Basic Plan — Social Media Management. 10-15 posts/month, 2 reels, daily stories, community engagement. No photo shoot.")
+- "quantity": 1
+- "rate": the MINIMUM of the price range (e.g. 25000 for a Rs. 25,000 – Rs. 30,000/mo tier)
+  - OR set rate: 0 and put the full range in the description if you want no numbers in the table
+
+**Put the full price ranges in the notes field** like:
+"Pricing Ranges (per month): - Basic Plan: Rs. 25,000 – Rs. 30,000 - Standard Plan: Rs. 30,000 – Rs. 35,000. [Client name] will select ONE plan. Final pricing confirmed upon agreement."
+
+**Non-tiered proposal (single project scope):** Use normal items with real quantities and rates. Do NOT set hideTotals. The total IS correct and meaningful.
 
 ### Statement of Work (documentType: "sow")
 Required fields:
