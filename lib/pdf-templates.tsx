@@ -293,6 +293,51 @@ function bNone() {
     return { ...bw(0, 0, 0, 0), ...bc("transparent", "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
 }
 
+/**
+ * Sanitize terms/notes text to respect the signature toggle.
+ *
+ * When showSignatureFields is false (user has disabled signatures), this removes
+ * sentences that reference physical/electronic signing so the document doesn't
+ * contradict the user's intent. Industry standard (GoProposal, PandaDoc, BetterProposals):
+ * when no signature section is shown, acceptance is implied by the client responding
+ * or making payment — no signature language is needed in the terms.
+ *
+ * Replaced phrases are substituted with acceptance-without-signature alternatives
+ * so the T&C still clearly establishes acceptance.
+ */
+function sanitizeTermsForDisplay(text: string, showSignatureFields: boolean): string {
+    if (showSignatureFields !== false) return text  // signature on → show as-is
+    if (!text) return text
+
+    // Remove sentences that reference signing/signature when signature section is hidden
+    // Covers variations like "signature below", "sign and return", "signed proposal return", etc.
+    let cleaned = text
+        // Replace specific acceptance-by-signature phrases with email-acceptance alternative
+        .replace(/[^.!?]*\bsignature\s+below\b[^.!?]*[.!?]/gi, "Acceptance may be communicated via email or written confirmation.")
+        .replace(/[^.!?]*\bsign\s+and\s+return\s+this\s+document\b[^.!?]*[.!?]/gi, "Please confirm your acceptance via email to proceed.")
+        .replace(/[^.!?]*\bsigned\s+proposal\s+return\b[^.!?]*[.!?]/gi, "")
+        .replace(/[^.!?]*\baccompanied\s+by\s+the\s+50%\s+advance\b[^.!?]*[.!?]/gi, "")
+        // Clean up double-spaced sentences and leading/trailing whitespace on lines
+        .replace(/\n{3,}/g, "\n\n")
+        .replace(/[ \t]{2,}/g, " ")
+        .trim()
+
+    return cleaned
+}
+
+/**
+ * Get "Next Steps" copy appropriate to whether signatures are enabled.
+ * When signatures are off, we don't say "please sign" — instead we say
+ * "please confirm acceptance" (email-acceptance workflow).
+ */
+function getNextStepsText(data: InvoiceData): string {
+    if (data.paymentInstructions) return data.paymentInstructions
+    if (data.showSignatureFields === false) {
+        return "To proceed with this proposal, please reply to confirm your acceptance. We look forward to working with you."
+    }
+    return "To proceed with this proposal, please sign and return this document. We look forward to working with you."
+}
+
 // Helper: render a single item row â€” Amount always shows full price (qty Ã— rate)
 function ItemRow({ item, i, data, c, CF, CFB, tRow, tRowAlt, cD, cQ, cR, cA }: {
     item: any; i: number; data: InvoiceData; c: any; CF: any; CFB: any;
@@ -1174,12 +1219,16 @@ function NotesSection({ data, c, tpl, config }: NotesSectionProps) {
     const docType = config.title
     const isInvoice = docType === "INVOICE"
     const isContract = docType === "CONTRACT"
+    const showSig = data.showSignatureFields !== false
 
     const wrapStyle = isInvoice
         ? { marginHorizontal: tpl === "bold" ? 48 : 0, marginBottom: 16 }
         : { paddingHorizontal: 48, marginBottom: 16 }
 
     const termsLabel = isContract ? "Additional Terms" : "Terms & Conditions"
+
+    // Sanitize terms text: remove signature-referencing sentences when sig section is hidden
+    const termsText = sanitizeTermsForDisplay(sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false), showSig)
 
     return (
         <>
@@ -1189,10 +1238,10 @@ function NotesSection({ data, c, tpl, config }: NotesSectionProps) {
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View>
             ) : null}
-            {data.terms ? (
+            {termsText ? (
                 <View style={wrapStyle}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, ...bold(c) }}>{termsLabel}</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.terms ?? "")}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{termsText}</Text>
                 </View>
             ) : null}
         </>
@@ -1612,7 +1661,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                 </View> : null}
                 {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.terms ?? "")}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)}</Text>
                 </View> : null}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
@@ -1850,7 +1899,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                 </View> : null}
                 {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Additional Terms</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.terms ?? "")}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)}</Text>
                 </View> : null}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
@@ -2026,7 +2075,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                 </View> : null}
                 {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.terms ?? "")}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)}</Text>
                 </View> : null}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
@@ -2159,7 +2208,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 {/* â”€â”€ NEXT STEPS CTA â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 18, backgroundColor: c.acc, ...r(8), ...bNone(), borderLeftWidth: 5, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }} wrap={false}>
                     <Text style={{ fontSize: 11, color: c.pri, fontWeight: 700, marginBottom: 6 }}>Next Steps</Text>
-                    <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.5 }}>{data.paymentInstructions || "To proceed with this proposal, please sign and return this document. We look forward to working with you."}</Text>
+                    <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.5 }}>{getNextStepsText(data)}</Text>
                 </View>
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
@@ -2194,7 +2243,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 </View> : null}
                 {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.terms ?? "")}</Text>
+                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)}</Text>
                 </View> : null}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
