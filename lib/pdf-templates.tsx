@@ -2317,15 +2317,121 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {/* â”€â”€ NOTES â”€â”€ */}
-                {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
-                </View> : null}
-                {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)}</Text>
-                </View> : null}
+                {/* NOTES: parse [SECTION:name] markers into titled sections */
+                {(() => {
+                    if (!data.notes) return null
+                    const _raw = fixEncoding(data.notes ?? "")
+                    const _hasSec = /\[SECTION:[^\]]+\]/.test(_raw)
+                    if (!_hasSec) return null // no sections — skip (plain notes not shown in proposal)
+                    const _reg = /\[SECTION:([^\]]+)\]/g
+                    const _parts: {name:string; body:string}[] = []
+                    let _m: RegExpExecArray | null
+                    while ((_m = _reg.exec(_raw)) !== null) {
+                        const _sn = _m[1].trim()
+                        const _bs = _m.index + _m[0].length
+                        const _nm = _reg.exec(_raw)
+                        _parts.push({ name: _sn, body: _raw.slice(_bs, _nm ? _nm.index : _raw.length).trim() })
+                        if (_nm) _reg.lastIndex = _nm.index; else break
+                    }
+                    return (
+                        <View style={{ ...bNone() }}>
+                            {_parts.map((_sec, _si) => {
+                                if (!_sec.body || /^pricing\s*note$/i.test(_sec.name)) return null
+                                return (
+                                    <View key={_si} style={{ marginHorizontal: 48, marginBottom: 14, ...bNone() }}>
+                                        {_sec.name ? (<Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{_sec.name}</Text>) : null}
+                                        {_sec.body.split("\n").filter((l:string)=>l.trim()).map((_ln:string, _li:number) => {
+                                            const _t = _ln.trim()
+                                            if (/^\d+\.\s/.test(_t)) return (<View key={_li} style={{flexDirection:"row",marginBottom:3,paddingLeft:6,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700}}>{_t.slice(0,_t.indexOf(".")+1)}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{_t.slice(_t.indexOf(".")+2).trim()}</Text></View>)
+                                            if (/^[-\u2022]\s/.test(_t)) return (<View key={_li} style={{flexDirection:"row",marginBottom:3,paddingLeft:6,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700}}>{"\u2022"}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{_t.slice(2).trim()}</Text></View>)
+                                            return <Text key={_li} style={{fontSize:9.5,color:c.txt,lineHeight:1.7,marginBottom:2}}>{_t}</Text>
+                                        })}
+                                    </View>
+                                )
+                            })}
+                        </View>
+                    )
+                })()}
+                {/* TERMS: "Label: text" clauses with bold labels */
+                {(() => {
+                    if (!data.terms) return null
+                    const _rt = sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)
+                    if (!_rt.trim()) return null
+                    const _cls = _rt.split(/\n{2,}/).map((cl:string)=>cl.trim()).filter(Boolean)
+                    return (
+                        <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Terms {"&"} Conditions</Text>
+                            {_cls.map((_cl:string, _ci:number) => {
+                                const _p = _cl.indexOf(": ")
+                                const _l = _p>0 ? _cl.slice(0,_p) : ""
+                                const _isL = !!_l && /^[A-Z][^:]{2,30}$/.test(_l)
+                                return (
+                                    <View key={_ci} style={{marginBottom:6,...bNone()}}>
+                                        {_isL ? (<Text style={{fontSize:9,lineHeight:1.6}}><Text style={{fontWeight:700,color:c.txt}}>{_l+": "}</Text><Text style={{color:c.mut}}>{_cl.slice(_p+2)}</Text></Text>) : (<Text style={{fontSize:9,color:c.mut,lineHeight:1.6}}>{_cl}</Text>)}
+                                    </View>
+                                )
+                            })}
+                        </View>
+                    )
+                })()}
+                    const _parts: {name:string;body:string}[] = []
+                    let _m: RegExpExecArray | null
+                    while ((_m = _reg.exec(_raw)) !== null) {
+                        const _sn = _m[1].trim()
+                        const _bs = _m.index + _m[0].length
+                        const _nm = _reg.exec(_raw)
+                        const _be = _nm ? _nm.index : _raw.length
+                        const _body = _raw.slice(_bs, _be).trim()
+                        _parts.push({ name: _sn, body: _body })
+                        if (_nm) { _reg.lastIndex = _nm.index } else { break }
+                    }
+                    return (
+                        <View style={{ ...bNone() }}>
+                            {_parts.map((_sec, _si) => {
+                                if (!_sec.body || /^pricing\s*note$/i.test(_sec.name)) return null
+                                const _blines = _sec.body.split("\n").filter((l:string)=>l.trim())
+                                return (
+                                    <View key={_si} style={{ marginHorizontal: 48, marginBottom: 14, ...bNone() }}>
+                                        {_sec.name ? <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{_sec.name}</Text> : null}
+                                        {_blines.map((_ln:string, _li:number) => {
+                                            const _t = _ln.trim()
+                                            const _isNum = /^\d+\.\s/.test(_t)
+                                            const _isBul = /^[-\u2022]\s/.test(_t)
+                                            if (_isNum || _isBul) {
+                                                const _bc = _isNum ? _t.slice(0,_t.indexOf(".")+1) : "\u2022"
+                                                const _bt = _isNum ? _t.slice(_t.indexOf(".")+2).trim() : _t.slice(2).trim()
+                                                return (<View key={_li} style={{flexDirection:"row",marginBottom:3,paddingLeft:8,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700,lineHeight:1.6}}>{_bc}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{_bt}</Text></View>)
+                                            }
+                                            return <Text key={_li} style={{fontSize:9.5,color:c.txt,lineHeight:1.7,marginBottom:2}}>{_t}</Text>
+                                        })}
+                                    </View>
+                                )
+                            })}
+                        </View>
+                    )
+                })() : null}
+                {/* TERMS: render "Label: text" clauses with bold labels */
+                {data.terms ? (() => {
+                    const _rt = sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)
+                    if (!_rt.trim()) return null
+                    const _cls = _rt.split(/\n{2,}/).map((cl:string)=>cl.trim()).filter(Boolean)
+                    const _hasL = _cls.some((cl:string)=>/^[A-Z][^:]{2,30}:\s/.test(cl))
+                    return (
+                        <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Terms & Conditions</Text>
+                            {_hasL ? _cls.map((_cl:string, _ci:number) => {
+                                const _ci2 = _cl.indexOf(": ")
+                                const _lbl = _ci2>0 ? _cl.slice(0,_ci2) : ""
+                                const _isL = _lbl && /^[A-Z][^:]{2,30}$/.test(_lbl)
+                                return (
+                                    <View key={_ci} style={{marginBottom:7,...bNone()}}>
+                                        {_isL ? <Text style={{fontSize:9,lineHeight:1.6}}><Text style={{fontWeight:700,color:c.txt}}>{_lbl+": "}</Text><Text style={{color:c.mut}}>{_cl.slice(_ci2+2)}</Text></Text> : <Text style={{fontSize:9,color:c.mut,lineHeight:1.6}}>{_cl}</Text>}
+                                    </View>
+                                )
+                            }) : <Text style={{fontSize:9,color:c.mut,lineHeight:1.6}}>{_rt}</Text>}
+                        </View>
+                    )
+                })() : null}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
