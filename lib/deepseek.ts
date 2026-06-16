@@ -524,11 +524,11 @@ Required fields:
 - dueDate: valid until date
 - fromName, fromEmail, fromAddress: from business profile
 - toName, toEmail, toAddress: client info
-- description: executive summary — what you're proposing, the problem you're solving, your approach, methodology, timeline. Write this as a compelling, detailed proposal narrative.
-- items: [{ id, description, quantity, rate }] — deliverables with pricing
+- description: executive summary — 3-4 paragraphs of pure prose. Start with the client's situation, then what you're proposing, then why your agency is the right fit. NEVER include the agency name as a heading. NEVER write "Executive Summary" as a label. NEVER start with "We are excited to present."
+- items: [{ id, description, quantity, rate }] — deliverables with pricing using title-then-bullets format
 - taxRate, taxLabel, currency
-- notes: approach, methodology, why choose us, team qualifications
-- terms: acceptance terms, payment schedule, project timeline
+- notes: MUST use [SECTION:name] blocks — see "Proposal Notes Field — REQUIRED SECTIONS" below. Includes About Us, Our Understanding, Proposed Solution, Goals & KPIs, Timeline. NEVER write plain notes without [SECTION:] delimiters.
+- terms: 6-7 labelled clauses separated by DOUBLE NEWLINES. Format: "Label: clause text\n\nNext Label: next clause text". Each clause on its own paragraph. Include: Payment Terms, Project Timeline, Intellectual Property, Revisions, Termination, Governing Law. ALWAYS double-newline between clauses.
 - design: template object
 
 ### TERMS & CONDITIONS: SIGNATURE AWARENESS (applies to ALL document types)
@@ -604,12 +604,57 @@ Detect the type of proposal being built and structure accordingly:
 ### Proposal Description (Executive Summary)
 The description field is the executive summary. Rules:
 - Write it as a business executive would read it — persuasive, professional, concise
-- 3-5 paragraphs max: (1) who we are + what we're proposing, (2) our approach, (3) why us
+- 3-4 paragraphs: (1) client's situation and goal, (2) what you're proposing and why it fits them specifically, (3) why your agency is the right fit
+- NEVER start with "We are excited to present" or any variation of "excited/pleased/delighted to"
+- NEVER write the agency name as the first word or as a heading inside the text
+- NEVER write "Executive Summary" as a label inside the description text — the PDF renders that heading automatically
 - NEVER put pricing or line-item details in the executive summary — those go in the items table
 - NEVER use markdown syntax (**, *, ##) — plain text only
 - NEVER put meta-comments, clarifications, or "AI thinking" in the description
+- The description must be PURE PROSE — 3-4 paragraphs of clean text. Nothing else.
 
-### What NOT to put in items for proposals
+GOOD example opening: "Nimai Hyundai, an established automotive dealership in Tripura, is looking to strengthen its digital presence and drive measurable showroom footfall..."
+BAD examples: "WhyCreatives - Premium Digital Services & Solutions\n\nExecutive Summary\n\nWe are excited to present..." → NEVER do this
+
+### Proposal Notes Field — REQUIRED SECTIONS
+
+The notes field for proposals MUST be structured using [SECTION:name] delimiters. The PDF renderer parses these into titled, styled sections. ALWAYS include these sections in the notes field for every proposal, in this order:
+
+[SECTION:About Us]
+2-3 sentences about the agency: founding year, specialisation, relevant experience. Pull from business profile. Write in third person. Example: "WhyCreatives is a digital marketing agency specialising in social media management and brand building for automotive and lifestyle businesses, founded in 2024 and based in Agartala, Tripura."
+
+[SECTION:Our Understanding]
+2-3 sentences showing you understand the CLIENT's specific situation, challenges, and goal. Reference their industry, current digital status, and primary objective. Be specific — never generic.
+
+[SECTION:Proposed Solution]
+3-4 sentences describing WHAT you are recommending and WHY it fits this client. Name specific platforms (Instagram, Facebook, YouTube — by name). Focus on outcomes.
+
+[SECTION:Goals & KPIs]
+4-6 numbered measurable targets. Format: numbered list (1. KPI label: target value). Adjust targets to match the plan tier.
+Example:
+1. Instagram followers: grow by 30-50% within 90 days
+2. Monthly post reach: 50,000+ accounts reached
+3. Engagement rate: maintain 4-6% average
+4. Social enquiries per month: 20+ DMs and link clicks
+5. Content approval turnaround: 48-hour cycle
+
+[SECTION:Timeline]
+4-6 milestones. Format: one per line with timing.
+Example:
+Week 1: Strategy and onboarding — brand audit, content calendar setup
+Week 2: First content batch created and submitted for approval
+Week 3: Go-live — first content published, paid campaign activated
+Month 2: Full delivery rhythm — first performance report shared
+Month 3: Optimisation review — strategy adjusted based on 60-day data
+
+RULES for notes:
+- ALWAYS include all 5 sections above — never skip any
+- Do NOT include pricing information in notes sections (pricing is in items and terms)
+- Do NOT write "Notes" as a header — the sections render their own headers
+- Keep each section to 2-5 lines of focused content
+- If client needs/platforms are unknown, make reasonable assumptions based on industry
+
+
 - Don't add items the user didn't mention
 - Don't add items like "Project Management", "Consultation", "Meeting" unless the user specifically mentioned them
 - Don't invent deliverables. Only add items that were explicitly described by the user
