@@ -14,10 +14,11 @@ import { PageLoader } from "@/components/ui/page-loader"
 import { useTier } from "@/hooks/use-tier"
 import { toast } from "sonner"
 import { ChatOnlyScreen } from "@/components/chat-only-screen"
+import { ProposalBuilder } from "@/components/proposal-builder/proposal-builder"
 import { cn } from "@/lib/utils"
 import type { IntentSuggestion } from "@/lib/intent-router"
 
-type View = "start" | "chat-only" | "prompt"
+type View = "start" | "chat-only" | "prompt" | "proposal-builder"
 
 // ── Shimmer helper ──────────────────────────────────────────────────────────
 // A single shimmer bar. Uses a CSS gradient animation for a more polished look
@@ -256,7 +257,10 @@ export function AppShell() {
 
   useEffect(() => {
     const sessionId = searchParams.get("sessionId")
-    if (sessionId) {
+    const builder = searchParams.get("builder")
+    if (builder === "proposal") {
+      setView("proposal-builder")
+    } else if (sessionId) {
       setSelectedSessionId(sessionId)
       // loadSessionType will set the correct view (chat-only or prompt)
       loadSessionType(sessionId)
@@ -669,8 +673,23 @@ export function AppShell() {
     )
   }
 
-  if (view === "prompt") {
+  if (view === "proposal-builder") {
     return (
+      <div className="h-dvh flex flex-col bg-background animate-in fade-in duration-250">
+        <ProposalBuilder
+          onBack={handleBack}
+          onComplete={(sessionId) => {
+            setSelectedSessionId(sessionId)
+            setSelectedCategory("Proposal")
+            setPromptKey(prev => prev + 1)
+            setView("prompt")
+          }}
+        />
+      </div>
+    )
+  }
+
+  if (view === "prompt") {    return (
       <div key={promptKey} className="animate-in fade-in duration-250">
         {setupIncomplete && (
           <button
@@ -752,6 +771,32 @@ export function AppShell() {
             </div>
             <div className="mt-2">
               <CategoryPills onSelect={handlePillSelect} />
+            </div>
+
+            {/* Proposal Builder entry point — structured form instead of chat */}
+            <div className="mt-4 w-full max-w-[420px]">
+              <button
+                type="button"
+                onClick={() => setView("proposal-builder")}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-violet-200 bg-violet-50 hover:bg-violet-100 hover:border-violet-300 dark:border-violet-800 dark:bg-violet-950/30 dark:hover:bg-violet-950/50 transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-semibold text-violet-900 dark:text-violet-200 group-hover:text-violet-700">
+                    Build a Proposal
+                  </p>
+                  <p className="text-xs text-violet-600/70 dark:text-violet-400/70">
+                    Structured form → AI generates complete professional proposal
+                  </p>
+                </div>
+                <svg className="w-4 h-4 text-violet-400 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             </div>
           </div>
         </section>

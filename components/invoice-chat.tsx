@@ -651,6 +651,21 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 setWelcomeLoaded(true)
                 // Queue auto-generation (will be picked up by a separate effect that has fresh refs)
                 pendingAutoGenerateRef.current = `Generate a ${docType} using the linked document details for ${clientName}`
+            } else if (hasSeedData && (ctx as any)._proposalFormData) {
+                // ── Proposal Builder session ─────────────────────────────────────
+                // Session was created by the Proposal Builder (no chain_id, but rich context).
+                // Load the context immediately into the document preview so the user sees
+                // the generated proposal without having to send a chat message first.
+                const { paymentLink: _pl, paymentLinkStatus: _pls, showPaymentLinkInPdf: _spdf,
+                        _proposalFormData: _pfd, _proposalSections: _ps, ...cleanCtx } = ctx as any
+                onChange(cleanCtx as Partial<InvoiceData>)
+                setDocumentGenerated(true)
+
+                const clientName = (ctx as any).toName || "the client"
+                const serviceCategory = (_pfd as any)?.serviceCategory?.replace("_", " ") || "services"
+                const welcomeMsg = `Your proposal for ${clientName} has been generated! You can view it in the preview panel, edit it via the Editor tab, download the PDF, or send it to the client.\n\nNeed any changes? Just describe what you'd like to adjust.`
+                setMessages([{ role: "assistant" as const, content: welcomeMsg }])
+                setWelcomeLoaded(true)
             } else {
                 // New session with no messages — load welcome
                 setMessages([])
