@@ -134,14 +134,18 @@ import { usePaymentMethods } from "@/hooks/use-payment-methods"
 
 // Matches explicit email sending: "email to", "send via email", "mail to", or has an email address
 const EMAIL_SEND_REGEX = /\b(email\s+to\b|mail\s+to\b|send\s+(via|through|by)\s+email|forward\s+(via|through|by)\s+email)\b/i
-// Matches generic send: "send it", "send this", "send the doc", "send to John", "deliver to", bare "send",
-// "send via email", "please send", "go ahead and send", or any of the 9 doc type names after "send"
-const GENERIC_SEND_REGEX = /(?:^|\b)(?:please\s+|go\s+ahead\s+(?:and\s+)?)?send(?:\s+(?:it|this|the\s+\w+|to\b|via\s+email|now|please|out|across|over))?(?:\b|$)|deliver\s+to\b|forward\s+to\b|dispatch\s+to\b/i
+// Matches generic send-document intent: "send it", "send this", "send the proposal", "send to John",
+// "please send", "go ahead and send". Does NOT match "send for approval", "send for review",
+// "send for confirmation" — those are workflow descriptions, not document-send requests.
+const GENERIC_SEND_REGEX = /(?:^|\b)(?:please\s+|go\s+ahead\s+(?:and\s+)?)?send\s+(?:it|this|the\s+\w+|to\b|via\s+email|now|please|out|across|over)\b|(?:^|\b)(?:please\s+)?send\s*$|deliver\s+to\b|forward\s+to\b|dispatch\s+to\b/i
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
 
 // Non-send email contexts — reject if these match
 const NON_SEND_EMAIL_REGEX = /\b(add|get|fetch|retrieve|find|what|which|update|fill|include|use|from|previous|linked|document)\s+(the\s+)?email\b/i
 const EMAIL_CONTEXT_REGEX = /\bemail\s+(address|from|of|in|on|for)\b/i
+
+// Non-send "send" contexts — "send for approval/review/confirmation" is a workflow step, not send-doc
+const NON_SEND_SEND_REGEX = /\bsend\s+(?:for|as|when|after|before|once|if|and|to\s+(?:be|get|have|make|let))\b/i
 
 // Matches direct "send to [person]" with a name (not a verb like "send to modify")
 const SEND_TO_PERSON_REGEX = /\bsend\s+(it\s+)?to\s+([A-Z][a-z]+|[A-Z]{2,}|\w+\s+[A-Z][a-z]+)/
@@ -151,6 +155,12 @@ function detectSendIntent(prompt: string): { hasSendIntent: boolean; method: "em
 
     // Guard: reject non-send email contexts
     if (NON_SEND_EMAIL_REGEX.test(lower) || EMAIL_CONTEXT_REGEX.test(lower)) {
+        return { hasSendIntent: false, method: "none", email: "" }
+    }
+
+    // Guard: reject "send for approval", "send for review", "send for confirmation", etc.
+    // These are workflow descriptions (e.g. "posts will be sent for approval"), not send-doc requests.
+    if (NON_SEND_SEND_REGEX.test(lower)) {
         return { hasSendIntent: false, method: "none", email: "" }
     }
 
@@ -167,7 +177,7 @@ function detectSendIntent(prompt: string): { hasSendIntent: boolean; method: "em
         return { hasSendIntent: true, method: "email", email: emailMatch ? emailMatch[0] : "" }
     }
 
-    // Generic send (no channel specified): "send", "send it", "send this", "send now", "please send"
+    // Generic send (no channel specified): "send it", "send this", "send now", "please send"
     // → show 3-option share card so user can pick how they want to send
     if (GENERIC_SEND_REGEX.test(prompt)) {
         return { hasSendIntent: true, method: "general", email: "" }
