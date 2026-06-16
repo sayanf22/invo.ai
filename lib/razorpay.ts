@@ -68,7 +68,11 @@ export function isValidPlanId(plan: unknown): plan is PlanId {
  * Create a Razorpay Subscription for recurring billing.
  * This replaces the one-time order flow with automatic monthly charges.
  */
-export async function createRazorpaySubscription(plan: PlanId, billingCycle: "monthly" | "yearly" = "monthly") {
+export async function createRazorpaySubscription(
+    plan: PlanId,
+    billingCycle: "monthly" | "yearly" = "monthly",
+    userId?: string
+) {
     const { getSecret } = await import("@/lib/secrets")
     const keyId = await getSecret("RAZORPAY_KEY_ID")
     const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
@@ -98,6 +102,9 @@ export async function createRazorpaySubscription(plan: PlanId, billingCycle: "mo
                 plan,
                 billing_cycle: billingCycle,
                 platform: "clorefy",
+                // user_id lets the webhook map a subscription event back to a user
+                // (safety net if the synchronous verify call is missed).
+                ...(userId ? { user_id: userId } : {}),
             },
         }),
     })

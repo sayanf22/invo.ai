@@ -20,7 +20,7 @@ export async function POST(request: Request) {
         const cycle = (billingCycle === "yearly" ? "yearly" : "monthly") as "monthly" | "yearly"
 
         // Create a Razorpay Subscription (recurring)
-        const subscription = await createRazorpaySubscription(plan as PlanId, cycle)
+        const subscription = await createRazorpaySubscription(plan as PlanId, cycle, auth.user.id)
 
         return NextResponse.json({
             subscriptionId: subscription.id,

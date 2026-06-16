@@ -41,15 +41,27 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Invalid plan ID" }, { status: 400 })
         }
 
-        // Verify signature: for subscriptions, it's subscription_id|payment_id
-        const isValid = await verifyPaymentSignature(
-            verifyId,
-            razorpay_payment_id,
-            razorpay_signature
-        )
+        // Verify signature.
+        // CRITICAL: Razorpay uses DIFFERENT concatenation orders:
+        //   - Orders:        HMAC(razorpay_order_id + "|" + razorpay_payment_id)
+        //   - Subscriptions: HMAC(razorpay_payment_id + "|" + razorpay_subscription_id)
+        // verifyPaymentSignature(a, b) computes HMAC(`${a}|${b}`), so we must
+        // pass the args in the correct order for each flow.
+        const isSubscription = !!razorpay_subscription_id
+        const isValid = isSubscription
+            ? await verifyPaymentSignature(
+                  razorpay_payment_id,
+                  razorpay_subscription_id,
+                  razorpay_signature
+              )
+            : await verifyPaymentSignature(
+                  razorpay_order_id,
+                  razorpay_payment_id,
+                  razorpay_signature
+              )
 
         if (!isValid) {
-            console.error("Payment signature verification failed", { verifyId, razorpay_payment_id })
+            console.error("Payment signature verification failed", { verifyId, razorpay_payment_id, isSubscription })
             await logAudit(auth.supabase, {
                 user_id: auth.user.id,
                 action: "security.payment_failure",

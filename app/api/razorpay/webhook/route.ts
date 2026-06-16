@@ -93,15 +93,73 @@ export async function POST(request: Request) {
                 break
             }
 
-            case "subscription.activated": {
-                const subscription = event.payload.subscription.entity
-                console.log("Subscription activated:", subscription.id)
-                break
-            }
-
+            case "subscription.activated":
             case "subscription.charged": {
                 const subscription = event.payload.subscription.entity
-                console.log("Subscription charged:", subscription.id)
+                console.log(`${eventType}:`, subscription.id)
+
+                // Safety-net activation: if the synchronous /verify call was missed
+                // (e.g. user closed the tab, signature mismatch, network drop), the
+                // webhook activates the plan here so a paid user is never left on free.
+                const notes = subscription.notes ?? {}
+                const userId: string | undefined = notes.user_id
+                const plan: string | undefined = notes.plan
+                const billingCycle: string = notes.billing_cycle || "monthly"
+
+                const VALID_PLANS = ["starter", "pro", "agency"]
+                if (userId && plan && VALID_PLANS.includes(plan)) {
+                    const now = new Date()
+                    const periodEnd = new Date(now)
+                    if (billingCycle === "yearly") periodEnd.setFullYear(periodEnd.getFullYear() + 1)
+                    else periodEnd.setMonth(periodEnd.getMonth() + 1)
+
+                    // Amount in paise from PLANS config
+                    const { PLANS } = await import("@/lib/razorpay")
+                    const planCfg = (PLANS as any)[plan]
+                    const amount = billingCycle === "yearly"
+                        ? planCfg.yearlyPrice * 12
+                        : planCfg.monthlyPrice
+
+                    const { error: upsertErr } = await supabase
+                        .from("subscriptions" as any)
+                        .upsert({
+                            user_id: userId,
+                            plan,
+                            billing_cycle: billingCycle,
+                            status: "active",
+                            razorpay_subscription_id: subscription.id,
+                            amount_paid: amount,
+                            currency: "INR",
+                            current_period_start: now.toISOString(),
+                            current_period_end: periodEnd.toISOString(),
+                            updated_at: now.toISOString(),
+                        }, { onConflict: "user_id" })
+
+                    if (upsertErr) {
+                        console.error("[webhook] subscription activation upsert failed:", upsertErr.message)
+                    } else {
+                        // Mark plan_selected on profile (protected column → service role)
+                        await supabase
+                            .from("profiles")
+                            .update({ plan_selected: true } as any)
+                            .eq("id", userId)
+                            .then(() => {})
+
+                        // Notify the user (only on first activation, deduped by event_id above)
+                        if (eventType === "subscription.activated") {
+                            const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1)
+                            await supabase.from("notifications").insert({
+                                user_id: userId,
+                                type: "subscription_activated",
+                                title: `${planLabel} Plan Activated 🎉`,
+                                message: `Your ${planLabel} plan is now active.`,
+                                metadata: { plan, billingCycle, razorpay_subscription_id: subscription.id },
+                            }).then(() => {})
+                        }
+                    }
+                } else {
+                    console.warn("[webhook] subscription event missing user_id/plan in notes:", subscription.id)
+                }
                 break
             }
 
