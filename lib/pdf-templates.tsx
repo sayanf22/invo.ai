@@ -2135,6 +2135,74 @@ export const QuotePDF = QuotationPDF
 // Bold cover header Â· executive summary card Â· CTA box
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+// ─── Proposal section renderer: parses [SECTION:name] markers from notes field ───
+function renderProposalSections(notes: string | undefined, c: ReturnType<typeof getTheme>) {
+    if (!notes) return null
+    const raw = fixEncoding(notes)
+    if (!/\[SECTION:[^\]]+\]/.test(raw)) return null
+    const reg = /\[SECTION:([^\]]+)\]/g
+    const parts: Array<{name: string; body: string}> = []
+    let m: RegExpExecArray | null
+    while ((m = reg.exec(raw)) !== null) {
+        const name = m[1].trim()
+        const bodyStart = m.index + m[0].length
+        const next = reg.exec(raw)
+        parts.push({ name, body: raw.slice(bodyStart, next ? next.index : raw.length).trim() })
+        if (next) reg.lastIndex = next.index; else break
+    }
+    const sectionViews = parts.map((sec, si) => {
+        if (!sec.body || /^pricing\s*note$/i.test(sec.name)) return null
+        const bodyLines = sec.body.split("\n").filter(l => l.trim())
+        const lineViews = bodyLines.map((ln, li) => {
+            const t = ln.trim()
+            const isNum = /^\d+\.\s/.test(t)
+            const isBul = /^[-\u2022]\s/.test(t)
+            if (isNum) {
+                const dot = t.indexOf(".")
+                return (<View key={li} style={{flexDirection:"row",marginBottom:3,paddingLeft:6,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700}}>{t.slice(0,dot+1)}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{t.slice(dot+2).trim()}</Text></View>)
+            }
+            if (isBul) {
+                return (<View key={li} style={{flexDirection:"row",marginBottom:3,paddingLeft:6,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700}}>{"\u2022"}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{t.slice(2).trim()}</Text></View>)
+            }
+            return <Text key={li} style={{fontSize:9.5,color:c.txt,lineHeight:1.7,marginBottom:2}}>{t}</Text>
+        })
+        return (
+            <View key={si} style={{ marginHorizontal: 48, marginBottom: 14, ...bNone() }}>
+                {sec.name ? <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{sec.name}</Text> : null}
+                {lineViews}
+            </View>
+        )
+    })
+    return <View style={{ ...bNone() }}>{sectionViews}</View>
+}
+
+// ─── Proposal terms renderer: parses "Label: text" clauses with bold labels ────
+function renderProposalTerms(terms: string | undefined, showSig: boolean | undefined, c: ReturnType<typeof getTheme>) {
+    if (!terms) return null
+    const raw = sanitizeTermsForDisplay(fixEncoding(terms), showSig !== false)
+    if (!raw.trim()) return null
+    const clauses = raw.split(/\n{2,}/).map(cl => cl.trim()).filter(Boolean)
+    const clauseViews = clauses.map((cl, ci) => {
+        const p = cl.indexOf(": ")
+        const lbl = p > 0 ? cl.slice(0, p) : ""
+        const isLabeled = !!lbl && /^[A-Z][^:]{2,30}$/.test(lbl)
+        return (
+            <View key={ci} style={{ marginBottom: 6, ...bNone() }}>
+                {isLabeled
+                    ? <Text style={{ fontSize: 9, lineHeight: 1.6 }}><Text style={{ fontWeight: 700, color: c.txt }}>{lbl + ": "}</Text><Text style={{ color: c.mut }}>{cl.slice(p + 2)}</Text></Text>
+                    : <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{cl}</Text>
+                }
+            </View>
+        )
+    })
+    return (
+        <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Terms {"&"} Conditions</Text>
+            {clauseViews}
+        </View>
+    )
+}
+
 export function ProposalPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
@@ -2317,122 +2385,8 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {/* NOTES: parse [SECTION:name] markers into titled sections */
-                {(() => {
-                    if (!data.notes) return null
-                    const _raw = fixEncoding(data.notes ?? "")
-                    const _hasSec = /\[SECTION:[^\]]+\]/.test(_raw)
-                    if (!_hasSec) return null // no sections — skip (plain notes not shown in proposal)
-                    const _reg = /\[SECTION:([^\]]+)\]/g
-                    const _parts: {name:string; body:string}[] = []
-                    let _m: RegExpExecArray | null
-                    while ((_m = _reg.exec(_raw)) !== null) {
-                        const _sn = _m[1].trim()
-                        const _bs = _m.index + _m[0].length
-                        const _nm = _reg.exec(_raw)
-                        _parts.push({ name: _sn, body: _raw.slice(_bs, _nm ? _nm.index : _raw.length).trim() })
-                        if (_nm) _reg.lastIndex = _nm.index; else break
-                    }
-                    return (
-                        <View style={{ ...bNone() }}>
-                            {_parts.map((_sec, _si) => {
-                                if (!_sec.body || /^pricing\s*note$/i.test(_sec.name)) return null
-                                return (
-                                    <View key={_si} style={{ marginHorizontal: 48, marginBottom: 14, ...bNone() }}>
-                                        {_sec.name ? (<Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{_sec.name}</Text>) : null}
-                                        {_sec.body.split("\n").filter((l:string)=>l.trim()).map((_ln:string, _li:number) => {
-                                            const _t = _ln.trim()
-                                            if (/^\d+\.\s/.test(_t)) return (<View key={_li} style={{flexDirection:"row",marginBottom:3,paddingLeft:6,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700}}>{_t.slice(0,_t.indexOf(".")+1)}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{_t.slice(_t.indexOf(".")+2).trim()}</Text></View>)
-                                            if (/^[-\u2022]\s/.test(_t)) return (<View key={_li} style={{flexDirection:"row",marginBottom:3,paddingLeft:6,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700}}>{"\u2022"}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{_t.slice(2).trim()}</Text></View>)
-                                            return <Text key={_li} style={{fontSize:9.5,color:c.txt,lineHeight:1.7,marginBottom:2}}>{_t}</Text>
-                                        })}
-                                    </View>
-                                )
-                            })}
-                        </View>
-                    )
-                })()}
-                {/* TERMS: "Label: text" clauses with bold labels */
-                {(() => {
-                    if (!data.terms) return null
-                    const _rt = sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)
-                    if (!_rt.trim()) return null
-                    const _cls = _rt.split(/\n{2,}/).map((cl:string)=>cl.trim()).filter(Boolean)
-                    return (
-                        <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Terms {"&"} Conditions</Text>
-                            {_cls.map((_cl:string, _ci:number) => {
-                                const _p = _cl.indexOf(": ")
-                                const _l = _p>0 ? _cl.slice(0,_p) : ""
-                                const _isL = !!_l && /^[A-Z][^:]{2,30}$/.test(_l)
-                                return (
-                                    <View key={_ci} style={{marginBottom:6,...bNone()}}>
-                                        {_isL ? (<Text style={{fontSize:9,lineHeight:1.6}}><Text style={{fontWeight:700,color:c.txt}}>{_l+": "}</Text><Text style={{color:c.mut}}>{_cl.slice(_p+2)}</Text></Text>) : (<Text style={{fontSize:9,color:c.mut,lineHeight:1.6}}>{_cl}</Text>)}
-                                    </View>
-                                )
-                            })}
-                        </View>
-                    )
-                })()}
-                    const _parts: {name:string;body:string}[] = []
-                    let _m: RegExpExecArray | null
-                    while ((_m = _reg.exec(_raw)) !== null) {
-                        const _sn = _m[1].trim()
-                        const _bs = _m.index + _m[0].length
-                        const _nm = _reg.exec(_raw)
-                        const _be = _nm ? _nm.index : _raw.length
-                        const _body = _raw.slice(_bs, _be).trim()
-                        _parts.push({ name: _sn, body: _body })
-                        if (_nm) { _reg.lastIndex = _nm.index } else { break }
-                    }
-                    return (
-                        <View style={{ ...bNone() }}>
-                            {_parts.map((_sec, _si) => {
-                                if (!_sec.body || /^pricing\s*note$/i.test(_sec.name)) return null
-                                const _blines = _sec.body.split("\n").filter((l:string)=>l.trim())
-                                return (
-                                    <View key={_si} style={{ marginHorizontal: 48, marginBottom: 14, ...bNone() }}>
-                                        {_sec.name ? <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{_sec.name}</Text> : null}
-                                        {_blines.map((_ln:string, _li:number) => {
-                                            const _t = _ln.trim()
-                                            const _isNum = /^\d+\.\s/.test(_t)
-                                            const _isBul = /^[-\u2022]\s/.test(_t)
-                                            if (_isNum || _isBul) {
-                                                const _bc = _isNum ? _t.slice(0,_t.indexOf(".")+1) : "\u2022"
-                                                const _bt = _isNum ? _t.slice(_t.indexOf(".")+2).trim() : _t.slice(2).trim()
-                                                return (<View key={_li} style={{flexDirection:"row",marginBottom:3,paddingLeft:8,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700,lineHeight:1.6}}>{_bc}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{_bt}</Text></View>)
-                                            }
-                                            return <Text key={_li} style={{fontSize:9.5,color:c.txt,lineHeight:1.7,marginBottom:2}}>{_t}</Text>
-                                        })}
-                                    </View>
-                                )
-                            })}
-                        </View>
-                    )
-                })() : null}
-                {/* TERMS: render "Label: text" clauses with bold labels */
-                {data.terms ? (() => {
-                    const _rt = sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)
-                    if (!_rt.trim()) return null
-                    const _cls = _rt.split(/\n{2,}/).map((cl:string)=>cl.trim()).filter(Boolean)
-                    const _hasL = _cls.some((cl:string)=>/^[A-Z][^:]{2,30}:\s/.test(cl))
-                    return (
-                        <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Terms & Conditions</Text>
-                            {_hasL ? _cls.map((_cl:string, _ci:number) => {
-                                const _ci2 = _cl.indexOf(": ")
-                                const _lbl = _ci2>0 ? _cl.slice(0,_ci2) : ""
-                                const _isL = _lbl && /^[A-Z][^:]{2,30}$/.test(_lbl)
-                                return (
-                                    <View key={_ci} style={{marginBottom:7,...bNone()}}>
-                                        {_isL ? <Text style={{fontSize:9,lineHeight:1.6}}><Text style={{fontWeight:700,color:c.txt}}>{_lbl+": "}</Text><Text style={{color:c.mut}}>{_cl.slice(_ci2+2)}</Text></Text> : <Text style={{fontSize:9,color:c.mut,lineHeight:1.6}}>{_cl}</Text>}
-                                    </View>
-                                )
-                            }) : <Text style={{fontSize:9,color:c.mut,lineHeight:1.6}}>{_rt}</Text>}
-                        </View>
-                    )
-                })() : null}
-
+                {renderProposalSections(data.notes, c)}
+                {renderProposalTerms(data.terms, data.showSignatureFields, c)}
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
