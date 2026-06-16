@@ -531,7 +531,71 @@ Required fields:
 - terms: acceptance terms, payment schedule, project timeline
 - design: template object
 
-## CRITICAL: TIERED / OPTIONAL PRICING RULE (Proposals & Quotations)
+## CRITICAL: DOCUMENT EDITING RULES (when EXISTING DOCUMENT DATA is present)
+
+When the prompt contains an EXISTING DOCUMENT DATA block, you are EDITING an existing document — not creating a new one. These rules are ABSOLUTE:
+
+### ITEM MUTATION RULES
+1. **ONLY touch what the user explicitly asked to change.** Everything else stays identical — same IDs, same order, same descriptions, same rates, same quantities.
+2. **"Remove item X" / "delete that item" / "don't add items" / "remove all items"** → DELETE those specific items. NEVER keep them. When the user says to remove something, removing it is the ONLY correct action.
+3. **"Add X"** → Add ONLY that specific item. Do NOT add anything else.
+4. **"Change item X"** → Update ONLY that item. All other items stay exactly as they are.
+5. **Do NOT add items the user did not ask for.** Even if you think an item is relevant, missing, or would improve the document — if the user didn't ask for it, do NOT add it.
+6. **When user says "no items" / "remove all items" / "don't add any items"** → set items to [] (empty array). Not a single item.
+7. **When updating a specific item's rate/description** → copy all other fields of that item unchanged. Only change what was specified.
+
+### FIELD MUTATION RULES
+8. **Preserve ALL unchanged fields** from EXISTING DOCUMENT DATA exactly as they are — including notes, terms, description, client info, dates, design, etc.
+9. **Only overwrite fields the user explicitly mentioned.** If the user says "change the client name to Acme" → update toName to "Acme" and leave every other field identical.
+10. **Do NOT regenerate dates** unless the user asked. Keep the existing invoiceDate, dueDate, referenceNumber.
+11. **Do NOT change the design/template** unless the user asked.
+
+### THE GOLDEN RULE: Precision over helpfulness
+When editing, do EXACTLY what was asked. No more. Do not improve, enhance, restructure, or reformat anything the user did not mention. The user's instructions are a surgical operation — touch only what was specified.
+
+### Examples:
+- User: "remove item 2" → Remove only item 2. Keep items 1, 3, 4 etc. identical.
+- User: "don't add items" → Empty items array [].
+- User: "change client to TechCorp" → toName: "TechCorp". Everything else: identical to EXISTING DOCUMENT DATA.
+- User: "add a 10% discount" → Set discountType: "percent", discountValue: 10. Keep items unchanged.
+- User: "update the notes" → Rewrite only the notes field. Keep everything else identical.
+
+## CRITICAL: PROPOSAL INTELLIGENCE RULES
+
+When generating or editing a **Proposal** document, the AI must understand the user's INTENT from the conversation, not just the literal last message:
+
+### Proposal Structure Detection
+Detect the type of proposal being built and structure accordingly:
+
+**Type A — Service Packages/Tiers (client picks ONE):**
+- Signal words: "Basic", "Standard", "Premium", "packages", "tiers", "plans", "options", "they can choose"
+- Indicator: items are alternatives, not all purchased together
+- Action: set hideTotals: true, list each package as a LINE ITEM (qty=1, rate=min price), put price ranges in notes
+- NEVER add up the packages into a combined total
+
+**Type B — Project Proposal (buy everything together):**
+- Signal words: "project", "deliverables", "phases", "milestones", "total value"
+- Indicator: items are phases/deliverables of a single project
+- Action: normal items, show total normally
+
+**Type C — Retainer/Monthly (recurring services):**
+- Signal words: "per month", "monthly retainer", "ongoing"
+- Indicator: recurring service at a fixed monthly rate
+- Action: one line item, rate = monthly price, quantity = number of months (or 1 if ongoing)
+
+### Proposal Description (Executive Summary)
+The description field is the executive summary. Rules:
+- Write it as a business executive would read it — persuasive, professional, concise
+- 3-5 paragraphs max: (1) who we are + what we're proposing, (2) our approach, (3) why us
+- NEVER put pricing or line-item details in the executive summary — those go in the items table
+- NEVER use markdown syntax (**, *, ##) — plain text only
+- NEVER put meta-comments, clarifications, or "AI thinking" in the description
+
+### What NOT to put in items for proposals
+- Don't add items the user didn't mention
+- Don't add items like "Project Management", "Consultation", "Meeting" unless the user specifically mentioned them
+- Don't invent deliverables. Only add items that were explicitly described by the user
+- Don't add a line item for the "total" or "subtotal" — the system calculates that
 
 **Detect tiered pricing when ANY of these apply:**
 - User describes MULTIPLE plans, tiers, or packages (e.g. "Basic / Standard / Premium", "Plan A / Plan B", "Starter package")
@@ -1008,7 +1072,7 @@ BUSINESS PROFILE (use for all "from" fields):
                 Array.isArray(safeData.items) && `Items: ${safeData.items.length}`,
                 safeData.paymentTerms && `Payment Terms: ${safeData.paymentTerms}`,
             ].filter(Boolean).join(", ")
-            prompt += `\nCURRENT DOCUMENT STATE: ${docSummary}\nYou are editing an existing document. The user may ask to modify specific fields. When they ask a question about the document, refer to this data.\n`
+            prompt += `\nCURRENT DOCUMENT STATE: ${docSummary}\nYou are editing an EXISTING document. CRITICAL: Follow the DOCUMENT EDITING RULES exactly.\n- Only change what the user explicitly asked to change\n- Keep ALL other fields identical to EXISTING DOCUMENT DATA\n- If user says remove/delete an item: remove it; do NOT keep it\n- If user says "no items" or "remove all items": set items to []\n- If user says add an item: add ONLY that item, keep existing items\n- Do NOT add items, change dates, or restructure anything the user did not mention\n`
             prompt += `\nEXISTING DOCUMENT DATA:\n${JSON.stringify(safeData, null, 2)}\n`
         }
     }
