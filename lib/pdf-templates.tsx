@@ -306,22 +306,60 @@ function bNone() {
  * so the T&C still clearly establishes acceptance.
  */
 function sanitizeTermsForDisplay(text: string, showSignatureFields: boolean): string {
-    if (showSignatureFields !== false) return text  // signature on → show as-is
+    if (showSignatureFields !== false) return text  // signature on -> show as-is
     if (!text) return text
 
-    // Remove sentences that reference signing/signature when signature section is hidden
-    // Covers variations like "signature below", "sign and return", "signed proposal return", etc.
-    let cleaned = text
-        // Replace specific acceptance-by-signature phrases with email-acceptance alternative
-        .replace(/[^.!?]*\bsignature\s+below\b[^.!?]*[.!?]/gi, "Acceptance may be communicated via email or written confirmation.")
-        .replace(/[^.!?]*\bsign\s+and\s+return\s+this\s+document\b[^.!?]*[.!?]/gi, "Please confirm your acceptance via email to proceed.")
-        .replace(/[^.!?]*\bsigned\s+proposal\s+return\b[^.!?]*[.!?]/gi, "")
-        .replace(/[^.!?]*\baccompanied\s+by\s+the\s+50%\s+advance\b[^.!?]*[.!?]/gi, "")
-        // Clean up double-spaced sentences and leading/trailing whitespace on lines
+    const SIGN_KEYWORDS = [
+        /\bsignat(?:ure|ures|ory|ories|ed|ing)\b/i,
+        /\bsign\s+and\s+return\b/i,
+        /\bsign(?:ed)?\s+(?:this\s+)?(?:document|proposal|contract|agreement|form)\b/i,
+        /\bplease\s+sign\b/i,
+        /\bauthorized\s+signatory\b/i,
+        /\bsigned\s+by\s+(?:both|all)?\s*parties\b/i,
+        /\bexecuted\s+by\s+(?:both|all)?\s*parties\b/i,
+        /\bin\s+witness\s+whereof\b/i,
+        /\bsignature\s+(?:page|block|line|field|section|below|above)\b/i,
+        /\bwet\s+ink\s+signature\b/i,
+        /\be-?signature\b/i,
+        /\belectronically?\s+signed?\b/i,
+        /\bcountersign(?:ed|ing|ature)?\b/i,
+        /\bduly\s+(?:authorized|signed|executed)\b/i,
+        /\bbinding\s+upon\s+(?:execution|signing)\b/i,
+        /\bsigned\s+copy\b/i,
+        /\bsign\s+below\b/i,
+        /\bplease\s+(?:review\s+and\s+)?sign\b/i,
+        /\breturn\s+(?:the\s+)?(?:signed\s+)?(?:copy|document|proposal|contract)\b/i,
+        /\bsign(?:ing)?\s+(?:of\s+)?(?:this\s+)?(?:proposal|contract|agreement)\b/i,
+    ]
+
+    const sentences = text.split(/(?<=[.!?])\s+/)
+    const filtered: string[] = []
+
+    for (const sentence of sentences) {
+        const trimmed = sentence.trim()
+        if (!trimmed) continue
+        const isSigning = SIGN_KEYWORDS.some(kw => kw.test(trimmed))
+        if (isSigning) {
+            if (/\bpayment\b|\badvance\b|\bdeposit\b|\binvoice\b/i.test(trimmed)) {
+                const stripped = trimmed
+                    .replace(/[,;]?\s*(?:upon|after|following|by)?\s*(?:signing|execution|signature)\s*(?:of\s*(?:this\s*)?(?:document|agreement|proposal|contract))?/gi, "")
+                    .replace(/\s{2,}/g, " ")
+                    .trim()
+                if (stripped.length > 20 && stripped !== trimmed) filtered.push(stripped)
+            }
+        } else {
+            filtered.push(trimmed)
+        }
+    }
+
+    let cleaned = filtered.join(" ")
         .replace(/\n{3,}/g, "\n\n")
         .replace(/[ \t]{2,}/g, " ")
         .trim()
 
+    if (!cleaned) {
+        return "This proposal is valid for 30 days from the date of issue. Please confirm your acceptance via email to proceed."
+    }
     return cleaned
 }
 
@@ -1228,7 +1266,7 @@ function NotesSection({ data, c, tpl, config }: NotesSectionProps) {
     const termsLabel = isContract ? "Additional Terms" : "Terms & Conditions"
 
     // Sanitize terms text: remove signature-referencing sentences when sig section is hidden
-    const termsText = sanitizeTermsForDisplay(sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false), showSig)
+    const termsText = sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)
 
     return (
         <>
@@ -2153,57 +2191,100 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {/* â”€â”€ BUDGET BREAKDOWN TABLE â”€â”€ */}
+
+                {/* BUDGET BREAKDOWN TABLE */}
                 {hasItems && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Budget Breakdown</Text>
-                        {/* Accent-colored header (Proposal uses accent, not primary) */}
-                        <View style={{ flexDirection: "row", backgroundColor: c.acc, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 2, borderBottomColor: c.pri, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} wrap={false}>
-                            <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Deliverable / Phase</Text></View>
-                            <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
-                            <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Rate</Text></View>
-                            <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
+                        <View wrap={false}>
+                            <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Budget Breakdown</Text>
+                            <View style={{ flexDirection: "row", backgroundColor: c.acc, borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, paddingVertical: 9, paddingHorizontal: 14, ...bNone(), borderBottomWidth: 2, borderBottomColor: c.pri, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }}>
+                                <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Service / Deliverable</Text></View>
+                                <View style={{ width: 36, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" }}>Qty</Text></View>
+                                <View style={{ width: 76, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Rate</Text></View>
+                                {!(data as any).hideTotals && (
+                                    <View style={{ width: 76, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Amount</Text></View>
+                                )}
+                            </View>
                         </View>
-                        {data.items.filter(i => i.description.trim().length > 0 || i.rate > 0).map((item, i) => {
+                        <View style={{ ...bNone(), borderBottomLeftRadius: 6, borderBottomRightRadius: 6, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderTopWidth: 0, borderLeftColor: c.bdr, borderRightColor: c.bdr, borderBottomColor: c.bdr, borderTopColor: "transparent", borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any, borderTopStyle: "solid" as any }}>
+                        {data.items.filter(i => i.description.trim().length > 0 || i.rate > 0).map((item, i, fa) => {
                             const gross = item.quantity * item.rate
                             const hasDisc = item.discount && item.discount > 0
                             const discAmt = hasDisc ? gross * (item.discount! / 100) : 0
                             const lineTotal = gross - discAmt
+                            const dRaw: string = item.description || ("Item " + String(i + 1))
+                            const dLines = dRaw.split("\n").map((l: string) => l.trim()).filter(Boolean)
+                            const tLns: string[] = [], bLns: string[] = []
+                            let sbL = false
+                            for (const dl of dLines) {
+                                if (dl.startsWith("- ") || dl.startsWith("\u2022 ") || dl.startsWith("* ")) { sbL = true; bLns.push(dl.replace(/^[-\u2022*]\s+/, "").trim()) }
+                                else if (!sbL) tLns.push(dl)
+                                else bLns.push(dl)
+                            }
+                            const tStr = tLns.join(" \u2014 ") || dRaw
+                            const isLast = i === fa.length - 1
                             return (
-                                <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}) }} wrap={false}>
-                                    <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
-                                    <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-                                    <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
-                                    <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text></View>
+                                <View key={i} style={{ flexDirection: "row", paddingVertical: 11, paddingHorizontal: 14, ...bNone(), ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}), ...(!isLast ? { borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any } : {}) }} wrap={false}>
+                                    <View style={{ flex: 1, ...bNone() }}>
+                                        <Text style={{ fontSize: 10, color: c.txt, fontWeight: bLns.length > 0 ? 700 : 400, marginBottom: bLns.length > 0 ? 4 : 0, lineHeight: 1.4 }}>{tStr}</Text>
+                                        {bLns.map((b: string, bi: number) => (
+                                            <View key={bi} style={{ flexDirection: "row", marginTop: 3, paddingLeft: 2, ...bNone() }}>
+                                                <Text style={{ fontSize: 9, color: c.pri, marginRight: 6, fontWeight: 700, lineHeight: 1.5 }}>\u2022</Text>
+                                                <Text style={{ fontSize: 9, color: c.mut, flex: 1, lineHeight: 1.5 }}>{b}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                    <View style={{ width: 36, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+                                    <View style={{ width: 76, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
+                                    {!(data as any).hideTotals && (
+                                        <View style={{ width: 76, ...bNone() }}>
+                                            {hasDisc ? (
+                                                <>
+                                                    <Text style={{ fontSize: 8, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
+                                                    <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                                </>
+                                            ) : (
+                                                <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(gross, data.currency)}</Text>
+                                            )}
+                                        </View>
+                                    )}
                                 </View>
                             )
                         })}
+                        </View>
                     </View>
                 )}
 
-                {/* â”€â”€ TOTAL INVESTMENT â”€â”€ */}
+                {/* TOTAL INVESTMENT */}
                 {total > 0 && !(data as any).hideTotals && (
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
-                        <View style={{ width: 260, ...bNone() }}>
-                            {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
-                                <Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text>
-                                <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(sub, data.currency)}</Text>
-                            </View>}
-                            {!!data.discountValue && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
-                                <Text style={{ fontSize: 10, color: c.mut }}>Discount</Text>
-                                <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(disc, data.currency)}</Text>
-                            </View>}
-                            {!!data.taxRate && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
-                                <Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text>
-                                <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(tax, data.currency)}</Text>
-                            </View>}
-                            <View style={{ backgroundColor: c.pri, ...r(8), padding: 14, marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
+                        <View style={{ width: 280, ...bNone() }}>
+                            {sub > 0 && data.items.length > 1 && (
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                                    <Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text>
+                                    <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(sub, data.currency)}</Text>
+                                </View>
+                            )}
+                            {!!data.discountValue && (
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                                    <Text style={{ fontSize: 10, color: c.mut }}>Discount</Text>
+                                    <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: 700 }}>-{fmt(disc, data.currency)}</Text>
+                                </View>
+                            )}
+                            {!!data.taxRate && (
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
+                                    <Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text>
+                                    <Text style={{ fontSize: 10, color: c.txt, fontWeight: 700 }}>{fmt(tax, data.currency)}</Text>
+                                </View>
+                            )}
+                            <View style={{ backgroundColor: c.pri, borderTopLeftRadius: 8, borderTopRightRadius: 8, borderBottomLeftRadius: 8, borderBottomRightRadius: 8, padding: 14, marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
                                 <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>Total Investment</Text>
                                 <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
                             </View>
                         </View>
                     </View>
                 )}
+
 
                 {/* â”€â”€ NEXT STEPS CTA â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 18, backgroundColor: c.acc, ...r(8), ...bNone(), borderLeftWidth: 5, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }} wrap={false}>

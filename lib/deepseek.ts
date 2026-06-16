@@ -531,6 +531,23 @@ Required fields:
 - terms: acceptance terms, payment schedule, project timeline
 - design: template object
 
+### TERMS & CONDITIONS: SIGNATURE AWARENESS (applies to ALL document types)
+When writing the "terms" field, DO NOT include any language that references physical or electronic signatures UNLESS showSignatureFields is explicitly true. This applies to:
+- "Please sign and return this document" → OMIT or replace with "Please confirm acceptance via email"
+- "Authorized signatory", "signed by both parties", "upon signing", "signature required" → OMIT
+- "Execution of this agreement", "upon execution", "countersigned" → OMIT
+- "Sign below", "signature page", "signature block" → OMIT
+- "In Witness Whereof", "duly authorized and executed" → OMIT
+- "Electronically signed", "e-signature" → OMIT
+
+Instead, write terms using acceptance-without-signature language:
+- "This proposal is accepted when the client confirms acceptance in writing (email is acceptable)"
+- "Work commences upon written confirmation (email) and receipt of advance payment"
+- "This quotation is valid for 30 days from the date of issue"
+- Payment schedule terms: "50% advance due before work begins; 50% balance due on delivery"
+
+The PDF template renders a dedicated signature section automatically when the user turns on signature fields. NEVER pre-include signature language in the terms text itself — the system handles that.
+
 ## CRITICAL: DOCUMENT EDITING RULES (when EXISTING DOCUMENT DATA is present)
 
 When the prompt contains an EXISTING DOCUMENT DATA block, you are EDITING an existing document — not creating a new one. These rules are ABSOLUTE:
@@ -607,6 +624,12 @@ Service/Phase Title
 
 The first line (title) renders as bold. Each "- " line renders as a bullet point with a coloured dot.
 NEVER write a single long run-on sentence for deliverables. ALWAYS use one bullet per feature/deliverable.
+
+For documents with TIERED SERVICE MENUS (Basic/Standard/Premium plans):
+- ALWAYS use the title-then-bullets format — never a run-on sentence
+- The plan name goes on the FIRST line; features as "- " bullets below
+- If a plan has no bullet breakdown yet, at minimum write the plan title boldly,
+  then follow with 2-3 descriptive sub-points as "- " bullets
 
 Example for a social media management tier:
 Premium Plan — Social Media Management with Photo Shoot
