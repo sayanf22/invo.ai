@@ -334,7 +334,19 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
   const currencySymbol = getCurrencySymbol(docData.currency || "USD")
   const docType = (docData.documentType || "Invoice")
   const docTypeLabel = docType.charAt(0).toUpperCase() + docType.slice(1)
-  const docRef = docData.invoiceNumber || docData.referenceNumber || docTypeLabel
+  // For proposals/quotes/contracts: prefer referenceNumber (PROP-..., QUO-..., CTR-...)
+  // over invoiceNumber which may hold an internal ID or wrong prefix
+  const isInvoiceType = docType.toLowerCase() === "invoice"
+  const docRef = isInvoiceType
+    ? (docData.invoiceNumber || docData.referenceNumber || docTypeLabel)
+    : (docData.referenceNumber || docData.invoiceNumber || docTypeLabel)
+
+  // For tiered proposals (hideTotals: true) the "total" is meaningless —
+  // it's the sum of mutually exclusive plan options which the client picks ONE of.
+  // Never show this sum as the proposal value. Show "View plans" instead.
+  const isTimedProposal = docType.toLowerCase() === "proposal" || docType.toLowerCase() === "quotation" || docType.toLowerCase() === "quote"
+  const hasTieredPricing = (docData as any).hideTotals === true
+  const showAmountInHeader = !hasTieredPricing && total > 0
 
   const isPaid = payment?.status === "paid"
   const isPartiallyPaid = payment?.status === "partially_paid"
@@ -361,12 +373,20 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
               )}
             </div>
             <div className="text-right shrink-0">
-              <p className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">
-                {currencySymbol}{total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                {docData.currency || "USD"}
-              </p>
+              {showAmountInHeader ? (
+                <>
+                  <p className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">
+                    {currencySymbol}{total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    {docData.currency || "USD"}
+                  </p>
+                </>
+              ) : hasTieredPricing ? (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 text-sm font-medium">
+                  View plans inside
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -420,7 +440,10 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
                   onClick={handlePayNow}
                   className="flex items-center justify-center w-full px-6 py-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-base transition-colors shadow-sm touch-manipulation select-none"
                 >
-                  Pay Now — {currencySymbol}{total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {showAmountInHeader
+                    ? `Pay Now — ${currencySymbol}${total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : "Pay Now"
+                  }
                 </button>
 
                 {/* QR code */}
