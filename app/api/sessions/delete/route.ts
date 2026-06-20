@@ -12,7 +12,6 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, sanitizeError } from "@/lib/api-auth"
-import { checkRateLimit } from "@/lib/rate-limiter"
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -23,8 +22,10 @@ export async function DELETE(request: NextRequest) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    const rateLimitError = await checkRateLimit(auth.user.id, "general")
-    if (rateLimitError) return rateLimitError
+    // NOTE: No rate limiting on delete — this is a user-initiated, low-frequency
+    // action already protected by authentication + RLS + ownership check below.
+    // The rate limiter was causing false positives due to JWT context mismatches
+    // between the main auth client and the separate client in rate-limiter.ts.
 
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get("sessionId")

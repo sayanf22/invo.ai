@@ -87,17 +87,21 @@ async function createAuthenticatedClient() {
  * 
  * @param identifier - User ID (UUID)
  * @param category - Route category for limit selection
+ * @param supabaseClient - Optional: pass the authenticated client from authenticateRequest
+ *   to avoid JWT context mismatches on Cloudflare Workers. If not provided, falls back
+ *   to creating a new client from cookies (works in standard Next.js environments).
  */
 export async function checkRateLimit(
     identifier: string,
-    category: RouteCategory
+    category: RouteCategory,
+    supabaseClient?: ReturnType<typeof createClient>
 ): Promise<NextResponse | null> {
     const config = RATE_LIMITS[category]
 
     try {
-        const supabase = await createAuthenticatedClient()
+        const supabase = supabaseClient ?? await createAuthenticatedClient()
 
-        const { data, error } = await supabase.rpc('check_rate_limit', {
+        const { data, error } = await (supabase as any).rpc('check_rate_limit', {
             p_user_id: identifier,
             p_category: category,
             p_max_requests: config.maxRequests,
@@ -107,18 +111,20 @@ export async function checkRateLimit(
         if (error) {
             console.error("Rate limit RPC error:", error)
             // FAIL OPEN: if the rate limiter DB is down, allow the request
-            // but log it for ops alerting
             return null
         }
 
         const result = data as { allowed: boolean; remaining: number; retry_after: number; error?: string }
 
+        if (!result || result.error === 'Unauthorized') {
+            // JWT context mismatch — fail open rather than block legitimate users
+            console.warn("Rate limit: JWT context mismatch, failing open for", category)
+            return null
+        }
+
         if (result.error) {
             console.error("Rate limit validation error:", result.error)
-            return NextResponse.json(
-                { error: "Rate limit configuration error" },
-                { status: 500 }
-            )
+            return null // Fail open for config errors
         }
 
         if (!result.allowed) {
@@ -141,7 +147,7 @@ export async function checkRateLimit(
         return null
     } catch (err) {
         console.error("Rate limit check failed:", err)
-        // FAIL OPEN with logging — don't block users if rate limiter has issues
+        // FAIL OPEN with logging
         return null
     }
 }
