@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -115,6 +115,7 @@ interface SignatureRecord {
   signed_at: string | null
   signer_action: string | null
   created_at: string
+  expires_at?: string | null
 }
 
 interface DocSession {
@@ -544,6 +545,7 @@ interface SignatureDetailRecord extends SignatureRecord {
   signer_reason?: string | null
   user_agent?: string | null
   document_hash?: string | null
+  expires_at?: string | null
 }
 
 function SignatureDetailsPanel({ sessionId, expanded }: { sessionId: string; expanded: boolean }) {
@@ -594,7 +596,9 @@ function SignatureDetailsPanel({ sessionId, expanded }: { sessionId: string; exp
     if (sig.signer_action === "declined") return { icon: "❌", label: "Declined" }
     if (sig.signer_action === "revision_requested") return { icon: "📝", label: "Revision Requested" }
     if (sig.signed_at) return { icon: "✅", label: "Signed" }
-    return { icon: "⏳", label: "Pending" }
+    // Check if the signing link has expired
+    if (sig.expires_at && new Date(sig.expires_at) < new Date()) return { icon: "⏱", label: "Expired" }
+    return { icon: "⏳", label: "Awaiting Signature" }
   }
 
   return (
@@ -616,6 +620,18 @@ function SignatureDetailsPanel({ sessionId, expanded }: { sessionId: string; exp
             {sig.signed_at && (
               <p className="text-xs text-muted-foreground">
                 Signed: {format(new Date(sig.signed_at), "MMM d, yyyy h:mm a")} UTC
+              </p>
+            )}
+            {!sig.signed_at && sig.expires_at && (
+              <p className={cn(
+                "text-xs",
+                new Date(sig.expires_at) < new Date()
+                  ? "text-muted-foreground"
+                  : "text-muted-foreground"
+              )}>
+                {new Date(sig.expires_at) < new Date()
+                  ? `Link expired ${formatDistanceToNow(new Date(sig.expires_at), { addSuffix: true })}`
+                  : `Link expires ${format(new Date(sig.expires_at), "MMM d, yyyy")}`}
               </p>
             )}
             {sig.ip_address && (
@@ -960,29 +976,27 @@ function DocCard({
             </button>
           )}
 
-          {/* Signature pill — for contracts/quotations/proposals/SOW/NDA/etc */}
+
+          {/* Signature pill — all states: Signed / Awaiting / Expired / Declined / Changes Requested */}
           {hasSignatures && (() => {
-            // Compute the signature status: signed > cancelled > pending
-            const sigs = session.signatures ?? []
-            const hasSigned = sigs.some(s => s.signed_at && (s.signer_action !== "declined" && s.signer_action !== "revision_requested" && s.signer_action !== "cancelled"))
-            const allCancelled = sigs.length > 0 && sigs.every(s => s.signer_action === "cancelled" || (s as any).signer_action === "declined")
-            const anyCancelled = sigs.some(s => s.signer_action === "cancelled")
-
-            const sigLabel = hasSigned ? "Signed" : allCancelled ? "Cancelled" : "Pending"
-            const isSignedOrCancelled = hasSigned || allCancelled
-
+            const sigs = (session.signatures ?? []).filter(s => s.signer_action !== "cancelled")
+            if (sigs.length === 0) return null
+            const allSigned = sigs.every(s => !!s.signed_at)
+            const anyDeclined = sigs.some(s => s.signer_action === "declined")
+            const anyRevision = sigs.some(s => s.signer_action === "revision_requested")
+            const pending = sigs.filter(s => !s.signed_at && !s.signer_action)
+            const anyExpired = pending.some(s => s.expires_at && new Date(s.expires_at) < new Date())
+            let sigLabel: string, sigStyle: string
+            if (allSigned) { sigLabel = "\u2713 Signed"; sigStyle = "bg-foreground/5 text-foreground border-foreground/20" }
+            else if (anyDeclined) { sigLabel = "\u2717 Declined"; sigStyle = "bg-muted text-muted-foreground border-border/50" }
+            else if (anyRevision) { sigLabel = "\u21a9 Changes Requested"; sigStyle = "bg-muted text-muted-foreground border-border/50" }
+            else if (anyExpired) { sigLabel = "\u23f1 Expired"; sigStyle = "bg-muted text-muted-foreground border-border/50" }
+            else if (pending.length > 0) { sigLabel = "\u23f3 Awaiting Signature"; sigStyle = "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground" }
+            else { sigLabel = "Signature"; sigStyle = "bg-transparent text-muted-foreground border-border/50" }
             return (
               <button onClick={() => setSignatureExpanded(v => !v)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
-                  signatureExpanded
-                    ? "bg-muted text-foreground border-border"
-                    : hasSigned
-                      ? "bg-foreground/5 text-foreground border-foreground/20"
-                      : allCancelled
-                        ? "bg-muted text-muted-foreground border-border/50"
-                        : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
-                )}>
+                className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
+                  signatureExpanded ? "bg-muted text-foreground border-border" : sigStyle)}>
                 <PenLine size={11} />
                 {sigLabel}
               </button>
@@ -995,15 +1009,14 @@ function DocCard({
               "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
               session.quotationResponse.response_type === "accepted"
                 ? "bg-foreground/5 text-foreground border-foreground/20"
-                : session.quotationResponse.response_type === "declined"
-                  ? "bg-muted text-muted-foreground border-border/50"
-                  : "bg-muted text-muted-foreground border-border/50"
+                : "bg-muted text-muted-foreground border-border/50"
             )}>
-              {session.quotationResponse.response_type === "accepted" ? "✓ Accepted"
-                : session.quotationResponse.response_type === "declined" ? "✗ Declined"
-                : "Changes Requested"}
+              {session.quotationResponse.response_type === "accepted" ? "\u2713 Accepted"
+                : session.quotationResponse.response_type === "declined" ? "\u2717 Declined"
+                : "\u21a9 Changes Requested"}
             </span>
           )}
+
 
           {/* Recurring pill */}
           {session.recurring?.is_active && (
@@ -1454,9 +1467,12 @@ export default function MyDocumentsPage() {
         schedules: s._schedules ?? [],
       }))
 
-      // Fetch quotation responses for quote/quotation sessions
+      // Fetch quotation responses for quote/quotation AND proposal sessions
       const quotationSessionIds = withContent
-        .filter((s: any) => normalizeDocumentType(s.document_type) === "quote")
+        .filter((s: any) => {
+          const norm = normalizeDocumentType(s.document_type)
+          return norm === "quote" || norm === "proposal"
+        })
         .map((s: any) => s.id)
 
       let quotationResponseMap: Record<string, { response_type: string }> = {}
@@ -1509,7 +1525,7 @@ export default function MyDocumentsPage() {
       if (signatureSessionIds.length > 0) {
         const { data: signatureRows } = await (supabase as any)
           .from("signatures")
-          .select("id, session_id, signer_name, signer_email, signed_at, signer_action, created_at")
+          .select("id, session_id, signer_name, signer_email, signed_at, signer_action, created_at, expires_at")
           .in("session_id", signatureSessionIds)
           .order("created_at", { ascending: false })
 
