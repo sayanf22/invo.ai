@@ -879,6 +879,28 @@ function DocCard({
         <DeleteConfirmDialog
           open={confirmDelete}
           loading={deleting}
+          warnings={(() => {
+            const w: string[] = []
+            if (localStatus === "finalized") w.push("The document has been sent — the client's link will stop working")
+            // Pending signatures
+            const pendingSigs = (session.signatures || []).filter(s => !s.signed_at && !s.signer_action)
+            if (pendingSigs.length > 0) w.push(`${pendingSigs.length} pending e-signature request${pendingSigs.length > 1 ? "s" : ""} will be cancelled`)
+            // Proposals/quotes with client response enabled
+            if ((docType === "proposal" || docType === "quote" || docType === "quotation") && localStatus === "finalized") {
+              w.push("The client can no longer accept, decline, or request changes on this document")
+            }
+            // Pending email schedules
+            const pendingSchedules = (session.schedules || []).filter(s => s.status === "pending")
+            if (pendingSchedules.length > 0) w.push(`${pendingSchedules.length} scheduled email reminder${pendingSchedules.length > 1 ? "s" : ""} will be cancelled`)
+            // Active recurring invoice
+            if (session.recurring?.is_active) {
+              const freq = session.recurring.frequency || "recurring"
+              w.push(`${freq.charAt(0).toUpperCase() + freq.slice(1)} auto-invoice schedule will stop`)
+            }
+            // Active payment link
+            if (localPayment?.status === "created") w.push("The active payment link will become inaccessible to the client")
+            return w
+          })()}
           onCancel={() => setConfirmDelete(false)}
           onConfirm={async () => {
             setDeleting(true)

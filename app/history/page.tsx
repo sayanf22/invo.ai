@@ -84,6 +84,8 @@ export default function HistoryPage() {
 
   // Delete state — lifted to page level so one dialog serves all cards
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [deleteWarnings, setDeleteWarnings] = useState<string[]>([])
+  const [loadingWarnings, setLoadingWarnings] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
@@ -137,6 +139,88 @@ export default function HistoryPage() {
 
   const openSession = (session: Session) => router.push(`/?sessionId=${session.id}`)
 
+  /**
+   * Called when user clicks the trash icon.
+   * Looks up the session's live state from Supabase and computes
+   * a list of consequences (warnings) to show in the confirm dialog.
+   */
+  const handleRequestDelete = useCallback(async (sessionId: string) => {
+    // Find the session in current state to get its document type + status
+    const session = groups.flatMap(g => g.sessions).find(s => s.id === sessionId)
+    if (!session) return
+
+    setLoadingWarnings(true)
+    setPendingDeleteId(sessionId)
+
+    try {
+      const warnings: string[] = []
+      const docType = session.document_type?.toLowerCase() || ""
+      const status = session.status
+
+      // 1. Sent/finalized: client has already received the document
+      if (status === "finalized") {
+        warnings.push("The document has been sent — the client's link will stop working")
+      }
+
+      // 2. Pending signature requests
+      const { data: sigs } = await supabase
+        .from("signatures")
+        .select("id, signed_at, signer_action")
+        .eq("session_id", sessionId)
+        .is("signed_at", null)
+        .is("signer_action", null)
+
+      if (sigs && sigs.length > 0) {
+        warnings.push(`${sigs.length} pending e-signature request${sigs.length > 1 ? "s" : ""} will be cancelled`)
+      }
+
+      // 3. Pending quotation/proposal responses
+      if (docType === "quote" || docType === "quotation" || docType === "proposal") {
+        if (status === "finalized") {
+          warnings.push("The client can no longer accept, decline, or request changes on this document")
+        }
+      }
+
+      // 4. Scheduled email reminders (future emails that won't send)
+      const { data: schedules } = await (supabase as any)
+        .from("email_schedules")
+        .select("id")
+        .eq("session_id", sessionId)
+        .eq("status", "pending")
+
+      if (schedules && schedules.length > 0) {
+        warnings.push(`${schedules.length} scheduled email reminder${schedules.length > 1 ? "s" : ""} will be cancelled`)
+      }
+
+      // 5. Active recurring invoice
+      const { data: recurring } = await (supabase as any)
+        .from("recurring_invoices")
+        .select("id, is_active, frequency")
+        .eq("source_session_id", sessionId)
+        .eq("is_active", true)
+        .limit(1)
+
+      if (recurring && recurring.length > 0) {
+        const freq = recurring[0].frequency || "recurring"
+        warnings.push(`${freq.charAt(0).toUpperCase() + freq.slice(1)} auto-invoice schedule will stop`)
+      }
+
+      // 6. Active payment link
+      const payLink = session.context?.paymentLink
+      const payStatus = session.context?.paymentLinkStatus
+      if (payLink && payStatus === "created") {
+        warnings.push("The active payment link will become inaccessible to the client")
+      }
+
+      setDeleteWarnings(warnings)
+    } catch {
+      // Non-fatal — if we can't load warnings, still allow delete with base dialog
+      setDeleteWarnings([])
+    } finally {
+      setLoadingWarnings(false)
+    }
+  }, [groups, supabase])
+
   const handleDeleteConfirm = useCallback(async () => {
     if (!pendingDeleteId) return
     setDeleting(true)
@@ -154,6 +238,7 @@ export default function HistoryPage() {
       )
       toast.success("Document deleted")
       setPendingDeleteId(null)
+      setDeleteWarnings([])
     } catch {
       toast.error("Failed to delete")
     } finally {
@@ -260,13 +345,13 @@ export default function HistoryPage() {
             {filteredGroups.map((group, gi) => (
               <div key={group.chainId || `s-${gi}`} className="animate-in fade-in slide-in-from-bottom-1 duration-300" style={{ animationDelay: `${gi * 30}ms` }}>
                 {group.sessions.length > 1 ? (
-                  <ChainGroup group={group} onOpen={openSession} onRequestDelete={setPendingDeleteId} />
+                  <ChainGroup group={group} onOpen={openSession} onRequestDelete={handleRequestDelete} />
                 ) : (
                   <SingleCard
                     session={group.sessions[0]}
                     clientName={group.clientName}
                     onOpen={openSession}
-                    onRequestDelete={setPendingDeleteId}
+                    onRequestDelete={handleRequestDelete}
                   />
                 )}
               </div>
@@ -278,8 +363,9 @@ export default function HistoryPage() {
       {/* Single delete dialog for the whole page */}
       <DeleteConfirmDialog
         open={!!pendingDeleteId}
-        loading={deleting}
-        onCancel={() => { if (!deleting) setPendingDeleteId(null) }}
+        loading={deleting || loadingWarnings}
+        warnings={deleteWarnings}
+        onCancel={() => { if (!deleting && !loadingWarnings) { setPendingDeleteId(null); setDeleteWarnings([]) } }}
         onConfirm={handleDeleteConfirm}
       />
     </div>
