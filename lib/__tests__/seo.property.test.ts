@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest"
 import * as fc from "fast-check"
 
 import { normalizePathname } from "@/lib/url-utils"
-import { isMisspellingPath, MISSPELLING_VARIANTS } from "@/lib/misspelling-data"
+import { isMisspellingPath, REDIRECT_VARIANTS } from "@/lib/misspelling-data"
 import {
   getCityPageData,
   getCitiesForCountry,
@@ -156,7 +156,7 @@ describe("Feature: seo-comprehensive-optimization, Property 3: Misspelling detec
   it("isMisspellingPath returns corrected path for known misspelling variants", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom(...MISSPELLING_VARIANTS),
+        fc.constantFrom(...REDIRECT_VARIANTS),
         fc.webPath(),
         (variant, suffix) => {
           // Build a path that contains the misspelling
@@ -197,7 +197,7 @@ describe("Feature: seo-comprehensive-optimization, Property 3: Misspelling detec
   it("isMisspellingPath corrected path replaces misspelling with clorefy", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom(...MISSPELLING_VARIANTS),
+        fc.constantFrom(...REDIRECT_VARIANTS),
         (variant) => {
           const path = `/${variant}-invoice-generator`
           const result = isMisspellingPath(path)
@@ -745,8 +745,8 @@ describe("Feature: seo-comprehensive-optimization, Property 15+17: Sitemap cover
    * Validates: Requirements 6.1, 6.6, 7.5
    */
 
-  it("all city pages appear in sitemap with priority 0.7 and changeFrequency monthly (Property 15)", () => {
-    const sitemapEntries = sitemap()
+  it("all city pages appear in sitemap with priority 0.7 and changeFrequency monthly (Property 15)", async () => {
+    const sitemapEntries = await sitemap()
     const sitemapUrls = new Map(sitemapEntries.map((e) => [e.url, e]))
 
     fc.assert(
@@ -764,8 +764,8 @@ describe("Feature: seo-comprehensive-optimization, Property 15+17: Sitemap cover
     )
   })
 
-  it("canonical URLs for city pages match sitemap URLs (Property 17)", () => {
-    const sitemapEntries = sitemap()
+  it("canonical URLs for city pages match sitemap URLs (Property 17)", async () => {
+    const sitemapEntries = await sitemap()
     const sitemapUrls = new Set(sitemapEntries.map((e) => e.url))
 
     fc.assert(
@@ -782,15 +782,15 @@ describe("Feature: seo-comprehensive-optimization, Property 15+17: Sitemap cover
     )
   })
 
-  it("sitemap contains no duplicate URLs", () => {
-    const sitemapEntries = sitemap()
+  it("sitemap contains no duplicate URLs", async () => {
+    const sitemapEntries = await sitemap()
     const urls = sitemapEntries.map((e) => e.url)
     const uniqueUrls = new Set(urls)
     expect(uniqueUrls.size).toBe(urls.length)
   })
 
-  it("all sitemap URLs start with https://clorefy.com", () => {
-    const sitemapEntries = sitemap()
+  it("all sitemap URLs start with https://clorefy.com", async () => {
+    const sitemapEntries = await sitemap()
     fc.assert(
       fc.property(
         fc.constantFrom(...sitemapEntries),

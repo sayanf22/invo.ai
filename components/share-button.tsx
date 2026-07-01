@@ -391,7 +391,7 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
         {sessionId && onOpenSendDialog && (
           <DropdownMenuItem onClick={() => requestShare("send-email-dialog")} className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium">
             <Mail className="w-4 h-4 text-primary" />
-            <span>Send via Email</span>
+            <span>Send via Clorefy Email</span>
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={() => requestShare("share-pdf")} className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium">

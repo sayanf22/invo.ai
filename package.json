@@ -8,9 +8,11 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:sitemap": "vitest run __tests__/seo-search-visibility.exploration.property.test.ts",
+    "audit:sitemap": "node scripts/audit-sitemap.mjs",
     "build:worker": "next build --webpack && opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy": "pnpm test:sitemap && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },

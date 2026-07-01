@@ -204,11 +204,18 @@ export default function RootLayout({
               },
               "image": "https://clorefy.com/favicon.png",
               "description": "AI-powered document generation platform that creates professional business documents, sends them to clients, attaches payment links, and supports global document workflows.",
+              // Entity disambiguation: Clorefy is a distinct organization from the
+              // similarly-named Corefy (corefy.com, a payment-orchestration company)
+              // and Glorify (glorify.com, a design/worship app). This explicit signal
+              // helps search engines separate the Clorefy entity from those brands.
+              "disambiguatingDescription": "Clorefy (clorefy.com) is an AI document generation platform for businesses. It is not affiliated with Corefy (corefy.com), a payment-orchestration company, nor with Glorify (glorify.com). These are separate, unrelated companies.",
               "foundingDate": "2025",
               "numberOfEmployees": { "@type": "QuantitativeValue", "value": 1 },
+              // Every sameAs profile below must exist and be active to serve as an
+              // entity anchor — a sameAs to a non-existent profile is a dead signal.
               "sameAs": [
                 "https://twitter.com/clorefy",
-                "https://linkedin.com/company/clorefy",
+                "https://www.linkedin.com/company/clorefy",
                 "https://github.com/clorefy",
                 "https://www.youtube.com/@Clorefy",
               ],
@@ -335,6 +342,14 @@ export default function RootLayout({
                   "acceptedAnswer": {
                     "@type": "Answer",
                     "text": "No. Clorefy (clorefy.com) and Glorify (glorify.com) are completely different products. Clorefy is an AI document generation platform for businesses — for invoices, contracts, proposals, and NDAs. Glorify is a music or design app. They are unrelated companies. If you searched for 'glorify' but meant a document generation tool, you are looking for Clorefy."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Is Clorefy the same as Corefy?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "No. Clorefy (clorefy.com) and Corefy (corefy.com) are different, unrelated companies. Clorefy — spelled C-L-O-R-E-F-Y — is an AI document generation platform that creates invoices, contracts, proposals, and NDAs for businesses. Corefy is a payment-orchestration platform. The names look similar but the products and companies are separate. If you are looking for an AI document or invoice generator, you want Clorefy at clorefy.com."
                   }
                 },
                 {

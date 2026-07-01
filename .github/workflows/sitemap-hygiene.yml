@@ -1,0 +1,63 @@
+name: Sitemap Hygiene
+
+# Regression guard for Property 1 (Sitemap Hygiene) of the
+# seo-search-visibility-fix spec.
+#
+# Two layers of protection:
+#   1. `guard` runs on every push/PR — a fast, offline, deterministic check
+#      that a redirecting / 404 / noindex or private (auth/billing/settings/
+#      documents/api/admin) route can never RE-ENTER app/sitemap.ts in code.
+#   2. `live-audit` runs on a schedule / manual dispatch — it fetches the
+#      DEPLOYED sitemap.xml and requests every URL, flagging any non-200,
+#      3xx-redirected, or noindex entry (the operational 404/redirect check).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/sitemap.ts"
+      - "lib/blog-combined.ts"
+      - "lib/blog-storage.ts"
+      - "lib/blog-data.ts"
+      - "scripts/audit-sitemap.mjs"
+      - "__tests__/seo-search-visibility.*"
+  pull_request:
+    paths:
+      - "app/sitemap.ts"
+      - "lib/blog-combined.ts"
+      - "lib/blog-storage.ts"
+      - "lib/blog-data.ts"
+      - "scripts/audit-sitemap.mjs"
+      - "__tests__/seo-search-visibility.*"
+  schedule:
+    # Daily live audit of the deployed sitemap (07:00 UTC).
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  guard:
+    name: Offline sitemap hygiene guard
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run offline sitemap hygiene tests
+        run: pnpm test:sitemap
+
+  live-audit:
+    name: Live deployed sitemap audit
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Audit deployed sitemap.xml
+        run: node scripts/audit-sitemap.mjs https://clorefy.com/sitemap.xml

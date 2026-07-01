@@ -1,12 +1,11 @@
 "use client"
 
-import { FileText, ScrollText, ClipboardList, Lightbulb, Loader2, FileCheck, Shield, ClipboardCheck, Bell, GitMerge } from "lucide-react"
+import { FileText, ScrollText, ClipboardList, Lightbulb, Loader2, FileCheck, Shield, ClipboardCheck, Bell, GitMerge, Repeat } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getDocumentTypeLabel, normalizeDocumentType } from "@/lib/document-type-registry"
 
-// Accept all 9 canonical types (plus legacy "quotation" which is normalized to "quote").
-// Recurring invoices are NOT a separate type — they are a setting on a regular invoice.
-type CreateCardDocType = "invoice" | "contract" | "quote" | "quotation" | "proposal" | "sow" | "change_order" | "nda" | "client_onboarding_form" | "payment_followup"
+// Accept all 10 canonical types (plus legacy "quotation" which is normalized to "quote").
+type CreateCardDocType = "invoice" | "contract" | "quote" | "quotation" | "proposal" | "sow" | "change_order" | "nda" | "client_onboarding_form" | "payment_followup" | "recurring_invoice"
 
 interface ChatCreateCardProps {
     documentType: CreateCardDocType
@@ -27,6 +26,7 @@ const DOC_ICON: Record<string, React.ElementType> = {
     nda: Shield,
     client_onboarding_form: ClipboardCheck,
     payment_followup: Bell,
+    recurring_invoice: Repeat,
 }
 
 /**

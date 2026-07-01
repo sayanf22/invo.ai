@@ -19,11 +19,19 @@ import {
   checkDocumentTypeAllowed,
   type UserTier,
 } from "@/lib/cost-protection"
+import { ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 
 const PAID_TIERS = ["starter", "pro", "agency"] as const
 const ALL_TIERS: UserTier[] = ["free", "starter", "pro", "agency"]
 
-// Expected tier limits from the spec
+// Expected tier limits — sourced from docs/pricing-model.md (product source of truth)
+// and the centralized document-type-registry (10 canonical types).
+//
+// Free tier document types: Invoice, Contract, Quote (3 types).
+//   → quote is allowed on free; "quotation" is a legacy alias that normalizes to "quote".
+//   → recurring_invoice and all other advanced types are paid-only.
+// Paid tiers (starter/pro/agency): ALL document types in the registry (currently 10,
+//   including the newly-added recurring_invoice).
 const EXPECTED_LIMITS: Record<UserTier, {
   documentsPerMonth: number
   messagesPerSession: number
@@ -34,25 +42,25 @@ const EXPECTED_LIMITS: Record<UserTier, {
     documentsPerMonth: 5,
     messagesPerSession: 10,
     emailsPerMonth: 5,
-    allowedDocTypes: ["invoice", "contract"],
+    allowedDocTypes: ["invoice", "contract", "quote"],
   },
   starter: {
     documentsPerMonth: 50,
     messagesPerSession: 30,
     emailsPerMonth: 100,
-    allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
+    allowedDocTypes: [...ALL_DOCUMENT_TYPES],
   },
   pro: {
     documentsPerMonth: 150,
     messagesPerSession: 50,
     emailsPerMonth: 250,
-    allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
+    allowedDocTypes: [...ALL_DOCUMENT_TYPES],
   },
   agency: {
     documentsPerMonth: 0,
     messagesPerSession: 0,
     emailsPerMonth: 0,
-    allowedDocTypes: ["invoice", "contract", "quotation", "proposal"],
+    allowedDocTypes: [...ALL_DOCUMENT_TYPES],
   },
 }
 
@@ -206,19 +214,24 @@ describe("Feature: subscription-expiry-enforcement, Property 2: Preservation —
       )
     })
 
-    it("SHALL allow invoice and contract for free tier", () => {
+    it("SHALL allow invoice, contract, and quote for free tier", () => {
       expect(checkDocumentTypeAllowed("invoice", "free")).toBeNull()
       expect(checkDocumentTypeAllowed("contract", "free")).toBeNull()
+      expect(checkDocumentTypeAllowed("quote", "free")).toBeNull()
+      // "quotation" is a legacy alias that normalizes to "quote" — also allowed on free
+      expect(checkDocumentTypeAllowed("quotation", "free")).toBeNull()
     })
 
-    it("SHALL block quotation and proposal for free tier", () => {
-      const quotResult = checkDocumentTypeAllowed("quotation", "free")
-      expect(quotResult).not.toBeNull()
-      expect(quotResult!.status).toBe(403)
-
+    it("SHALL block proposal and other paid-only types for free tier", () => {
+      // proposal is NOT part of the free tier's 3 document types
       const propResult = checkDocumentTypeAllowed("proposal", "free")
       expect(propResult).not.toBeNull()
       expect(propResult!.status).toBe(403)
+
+      // recurring_invoice (the newly-added 10th type) is paid-only — free must not access it
+      const recResult = checkDocumentTypeAllowed("recurring_invoice", "free")
+      expect(recResult).not.toBeNull()
+      expect(recResult!.status).toBe(403)
     })
   })
 })

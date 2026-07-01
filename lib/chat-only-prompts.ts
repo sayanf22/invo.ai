@@ -207,7 +207,7 @@ The "type" field in CREATE_CARD MUST EXACTLY match the document type you just su
 Before emitting CREATE_CARD, re-read the document type you mentioned in the SAME response and confirm the "type" field matches it word-for-word. If you said "proposal", emit "proposal". If you said "invoice", emit "invoice". No exceptions.
 
 CREATE_CARD FORMAT:
-- type MUST be exactly one of: invoice, contract, quote, proposal, sow, change_order, nda, client_onboarding_form, payment_followup
+- type MUST be exactly one of: invoice, contract, quote, proposal, sow, change_order, nda, client_onboarding_form, payment_followup, recurring_invoice
 - type MUST match the document type you named in the same response (see TYPE CONSISTENCY above)
 - summary MUST be a single line, under 80 characters, describing what will be created
 - Example: [CREATE_CARD:{"type":"invoice","summary":"Invoice for Acme Corp for $1,500 web design work"}]
@@ -222,7 +222,7 @@ Remember: you are suggesting, not creating. The user clicks a button to actually
  * The inner object must contain only `type` and `summary` fields.
  */
 export const CREATE_CARD_SIGNAL_REGEX =
-    /\[CREATE_CARD:(\{\s*"type"\s*:\s*"(?:invoice|contract|quote|proposal|sow|change_order|nda|client_onboarding_form|payment_followup)"\s*,\s*"summary"\s*:\s*"[^"]{1,200}"\s*\})\]/
+    /\[CREATE_CARD:(\{\s*"type"\s*:\s*"(?:invoice|contract|quote|proposal|sow|change_order|nda|client_onboarding_form|payment_followup|recurring_invoice)"\s*,\s*"summary"\s*:\s*"[^"]{1,200}"\s*\})\]/
 
 /**
  * Regex used to STRIP the CREATE_CARD signal from the user-visible message
@@ -231,7 +231,7 @@ export const CREATE_CARD_SIGNAL_REGEX =
 export const CREATE_CARD_STRIP_REGEX = /\n?\[CREATE_CARD:\{[^}]*\}\]\s*$/
 
 export interface ParsedCreateCard {
-    type: "invoice" | "contract" | "quote" | "proposal" | "sow" | "change_order" | "nda" | "client_onboarding_form" | "payment_followup"
+    type: "invoice" | "contract" | "quote" | "proposal" | "sow" | "change_order" | "nda" | "client_onboarding_form" | "payment_followup" | "recurring_invoice"
     summary: string
 }
 
@@ -256,7 +256,8 @@ export function parseCreateCardSignal(text: string): ParsedCreateCard | null {
                 parsed.type === "change_order" ||
                 parsed.type === "nda" ||
                 parsed.type === "client_onboarding_form" ||
-                parsed.type === "payment_followup") &&
+                parsed.type === "payment_followup" ||
+                parsed.type === "recurring_invoice") &&
             typeof parsed.summary === "string" &&
             parsed.summary.length > 0 &&
             parsed.summary.length <= 200

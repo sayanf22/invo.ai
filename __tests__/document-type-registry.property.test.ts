@@ -25,7 +25,7 @@ const EXPECTED_VALID_PARENTS: Record<DocumentType, DocumentType[]> = {
   contract: [],
   quote: [],
   proposal: [],
-  sow: ["contract"],
+  sow: ["contract", "proposal", "quote"],
   change_order: ["sow", "contract"],
   nda: [],
   client_onboarding_form: [],
@@ -79,10 +79,13 @@ describe("Property 9: Document linking parent validation", () => {
 
   // ─── Specific relationship assertions ────────────────────────────────────────
 
-  it("sow has exactly ['contract'] as validParentTypes", () => {
+  it("sow accepts contract, proposal, and quote as validParentTypes", () => {
     const config = getDocumentTypeConfig("sow")
     expect(config).not.toBeNull()
-    expect(config!.validParentTypes).toEqual(["contract"])
+    expect(config!.validParentTypes).toContain("contract")
+    expect(config!.validParentTypes).toContain("proposal")
+    expect(config!.validParentTypes).toContain("quote")
+    expect(config!.validParentTypes).toHaveLength(3)
   })
 
   it("change_order has exactly ['sow', 'contract'] as validParentTypes", () => {

@@ -49,10 +49,10 @@ export const MISSPELLING_VARIANTS: string[] = [
  */
 /**
  * Misspellings that should trigger URL redirects.
- * Subset of MISSPELLING_VARIANTS — excludes "clorefy" (correct) and
- * broad dictionary words that would match unrelated products.
+ * Subset of MISSPELLING_VARIANTS — excludes "clorefy" (correct, would cause a
+ * redirect loop) and broad dictionary words that would match unrelated products.
  */
-const REDIRECT_VARIANTS: string[] = [
+export const REDIRECT_VARIANTS: string[] = [
   "clorify",
   "cloriphy",
   "clorephy",
@@ -71,10 +71,20 @@ const REDIRECT_VARIANTS: string[] = [
   "clorfiy",
 ]
 
+/**
+ * Variants ordered longest-first so that overlapping misspellings are matched
+ * against the most specific variant. Without this, a shorter variant that is a
+ * substring of a longer one (e.g. "clorfi" ⊂ "clorfiy") would match first and
+ * produce a partial correction like "/clorefyy-..." instead of "/clorefy-...".
+ */
+const REDIRECT_VARIANTS_BY_SPECIFICITY: string[] = [...REDIRECT_VARIANTS].sort(
+  (a, b) => b.length - a.length
+)
+
 export function isMisspellingPath(pathname: string): string | null {
   const lower = pathname.toLowerCase()
 
-  for (const variant of REDIRECT_VARIANTS) {
+  for (const variant of REDIRECT_VARIANTS_BY_SPECIFICITY) {
     if (lower.includes(variant)) {
       const corrected = lower.replace(new RegExp(variant, "gi"), "clorefy")
       return corrected

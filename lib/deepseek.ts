@@ -926,17 +926,45 @@ Do NOT append the disclaimer for purely factual information (e.g., "GST stands f
 // If `ragTaxRate` is provided, it is locked into the instruction so the
 // AI cannot silently fall back to training-data rates.
 function getTaxApplyRule(country: string, registered: boolean, hasTaxIds: boolean, ragTaxRate?: number): string {
+    const c = (country || "").trim().toUpperCase()
     const rateInstruction = ragTaxRate !== undefined
         ? `set taxRate=${ragTaxRate}`
         : "use the standard tax rate from COMPLIANCE CONTEXT; if COMPLIANCE CONTEXT has no rate, set taxRate=0 and ask the user to confirm the rate"
 
+    // ── Registered with a tax ID on file — country-specific compliance path ──
+    // Each rule embeds the correct tax identifiers/labels so the AI carries the
+    // right compliance data onto the invoice. This is a real compliance feature.
     if (registered && hasTaxIds) {
-        return `REGISTERED — ${rateInstruction}. Use the tax label from COMPLIANCE CONTEXT (e.g. GST / VAT / USt / TVA / BTW / HST). Include the business's tax ID in fromTaxId. If COMPLIANCE CONTEXT lists country-specific nuances (reverse charge, intra/inter-state, province-level, free zone), apply them; ask ONE clarifying question per the CLARIFICATION QUESTION RULES section.`
+        switch (c) {
+            case "IN":
+                return `REGISTERED — GST. Use CGST+SGST for intra-state supply and IGST for inter-state supply (default to IGST when place of supply is unknown). Include the GSTIN in fromTaxId and add Place of Supply with the two-digit state code in notes. Ask intra-state vs inter-state as the Priority 1 clarification, then HSN/SAC. ${rateInstruction}.`
+            case "CA":
+                return `REGISTERED — GST/HST. Apply the province-specific rate (ON HST 13%, QC GST+QST 14.975%, BC 12%, AB/YT/NT/NU GST 5%, NB/NS/PE/NL HST 15%, SK/MB combined). Default to GST 5% when the province is unknown. Include the BN (…RT0001) in fromTaxId. Ask the client province (QC, ON, BC, AB, …) as the Priority 1 clarification. ${rateInstruction}.`
+            case "AU":
+                return `REGISTERED — GST 10%, taxLabel "GST". Include the ABN in fromTaxId and display it as "ABN: XX XXX XXX XXX" in notes. Add the "Tax Invoice" label in notes when the amount ≥ AUD $82.50. ${rateInstruction}.`
+            case "AE":
+                return `REGISTERED — VAT 5%, taxLabel "VAT". Include the TRN in fromTaxId and display it as "TRN: [number]" in notes. Ask the emirate of supply as the Priority 1 clarification, then the client TRN for B2B over AED 10,000. ${rateInstruction}.`
+            case "US":
+                return `REGISTERED — US sales tax varies by state. Default taxRate=0 until the client's state is known, then apply the destination state rate from COMPLIANCE CONTEXT; ask for the client's state as the Priority 1 clarification. Include the EIN in fromTaxId.`
+            case "DE":
+                return `REGISTERED — USt. taxLabel "USt" (19% standard, 7% reduced). Include the Steuernummer or USt-IdNr in fromTaxId. Ask EU B2B confirmation as the Priority 1 clarification; if EU B2B reverse charge is confirmed, set taxRate=0 and add "Steuerschuldnerschaft des Leistungsempfängers" in notes. ${rateInstruction}.`
+            default:
+                return `REGISTERED — ${rateInstruction}. Use the tax label from COMPLIANCE CONTEXT (e.g. GST / VAT / USt / TVA / BTW / HST). Include the business's tax ID in fromTaxId. If COMPLIANCE CONTEXT lists country-specific nuances (reverse charge, intra/inter-state, province-level, free zone), apply them; ask ONE clarifying question per the CLARIFICATION QUESTION RULES section.`
+        }
     }
     if (registered && !hasTaxIds) {
-        return `REGISTERED but no tax ID provided — set fromTaxId: "", use the tax label from COMPLIANCE CONTEXT, and ask the user for their tax registration number (GSTIN / EIN / VAT No / ABN / TRN / TIN etc. depending on country) in the message field.`
+        return `REGISTERED but no tax ID on file — set fromTaxId: "", use the tax label from COMPLIANCE CONTEXT, and ask for the business's tax registration number (GSTIN / EIN / VAT No / ABN / TRN / TIN, depending on country) in the message field.`
     }
-    return `UNREGISTERED — set taxRate=0, fromTaxId: "". If COMPLIANCE CONTEXT includes a small-business exemption note (e.g. Kleinunternehmer §19 UStG, KOR, composition scheme, GST threshold), include that note in the document notes field. Otherwise no tax.`
+
+    // ── Unregistered — always zero tax; include the country's exemption note ──
+    switch (c) {
+        case "IN":
+            return `UNREGISTERED — set taxRate=0, fromTaxId: "". Include the GST registration threshold note (Rs. 20L; Rs. 10L for special-category states) in the message field only.`
+        case "DE":
+            return `UNREGISTERED (Kleinunternehmer) — set taxRate=0, fromTaxId: "". Include "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet" in the document notes; put the EUR 22,000 threshold note in the message field only.`
+        default:
+            return `UNREGISTERED — set taxRate=0, fromTaxId: "". If COMPLIANCE CONTEXT includes a small-business exemption note (e.g. Kleinunternehmer § 19 UStG, KOR, composition scheme, GST threshold), include that note in the document notes field. Otherwise no tax.`
+    }
 }
 
 /**

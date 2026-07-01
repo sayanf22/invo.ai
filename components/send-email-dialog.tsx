@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Mail, Loader2, X, Send, RefreshCw, AlertTriangle, Lock, CheckCircle2, XCircle, Calendar, Bell, BellOff, Repeat2, FileText } from "lucide-react"
+import { Mail, Loader2, X, Send, AlertTriangle, CheckCircle2, XCircle, Calendar, Bell, BellOff, Repeat2, FileText, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -20,9 +20,7 @@ interface SendEmailDialogProps {
   userTier?: "free" | "starter" | "pro" | "agency"
 }
 
-// Step 1: Compose (enter email + subject, no AI yet)
-// Step 2: Confirm (AI generates message, user sees lock warning, confirms)
-type Step = "compose" | "confirm"
+const MAX_MESSAGE_LENGTH = 500
 
 function generateSubject(invoiceData: InvoiceData, documentType: string): string {
   const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
@@ -74,7 +72,6 @@ export function SendEmailDialog({
   const isInvoice = documentType.toLowerCase() === "invoice"
   const isPaidTier = userTier !== "free"
 
-  const [step, setStep] = useState<Step>("compose")
   const [email, setEmail] = useState("")
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
@@ -142,10 +139,9 @@ export function SendEmailDialog({
     }
   }, [validateEmail])
 
-  // ── AI message generation — only called when proceeding to confirm ──────────
+  // ── AI message assist (optional) ────────────────────────────────────────────
   const generateMessage = useCallback(async () => {
     setIsGenerating(true)
-    setMessage("")
     try {
       const { formatted } = calcTotal(invoiceData)
       const res = await authFetch("/api/emails/generate-message", {
@@ -165,66 +161,63 @@ export function SendEmailDialog({
       })
       if (res.ok) {
         const data = await res.json()
-        setMessage(data.message || "")
+        setMessage((data.message || "").slice(0, MAX_MESSAGE_LENGTH))
       } else {
-        setMessage(localFallback(invoiceData, documentType))
+        setMessage(localFallback(invoiceData, documentType).slice(0, MAX_MESSAGE_LENGTH))
       }
     } catch {
-      setMessage(localFallback(invoiceData, documentType))
+      setMessage(localFallback(invoiceData, documentType).slice(0, MAX_MESSAGE_LENGTH))
     } finally {
       setIsGenerating(false)
     }
   }, [invoiceData, documentType])
 
-  // ── Reset when dialog opens — NO AI generation yet ─────────────────────────
+  // ── Reset when dialog opens ──────────────────────────────────────────────────
   useEffect(() => {
     if (open) {
-      setStep("compose")
       setEmail(defaultEmail || invoiceData.toEmail || "")
       setSubject(generateSubject(invoiceData, documentType))
       setEmailValid(null)
       setEmailError(null)
-      setMessage("") // clear previous message
-      // Reset auto-invoice to tier default when dialog opens
+      setMessage("")
       setAutoInvoiceOnSign(isContract && isPaidTier)
     }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Focus email input on open
   useEffect(() => {
-    if (open && step === "compose") {
+    if (open) {
       const t = setTimeout(() => emailInputRef.current?.focus(), 100)
       return () => clearTimeout(t)
     }
-  }, [open, step])
+  }, [open])
 
   // Escape key
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isSending) {
-        if (step === "confirm") setStep("compose")
-        else onClose()
-      }
+      if (e.key === "Escape" && !isSending) onClose()
     }
     document.addEventListener("keydown", handler)
     return () => document.removeEventListener("keydown", handler)
-  }, [open, isSending, step, onClose])
+  }, [open, isSending, onClose])
 
   if (!open) return null
 
   const docTypeLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
   const isEmailFormatValid = /^[^\s@]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/.test(email.trim())
-  const canProceed = isEmailFormatValid && !emailValidating && emailValid !== false && subject.trim().length > 0
-
-  // Proceed to confirm: lock document intent + generate AI message
-  const handleProceedToConfirm = () => {
-    setStep("confirm")
-    generateMessage() // generate NOW, only when user actually wants to send
-  }
+  const canSend =
+    isEmailFormatValid &&
+    !emailValidating &&
+    emailValid !== false &&
+    subject.trim().length > 0 &&
+    message.length <= MAX_MESSAGE_LENGTH &&
+    !isSending &&
+    !isGenerating
 
   const handleSend = async () => {
     if (isSending || isGenerating) return
+    if (!isEmailFormatValid) return
     setIsSending(true)
     try {
       const res = await authFetch("/api/emails/send-document", {
@@ -242,7 +235,7 @@ export function SendEmailDialog({
 
       if (res.ok) {
         // Save recurring settings if invoice
-        if (documentType.toLowerCase() === "invoice") {
+        if (isInvoice) {
           if (makeRecurring) {
             await authFetch("/api/recurring", {
               method: "POST",
@@ -258,7 +251,7 @@ export function SendEmailDialog({
           onRecurringChange?.(makeRecurring, recurringFrequency)
         }
         // Save auto-invoice setting for contracts
-        if (documentType.toLowerCase() === "contract") {
+        if (isContract) {
           await authFetch("/api/sessions/auto-invoice", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -279,11 +272,9 @@ export function SendEmailDialog({
           errorMessage = data.error || errorMessage
         } catch { /* ignore */ }
         toast.error(errorMessage)
-        setStep("compose")
       }
     } catch {
       toast.error("Network error. Please check your connection.")
-      setStep("compose")
     } finally {
       setIsSending(false)
     }
@@ -293,7 +284,7 @@ export function SendEmailDialog({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={() => !isSending && (step === "confirm" ? setStep("compose") : onClose())}
+        onClick={() => !isSending && onClose()}
         aria-hidden="true"
       />
 
@@ -312,437 +303,324 @@ export function SendEmailDialog({
           <div className="w-10 h-1 rounded-full bg-border" />
         </div>
 
-        {/* ── STEP 1: COMPOSE ── */}
-        {step === "compose" && (
-          <>
-            <div className="flex items-center justify-between px-5 pt-3 pb-3 shrink-0 border-b border-border/50">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                  <Mail className="w-4 h-4 text-primary" />
-                </div>
-                <h2 id="send-email-title" className="text-base font-semibold text-foreground">
-                  Send {docTypeLabel}
-                </h2>
-              </div>
-              <button type="button" onClick={onClose} aria-label="Close"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 transition-colors">
-                <X className="w-4 h-4" />
-              </button>
+        <div className="flex items-center justify-between px-5 pt-3 pb-3 shrink-0 border-b border-border/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Mail className="w-4 h-4 text-primary" />
             </div>
+            <h2 id="send-email-title" className="text-base font-semibold text-foreground">
+              Send {docTypeLabel}
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} disabled={isSending} aria-label="Close"
+            className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-50">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4 min-h-0">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4 min-h-0">
 
-              {/* To */}
-              <div className="space-y-1.5">
-                <label htmlFor="email-to" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  To
-                </label>
-                <div className="relative">
-                  <input
-                    ref={emailInputRef}
-                    id="email-to"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => handleEmailChange(e.target.value)}
-                    onBlur={() => email.trim().length > 5 && validateEmail(email)}
-                    placeholder="client@company.com"
-                    className={cn(
-                      "w-full px-3.5 py-2.5 pr-10 rounded-xl text-sm bg-background border",
-                      "placeholder:text-muted-foreground text-foreground",
-                      "focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors",
-                      emailValid === false ? "border-red-400 focus:ring-red-400/40" :
-                      emailValid === true ? "border-emerald-400 focus:ring-emerald-400/40" :
-                      "border-border"
-                    )}
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {emailValidating && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-                    {!emailValidating && emailValid === true && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-                    {!emailValidating && emailValid === false && <XCircle className="w-4 h-4 text-red-500" />}
-                  </div>
-                </div>
-                {emailError && (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
-                    <XCircle className="w-3 h-3 shrink-0" />{emailError}
-                  </p>
-                )}
-                {emailValidating && (
-                  <p className="text-xs text-muted-foreground">Verifying email address...</p>
-                )}
-              </div>
-
-              {/* Subject */}
-              <div className="space-y-1.5">
-                <label htmlFor="email-subject" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Subject
-                </label>
-                <input
-                  id="email-subject"
-                  type="text"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Email subject..."
-                  className="w-full px-3.5 py-2.5 rounded-xl text-sm bg-background border border-border placeholder:text-muted-foreground text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors"
-                />
-              </div>
-
-              {/* Info about what happens next */}
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-muted/40 border border-border/50">
-                <Lock className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Clicking "Review & Send" will show you the AI-written message and lock confirmation before anything is sent.
-                </p>
-              </div>
-            </div>
-
-            <div className="shrink-0 px-5 py-4 border-t border-border/50 flex gap-2.5">
-              <button type="button" onClick={onClose}
-                className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border border-border hover:bg-muted/60 transition-colors">
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleProceedToConfirm}
-                disabled={!canProceed}
+          {/* Recipient email */}
+          <div className="space-y-1.5">
+            <label htmlFor="email-to" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              To
+            </label>
+            <div className="relative">
+              <input
+                ref={emailInputRef}
+                id="email-to"
+                type="email"
+                required
+                aria-label="Recipient email"
+                value={email}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                onBlur={() => email.trim().length > 5 && validateEmail(email)}
+                disabled={isSending}
+                placeholder="client@company.com"
                 className={cn(
-                  "flex-1 inline-flex items-center justify-center gap-2",
-                  "py-2.5 px-4 rounded-xl text-sm font-semibold",
-                  "bg-primary text-primary-foreground hover:bg-primary/90",
-                  "transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  "w-full px-3.5 py-2.5 pr-10 rounded-xl text-sm bg-background border",
+                  "placeholder:text-muted-foreground text-foreground",
+                  "focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors",
+                  "disabled:opacity-60",
+                  emailValid === false ? "border-red-400 focus:ring-red-400/40" :
+                  emailValid === true ? "border-emerald-400 focus:ring-emerald-400/40" :
+                  "border-border"
                 )}
-              >
-                <Send className="w-4 h-4" />
-                Review & Send
-              </button>
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                {emailValidating && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                {!emailValidating && emailValid === true && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                {!emailValidating && emailValid === false && <XCircle className="w-4 h-4 text-red-500" />}
+              </div>
             </div>
-          </>
-        )}
+            {emailError && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <XCircle className="w-3 h-3 shrink-0" />{emailError}
+              </p>
+            )}
+            {emailValidating && (
+              <p className="text-xs text-muted-foreground">Verifying email address...</p>
+            )}
+          </div>
 
-        {/* ── STEP 2: CONFIRM ── */}
-        {step === "confirm" && (
-          <>
-            <div className="flex items-center justify-between px-5 pt-3 pb-3 shrink-0 border-b border-border/50">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-                  <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                </div>
-                <h2 id="send-email-title" className="text-base font-semibold text-foreground">
-                  Confirm & Send
-                </h2>
+          {/* Subject */}
+          <div className="space-y-1.5">
+            <label htmlFor="email-subject" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Subject
+            </label>
+            <input
+              id="email-subject"
+              type="text"
+              aria-label="Subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              disabled={isSending}
+              placeholder="Email subject..."
+              className="w-full px-3.5 py-2.5 rounded-xl text-sm bg-background border border-border placeholder:text-muted-foreground text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors disabled:opacity-60"
+            />
+          </div>
+
+          {/* Personal message */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="email-message" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Personal message
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={generateMessage}
+                  disabled={isGenerating || isSending}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                >
+                  {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  {isGenerating ? "Writing..." : "Generate with AI"}
+                </button>
+                <span className={cn("text-[11px] tabular-nums", message.length > MAX_MESSAGE_LENGTH ? "text-red-500" : "text-muted-foreground")}>
+                  {message.length}/{MAX_MESSAGE_LENGTH}
+                </span>
               </div>
-              <button type="button" onClick={() => setStep("compose")} disabled={isSending}
-                aria-label="Back"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-50">
-                <X className="w-4 h-4" />
-              </button>
             </div>
+            <textarea
+              id="email-message"
+              aria-label="Personal message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              maxLength={MAX_MESSAGE_LENGTH}
+              rows={5}
+              disabled={isSending}
+              placeholder="Add an optional note for your client..."
+              className="w-full px-3.5 py-2.5 rounded-xl text-sm resize-none leading-relaxed bg-background border border-border placeholder:text-muted-foreground text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors disabled:opacity-60"
+            />
+          </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-4 min-h-0">
+          {/* Lock notice */}
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+              Once sent, this {documentType.toLowerCase()} will be locked and can no longer be edited. You can still view and download it.
+            </p>
+          </div>
 
-              {/* Lock warning */}
-              <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                    Document will be locked after sending
-                  </p>
-                  <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
-                    Once sent, this {documentType.toLowerCase()} cannot be edited. You can still view and download it.
-                  </p>
-                </div>
-              </div>
-
-              {/* Summary */}
-              <div className="rounded-2xl border border-border bg-muted/20 overflow-hidden">
-                <div className="px-4 py-3 border-b border-border/50">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">To</p>
-                  <p className="text-sm font-medium text-foreground mt-0.5">{email}</p>
-                </div>
-                <div className="px-4 py-3 border-b border-border/50">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Subject</p>
-                  <p className="text-sm font-medium text-foreground mt-0.5 truncate">{subject}</p>
-                </div>
-                {/* AI-generated message */}
-                <div className="px-4 py-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Message</p>
-                    {!isGenerating && message && (
-                      <button
-                        type="button"
-                        onClick={generateMessage}
-                        className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary/80 transition-colors"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        Regenerate
-                      </button>
-                    )}
-                  </div>
-                  {isGenerating ? (
-                    <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                      Writing your message with AI...
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <textarea
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        rows={7}
-                        className={cn(
-                          "w-full px-3 py-2.5 rounded-xl text-xs resize-none leading-relaxed",
-                          "bg-background border border-border",
-                          "text-foreground placeholder:text-muted-foreground",
-                          "focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors",
-                          "font-[inherit]"
-                        )}
-                      />
-                      <div className="absolute top-2 right-2">
-                        <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-md">AI</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Auto follow-up toggle — invoices only */}
-              {isInvoice && (
-                <div className="rounded-2xl border border-border bg-card overflow-hidden">
-                  <div className="px-4 py-3 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5">
+          {/* Auto follow-up toggle — invoices only */}
+          {isInvoice && (
+            <div className="rounded-2xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  {scheduleFollowUps
+                    ? <Bell className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                    : <BellOff className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                  }
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Auto follow-up reminders</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                       {scheduleFollowUps
-                        ? <Bell className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                        : <BellOff className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                        ? "Reminders sent automatically if unpaid. Stops when paid."
+                        : "No automatic reminders. Send manually anytime."
                       }
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Auto follow-up reminders</p>
-                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                          {scheduleFollowUps
-                            ? "Reminders sent automatically if unpaid. Stops when paid."
-                            : "No automatic reminders. Send manually anytime."
-                          }
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setScheduleFollowUps(v => !v)}
-                      className={cn(
-                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
-                        scheduleFollowUps ? "bg-primary" : "bg-muted"
-                      )}
-                    >
-                      <span className={cn(
-                        "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
-                        scheduleFollowUps ? "translate-x-[18px]" : "translate-x-0.5"
-                      )} />
-                    </button>
-                  </div>
-                  {scheduleFollowUps && (
-                    <div className="px-4 pb-3 border-t border-border/40">
-                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-2.5 mb-1.5">Schedule</p>
-                      <div className="space-y-1">
-                        {[
-                          { label: "Day 3 — Polite reminder" },
-                          { label: "Day 7 — Follow-up" },
-                          { label: "Day 14 — Urgent reminder" },
-                          { label: "Day 30 — Final notice" },
-                        ].map(({ label }) => (
-                          <div key={label} className="flex items-center gap-2">
-                            <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
-                            <span className="text-xs text-muted-foreground">{label}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-2 italic">Stops automatically when payment is received.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Auto-invoice on sign — contracts only */}
-              {isContract && (
-                <div className={cn(
-                  "rounded-2xl border bg-card overflow-hidden",
-                  autoInvoiceOnSign ? "border-emerald-200 dark:border-emerald-800/50" : "border-border"
-                )}>
-                  <div className="px-4 py-3 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5">
-                      <FileText className={cn("w-4 h-4 shrink-0 mt-0.5", autoInvoiceOnSign ? "text-emerald-600" : "text-muted-foreground")} />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-foreground">Auto-send invoice on signing</p>
-                          {!isPaidTier && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                              Paid
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                          {autoInvoiceOnSign
-                            ? "An invoice will be automatically created and sent when the contract is signed."
-                            : isPaidTier
-                            ? "Enable to auto-send an invoice when the client signs."
-                            : "Upgrade to automatically send invoices after contract signing."}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => isPaidTier && setAutoInvoiceOnSign(v => !v)}
-                      disabled={!isPaidTier}
-                      className={cn(
-                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
-                        autoInvoiceOnSign ? "bg-emerald-500" : "bg-muted",
-                        !isPaidTier && "opacity-40 cursor-not-allowed"
-                      )}
-                      title={!isPaidTier ? "Upgrade to enable auto-invoice" : undefined}
-                    >
-                      <span className={cn(
-                        "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
-                        autoInvoiceOnSign ? "translate-x-[18px]" : "translate-x-0.5"
-                      )} />
-                    </button>
-                  </div>
-                  {autoInvoiceOnSign && (
-                    <div className="px-4 pb-3 border-t border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-950/10">
-                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-2.5 leading-relaxed">
-                        Invoice will be sent to <strong>{email.trim() || "the signer"}</strong> automatically after all parties sign. The invoice will be linked to this contract.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Recurring invoice toggle — invoices only */}
-              {isInvoice && (
-                <div className="rounded-2xl border border-border bg-card overflow-hidden">
-                  <div className="px-4 py-3 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5">
-                      <Repeat2 className={cn("w-4 h-4 shrink-0 mt-0.5", makeRecurring ? "text-violet-500" : "text-muted-foreground")} />
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Make recurring</p>
-                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                          {makeRecurring
-                            ? `Auto-generate a new invoice every ${recurringFrequency === "quarterly" ? "quarter" : recurringFrequency.replace("ly", "")}.`
-                            : "Automatically create this invoice on a schedule."}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setMakeRecurring(v => !v)}
-                      className={cn(
-                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
-                        makeRecurring ? "bg-violet-500" : "bg-muted"
-                      )}
-                    >
-                      <span className={cn(
-                        "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
-                        makeRecurring ? "translate-x-[18px]" : "translate-x-0.5"
-                      )} />
-                    </button>
-                  </div>
-                  {makeRecurring && (
-                    <div className="px-4 pb-3 border-t border-border/40">
-                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-2.5 mb-1.5">Frequency</p>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {(["weekly", "monthly", "quarterly"] as const).map(f => (
-                          <button
-                            key={f}
-                            type="button"
-                            onClick={() => setRecurringFrequency(f)}
-                            className={cn(
-                              "py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 capitalize",
-                              recurringFrequency === f
-                                ? "bg-violet-500 text-white"
-                                : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                            )}
-                          >
-                            {f.charAt(0).toUpperCase() + f.slice(1)}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-2">
-                        New invoices will be linked to this one and auto-numbered.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Payment link expiry — invoices only */}
-              {isInvoice && (
-                <div className="rounded-2xl border border-border bg-card overflow-hidden">
-                  <div className="px-4 py-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <p className="text-sm font-medium text-foreground">Payment link expiry</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
-                      How long should the client be able to pay? After this period, the payment link will expire automatically.
                     </p>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {[7, 14, 30, 60].map(days => (
-                        <button
-                          key={days}
-                          type="button"
-                          onClick={() => setPaymentLinkExpiryDays(days)}
-                          className={cn(
-                            "py-2 rounded-xl text-xs font-semibold transition-colors",
-                            paymentLinkExpiryDays === days
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                          )}
-                        >
-                          {days}d
-                        </button>
-                      ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Toggle auto follow-up reminders"
+                  onClick={() => setScheduleFollowUps(v => !v)}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
+                    scheduleFollowUps ? "bg-primary" : "bg-muted"
+                  )}
+                >
+                  <span className={cn(
+                    "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
+                    scheduleFollowUps ? "translate-x-[18px]" : "translate-x-0.5"
+                  )} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Auto-invoice on sign — contracts only */}
+          {isContract && (
+            <div className={cn(
+              "rounded-2xl border bg-card overflow-hidden",
+              autoInvoiceOnSign ? "border-emerald-200 dark:border-emerald-800/50" : "border-border"
+            )}>
+              <div className="px-4 py-3 flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <FileText className={cn("w-4 h-4 shrink-0 mt-0.5", autoInvoiceOnSign ? "text-emerald-600" : "text-muted-foreground")} />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground">Auto-send invoice on signing</p>
+                      {!isPaidTier && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          Paid
+                        </span>
+                      )}
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-2">
-                      {paymentLinkExpiryDays === 30 ? "Recommended — matches Net 30 payment terms" :
-                       paymentLinkExpiryDays === 7 ? "Short — good for urgent invoices" :
-                       paymentLinkExpiryDays === 14 ? "Standard — 2 weeks to pay" :
-                       "Extended — for long-term projects"}
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      {autoInvoiceOnSign
+                        ? "An invoice will be automatically created and sent when the contract is signed."
+                        : isPaidTier
+                        ? "Enable to auto-send an invoice when the client signs."
+                        : "Upgrade to automatically send invoices after contract signing."}
                     </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Toggle auto-send invoice on signing"
+                  onClick={() => isPaidTier && setAutoInvoiceOnSign(v => !v)}
+                  disabled={!isPaidTier}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
+                    autoInvoiceOnSign ? "bg-emerald-500" : "bg-muted",
+                    !isPaidTier && "opacity-40 cursor-not-allowed"
+                  )}
+                  title={!isPaidTier ? "Upgrade to enable auto-invoice" : undefined}
+                >
+                  <span className={cn(
+                    "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
+                    autoInvoiceOnSign ? "translate-x-[18px]" : "translate-x-0.5"
+                  )} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Recurring invoice toggle — invoices only */}
+          {isInvoice && (
+            <div className="rounded-2xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <Repeat2 className={cn("w-4 h-4 shrink-0 mt-0.5", makeRecurring ? "text-violet-500" : "text-muted-foreground")} />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Make recurring</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      {makeRecurring
+                        ? `Auto-generate a new invoice every ${recurringFrequency === "quarterly" ? "quarter" : recurringFrequency.replace("ly", "")}.`
+                        : "Automatically create this invoice on a schedule."}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Toggle recurring invoice"
+                  onClick={() => setMakeRecurring(v => !v)}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
+                    makeRecurring ? "bg-violet-500" : "bg-muted"
+                  )}
+                >
+                  <span className={cn(
+                    "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
+                    makeRecurring ? "translate-x-[18px]" : "translate-x-0.5"
+                  )} />
+                </button>
+              </div>
+              {makeRecurring && (
+                <div className="px-4 pb-3 border-t border-border/40">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-2.5 mb-1.5">Frequency</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(["weekly", "monthly", "quarterly"] as const).map(f => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setRecurringFrequency(f)}
+                        className={cn(
+                          "py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 capitalize",
+                          recurringFrequency === f
+                            ? "bg-violet-500 text-white"
+                            : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                        )}
+                      >
+                        {f.charAt(0).toUpperCase() + f.slice(1)}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
             </div>
+          )}
 
-            <div className="shrink-0 px-5 py-4 border-t border-border/50 flex gap-2.5">
-              <button type="button" onClick={() => setStep("compose")} disabled={isSending}
-                className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border border-border hover:bg-muted/60 transition-colors disabled:opacity-50">
-                ← Edit
-              </button>
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={isSending || isGenerating}
-                className={cn(
-                  "flex-1 inline-flex items-center justify-center gap-2",
-                  "py-2.5 px-4 rounded-xl text-sm font-semibold",
-                  "bg-primary text-primary-foreground hover:bg-primary/90",
-                  "transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                )}
-              >
-                {isSending ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" />Sending...</>
-                ) : isGenerating ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" />Preparing...</>
-                ) : (
-                  <><Send className="w-4 h-4" />Send & Lock</>
-                )}
-              </button>
+          {/* Payment link expiry — invoices only */}
+          {isInvoice && (
+            <div className="rounded-2xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <p className="text-sm font-medium text-foreground">Payment link expiry</p>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[7, 14, 30, 60].map(days => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => setPaymentLinkExpiryDays(days)}
+                      className={cn(
+                        "py-2 rounded-xl text-xs font-semibold transition-colors",
+                        paymentLinkExpiryDays === days
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {days}d
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          </>
-        )}
+          )}
+        </div>
+
+        <div className="shrink-0 px-5 py-4 border-t border-border/50 flex gap-2.5">
+          <button type="button" onClick={onClose} disabled={isSending}
+            className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border border-border hover:bg-muted/60 transition-colors disabled:opacity-50">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!canSend}
+            className={cn(
+              "flex-1 inline-flex items-center justify-center gap-2",
+              "py-2.5 px-4 rounded-xl text-sm font-semibold",
+              "bg-primary text-primary-foreground hover:bg-primary/90",
+              "transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            )}
+          >
+            {isSending ? (
+              <><Loader2 className="w-4 h-4 animate-spin" />Sending...</>
+            ) : (
+              <><Send className="w-4 h-4" />Send</>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
-// ── Local fallback if DeepSeek API is unavailable ──────────────────────────────
+// ── Local fallback if AI message generation is unavailable ─────────────────────
 function localFallback(invoiceData: InvoiceData, documentType: string): string {
   const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
   const clientName = invoiceData.toName?.trim() || ""

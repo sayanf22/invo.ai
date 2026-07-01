@@ -32,28 +32,17 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailRespo
     )
   }
 
+  // Sender display name: "{BusinessName} via Clorefy" when a sender name is
+  // provided, otherwise plain "Clorefy" (Req 1.3). The name is used verbatim
+  // (no trimming) so the display reflects exactly what the caller passed.
   const fromName =
-    params.senderName && params.senderName.trim().length > 0
-      ? params.senderName.trim()
+    params.senderName && params.senderName.length > 0
+      ? `${params.senderName} via Clorefy`
       : "Clorefy"
 
-  // Generate business-specific from address: {businessname}.noreply@clorefy.com
-  // e.g., "WhyCreatives" → "whycreatives.noreply@clorefy.com"
-  // Falls back to "no-reply@clorefy.com" if no business name.
-  // NOTE: Two businesses with the same name get the same from address — this is
-  // intentional. The address is display-only (noreply, never an inbox). Mailtrap
-  // relays all mail under clorefy.com regardless of the local-part slug.
-  let fromEmail = "no-reply@clorefy.com"
-  if (params.senderName && params.senderName.trim().length > 0) {
-    const slug = params.senderName
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "") // strip everything except letters and numbers
-      .slice(0, 40) // RFC 5321 local-part max is 64; ".noreply" is 8 chars → safe cap at 40
-    if (slug.length > 0) {
-      fromEmail = `${slug}.noreply@clorefy.com`
-    }
-  }
+  // Sender address is always no-reply@clorefy.com on every outgoing email
+  // (Req 1.2). Mailtrap relays all mail under the verified clorefy.com domain.
+  const fromEmail = "no-reply@clorefy.com"
 
   const payload: Record<string, unknown> = {
     from: {
