@@ -19,17 +19,22 @@ import {
 /** Arbitrary that picks any canonical DocumentType. */
 const anyDocumentType = fc.constantFrom(...ALL_DOCUMENT_TYPES)
 
-/** Known valid-parent relationships sourced from the registry design. */
+/**
+ * Known valid-parent relationships sourced from the registry design.
+ *
+ * Flexible linking: every document type can be created as a follow-up to any
+ * other document type, so every entry is empty (no restriction).
+ */
 const EXPECTED_VALID_PARENTS: Record<DocumentType, DocumentType[]> = {
   invoice: [],
   contract: [],
   quote: [],
   proposal: [],
-  sow: ["contract", "proposal", "quote"],
-  change_order: ["sow", "contract"],
+  sow: [],
+  change_order: [],
   nda: [],
   client_onboarding_form: [],
-  payment_followup: ["invoice"],
+  payment_followup: [],
   recurring_invoice: [],
 }
 
@@ -78,40 +83,12 @@ describe("Property 9: Document linking parent validation", () => {
   })
 
   // ─── Specific relationship assertions ────────────────────────────────────────
+  // Flexible linking: every document type has an empty validParentTypes, so
+  // every type can be linked as a follow-up to every other type without
+  // restriction.
 
-  it("sow accepts contract, proposal, and quote as validParentTypes", () => {
-    const config = getDocumentTypeConfig("sow")
-    expect(config).not.toBeNull()
-    expect(config!.validParentTypes).toContain("contract")
-    expect(config!.validParentTypes).toContain("proposal")
-    expect(config!.validParentTypes).toContain("quote")
-    expect(config!.validParentTypes).toHaveLength(3)
-  })
-
-  it("change_order has exactly ['sow', 'contract'] as validParentTypes", () => {
-    const config = getDocumentTypeConfig("change_order")
-    expect(config).not.toBeNull()
-    expect(config!.validParentTypes).toContain("sow")
-    expect(config!.validParentTypes).toContain("contract")
-    expect(config!.validParentTypes).toHaveLength(2)
-  })
-
-  it("payment_followup has exactly ['invoice'] as validParentTypes", () => {
-    const config = getDocumentTypeConfig("payment_followup")
-    expect(config).not.toBeNull()
-    expect(config!.validParentTypes).toEqual(["invoice"])
-  })
-
-  it.each([
-    "invoice",
-    "contract",
-    "quote",
-    "proposal",
-    "nda",
-    "client_onboarding_form",
-    "recurring_invoice",
-  ] as DocumentType[])(
-    "%s has an empty validParentTypes (no valid parent required)",
+  it.each(ALL_DOCUMENT_TYPES)(
+    "%s has an empty validParentTypes (flexible linking — no restriction)",
     (docType) => {
       const config = getDocumentTypeConfig(docType)
       expect(config).not.toBeNull()

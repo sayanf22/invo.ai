@@ -1058,56 +1058,6 @@ function TotalsBox({ data, c, config, styles }: TotalsBoxProps) {
     )
 }
 
-// â”€â”€â”€ SignatureRow (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Renders dual signature blocks for Contract, Quotation, and Proposal.
-// Handles sender drawn signature, client signature image, "Electronically Signed" fallback.
-
-interface SignatureRowProps {
-    data: InvoiceData
-    c: ReturnType<typeof getTheme>
-    styles: { sigRow: any; sigBlk: any; sigLine: any }
-}
-
-function SignatureRow({ data, c, styles }: SignatureRowProps) {
-    if (data.showSignatureFields === false) return null
-
-    return (
-        <View style={styles.sigRow} wrap={false}>
-            {/* Party A (sender) */}
-            <View style={styles.sigBlk}>
-                <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party A Signature</Text>
-                {(() => {
-                    if (data.showSenderSignature !== false && data.senderSignatureDataUrl) {
-                        return <Image src={data.senderSignatureDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
-                    }
-                    return <View style={styles.sigLine} />
-                })()}
-                <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.signatureName || data.fromName || "_______________"}</Text>
-                {data.signatureTitle ? <Text style={{ fontSize: 9, color: c.mut }}>{data.signatureTitle}</Text> : null}
-            </View>
-            {/* Party B (client) */}
-            <View style={{ ...styles.sigBlk, marginRight: 0 }}>
-                <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, ...bold(c) }}>Party B Signature</Text>
-                {(() => {
-                    const clientSig = data.signatureImages?.[0]
-                    if (clientSig?.imageDataUrl) {
-                        return <Image src={clientSig.imageDataUrl} style={{ width: 160, height: 56, marginBottom: 4 }} />
-                    }
-                    if (data.signedAt || (data.signatureImages && data.signatureImages.length > 0)) {
-                        return (
-                            <View style={{ height: 56, marginBottom: 4, justifyContent: "center", alignItems: "flex-start" }}>
-                                <Text style={{ fontSize: 11, color: c.pri, fontStyle: "italic" }}>{"\u2713"} Electronically Signed</Text>
-                            </View>
-                        )
-                    }
-                    return <View style={styles.sigLine} />
-                })()}
-                <Text style={{ fontSize: 10, color: c.txt, ...bold(c) }}>{data.toName || "_______________"}</Text>
-            </View>
-        </View>
-    )
-}
-
 // â”€â”€â”€ Signature Display Mode (testable pure function) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Extracts the signature display mode selection logic from SignatureRow into a
 // pure function so it can be property-tested independently.
@@ -1164,6 +1114,17 @@ export function getSignaturePartyLabels(documentType: string): { partyA: string;
  * Build the signature block JSX for a document.
  * Returns the element if buildable, or null if data is insufficient.
  * This is extracted so renderSignatureBlock can apply fail-closed logic.
+ *
+ * Column order always follows `getSignaturePartyLabels` (partyA first,
+ * partyB second) so the visual layout matches each document type's
+ * convention — e.g. SOW / Change Order show "Client" before "Provider".
+ * Which actual signature image renders under which label is mapped by ROLE
+ * (sender vs. recipient), not by column position: for SOW / Change Order the
+ * sender (the business, `senderSignatureDataUrl`) is partyB ("Provider")
+ * while the recipient (`signatureImages`, signed via /sign/[token]) is
+ * partyA ("Client") — the reverse of every other document type, where partyA
+ * is the sender. Getting this backwards would silently show the business's
+ * signature under "Client" and vice versa.
  */
 function buildSignatureBlock(
     documentType: string,
@@ -1176,24 +1137,27 @@ function buildSignatureBlock(
     const hasAnyParty = !!(data.fromName || data.toName || data.signatureName)
 
     const { partyA, partyB } = getSignaturePartyLabels(documentType)
+    const type = documentType.toLowerCase()
+    const senderIsPartyA = !(type === "sow" || type === "change_order")
+
+    const senderParty = {
+        name: data.signatureName || data.fromName,
+        title: data.signatureTitle as string | null,
+        sig: data.showSenderSignature !== false ? data.senderSignatureDataUrl : null,
+        electronic: false,
+    }
+    const recipientParty = {
+        name: data.toName,
+        title: null as string | null,
+        sig: data.signatureImages?.[0]?.imageDataUrl || null,
+        electronic: !data.signatureImages?.[0]?.imageDataUrl && (!!data.signedAt || (data.signatureImages && data.signatureImages.length > 0)),
+    }
 
     return (
         <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
             {[
-                {
-                    label: `${partyA} Signature`,
-                    name: data.signatureName || data.fromName,
-                    title: data.signatureTitle,
-                    sig: data.showSenderSignature !== false ? data.senderSignatureDataUrl : null,
-                    electronic: false,
-                },
-                {
-                    label: `${partyB} Signature`,
-                    name: data.toName,
-                    title: null,
-                    sig: data.signatureImages?.[0]?.imageDataUrl || null,
-                    electronic: !data.signatureImages?.[0]?.imageDataUrl && (!!data.signedAt || (data.signatureImages && data.signatureImages.length > 0)),
-                },
+                { label: `${partyA} Signature`, ...(senderIsPartyA ? senderParty : recipientParty) },
+                { label: `${partyB} Signature`, ...(senderIsPartyA ? recipientParty : senderParty) },
             ].map((party, i) => (
                 <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
                     <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
@@ -1218,7 +1182,12 @@ function buildSignatureBlock(
  * Fail-closed signature block rendering.
  *
  * - For non-signable types: returns an empty fragment (no block needed).
- * - For signable types: returns the signature block element OR throws
+ * - When `data.showSignatureFields === false`: returns an empty fragment —
+ *   the user explicitly turned off the signature section for this document,
+ *   and that choice is honoured here (single source of truth) rather than
+ *   requiring every call site to remember its own
+ *   `{data.showSignatureFields !== false && ...}` guard.
+ * - Otherwise: returns the signature block element OR throws
  *   SignatureBlockRenderError if the block cannot be built.
  *   This ensures a PDF is never exported without its required signature section.
  */
@@ -1229,7 +1198,11 @@ export function renderSignatureBlock(
 ): React.ReactElement {
     const config = getDocumentTypeConfig(documentType)
     if (!config?.capabilities.supports_signature) {
-        // Non-signable type â€” no block needed, proceed normally
+        // Non-signable type — no block needed, proceed normally
+        return <></>
+    }
+    if (data.showSignatureFields === false) {
+        // User explicitly hid the signature section — proceed normally
         return <></>
     }
 
@@ -1926,9 +1899,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                 )}
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
-                {data.showSignatureFields !== false && (
-                    renderSignatureBlock("contract", data, c)
-                )}
+                {renderSignatureBlock("contract", data, c)}
 
                 {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
@@ -3025,19 +2996,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 ) : null}
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
-                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
-                    {[
-                        { label: "Client Signature", name: data.toName, title: null as string | null },
-                        { label: "Provider Signature", name: data.signatureName || data.fromName, title: data.signatureTitle as string | null },
-                    ].map((party, i) => (
-                        <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
-                            <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
-                            <Text style={{ fontSize: 10, color: txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
-                            {party.title ? <Text style={{ fontSize: 9, color: mut }}>{party.title}</Text> : null}
-                        </View>
-                    ))}
-                </View>
+                {renderSignatureBlock("sow", data as unknown as InvoiceData, c)}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
@@ -3216,18 +3175,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                 ) : null}
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
-                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
-                    {[
-                        { label: "Client Signature", name: data.toName },
-                        { label: "Provider Signature", name: data.signatureName || data.fromName },
-                    ].map((party, i) => (
-                        <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
-                            <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
-                            <Text style={{ fontSize: 10, color: txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
-                        </View>
-                    ))}
-                </View>
+                {renderSignatureBlock("change_order", data as unknown as InvoiceData, c)}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
@@ -3370,18 +3318,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                 ) : null}
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
-                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 16, marginBottom: 20, ...bNone() }} wrap={false}>
-                    {[
-                        { label: "Disclosing Party Signature", name: data.fromName },
-                        { label: "Receiving Party Signature", name: data.toName },
-                    ].map((party, i) => (
-                        <View key={i} style={{ flex: 1, marginRight: i === 0 ? 24 : 0, ...bNone() }}>
-                            <Text style={{ fontSize: 7.5, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{party.label}</Text>
-                            <View style={{ height: 52, marginBottom: 4, ...bNone(), borderBottomWidth: 1, borderBottomColor: mut, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} />
-                            <Text style={{ fontSize: 10, color: txt, fontWeight: 700 }}>{party.name || "_______________"}</Text>
-                        </View>
-                    ))}
-                </View>
+                {renderSignatureBlock("nda", data as unknown as InvoiceData, c)}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>

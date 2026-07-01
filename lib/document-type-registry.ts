@@ -81,7 +81,17 @@ export interface DocumentTypeConfig {
     supports_linking: boolean
     supports_recurring: boolean
   }
-  /** Parent types this document can link to */
+  /**
+   * Parent types this document can link to.
+   *
+   * As of the flexible-linking update, every document type can be created as
+   * a follow-up to any other document type — this field is retained for
+   * backward compatibility (some code still reads it defensively) but is no
+   * longer enforced anywhere. An empty array now means "no restriction",
+   * consistent across all types. See `getValidParentTypes()` /
+   * `isValidParentType()` below for the single source of truth callers
+   * should use instead of reading this field directly.
+   */
   validParentTypes: DocumentType[]
 }
 
@@ -192,10 +202,12 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
       supports_linking: true,
       supports_recurring: false,
     },
-    // A Statement of Work most formally sits under a signed contract, but in
-    // service businesses it commonly follows an accepted proposal or quote
-    // (where the signed SOW itself becomes the binding agreement).
-    validParentTypes: ["contract", "proposal", "quote"],
+    // Flexible linking: any document type may be linked as this document's
+    // parent (empty array = no restriction). A SOW most formally sits under a
+    // signed contract, but service businesses commonly chain it from a
+    // proposal, quote, or even another SOW — so the parent-type restriction
+    // has been removed rather than hardcoding an ever-growing allow-list.
+    validParentTypes: [],
   },
 
   change_order: {
@@ -216,7 +228,8 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
       supports_linking: true,
       supports_recurring: false,
     },
-    validParentTypes: ["sow", "contract"],
+    // Flexible linking: no parent-type restriction (see sow comment above).
+    validParentTypes: [],
   },
 
   nda: {
@@ -277,7 +290,11 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
       supports_linking: true,
       supports_recurring: false,
     },
-    validParentTypes: ["invoice"],
+    // Flexible linking: no parent-type restriction (see sow comment above).
+    // A payment follow-up is still auto-populated with invoice fields (see
+    // create-linked route) only when its actual parent happens to be an
+    // invoice — but it may now also be created after any other doc type.
+    validParentTypes: [],
   },
 
   recurring_invoice: {

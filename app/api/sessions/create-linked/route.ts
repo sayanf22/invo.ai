@@ -85,6 +85,83 @@ function extractClientName(context: Record<string, any>): string | null {
         || null
 }
 
+// Format a business address (string or structured object) into a single line.
+function formatBusinessAddress(address: any): string {
+    if (!address) return ""
+    if (typeof address === "string") return address
+    return [
+        address.street,
+        address.city,
+        address.state,
+        address.postalCode || address.postal_code,
+        address.country,
+    ].filter(Boolean).join(", ")
+}
+
+/**
+ * Merge the user's live business profile ("business memory") into the seed
+ * context for a linked document.
+ *
+ * This runs only at linked-document creation time (not on every prompt). The
+ * `businesses` row is the single source of truth for the sender's identity, so
+ * business-owned fields (name, email, address, phone, tax registration) are
+ * treated as AUTHORITATIVE and override any stale value carried over from the
+ * parent document. This guarantees that whenever the user adds, updates, or
+ * deletes business info in their profile, the change propagates into every new
+ * linked document.
+ *
+ * Currency and payment terms keep a "fill only if empty" behaviour because a
+ * specific document may deliberately use a value different from the profile
+ * default. When the profile cannot be loaded (`business` is null), the sender
+ * fields carried over from the parent are left untouched as a fallback.
+ */
+function mergeBusinessMemory(seedContext: Record<string, any>, business: any): void {
+    // When the profile can't be loaded, `business` is null/undefined — in that
+    // case we keep whatever sender fields were carried over from the parent
+    // document (graceful fallback) instead of wiping them.
+    if (!business) return
+
+    // ── Business-owned identity fields ─────────────────────────────────────
+    // The live `businesses` row is the single source of truth ("business
+    // memory"). These fields are authoritative: we OVERRIDE any (possibly
+    // stale) value carried over from the parent document so that add / update /
+    // delete of profile info always propagates into newly created linked docs.
+    // An empty profile value intentionally clears the field (delete propagation).
+    const setAuthoritative = (key: string, value: any) => {
+        seedContext[key] = value === undefined || value === null ? "" : value
+    }
+
+    setAuthoritative("fromName", business.name)
+    setAuthoritative("fromEmail", business.email)
+    setAuthoritative("fromAddress", formatBusinessAddress(business.address))
+    setAuthoritative("fromPhone", business.phone)
+
+    // ── Fields with a business default but legitimate per-document variance ──
+    // Currency and payment terms have a profile default, but a specific document
+    // may deliberately use a different value. Only fill when the seed context
+    // doesn't already carry one.
+    const fill = (key: string, value: any) => {
+        const existing = seedContext[key]
+        const isEmpty = existing === undefined || existing === null || existing === ""
+        if (isEmpty && value !== undefined && value !== null && value !== "") {
+            seedContext[key] = value
+        }
+    }
+    fill("currency", business.default_currency)
+    fill("paymentTerms", business.default_payment_terms)
+
+    // ── Tax registration — profile is authoritative ────────────────────────
+    const taxIds = business.tax_ids
+    const hasTaxRegistration = taxIds && typeof taxIds === "object" &&
+        Object.values(taxIds).some((v: any) => v && String(v).trim().length > 0)
+    if (hasTaxRegistration) {
+        seedContext.taxIds = taxIds
+    } else {
+        // Profile no longer has any tax registration — drop stale carried IDs.
+        delete seedContext.taxIds
+    }
+}
+
 export async function POST(request: NextRequest) {
     try {
         const auth = await authenticateRequest(request)
@@ -145,7 +222,11 @@ export async function POST(request: NextRequest) {
 
         const parentType = normalizeDocumentType(parent.document_type)
 
-        // Validate that the parent type is allowed for this child type
+        // Flexible linking: any document type can be linked as the parent of
+        // any other document type. `validParentTypes` is now empty for every
+        // type in the registry, so this check is a no-op today — kept so a
+        // future type-specific restriction can be reintroduced without
+        // touching this route again.
         const childConfig = getDocumentTypeConfig(normalizedTargetType)
         if (childConfig && childConfig.validParentTypes.length > 0) {
             if (!parentType || !childConfig.validParentTypes.includes(parentType)) {
@@ -176,6 +257,23 @@ export async function POST(request: NextRequest) {
 
         // Map parent context to seed data for the new document
         const seedContext = mapParentContext(parentContext, normalizedTargetType)
+
+        // ── Business memory merge ──────────────────────────────────────────────
+        // Pull the live business profile and fold its persistent details into the
+        // seed context. Done only here (linked-doc creation), never on every
+        // prompt. Reads the current profile row, so add/edit/delete of business
+        // info is always reflected in the new document.
+        try {
+            const { data: business } = await auth.supabase
+                .from("businesses")
+                .select("*")
+                .eq("user_id", auth.user.id)
+                .single()
+            mergeBusinessMemory(seedContext, business)
+        } catch (bizErr) {
+            console.error("Failed to merge business memory into linked session:", bizErr)
+            // Non-fatal — fall back to parent-carried context only
+        }
 
         // Store the parent's document type so the AI knows the chain origin
         // This is used in the stream route to correctly label the "Context from previous [type]" block
