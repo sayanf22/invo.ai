@@ -139,12 +139,21 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
                 const logoUrl = await resolveLogoUrl(docData.fromLogo)
                 const docType = (docData.documentType || documentType || "").toLowerCase()
 
-                let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                let PdfComponent: React.ComponentType<{ data: any; logoUrl?: string | null }>
                 switch (docType) {
                     case "contract": PdfComponent = templates.ContractPDF; break
                     case "quote":
                     case "quotation": PdfComponent = templates.QuotationPDF; break
                     case "proposal": PdfComponent = templates.ProposalPDF; break
+                    // Previously fell through to InvoicePDF, which rendered the
+                    // WRONG document (and its blank/nonexistent signature block)
+                    // on the public signing page for every one of these types.
+                    case "sow": PdfComponent = templates.SOWPDF; break
+                    case "change_order": PdfComponent = templates.ChangeOrderPDF; break
+                    case "nda": PdfComponent = templates.NDAPDF; break
+                    case "client_onboarding_form": PdfComponent = templates.ClientOnboardingFormPDF; break
+                    case "payment_followup": PdfComponent = templates.PaymentFollowupPDF; break
                     default: PdfComponent = templates.InvoicePDF; break
                 }
 

@@ -92,7 +92,11 @@ export async function POST(request: NextRequest) {
 
             const parentType = normalizeDocumentType(parentSession.document_type)
 
-            // Validate that this parent type is allowed for the child type
+            // Flexible linking: any document type can be linked as the parent of
+            // any other document type. `validParentTypes` is now empty for every
+            // type in the registry, so this check is a no-op today — kept so a
+            // future type-specific restriction can be reintroduced without
+            // touching this route again.
             const childConfig = getDocumentTypeConfig(normalizedType)
             if (childConfig && childConfig.validParentTypes.length > 0) {
                 if (!parentType || !childConfig.validParentTypes.includes(parentType)) {

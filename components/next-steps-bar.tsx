@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { useTier } from "@/hooks/use-tier"
+import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 
 // All 9 document types with icons and tier requirements
 const ALL_DOC_OPTIONS: Array<{
@@ -56,7 +57,21 @@ export function NextStepsBar({
   const { allowedDocTypes } = useTier()
 
   const currentType = currentDocType.toLowerCase()
-  const hasMore = ALL_DOC_OPTIONS.length > DEFAULT_VISIBLE_COUNT
+  const currentNormalized = normalizeDocumentType(currentType)
+
+  // Flexible linking: every document type can now be created as a follow-up
+  // to any other document type, so all options are shown (validParentTypes is
+  // empty for every type in the registry). This filter is kept as a no-op
+  // guard so a future type-specific restriction can be reintroduced here
+  // without touching the rest of this component.
+  const visibleOptions = ALL_DOC_OPTIONS.filter(opt => {
+    if (opt.type === currentNormalized) return true
+    const cfg = getDocumentTypeConfig(opt.type)
+    if (!cfg || cfg.validParentTypes.length === 0) return true
+    return currentNormalized ? cfg.validParentTypes.includes(currentNormalized) : false
+  })
+
+  const hasMore = visibleOptions.length > DEFAULT_VISIBLE_COUNT
 
   const handleClick = async (targetType: string, isLocked: boolean) => {
     if (loadingType || isLocked) return
@@ -133,7 +148,7 @@ export function NextStepsBar({
 
               {/* Document type grid — 2 columns; first 3 always visible */}
               <div className="grid grid-cols-2 gap-px bg-border/40">
-                {ALL_DOC_OPTIONS.slice(0, DEFAULT_VISIBLE_COUNT).map(opt => {
+                {visibleOptions.slice(0, DEFAULT_VISIBLE_COUNT).map(opt => {
                   const { type, label, icon: Icon } = opt
                   const isLoading = loadingType === type
                   const isCurrent = type === currentType
@@ -190,7 +205,7 @@ export function NextStepsBar({
                   >
                     <div className="min-h-0 overflow-hidden">
                       <div className="grid grid-cols-2 gap-px bg-border/40 border-t border-border/40">
-                        {ALL_DOC_OPTIONS.slice(DEFAULT_VISIBLE_COUNT).map(opt => {
+                        {visibleOptions.slice(DEFAULT_VISIBLE_COUNT).map(opt => {
                           const { type, label, icon: Icon } = opt
                           const isLoading = loadingType === type
                           const isCurrent = type === currentType
@@ -255,7 +270,7 @@ export function NextStepsBar({
                         expanded && "rotate-180"
                       )}
                     />
-                    {expanded ? "Show less" : `${ALL_DOC_OPTIONS.length - DEFAULT_VISIBLE_COUNT} more`}
+                    {expanded ? "Show less" : `${visibleOptions.length - DEFAULT_VISIBLE_COUNT} more`}
                   </button>
                 </>
               )}

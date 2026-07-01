@@ -58,17 +58,31 @@ export async function POST(request: NextRequest) {
     const serviceSupabase = getServiceRoleClient()
 
     // Resolve the signature source.
-    // Priority: explicit signatureDataUrl (fresh draw) → saved businesses.signature_url.
+    // Priority: explicit signatureDataUrl (fresh draw) → saved profile signature
+    // (profiles.saved_signature_url, set/updated any time via the Profile
+    // page's signature pad) → saved business signature (businesses.signature_url,
+    // set once during onboarding and never touched again). Checking the
+    // profile signature first ensures a signature drawn or updated on the
+    // Profile page is what actually gets used here — previously this only
+    // read the onboarding-time business signature, so updating your signature
+    // on the Profile page had no effect on self-signing.
     let signatureDataUrl: string | null = rawSignatureDataUrl ?? null
 
     if (!signatureDataUrl && useSaved) {
-      const { data: biz } = await supabase
-        .from("businesses")
-        .select("signature_url")
-        .eq("user_id", auth.user.id)
-        .maybeSingle() as { data: { signature_url: string | null } | null }
+      const [{ data: profile }, { data: biz }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("saved_signature_url")
+          .eq("id", auth.user.id)
+          .maybeSingle() as unknown as Promise<{ data: { saved_signature_url: string | null } | null }>,
+        supabase
+          .from("businesses")
+          .select("signature_url")
+          .eq("user_id", auth.user.id)
+          .maybeSingle() as unknown as Promise<{ data: { signature_url: string | null } | null }>,
+      ])
 
-      const stored = biz?.signature_url?.trim() || ""
+      const stored = profile?.saved_signature_url?.trim() || biz?.signature_url?.trim() || ""
       if (!stored) {
         return NextResponse.json(
           { error: "No saved signature found on your profile" },

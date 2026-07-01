@@ -649,15 +649,36 @@ export async function GET(request: NextRequest) {
                 return NextResponse.json({ error: "Failed to fetch signatures" }, { status: 500 })
             }
 
-            // Also report whether user has a saved signature on their business profile
-            // — the UI uses this to skip redraws when the user already has one.
-            const { data: bizSig } = await auth.supabase
-                .from("businesses")
-                .select("signature_url")
-                .eq("user_id", auth.user.id)
-                .maybeSingle() as { data: { signature_url: string | null } | null }
+            // Also report whether user has a saved signature — the UI uses this
+            // to skip redraws when the user already has one.
+            //
+            // There are two independent "saved signature" sources:
+            //   1. `profiles.saved_signature_url` — set/updated any time via the
+            //      Profile page's signature pad (the one users actually expect
+            //      "my signature" to mean).
+            //   2. `businesses.signature_url` — set once during onboarding and
+            //      never touched again afterwards.
+            // Check the profile signature FIRST so a signature drawn/updated on
+            // the Profile page is picked up immediately; fall back to the
+            // onboarding-time business signature for older accounts that never
+            // visited the Profile page's signature section.
+            const [{ data: profileSig }, { data: bizSig }] = await Promise.all([
+                auth.supabase
+                    .from("profiles")
+                    .select("saved_signature_url")
+                    .eq("id", auth.user.id)
+                    .maybeSingle() as unknown as Promise<{ data: { saved_signature_url: string | null } | null }>,
+                auth.supabase
+                    .from("businesses")
+                    .select("signature_url")
+                    .eq("user_id", auth.user.id)
+                    .maybeSingle() as unknown as Promise<{ data: { signature_url: string | null } | null }>,
+            ])
 
-            const hasSavedSignature = !!(bizSig?.signature_url && String(bizSig.signature_url).trim().length > 0)
+            const hasSavedSignature = !!(
+                (profileSig?.saved_signature_url && String(profileSig.saved_signature_url).trim().length > 0) ||
+                (bizSig?.signature_url && String(bizSig.signature_url).trim().length > 0)
+            )
 
             return NextResponse.json({ signatures, hasSavedSignature })
         }
