@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, sanitizeError } from "@/lib/api-auth"
 import { validateCSRFToken } from "@/lib/csrf"
+import { checkRateLimit } from "@/lib/rate-limiter"
 import { sanitizeEmail, sanitizeText } from "@/lib/sanitize"
 import { sendEmail } from "@/lib/mailtrap"
 import { generateEmailSubject, renderEmailTemplate } from "@/lib/email-template"
@@ -19,25 +20,6 @@ interface SendDocumentRequest {
   scheduleFollowUps?: boolean  // whether to schedule auto follow-ups (invoices only)
   paymentLinkExpiryDays?: number  // custom expiry for auto-created payment link
   skipPaymentLink?: boolean  // if true, don't include or create payment link in email
-}
-
-// ── Per-user burst rate limiter (in-memory, per worker instance) ──────────────
-// Prevents a single user from sending many emails in a short burst.
-// Max 3 emails per 60 seconds per user. Resets per worker restart (acceptable).
-const emailBurstStore = new Map<string, { count: number; windowStart: number }>()
-const EMAIL_BURST_MAX = 3
-const EMAIL_BURST_WINDOW_MS = 60_000 // 1 minute
-
-function checkEmailBurstLimit(userId: string): boolean {
-  const now = Date.now()
-  const record = emailBurstStore.get(userId)
-  if (!record || now - record.windowStart > EMAIL_BURST_WINDOW_MS) {
-    emailBurstStore.set(userId, { count: 1, windowStart: now })
-    return true // allowed
-  }
-  if (record.count >= EMAIL_BURST_MAX) return false // blocked
-  record.count++
-  return true // allowed
 }
 
 export async function POST(request: NextRequest) {
@@ -61,14 +43,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
-    // 3. Burst rate limit — max 3 emails per 60 seconds per user
-    // Prevents rapid-fire email spam even within monthly limits
-    if (!checkEmailBurstLimit(userId)) {
-      return NextResponse.json(
-        { error: "Too many emails sent too quickly. Please wait a minute before sending again." },
-        { status: 429, headers: { "Retry-After": "60" } }
-      )
-    }
+    // 3. Rate limit — standard Postgres-backed limiter, "email" category (15/min)
+    const rateLimitError = await checkRateLimit(userId, "email", supabase as any)
+    if (rateLimitError) return rateLimitError
 
     // 3b. Monthly email limit (tier-based)
     const userTier = await getUserTier(supabase, userId)
@@ -92,13 +69,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
     }
 
-    // 6. Sanitize personal message (AI-generated messages can be up to 2000 chars)
+    // 6. Sanitize personal message (max 500 chars per Req 4.3)
     let personalMessage: string | undefined
     if (body.personalMessage) {
       personalMessage = sanitizeText(body.personalMessage)
-      if (personalMessage.length > 2000) {
+      if (personalMessage.length > 500) {
         return NextResponse.json(
-          { error: "Message must be 2000 characters or less" },
+          { error: "Personal message must be 500 characters or less" },
           { status: 400 }
         )
       }

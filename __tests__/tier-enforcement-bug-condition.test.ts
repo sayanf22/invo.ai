@@ -65,7 +65,12 @@ vi.stubGlobal("fetch", mockFetch)
 function createMockRequest(url: string, body: unknown): NextRequest {
   return new NextRequest(new URL(url, "http://localhost:3000"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      // Origin is required by validateOrigin() for state-changing (POST) requests.
+      // localhost is an allowed origin in non-production (test) environments.
+      Origin: "http://localhost:3000",
+    },
     body: JSON.stringify(body),
   })
 }
@@ -255,17 +260,30 @@ describe("Bug Condition Exploration: Tier Enforcement Bypass", () => {
   })
 
   /**
-   * Bug 3: Free-tier users are blocked from quotation/proposal document types
+   * Bug 3: Free-tier users are blocked from paid-only document types
    * Validates: Document type restriction for free tier
+   *
+   * Free tier allows exactly 3 types: invoice, contract, quote (see docs/pricing-model.md).
+   * "quotation" is a legacy alias for "quote" and is therefore ALLOWED on free — so it is
+   * NOT tested here. Every other type (proposal + the advanced service-business types,
+   * including the newly-added recurring_invoice) is paid-only and must return 403.
    */
   describe("Bug 3: POST /api/sessions/create blocks restricted doc types for free-tier", () => {
-    it("should return 403 for free-tier user creating quotation or proposal (property-based)", async () => {
+    it("should return 403 for free-tier user creating a paid-only doc type (property-based)", async () => {
       const { POST } = await import("@/app/api/sessions/create/route")
 
       await fc.assert(
         fc.asyncProperty(
-          // Restricted document types for free tier
-          fc.constantFrom("quotation", "proposal"),
+          // Paid-only document types for the free tier (everything except invoice/contract/quote)
+          fc.constantFrom(
+            "proposal",
+            "sow",
+            "change_order",
+            "nda",
+            "client_onboarding_form",
+            "payment_followup",
+            "recurring_invoice",
+          ),
           async (documentType) => {
             vi.clearAllMocks()
             mockSupabaseAuth.getUser.mockResolvedValue({

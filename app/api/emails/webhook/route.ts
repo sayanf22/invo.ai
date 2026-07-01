@@ -47,26 +47,25 @@ export async function POST(request: NextRequest) {
   // 1. Read raw body for signature verification
   const rawBody = await request.text()
 
-  // 2. Verify HMAC signature
-  // SECURITY: In production, MAILTRAP_WEBHOOK_SIGNATURE_KEY must be set.
-  // Without it, anyone can inject fake delivery/bounce/open events into the system.
+  // 2. Verify HMAC signature — only when a signature key is configured (Req 7.9).
+  // WHEN MAILTRAP_WEBHOOK_SIGNATURE_KEY is set, the handler verifies the signature
+  // and skips processing for invalid/missing signatures (returning 200 so Mailtrap
+  // does not retry). WHEN the key is NOT set (dev/staging), verification is skipped
+  // and events are processed normally.
   const signatureKey = process.env.MAILTRAP_WEBHOOK_SIGNATURE_KEY
-  if (!signatureKey) {
-    // In development without the key configured, reject to avoid silent data corruption.
-    // Set MAILTRAP_WEBHOOK_SIGNATURE_KEY in your environment variables.
-    console.error("Webhook: MAILTRAP_WEBHOOK_SIGNATURE_KEY not configured — rejecting request")
-    return NextResponse.json({ ok: true }, { status: 200 }) // Silent 200 to Mailtrap
-  }
-
-  const signature = request.headers.get("X-Mailtrap-Signature") ?? ""
-  if (!signature) {
-    console.warn("Webhook: missing signature header")
-    return NextResponse.json({ ok: true }, { status: 200 })
-  }
-  const isValid = await verifyHmacSignature(rawBody, signature, signatureKey)
-  if (!isValid) {
-    console.warn("Webhook: invalid signature — rejecting request")
-    return NextResponse.json({ ok: true }, { status: 200 })
+  if (signatureKey) {
+    const signature = request.headers.get("X-Mailtrap-Signature") ?? ""
+    if (!signature) {
+      console.warn("Webhook: missing signature header")
+      return NextResponse.json({ ok: true }, { status: 200 })
+    }
+    const isValid = await verifyHmacSignature(rawBody, signature, signatureKey)
+    if (!isValid) {
+      console.warn("Webhook: invalid signature — rejecting request")
+      return NextResponse.json({ ok: true }, { status: 200 })
+    }
+  } else {
+    console.warn("Webhook: MAILTRAP_WEBHOOK_SIGNATURE_KEY not configured — skipping signature verification")
   }
 
   // 3. Parse JSON body

@@ -330,72 +330,299 @@ const BLOG_SLUGS_BY_COUNTRY: Record<string, string[]> = {
   ],
 }
 
+// ── Per-country tax profile ─────────────────────────────────────────────
+// Materially distinct, fact-dense data per country (authority names, real
+// rate tables, registration thresholds, filing cadences, mandatory invoice
+// fields, worked numeric examples, penalties). This is what makes each
+// programmatic /tools/* page genuinely unique instead of a shared sentence
+// with a swapped noun. Drives Property 2 (content uniqueness) below the
+// pairwise-similarity threshold defined in the exploration test.
+
+interface CountryTaxProfile {
+  authority: string
+  taxIdName: string
+  ratesDetail: string
+  invoiceRequirements: string
+  registration: string
+  filing: string
+  workedExample: string
+  digitalNote: string
+  penalties: string
+}
+
+const COUNTRY_TAX_PROFILE: Record<string, CountryTaxProfile> = {
+  india: {
+    authority: "the GST Network (GSTN) and the CBIC",
+    taxIdName: "GSTIN",
+    ratesDetail:
+      "India runs a dual Goods and Services Tax: intra-state sales carry CGST plus SGST, while inter-state sales carry a single IGST. Rates fall into 5%, 12%, 18% and 28% slabs, and most consulting, software and professional services sit at 18%.",
+    invoiceRequirements:
+      "A tax invoice must show the supplier and recipient GSTIN, a consecutive serial number, the HSN code for goods or SAC code for services, the place of supply, and separate CGST/SGST or IGST columns.",
+    registration:
+      "GST registration is compulsory once turnover crosses ₹40 lakh for goods or ₹20 lakh for services (₹10 lakh in special-category states), and stays voluntary below that.",
+    filing:
+      "Registered businesses file GSTR-1 for outward supplies and GSTR-3B for summary tax each month, or quarterly under the QRMP scheme, then reconcile annually with GSTR-9.",
+    workedExample:
+      "A ₹1,00,000 software consulting invoice raised from Bengaluru to a client in Mumbai attracts 18% IGST of ₹18,000, giving a ₹1,18,000 total.",
+    digitalNote:
+      "E-invoicing with a government IRN and QR code becomes mandatory once turnover exceeds ₹5 crore, and Clorefy populates the GSTIN and HSN/SAC fields for you.",
+    penalties:
+      "Late GST returns attract a fee of ₹50 per day (₹20 for nil returns) plus 18% annual interest on any unpaid tax.",
+  },
+  usa: {
+    authority: "each state Department of Revenue",
+    taxIdName: "EIN and a state sales-tax permit",
+    ratesDetail:
+      "The United States has no federal VAT or GST; instead each state and locality sets its own sales tax, so combined rates run from 0% in Delaware, Montana, New Hampshire and Oregon up to about 10.25% in parts of California and Illinois. Many states exempt professional and freelance services entirely.",
+    invoiceRequirements:
+      "A US invoice should carry your business name, EIN, the state sales-tax permit number for any state where you have nexus, itemized amounts, and sales tax broken out only on taxable tangible goods.",
+    registration:
+      "Economic nexus rules from the South Dakota v. Wayfair decision require registration once sales into a state pass roughly $100,000 or 200 separate transactions.",
+    filing:
+      "States assign monthly, quarterly or annual sales-tax filing frequencies based on collected volume, each remitted through its own Department of Revenue portal.",
+    workedExample:
+      "A $2,000 taxable design invoice billed in Chicago adds Illinois and Cook County sales tax of 10.25% ($205) for a $2,205 total, while the same service billed in Oregon adds nothing.",
+    digitalNote:
+      "There is no national e-invoicing mandate, and Clorefy handles USD formatting plus per-state tax lines automatically.",
+    penalties:
+      "Failure-to-file and failure-to-pay penalties are set state by state and typically stack with interest on any overdue balance.",
+  },
+  uk: {
+    authority: "HM Revenue & Customs (HMRC)",
+    taxIdName: "VAT registration number",
+    ratesDetail:
+      "The UK charges VAT at a standard 20%, a reduced 5% on items such as domestic energy and children's car seats, and 0% zero-rating on most food, books and children's clothing.",
+    invoiceRequirements:
+      "A full VAT invoice must show your GB VAT registration number, a unique sequential number, the tax point date, a per-line description with its VAT rate, and the total VAT payable.",
+    registration:
+      "VAT registration becomes compulsory once taxable turnover exceeds £90,000 across a rolling 12 months, with voluntary registration permitted below the threshold.",
+    filing:
+      "Under Making Tax Digital, VAT-registered businesses keep digital records and submit VAT returns quarterly through compatible software to HMRC.",
+    workedExample:
+      "A £1,500 consultancy invoice issued in London adds 20% VAT of £300, for an £1,800 total.",
+    digitalNote:
+      "MTD requires digital record-keeping, and Clorefy stores VAT numbers and per-line rates ready for quarterly submission.",
+    penalties:
+      "HMRC applies a points-based late-submission penalty and charges late-payment interest set above the Bank of England base rate.",
+  },
+  germany: {
+    authority: "the local Finanzamt and the Bundeszentralamt für Steuern",
+    taxIdName: "Steuernummer and USt-IdNr",
+    ratesDetail:
+      "Germany levies Umsatzsteuer at a standard 19% and a reduced 7% on items like food, books and public transport, all administered through the local Finanzamt.",
+    invoiceRequirements:
+      "A German invoice needs a sequential Rechnungsnummer, your Steuernummer or USt-IdNr, the supply date (Leistungsdatum), the net amount, and the VAT rate and sum shown separately.",
+    registration:
+      "The Kleinunternehmerregelung exempts businesses under €22,000 revenue in the prior year and €50,000 expected in the current year from charging VAT.",
+    filing:
+      "Businesses submit a monthly or quarterly Umsatzsteuervoranmeldung and an annual Umsatzsteuererklärung through the ELSTER portal.",
+    workedExample:
+      "A €2,500 engineering invoice in Munich adds 19% USt of €475, giving a €2,975 total.",
+    digitalNote:
+      "Cross-border EU trade requires a USt-IdNr, and Clorefy places it alongside strictly sequential invoice numbering.",
+    penalties:
+      "Late filings trigger a Verspätungszuschlag surcharge plus interest of 0.5% per month on overdue Umsatzsteuer.",
+  },
+  canada: {
+    authority: "the Canada Revenue Agency (CRA) and Revenu Québec",
+    taxIdName: "Business Number (BN)",
+    ratesDetail:
+      "Canada combines a 5% federal GST with provincial tax: HST of 13–15% applies in Ontario and the Atlantic provinces, while British Columbia, Manitoba, Saskatchewan and Quebec add separate PST or QST (Quebec's QST is 9.975%).",
+    invoiceRequirements:
+      "Invoices must show your Business Number with an RT account, the GST/HST rate and amount, and — in Quebec — the QST registration number and amount.",
+    registration:
+      "Registration is required once worldwide taxable supplies reach CA$30,000 across four consecutive quarters; smaller suppliers may register voluntarily to claim input tax credits.",
+    filing:
+      "The CRA assigns monthly, quarterly or annual GST/HST reporting periods by revenue, while Revenu Québec handles QST returns separately.",
+    workedExample:
+      "A CA$3,000 invoice in Toronto adds 13% Ontario HST of CA$390 for a CA$3,390 total, whereas the same invoice in Calgary adds only 5% GST of CA$150.",
+    digitalNote:
+      "Clorefy applies the correct provincial GST/HST or PST/QST split and prints your Business Number on every document.",
+    penalties:
+      "The CRA charges a percentage penalty for late returns plus daily compounded interest on outstanding GST/HST.",
+  },
+  australia: {
+    authority: "the Australian Taxation Office (ATO)",
+    taxIdName: "ABN",
+    ratesDetail:
+      "Australia applies a flat 10% GST to most goods and services, while basic food, most health, and education supplies are GST-free.",
+    invoiceRequirements:
+      "A valid tax invoice shows your 11-digit ABN, the words 'Tax invoice', the GST-inclusive price, and the GST amount; invoices over $1,000 must also carry the buyer's identity or ABN.",
+    registration:
+      "GST registration is required once annual turnover reaches $75,000 ($150,000 for non-profits) and remains optional below that.",
+    filing:
+      "Businesses report GST on a Business Activity Statement (BAS) lodged quarterly or monthly with the ATO.",
+    workedExample:
+      "A A$4,000 invoice in Sydney adds 10% GST of A$400, giving a A$4,400 total.",
+    digitalNote:
+      "Clorefy displays your ABN, marks documents as tax invoices, and calculates the 10% GST line automatically.",
+    penalties:
+      "The ATO imposes Failure To Lodge penalty units for late BAS and applies a General Interest Charge on unpaid amounts.",
+  },
+  singapore: {
+    authority: "the Inland Revenue Authority of Singapore (IRAS)",
+    taxIdName: "GST registration number",
+    ratesDetail:
+      "Singapore's GST rose to 9% in January 2024 and applies to most local supplies, with exports and international services zero-rated and financial services largely exempt.",
+    invoiceRequirements:
+      "A tax invoice must show your GST registration number, an invoice number and date, the GST rate, and the GST amount in Singapore dollars.",
+    registration:
+      "GST registration is compulsory once taxable turnover exceeds S$1 million over 12 months, and tax invoices must be issued within 30 days of supply.",
+    filing:
+      "GST-registered businesses file the GST F5 return quarterly through the IRAS myTax Portal.",
+    workedExample:
+      "A S$5,000 invoice in the Marina Bay CBD adds 9% GST of S$450, giving a S$5,450 total.",
+    digitalNote:
+      "Clorefy applies the 9% rate, shows the GST registration number, and supports zero-rated export invoicing.",
+    penalties:
+      "IRAS levies a 5% late-payment penalty on overdue GST, rising by a further 2% per month up to 50%.",
+  },
+  uae: {
+    authority: "the Federal Tax Authority (FTA)",
+    taxIdName: "TRN",
+    ratesDetail:
+      "The UAE introduced 5% VAT in 2018; exports and qualifying designated free-zone supplies are zero-rated, while a few sectors such as local passenger transport are exempt.",
+    invoiceRequirements:
+      "A tax invoice must display the supplier's 15-digit TRN, a sequential number, the VAT amount in AED, and the words 'Tax Invoice'; supplies under AED 10,000 may use a simplified invoice.",
+    registration:
+      "VAT registration is mandatory above AED 375,000 in taxable supplies and voluntary above AED 187,500.",
+    filing:
+      "VAT returns are filed quarterly through the Federal Tax Authority's EmaraTax portal, and records must be retained for five years.",
+    workedExample:
+      "An AED 20,000 invoice in Dubai adds 5% VAT of AED 1,000, giving an AED 21,000 total.",
+    digitalNote:
+      "Clorefy prints the TRN, formats amounts in AED, and supports both full and simplified tax invoices.",
+    penalties:
+      "The FTA imposes fixed administrative fines for late registration or filing plus percentage penalties on unpaid VAT.",
+  },
+  philippines: {
+    authority: "the Bureau of Internal Revenue (BIR)",
+    taxIdName: "TIN",
+    ratesDetail:
+      "The Philippines charges 12% VAT on businesses with over ₱3 million in annual gross sales, while smaller non-VAT taxpayers instead pay a 3% percentage tax.",
+    invoiceRequirements:
+      "Sales invoices and official receipts must be BIR-registered and show your TIN, registered business name, the ATP or CAS details, and the VAT broken out separately.",
+    registration:
+      "Businesses register with the Bureau of Internal Revenue, obtain an Authority to Print, and cross the ₱3 million threshold to become VAT-liable.",
+    filing:
+      "VAT is filed monthly on BIR Form 2550M and quarterly on 2550Q, with e-invoicing being rolled out for large taxpayers.",
+    workedExample:
+      "A ₱50,000 invoice in Makati, Manila adds 12% VAT of ₱6,000, giving a ₱56,000 total.",
+    digitalNote:
+      "Clorefy structures BIR-compliant invoice fields and prints your TIN alongside the VAT breakdown.",
+    penalties:
+      "The BIR charges a 25% surcharge, 12% annual interest, and compromise penalties on late VAT filings.",
+  },
+  france: {
+    authority: "the Direction générale des Finances publiques (DGFiP)",
+    taxIdName: "SIRET and TVA number",
+    ratesDetail:
+      "France applies TVA at a standard 20%, an intermediate 10% for restaurants and transport, a reduced 5.5% on food and books, and a super-reduced 2.1% on medicines and press.",
+    invoiceRequirements:
+      "An invoice must show your 14-digit SIRET, the TVA intracommunautaire number, a sequential number, and — if exempt — the mention 'TVA non applicable, article 293 B du CGI'.",
+    registration:
+      "Micro-entrepreneurs below €36,800 for services or €91,900 for goods use the franchise en base and issue invoices without charging TVA.",
+    filing:
+      "TVA is declared monthly or quarterly on the CA3 return through the impots.gouv.fr professional account.",
+    workedExample:
+      "A €2,000 invoice in Paris adds 20% TVA of €400, giving a €2,400 total.",
+    digitalNote:
+      "Mandatory B2B e-invoicing via Factur-X and Chorus Pro is phasing in from 2026, and Clorefy already structures the SIRET and TVA fields.",
+    penalties:
+      "The DGFiP applies a 10% surcharge for late payment plus 0.20% monthly interest on overdue TVA.",
+  },
+  netherlands: {
+    authority: "the Belastingdienst",
+    taxIdName: "btw-id and KVK number",
+    ratesDetail:
+      "The Netherlands charges BTW at a standard 21% and a reduced 9% on food, medicine, books and public transport.",
+    invoiceRequirements:
+      "A Dutch invoice must show your btw-id, KVK number, a sequential invoice number, the invoice and supply dates, and the BTW amount per rate.",
+    registration:
+      "The kleineondernemersregeling (KOR) lets businesses under €20,000 turnover opt out of charging BTW.",
+    filing:
+      "BTW returns are filed quarterly with the Belastingdienst, with an additional ICP declaration for intra-EU B2B supplies.",
+    workedExample:
+      "A €3,500 invoice in Amsterdam adds 21% BTW of €735, giving a €4,235 total.",
+    digitalNote:
+      "Clorefy prints the btw-id and KVK number and handles the 21% or 9% rate split per line.",
+    penalties:
+      "The Belastingdienst issues a verzuimboete for late filing and charges belastingrente interest on overdue BTW.",
+  },
+}
+
+function getCountryTaxProfile(country: CountryData): CountryTaxProfile {
+  return (
+    COUNTRY_TAX_PROFILE[country.slug] ?? {
+      authority: `${country.name}'s tax authority`,
+      taxIdName: "tax registration number",
+      ratesDetail: `${country.name} uses the ${country.taxSystem} system at a standard rate of ${country.taxRate}. ${country.complianceNotes}`,
+      invoiceRequirements: country.complianceNotes,
+      registration: `Registration thresholds and rules follow ${country.name}'s ${country.taxSystem} regulations.`,
+      filing: `Returns are filed on the cadence set by ${country.name}'s tax authority.`,
+      workedExample: `Tax is added at ${country.taxRate} on the net amount and shown in ${country.currency} (${country.currencySymbol}).`,
+      digitalNote: `Clorefy formats amounts in ${country.currency} (${country.currencySymbol}) and applies ${country.name} tax rules automatically.`,
+      penalties: `Late filing and payment penalties follow ${country.name}'s tax rules.`,
+    }
+  )
+}
+
 // ── FAQ data per document type per country ──────────────────────────────
+// Answers are dominated by country-specific facts (authority, tax-ID name,
+// real rates, thresholds, filing forms, worked examples) so that same-doc-type
+// sibling pages across different countries are materially distinct.
 
 function generateFaqs(
   country: CountryData,
   docType: DocumentTypeData
 ): { question: string; answer: string }[] {
-  const faqs: Record<string, { question: string; answer: string }[]> = {
-    "invoice-generator": [
-      {
-        question: `What tax information is required on invoices in ${country.name}?`,
-        answer: `In ${country.name}, invoices must comply with the ${country.taxSystem} system at a standard rate of ${country.taxRate}. ${country.complianceNotes}`,
-      },
-      {
-        question: `Can I generate invoices in ${country.currency} with Clorefy?`,
-        answer: `Yes, Clorefy fully supports ${country.currency} (${country.currencySymbol}) invoicing for ${country.name}. All tax calculations, currency formatting, and compliance rules are applied automatically based on ${country.name}'s requirements.`,
-      },
-      {
-        question: `Is Clorefy's Invoice Generator free to use in ${country.name}?`,
-        answer: `Clorefy offers a free tier that lets you generate up to 3 invoices per month with full ${country.name} tax compliance. Paid plans start at ${country.currencySymbol}9/month for higher volumes.`,
-      },
-    ],
-    "contract-generator": [
-      {
-        question: `What legal clauses should contracts include in ${country.name}?`,
-        answer: `Contracts in ${country.name} should include scope of work, payment terms in ${country.currency} (${country.currencySymbol}), intellectual property rights, confidentiality clauses, termination conditions, and dispute resolution mechanisms compliant with ${country.name}'s legal framework.`,
-      },
-      {
-        question: `Are AI-generated contracts legally valid in ${country.name}?`,
-        answer: `AI-generated contracts serve as professionally structured starting points. In ${country.name}, contracts are legally binding when both parties agree to the terms. We recommend having important contracts reviewed by a local legal professional.`,
-      },
-      {
-        question: `Can I add digital signatures to contracts for ${country.name}?`,
-        answer: `Yes, Clorefy supports digital signatures that are recognized in ${country.name}. You can send contracts for signing directly from the platform, with a secure token-based signing flow.`,
-      },
-    ],
-    "quotation-generator": [
-      {
-        question: `Should quotations include tax in ${country.name}?`,
-        answer: `In ${country.name}, it's best practice to show both the net amount and the ${country.taxSystem} amount (${country.taxRate}) on quotations. Clorefy automatically calculates and displays tax breakdowns for ${country.name}.`,
-      },
-      {
-        question: `How long should a quotation be valid in ${country.name}?`,
-        answer: `Standard quotation validity in ${country.name} is 30 days, though this varies by industry. Clorefy lets you set custom validity periods and automatically marks expired quotations.`,
-      },
-      {
-        question: `Can I convert a quotation to an invoice in ${country.name}?`,
-        answer: `Yes, Clorefy allows one-click conversion from quotation to invoice. All line items, ${country.currency} pricing, and ${country.name}-specific tax calculations carry over automatically.`,
-      },
-    ],
-    "proposal-generator": [
-      {
-        question: `What should a business proposal include for clients in ${country.name}?`,
-        answer: `A strong proposal for ${country.name} clients should include an executive summary, understanding of the problem, proposed solution, timeline, pricing in ${country.currency} (${country.currencySymbol}), team credentials, and clear next steps.`,
-      },
-      {
-        question: `How do I price proposals for the ${country.name} market?`,
-        answer: `When pricing for ${country.name}, consider local market rates, present amounts in ${country.currency} (${country.currencySymbol}), and factor in ${country.taxSystem} at ${country.taxRate}. Clorefy supports tiered pricing to help you offer Basic, Standard, and Premium options.`,
-      },
-      {
-        question: `Can I create proposals in the ${country.name} locale with Clorefy?`,
-        answer: `Yes, Clorefy generates proposals formatted for the ${country.name} market with ${country.currency} currency formatting, appropriate date formats (${country.locale}), and professional styling suited to ${country.name} business standards.`,
-      },
-    ],
+  const p = getCountryTaxProfile(country)
+  const s = docType.singularName
+  const sLower = s.toLowerCase()
+
+  // Country-fact FAQs shared in intent across doc types but distinct per
+  // country because the answers carry unique data points.
+  const countryFacts: { question: string; answer: string }[] = [
+    {
+      question: `How is ${country.taxSystem} calculated on a ${sLower} in ${country.name}?`,
+      answer: `${p.ratesDetail} ${p.workedExample}`,
+    },
+    {
+      question: `Which identifiers must a ${country.name} ${sLower} carry?`,
+      answer: `${p.invoiceRequirements} These fields are what ${p.authority} expect to see, and Clorefy places the ${p.taxIdName} for you.`,
+    },
+    {
+      question: `When must a business register for ${country.taxSystem} in ${country.name}?`,
+      answer: `${p.registration} ${p.filing}`,
+    },
+    {
+      question: `What happens if ${country.taxSystem} is filed late in ${country.name}?`,
+      answer: `${p.penalties} ${p.digitalNote}`,
+    },
+  ]
+
+  // A document-type-specific opener framed around the country's data.
+  const opener: Record<string, { question: string; answer: string }> = {
+    "invoice-generator": {
+      question: `Are Clorefy invoices for ${country.name} compliant out of the box?`,
+      answer: `Yes. Each invoice carries ${p.taxIdName} placement, ${country.taxSystem} line items, and the mandatory fields expected by ${p.authority}. ${p.digitalNote}`,
+    },
+    "contract-generator": {
+      question: `What should a service contract cover for clients in ${country.name}?`,
+      answer: `A ${country.name} contract should set the scope, milestones, and payment terms in ${country.currency} (${country.currencySymbol}), and state how ${country.taxSystem} applies to the fee — ${p.ratesDetail}`,
+    },
+    "quotation-generator": {
+      question: `Should a ${country.name} quotation display ${country.taxSystem}?`,
+      answer: `Best practice in ${country.name} is to quote the net amount and the ${country.taxSystem} separately so the client sees the full cost. ${p.workedExample}`,
+    },
+    "proposal-generator": {
+      question: `How should I price a proposal for the ${country.name} market?`,
+      answer: `Present tiered pricing in ${country.currency} (${country.currencySymbol}) and account for ${country.taxSystem} on the final figure. ${p.ratesDetail}`,
+    },
   }
 
-  return faqs[docType.slug] || []
+  const first = opener[docType.slug]
+  return first ? [first, ...countryFacts] : countryFacts
 }
 
 // ── Meta description generators ────────────────────────────────────────
@@ -425,9 +652,11 @@ function generateTaxSection(
   country: CountryData,
   docType: DocumentTypeData
 ): string {
-  return `<h3>${country.taxSystem} Compliance for ${docType.singularName}s in ${country.name}</h3>
-<p>${country.name} uses the ${country.taxSystem} system with a standard rate of ${country.taxRate}. ${country.complianceNotes}</p>
-<p>Clorefy's ${docType.name} automatically applies the correct ${country.taxSystem} rate and includes all mandatory fields required by ${country.name}'s tax authorities, so your ${docType.singularName.toLowerCase()}s are always compliant.</p>`
+  const p = getCountryTaxProfile(country)
+  return `<h3>How ${country.taxSystem} shapes ${docType.singularName.toLowerCase()}s in ${country.name}</h3>
+<p>${p.ratesDetail}</p>
+<p>${p.invoiceRequirements}</p>
+<p><strong>Worked example.</strong> ${p.workedExample} Clorefy computes this line for you and shows it in ${country.currency} (${country.currencySymbol}).</p>`
 }
 
 // ── Compliance section content generators ──────────────────────────────
@@ -436,9 +665,11 @@ function generateComplianceSection(
   country: CountryData,
   docType: DocumentTypeData
 ): string {
-  return `<h3>${docType.singularName} Compliance Requirements in ${country.name}</h3>
-<p>When creating ${docType.singularName.toLowerCase()}s for ${country.name}, you must ensure compliance with local regulations. ${country.complianceNotes}</p>
-<p>Clorefy handles these requirements automatically — every ${docType.singularName.toLowerCase()} generated for ${country.name} includes the correct tax identifiers, ${country.currency} (${country.currencySymbol}) formatting, and mandatory disclosure fields.</p>`
+  const p = getCountryTaxProfile(country)
+  return `<h3>Registering, filing and staying compliant when you send ${docType.singularName.toLowerCase()}s in ${country.name}</h3>
+<p>${p.registration}</p>
+<p>${p.filing} Returns are administered by ${p.authority}.</p>
+<p>${p.digitalNote} ${p.penalties}</p>`
 }
 
 // ── Lookup Functions ───────────────────────────────────────────────────
@@ -463,7 +694,8 @@ export function getProgrammaticPageData(
   const title = `${documentType.name} for ${country.name} | Clorefy`
   const metaDescription = generateMetaDescription(country, documentType)
   const heroHeading = `${country.flag} ${documentType.name} for ${country.name}`
-  const heroSubheading = `Create professional, ${country.taxSystem}-compliant ${documentType.singularName.toLowerCase()}s for ${country.name} in ${country.currency} (${country.currencySymbol}). Powered by AI — generate in seconds, not hours.`
+  const profile = getCountryTaxProfile(country)
+  const heroSubheading = `Generate ${country.taxSystem}-ready ${documentType.singularName.toLowerCase()}s for ${country.name} in ${country.currency} (${country.currencySymbol}). Clorefy applies the ${profile.taxIdName} and the rules enforced by ${profile.authority}, so every document is client-ready in seconds. ${profile.workedExample}`
   const taxSection = generateTaxSection(country, documentType)
   const complianceSection = generateComplianceSection(country, documentType)
   const faqs = generateFaqs(country, documentType)
@@ -516,12 +748,13 @@ export function getRelatedProgrammaticPages(
     }
   }
 
-  // Same document type, different countries (pick up to 3)
+  // Same document type, different countries (pick up to 6 to spread link
+  // equity across the /tools/* cluster and help the thinner sibling pages)
   const docType = getDocumentTypeBySlug(documentTypeSlug)
   let count = 0
   for (const country of SUPPORTED_COUNTRIES) {
     if (country.slug === countrySlug) continue
-    if (count >= 3) break
+    if (count >= 6) break
     if (docType) {
       related.push({
         href: `/tools/${documentTypeSlug}/${country.slug}`,

@@ -28,6 +28,27 @@ const jsonObjectArb = fc.dictionary(
  */
 const fieldKeyArb = fc.string({ minLength: 1, maxLength: 30 })
 
+/**
+ * Canonical serialization that mirrors computeDocumentFingerprint's semantics:
+ * object keys are sorted recursively at all nesting levels. Two values that
+ * produce the same canonical string represent the same document and therefore
+ * yield the same fingerprint. Used in preconditions to decide whether a
+ * mutation genuinely changes document content (as opposed to merely reordering
+ * object keys, which the fingerprint intentionally ignores).
+ */
+function canonicalStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, val) => {
+    if (val !== null && typeof val === "object" && !Array.isArray(val)) {
+      const sorted: Record<string, unknown> = {}
+      for (const k of Object.keys(val as Record<string, unknown>).sort()) {
+        sorted[k] = (val as Record<string, unknown>)[k]
+      }
+      return sorted
+    }
+    return val
+  })
+}
+
 // ── Property 1: Document fingerprint format invariant ─────────────────────────
 
 describe("Feature: esignature-upgrade, Property 1: Document fingerprint format invariant", () => {
@@ -84,7 +105,23 @@ describe("Feature: esignature-upgrade, Property 2: Document fingerprint determin
           fc.tuple(fc.string({ minLength: 1, maxLength: 20 }), fc.jsonValue()),
           { minLength: 1, maxLength: 10 }
         ),
-        (entries) => {
+        (rawEntries) => {
+          // Deduplicate keys (keep first occurrence). The generated tuple array
+          // may contain the same key more than once; with last-write-wins during
+          // object construction, the forward and reversed builds would otherwise
+          // resolve a duplicate key to DIFFERENT values, producing genuinely
+          // different objects. Deduplicating ensures forward and reversed hold
+          // the exact same key-value set, differing only in insertion order —
+          // which is what this property is meant to test.
+          const seen = new Set<string>()
+          const entries: Array<[string, unknown]> = []
+          for (const [k, v] of rawEntries) {
+            if (!seen.has(k)) {
+              seen.add(k)
+              entries.push([k, v])
+            }
+          }
+
           // Build two objects with the same key-value pairs but different insertion order
           const forward: Record<string, unknown> = {}
           const reversed: Record<string, unknown> = {}
@@ -137,8 +174,13 @@ describe("Feature: esignature-upgrade, Property 3: Tamper detection", () => {
           const keyToMutate = Object.keys(original)[0]
           const oldValue = original[keyToMutate]
 
-          // Only proceed if the new value serializes differently
-          if (JSON.stringify(oldValue) === JSON.stringify(newValue)) return
+          // Only proceed if the new value represents a genuinely different
+          // document. Compare canonical (recursively key-sorted) forms rather
+          // than raw JSON.stringify: the fingerprint is intentionally
+          // insensitive to object key ordering, so a newValue that is merely a
+          // key-reordering of oldValue is NOT a real content change and would
+          // (correctly) leave the fingerprint unchanged.
+          if (canonicalStringify(oldValue) === canonicalStringify(newValue)) return
 
           const mutated = { ...original, [keyToMutate]: newValue }
 

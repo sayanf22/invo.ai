@@ -32,11 +32,7 @@ vi.mock("@/lib/signature-audit", () => ({
 }))
 
 vi.mock("@supabase/supabase-js", () => ({
-  createClient: vi.fn().mockReturnValue({
-    from: vi.fn().mockReturnValue({
-      insert: vi.fn().mockResolvedValue({ error: null }),
-    }),
-  }),
+  createClient: vi.fn(),
 }))
 
 // ── Imports after mocks ────────────────────────────────────────────────
@@ -44,6 +40,7 @@ vi.mock("@supabase/supabase-js", () => ({
 import { POST } from "@/app/api/signatures/route"
 import { authenticateRequest } from "@/lib/api-auth"
 import { sendEmail } from "@/lib/mailtrap"
+import { createClient } from "@supabase/supabase-js"
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -67,74 +64,85 @@ function makeRequest(body: unknown): NextRequest {
 function buildSupabaseMock(opts: { insertSpy?: ReturnType<typeof vi.fn> } = {}) {
   const insertSpy = opts.insertSpy ?? vi.fn()
 
-  return {
-    insertSpy,
-    supabase: {
-      from: vi.fn().mockImplementation((table: string) => {
-        if (table === "document_sessions") {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: {
-                    id: MOCK_SESSION_ID,
-                    user_id: mockUser.id,
-                    document_id: MOCK_DOCUMENT_ID,
-                    document_type: "contract",
-                    context: { referenceNumber: "CTR-001", clientName: "Acme" },
-                  },
-                  error: null,
-                }),
-              }),
-            }),
-          }
-        }
-        if (table === "businesses") {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: { name: "Test Corp", logo_url: null },
-                  error: null,
-                }),
-              }),
-            }),
-          }
-        }
-        if (table === "signatures") {
-          return {
-            insert: insertSpy.mockReturnValue({
-              select: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: {
-                    id: MOCK_SIGNATURE_ID,
-                    document_id: MOCK_DOCUMENT_ID,
-                    signer_email: "signer@example.com",
-                    signer_name: "Jane Doe",
-                    party: "Client",
-                    token: "sign_" + "0".repeat(32),
-                    document_hash: MOCK_HASH,
-                    session_id: MOCK_SESSION_ID,
-                    expires_at: new Date(Date.now() + 604800000).toISOString(),
-                    created_at: new Date().toISOString(),
-                  },
-                  error: null,
-                }),
-              }),
-            }),
-            update: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({ error: null }),
-            }),
-          }
-        }
-        // fallback
+  const supabase = {
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === "document_sessions") {
         return {
-          insert: vi.fn().mockResolvedValue({ error: null }),
-          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: MOCK_SESSION_ID,
+                  user_id: mockUser.id,
+                  document_id: MOCK_DOCUMENT_ID,
+                  document_type: "contract",
+                  context: { referenceNumber: "CTR-001", clientName: "Acme" },
+                },
+                error: null,
+              }),
+            }),
+          }),
+          // Route finalizes the session via the service-role client:
+          // serviceSupabase.from("document_sessions").update({...}).eq("id", sessionId)
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
         }
-      }),
-    },
+      }
+      if (table === "businesses") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { name: "Test Corp", logo_url: null },
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
+      if (table === "signatures") {
+        return {
+          insert: insertSpy.mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: MOCK_SIGNATURE_ID,
+                  document_id: MOCK_DOCUMENT_ID,
+                  signer_email: "signer@example.com",
+                  signer_name: "Jane Doe",
+                  party: "Client",
+                  token: "sign_" + "0".repeat(32),
+                  document_hash: MOCK_HASH,
+                  session_id: MOCK_SESSION_ID,
+                  expires_at: new Date(Date.now() + 604800000).toISOString(),
+                  created_at: new Date().toISOString(),
+                },
+                error: null,
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        }
+      }
+      // fallback
+      return {
+        insert: vi.fn().mockResolvedValue({ error: null }),
+        update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+      }
+    }),
   }
+
+  // The route creates a service-role client via createClient() from
+  // @supabase/supabase-js for all `signatures` writes and the final
+  // `document_sessions` finalize update. Wire it to the same mock so the
+  // service-role chain (from().insert().select().single(), from().update().eq())
+  // is faithfully modeled and the insert spy is exercised.
+  vi.mocked(createClient).mockReturnValue(supabase as any)
+
+  return { insertSpy, supabase }
 }
 
 const validBody = {

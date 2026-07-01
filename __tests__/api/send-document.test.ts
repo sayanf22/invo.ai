@@ -33,6 +33,31 @@ vi.mock("@/lib/audit-log", () => ({
   logAudit: vi.fn().mockResolvedValue(undefined),
 }))
 
+// The route uses a service-role admin client (createClient from @supabase/supabase-js)
+// for invoice_payments lookups (outside RLS scope). Mock it to report "no active
+// payment link" so the invoice branch stays a no-op in tests.
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: vi.fn(() => {
+    const chain: any = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      in: vi.fn(() => chain),
+      is: vi.fn(() => chain),
+      order: vi.fn(() => chain),
+      limit: vi.fn(() => chain),
+      update: vi.fn(() => chain),
+      insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }
+    return { from: vi.fn(() => chain), rpc: vi.fn().mockResolvedValue({ data: null, error: null }) }
+  }),
+}))
+
+// A syntactically valid UUID for session IDs (the route validates UUID format
+// before the ownership lookup).
+const VALID_SESSION_ID = "11111111-1111-4111-8111-111111111111"
+
 // ── Imports after mocks ────────────────────────────────────────────────
 
 import { POST } from "@/app/api/emails/send-document/route"
@@ -67,7 +92,10 @@ const createSupabaseMock = (overrides = {}) => ({
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("http://localhost/api/emails/send-document", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    // authFetch attaches the Supabase access token as a Bearer header on every
+    // request. CSRF validation is intentionally skipped for Bearer-authenticated
+    // calls (they can't be forged via ambient cookies), so we mirror that here.
+    headers: { "Content-Type": "application/json", Authorization: "Bearer test-token" },
     body: JSON.stringify(body),
   })
 }
@@ -176,7 +204,7 @@ describe("POST /api/emails/send-document", () => {
     })
 
     const res = await POST(
-      makeRequest({ sessionId: "some-id", recipientEmail: "test@example.com" })
+      makeRequest({ sessionId: VALID_SESSION_ID, recipientEmail: "test@example.com" })
     )
     expect(res.status).toBe(404)
     const body = await res.json()
@@ -198,6 +226,12 @@ describe("POST /api/emails/send-document", () => {
                   error: null,
                 }),
               }),
+            }),
+          }),
+          // Route finalizes (locks) the session after a successful send.
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
             }),
           }),
         }
@@ -252,7 +286,7 @@ describe("POST /api/emails/send-document", () => {
     vi.mocked(sendEmail).mockResolvedValue({ success: true, messageIds: ["msg-123"] })
 
     const res = await POST(
-      makeRequest({ sessionId: "some-id", recipientEmail: "test@example.com", resend: true })
+      makeRequest({ sessionId: VALID_SESSION_ID, recipientEmail: "test@example.com", resend: true })
     )
     expect(res.status).toBe(200)
     const body = await res.json()

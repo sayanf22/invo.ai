@@ -1,12 +1,14 @@
 /**
  * Centralized document type registry.
- * Single source of truth for all 9 supported document types and their metadata.
+ * Single source of truth for all 10 supported document types and their metadata.
  * All modules (intent classifier, tier system, UI, PDF templates, etc.) should
  * import from here rather than hardcoding type metadata.
  *
- * Note: Recurring invoices are NOT a separate document type. Any regular
- * invoice can be made recurring via the `recurring_invoices` table and the
- * RecurringPanel UI on the invoice editor.
+ * Note: A recurring invoice reuses the regular invoice's line-item structure
+ * (InvoiceData) but is a distinct document type so the intent classifier,
+ * detector, editor, and PDF renderer can surface recurrence scheduling and
+ * treat it as a first-class type. The recurrence schedule itself is stored in
+ * the `recurring_invoices` table / session context.
  */
 
 // ─── Type Definitions ─────────────────────────────────────────────────────────
@@ -21,6 +23,7 @@ export const ALL_DOCUMENT_TYPES = [
   "nda",
   "client_onboarding_form",
   "payment_followup",
+  "recurring_invoice",
 ] as const
 
 export type DocumentType = (typeof ALL_DOCUMENT_TYPES)[number]
@@ -189,7 +192,10 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
       supports_linking: true,
       supports_recurring: false,
     },
-    validParentTypes: ["contract"],
+    // A Statement of Work most formally sits under a signed contract, but in
+    // service businesses it commonly follows an accepted proposal or quote
+    // (where the signed SOW itself becomes the binding agreement).
+    validParentTypes: ["contract", "proposal", "quote"],
   },
 
   change_order: {
@@ -272,6 +278,28 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
       supports_recurring: false,
     },
     validParentTypes: ["invoice"],
+  },
+
+  recurring_invoice: {
+    type: "recurring_invoice",
+    label: "Recurring Invoice",
+    description:
+      "An invoice configured to repeat automatically on a schedule (weekly, monthly, quarterly, etc.) for retainers and subscription billing.",
+    icon: "Repeat",
+    color: "text-indigo-600",
+    bgColor: "bg-indigo-50",
+    prefix: "REC",
+    capabilities: {
+      // Recurring invoices are billing documents like regular invoices — no
+      // signature or soft acceptance. They support payment links (Req 14.1)
+      // and are the only type flagged as recurring.
+      supports_signature: false,
+      supports_client_response: false,
+      supports_payment_link: true,
+      supports_linking: false,
+      supports_recurring: true,
+    },
+    validParentTypes: [],
   },
 }
 

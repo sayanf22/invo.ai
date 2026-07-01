@@ -189,18 +189,16 @@ describe("Feature: security-hardening, Property 17: Origin validation", () => {
      * return 403.
      */
 
-    const originalEnv = { ...process.env }
-
     beforeEach(() => {
-        process.env.NEXT_PUBLIC_APP_URL = "https://app.clorefy.com"
-        process.env.VERCEL_URL = undefined
-        Object.defineProperty(process.env, "NODE_ENV", { value: "production", writable: true, configurable: true })
+        // Use vi.stubEnv — assigning to process.env directly (or via
+        // Object.defineProperty) is rejected by Node's env proxy in this runtime.
+        vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.clorefy.com")
+        vi.stubEnv("VERCEL_URL", "")
+        vi.stubEnv("NODE_ENV", "production")
     })
 
     afterEach(() => {
-        process.env.NEXT_PUBLIC_APP_URL = originalEnv.NEXT_PUBLIC_APP_URL
-        process.env.VERCEL_URL = originalEnv.VERCEL_URL
-        Object.defineProperty(process.env, "NODE_ENV", { value: originalEnv.NODE_ENV, writable: true, configurable: true })
+        vi.unstubAllEnvs()
     })
 
     /** Helper to create a Request with specific headers */
@@ -293,7 +291,7 @@ describe("Feature: security-hardening, Property 17: Origin validation", () => {
     })
 
     it("does not allow localhost origins in production mode", () => {
-        Object.defineProperty(process.env, "NODE_ENV", { value: "production", writable: true, configurable: true })
+        vi.stubEnv("NODE_ENV", "production")
         fc.assert(
             fc.property(
                 fc.constantFrom("http://localhost:3000", "http://localhost:3001"),
@@ -310,7 +308,7 @@ describe("Feature: security-hardening, Property 17: Origin validation", () => {
     })
 
     it("allows localhost origins in development mode", () => {
-        Object.defineProperty(process.env, "NODE_ENV", { value: "development", writable: true, configurable: true })
+        vi.stubEnv("NODE_ENV", "development")
         fc.assert(
             fc.property(
                 fc.constantFrom("http://localhost:3000", "http://localhost:3001"),

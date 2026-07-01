@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next"
-import { getAllCombinedSlugs } from "@/lib/blog-combined"
+import { getAllCombinedPosts } from "@/lib/blog-combined"
 import { getAllProgrammaticPages } from "@/lib/seo-data"
 import { getAllCityPages } from "@/lib/city-data"
 
@@ -78,20 +78,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/refund-policy`, lastModified: new Date("2025-01-01"), changeFrequency: "yearly", priority: 0.4 },
   ]
 
-  // ── Auth pages (low priority but still indexed for branded searches) ─
-  const authPages: MetadataRoute.Sitemap = [
-    { url: `${BASE_URL}/auth/login`, lastModified: new Date("2025-01-01"), changeFrequency: "yearly", priority: 0.3 },
-    { url: `${BASE_URL}/auth/signup`, lastModified: new Date("2025-01-01"), changeFrequency: "yearly", priority: 0.3 },
-  ]
+  // ── Auth pages are intentionally EXCLUDED from the sitemap ───────────
+  // `/auth/login` and `/auth/signup` are thin, low-value routes that belong
+  // to the noindex/exclude set (Property 1 — Sitemap Hygiene). Emitting them
+  // wastes crawl budget and emits a low-quality signal, so they are dropped.
 
   // ── Blog posts (content marketing — high SEO value, includes AI-generated) ──
-  const blogSlugs = await getAllCombinedSlugs()
-  const blogPages: MetadataRoute.Sitemap = blogSlugs.map((slug) => ({
-    url: `${BASE_URL}/blog/${slug}`,
-    lastModified: new Date(),
-    changeFrequency: "monthly" as const,
-    priority: 0.7,
-  }))
+  // Build the list from real, resolvable posts (static + PUBLISHED DB posts)
+  // rather than a raw slug list, so no sitemap entry can 404 / soft-404 for a
+  // draft or unresolved slug. Use each post's real publish/update date instead
+  // of `new Date()` so `lastModified` is stable and meaningful.
+  const blogPosts = await getAllCombinedPosts()
+  const blogPages: MetadataRoute.Sitemap = blogPosts
+    .filter((post) => Boolean(post.slug))
+    .map((post) => {
+      const modified = post.updatedAt || post.publishedAt
+      return {
+        url: `${BASE_URL}/blog/${post.slug}`,
+        lastModified: modified ? new Date(modified) : new Date(),
+        changeFrequency: "monthly" as const,
+        priority: 0.7,
+      }
+    })
 
   return [
     ...marketingPages,
@@ -101,6 +109,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...misspellingPage,
     ...blogPages,
     ...legalPages,
-    ...authPages,
   ]
 }

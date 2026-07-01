@@ -137,7 +137,10 @@ const PUBLIC_PATHS = [
 
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/") return true // Landing page is public — app/page.tsx handles auth check
-  return PUBLIC_PATHS.some((p) => pathname.startsWith(p))
+  // Match on path-segment boundaries only. A bare `startsWith` would let a
+  // short public prefix (e.g. "/d" for /d/[shortId] short links) leak auth on
+  // longer protected routes like "/documents" — a real auth-bypass hole.
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))
 }
 
 // ── URL Normalization ──────────────────────────────────────────────────

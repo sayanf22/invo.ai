@@ -50,7 +50,16 @@ const mockAuthUser = { id: "test-user-id-00000000" }
 vi.mock("@/lib/api-auth", () => ({
   authenticateRequest: vi.fn().mockImplementation(async () => ({
     user: mockAuthUser,
-    supabase: {},
+    supabase: {
+      from: () => ({
+        update: () => ({
+          eq: () => ({
+            select: async () => ({ data: [{ user_id: mockAuthUser.id }], error: null }),
+          }),
+        }),
+        insert: () => ({ then: (cb: () => void) => Promise.resolve().then(cb) }),
+      }),
+    },
     error: null,
   })),
 }))
@@ -60,6 +69,8 @@ vi.mock("@/lib/rate-limiter", () => ({
 }))
 
 vi.mock("@/lib/r2", () => ({
+  uploadToR2: vi.fn().mockResolvedValue(undefined),
+  deleteObject: vi.fn().mockResolvedValue(undefined),
   generatePresignedPutUrl: vi.fn().mockResolvedValue("https://fake-presigned.example.com/upload"),
   generatePresignedGetUrl: vi.fn().mockResolvedValue("https://fake-presigned.example.com/download"),
 }))
@@ -70,12 +81,38 @@ vi.mock("@/lib/secrets", () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-function buildUploadRequest(body: Record<string, unknown>): Request {
-  return new Request("http://localhost:3000/api/storage/upload", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
+// Leading magic bytes per allowed content type. Accept-case files start with
+// the correct signature so the route's magic-byte validation passes; size is
+// tracked separately so oversize cases don't require huge byte payloads.
+const MAGIC_BYTES: Record<string, number[]> = {
+  "image/png": [0x89, 0x50, 0x4e, 0x47],
+  "image/jpeg": [0xff, 0xd8, 0xff],
+  "image/webp": [0x52, 0x49, 0x46, 0x46],
+  "image/gif": [0x47, 0x49, 0x46, 0x38, 0x39],
+  "application/pdf": [0x25, 0x50, 0x44, 0x46],
+}
+
+function makeFileLike(name: string, type: string, size: number): File {
+  const leading = MAGIC_BYTES[type] ?? [0x00]
+  const buffer = new Uint8Array(leading).buffer
+  return {
+    name,
+    type,
+    size,
+    arrayBuffer: async () => buffer,
+  } as unknown as File
+}
+
+function buildUploadRequest(body: {
+  fileName: string
+  fileSize: number
+  contentType: string
+  category: string
+}): Request {
+  const formData = new Map<string, unknown>()
+  formData.set("file", makeFileLike(body.fileName, body.contentType, body.fileSize))
+  formData.set("category", body.category)
+  return { formData: async () => formData } as unknown as Request
 }
 
 function buildGetUrlRequest(key: string): Request {
@@ -155,8 +192,8 @@ describe("Feature: security-hardening, Property 10: File upload MIME type and si
           expect(res.status).toBe(200)
 
           const json = await res.json()
-          expect(json.uploadUrl).toBeDefined()
           expect(json.objectKey).toBeDefined()
+          expect(json.dataUrl).toBeDefined()
         },
       ),
       { numRuns: 100 },

@@ -17,6 +17,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { NextRequest } from "next/server"
 import fc from "fast-check"
+import { ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -69,7 +70,12 @@ vi.stubGlobal("fetch", mockFetch)
 function createMockRequest(url: string, body: unknown): NextRequest {
   return new NextRequest(new URL(url, "http://localhost:3000"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      // Origin is required by validateOrigin() for state-changing (POST) requests
+      // (e.g. /api/ai/profile-update). localhost is allowed in non-production (test) envs.
+      Origin: "http://localhost:3000",
+    },
     body: JSON.stringify(body),
   })
 }
@@ -104,7 +110,19 @@ function setupSupabaseMocks(plan: string, documentsCount: number) {
       }
     }
     if (table === "document_sessions") {
+      // The route runs a deduplication SELECT (select→eq→eq→eq→gte→order→limit→maybeSingle)
+      // before inserting. The mock must support BOTH that read chain (returning no recent
+      // session) and the insert chain (insert→select→single).
+      const dedupChain = {
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      }
       return {
+        select: vi.fn().mockReturnValue(dedupChain),
         insert: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({
@@ -158,13 +176,13 @@ function setupDeepSeekMock() {
   })
 }
 
-// ── Tier limits reference (mirrors lib/cost-protection.ts) ─────────────────
-
+// ── Tier limits reference (mirrors lib/cost-protection.ts + docs/pricing-model.md) ──
+// Free tier: invoice, contract, quote (3 types). Paid tiers: ALL registry types (10).
 const TIER_LIMITS: Record<string, { documentsPerMonth: number; allowedDocTypes: string[] }> = {
-  free: { documentsPerMonth: 5, allowedDocTypes: ["invoice", "contract"] },
-  starter: { documentsPerMonth: 50, allowedDocTypes: ["invoice", "contract", "quotation", "proposal"] },
-  pro: { documentsPerMonth: 150, allowedDocTypes: ["invoice", "contract", "quotation", "proposal"] },
-  agency: { documentsPerMonth: 0, allowedDocTypes: ["invoice", "contract", "quotation", "proposal"] },
+  free: { documentsPerMonth: 5, allowedDocTypes: ["invoice", "contract", "quote"] },
+  starter: { documentsPerMonth: 50, allowedDocTypes: [...ALL_DOCUMENT_TYPES] },
+  pro: { documentsPerMonth: 150, allowedDocTypes: [...ALL_DOCUMENT_TYPES] },
+  agency: { documentsPerMonth: 0, allowedDocTypes: [...ALL_DOCUMENT_TYPES] },
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────

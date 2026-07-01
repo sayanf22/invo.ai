@@ -183,6 +183,26 @@ export const paymentFollowupSchema = z.object({
 
 export type PaymentFollowupData = z.infer<typeof paymentFollowupSchema>
 
+// ─── Recurring Invoice Context Schema ─────────────────────────────────────────
+
+/**
+ * A recurring invoice reuses the existing `InvoiceData` interface for its
+ * line-item content. The recurrence configuration itself is stored separately
+ * (in the session's `context` JSONB) and validated with this schema.
+ *
+ * `recurrenceFrequency` and `recurrenceStartDate` are required; the remaining
+ * fields are optional scheduling refinements.
+ */
+export const recurringInvoiceContextSchema = z.object({
+  recurrenceFrequency: z.enum(["weekly", "biweekly", "monthly", "quarterly", "annually"]),
+  recurrenceStartDate: z.string(),
+  recurrenceEndDate: z.string().optional(),
+  maxOccurrences: z.number().optional(),
+  autoSend: z.boolean().default(true),
+})
+
+export type RecurringInvoiceContext = z.infer<typeof recurringInvoiceContextSchema>
+
 // ─── Union Type ───────────────────────────────────────────────────────────────
 
 /**

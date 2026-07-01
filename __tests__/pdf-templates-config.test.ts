@@ -367,10 +367,14 @@ describe("ContractPDF config unit tests", () => {
 })
 
 describe("QuotationPDF config unit tests", () => {
+  // Legacy "quotation" type key maps to the canonical quote config.
+  // Per the quote-canonical rename (service-business-document-workflow,
+  // Requirement 4.3), a legacy "quotation" value is displayed as "Quote",
+  // so the PDF document title is the canonical "QUOTE".
   const config = getDocumentConfig("quotation")
 
   it("returns correct title, fromLabel, toLabel, and grandTotalLabel", () => {
-    expect(config.title).toBe("QUOTATION")
+    expect(config.title).toBe("QUOTE")
     expect(config.fromLabel).toBe("From")
     expect(config.toLabel).toBe("Quote For")
     expect(config.grandTotalLabel).toBe("Total")

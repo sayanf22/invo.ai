@@ -135,6 +135,18 @@ export const COUNTRY_MAP: Record<string, string> = {
   "UAE": "UAE",
 }
 
+// Idempotency guarantee: every canonical value must itself be a recognised key
+// so that normalizeCountry(normalizeCountry(x)) === normalizeCountry(x). This
+// also lets full canonical names (e.g. "Puerto Rico", "Costa Rica") resolve
+// directly. Object.values() snapshots the values, so mutating during the loop
+// is safe.
+for (const canonical of Object.values(COUNTRY_MAP)) {
+  const selfKey = canonical.toUpperCase()
+  if (!(selfKey in COUNTRY_MAP)) {
+    COUNTRY_MAP[selfKey] = canonical
+  }
+}
+
 /**
  * Normalizes a country identifier to the compliance_knowledge table format.
  * Performs case-insensitive lookup against ISO alpha-2 codes, full names,
@@ -416,12 +428,16 @@ function formatCategoryHeader(category: string): string {
 /**
  * Formats a single compliance rule as a line item.
  *
- * Note: we no longer append [similarity: X] annotations to rule lines —
- * the AI was occasionally echoing those brackets into document body text.
- * Similarity ranking is preserved by the sort order in semantic mode.
+ * In semantic mode each rule carries a `[similarity: X.XXXX]` annotation so
+ * the AI can weigh how closely a rule matches the conversational query
+ * (Requirements 4.3, 7.2). Deterministic mode (used for document generation)
+ * has no similarity score and therefore no annotation.
  */
-function formatRuleLine(rule: ComplianceRule, _mode: "deterministic" | "semantic"): string {
+function formatRuleLine(rule: ComplianceRule, mode: "deterministic" | "semantic"): string {
   const description = rule.description ?? JSON.stringify(rule.requirement_value)
+  if (mode === "semantic" && rule.similarity !== undefined && rule.similarity !== null) {
+    return `- ${rule.requirement_key}: ${description} [similarity: ${rule.similarity.toFixed(4)}]`
+  }
   return `- ${rule.requirement_key}: ${description}`
 }
 

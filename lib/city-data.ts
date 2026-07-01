@@ -662,9 +662,9 @@ export function getCityPageData(
   const heroHeading = `${documentType.name} for ${city.name}, ${country.name}`
   const heroSubheading = `Generate professional, ${country.taxSystem}-compliant ${documentType.singularName.toLowerCase()}s for ${city.name} businesses in ${country.currency} (${country.currencySymbol}). Powered by AI — ready in seconds.`
 
-  const businessContextSection = `${city.businessContext} Clorefy's AI understands the unique business environment of ${city.name} and generates ${documentType.singularName.toLowerCase()}s that reflect local industry standards and ${country.name}'s regulatory requirements.`
+  const businessContextSection = `${city.businessContext} With ${city.industries.slice(0, 3).join(", ")} driving demand locally, Clorefy tailors each ${documentType.singularName.toLowerCase()} to how ${city.name} businesses actually trade — reflecting local industry norms and ${country.name}'s regulatory requirements.`
 
-  const taxComplianceSection = `${city.taxNotes} Clorefy automatically applies the correct ${country.taxSystem} rate of ${country.taxRate} and includes all mandatory compliance fields required by ${country.name}'s tax authorities for businesses operating in ${city.name}.`
+  const taxComplianceSection = `${city.taxNotes} For a ${city.industries[0]} business in ${city.name}, that means every ${documentType.singularName.toLowerCase()} should carry the identifiers ${country.name}'s tax authorities expect, with ${country.taxSystem} applied at ${country.taxRate} and shown in ${country.currency} (${country.currencySymbol}). Clorefy fills these fields in automatically so ${city.name} documents pass review the first time.`
 
   const faqs = generateCityFaqs(city, country, documentType)
 

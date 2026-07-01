@@ -254,7 +254,49 @@ export async function POST(request: NextRequest) {
         // Build signing URL
         const signingUrl = `https://clorefy.com/sign/${signingToken}`
 
-        // Insert signature record FIRST — then send email (non-blocking)
+        // Requirement 9.5: Send the signing invitation email FIRST. The signature
+        // record is atomic with email delivery — if the email cannot be sent, we
+        // return an error and do NOT persist the signature record. This guarantees
+        // a signer is never created without an invitation actually going out.
+        const emailSubject = `${businessName} requests your signature on ${docTypeLabel} ${referenceNumber}`.trim()
+        const emailHtml = buildSigningInvitationEmail({
+            businessName,
+            businessLogoUrl,
+            documentType: docTypeLabel,
+            referenceNumber,
+            signerName,
+            signingUrl,
+            expiresAt: expiresAt.toISOString(),
+            personalMessage,
+        })
+
+        let emailSent = false
+        try {
+            const emailResult = await sendEmail({
+                to: signerEmail,
+                subject: emailSubject,
+                html: emailHtml,
+                senderName: businessName,
+                category: "signature_invitation",
+            })
+            emailSent = emailResult.success === true
+            if (!emailResult.success) {
+                console.error("[signatures] Email send failed:", emailResult)
+            }
+        } catch (emailErr) {
+            console.error("[signatures] Email exception:", emailErr)
+            emailSent = false
+        }
+
+        if (!emailSent) {
+            // Atomic: do NOT persist the signature record when the invitation email fails.
+            return NextResponse.json(
+                { error: "Failed to send the signing invitation email. The signature request was not created — please try again." },
+                { status: 500 }
+            )
+        }
+
+        // Email delivered — now persist the signature record.
         // Use service-role client to bypass RLS (auth already verified above)
         const serviceSupabase = createClient<Database>(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -288,41 +330,6 @@ export async function POST(request: NextRequest) {
             .from("signatures")
             .update({ verification_url: verificationUrl } as any)
             .eq("id", signature.id)
-
-        // Send signing invitation email (non-blocking — signing link already created)
-        const emailSubject = `${businessName} requests your signature on ${docTypeLabel} ${referenceNumber}`.trim()
-        const emailHtml = buildSigningInvitationEmail({
-            businessName,
-            businessLogoUrl,
-            documentType: docTypeLabel,
-            referenceNumber,
-            signerName,
-            signingUrl,
-            expiresAt: expiresAt.toISOString(),
-            personalMessage,
-        })
-
-        let emailSent = false
-        let emailError: string | null = null
-        try {
-            const emailResult = await sendEmail({
-                to: signerEmail,
-                subject: emailSubject,
-                html: emailHtml,
-                senderName: businessName,
-                category: "signature_invitation",
-            })
-            emailSent = emailResult.success
-            if (!emailResult.success) {
-                console.error("[signatures] Email send failed:", emailResult)
-                emailError = emailResult.statusCode === 429
-                    ? "Daily email limit reached — signing link created but email not sent. Share the link manually."
-                    : "Email delivery failed — signing link created. Share the link manually."
-            }
-        } catch (emailErr) {
-            console.error("[signatures] Email exception:", emailErr)
-            emailError = "Email delivery failed — signing link created. Share the link manually."
-        }
 
         // Sub-task 5.3: Record audit event using service-role client
         const ipAddress = getClientIP(request)
@@ -359,7 +366,6 @@ export async function POST(request: NextRequest) {
             signingUrl,
             expiresAt: expiresAt.toISOString(),
             emailSent,
-            emailWarning: emailError ?? undefined,
         })
     } catch (error) {
         console.error("Signature request error:", error)

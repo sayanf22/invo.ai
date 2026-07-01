@@ -18,6 +18,7 @@ import {
   ndaSchema,
   clientOnboardingFormSchema,
   paymentFollowupSchema,
+  recurringInvoiceContextSchema,
 } from "@/lib/document-schemas"
 
 // ─── Representative valid minimal data ───────────────────────────────────────
@@ -113,7 +114,13 @@ const VALID_PAYMENT_FOLLOWUP = {
   toAddress: "Addr2",
 }
 
-const VALID_RECURRING_INVOICE_CONTEXT_REMOVED_PLACEHOLDER = null
+const VALID_RECURRING_INVOICE_CONTEXT = {
+  recurrenceFrequency: "monthly" as const,
+  recurrenceStartDate: "2026-01-01",
+  recurrenceEndDate: "2026-12-31",
+  maxOccurrences: 12,
+  autoSend: true,
+}
 
 // ─── Arbitraries ──────────────────────────────────────────────────────────────
 
