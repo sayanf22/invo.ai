@@ -1543,10 +1543,13 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
 
     return (
         <Document>
-            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
+            <Page size="A4" style={{ paddingTop: 40, paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
                 {/* â”€â”€ HEADER (theme-specific layout) â”€â”€ */}
-                <DocHeader tpl={tpl} c={c} title="INVOICE" refNum={data.invoiceNumber || "INV-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
+                {/* Cancels the page's paddingTop so page 1 stays flush; continuation pages (which never re-render this once-only header) keep the padding as top breathing room. */}
+                <View style={{ marginTop: -40, ...bNone() }}>
+                    <DocHeader tpl={tpl} c={c} title="INVOICE" refNum={data.invoiceNumber || "INV-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
+                </View>
 
                 {/* â”€â”€ DATE STRIP â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: tpl === "classic" || tpl === "minimal" ? "transparent" : c.bg, marginBottom: 4, ...bNone() }}>
@@ -1773,10 +1776,13 @@ export function ContractPDF({ data, logoUrl }: Props) {
 
     return (
         <Document>
-            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
+            <Page size="A4" style={{ paddingTop: 40, paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
                 {/* â”€â”€ HEADER (theme-specific layout) â”€â”€ */}
-                <DocHeader tpl={tpl} c={c} title="CONTRACT" refNum={data.referenceNumber || data.invoiceNumber || "CTR-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
+                {/* Cancels the page's paddingTop so page 1 stays flush; continuation pages (which never re-render this once-only header) keep the padding as top breathing room. */}
+                <View style={{ marginTop: -40, ...bNone() }}>
+                    <DocHeader tpl={tpl} c={c} title="CONTRACT" refNum={data.referenceNumber || data.invoiceNumber || "CTR-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
+                </View>
 
                 {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 24, ...bNone() }} wrap={false}>
@@ -1946,10 +1952,13 @@ export function QuotationPDF({ data, logoUrl }: Props) {
 
     return (
         <Document>
-            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
+            <Page size="A4" style={{ paddingTop: 40, paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
                 {/* â”€â”€ HEADER (theme-specific layout) â”€â”€ */}
-                <DocHeader tpl={tpl} c={c} title="QUOTE" refNum={data.referenceNumber || data.invoiceNumber || "QUO-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
+                {/* Cancels the page's paddingTop so page 1 stays flush; continuation pages (which never re-render this once-only header) keep the padding as top breathing room. */}
+                <View style={{ marginTop: -40, ...bNone() }}>
+                    <DocHeader tpl={tpl} c={c} title="QUOTE" refNum={data.referenceNumber || data.invoiceNumber || "QUO-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
+                </View>
 
                 {/* â”€â”€ DATE STRIP â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingVertical: 16, backgroundColor: tpl === "classic" || tpl === "minimal" ? "transparent" : c.bg, marginBottom: 4, ...bNone() }}>
@@ -2197,10 +2206,13 @@ export function ProposalPDF({ data, logoUrl }: Props) {
 
     return (
         <Document>
-            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
+            <Page size="A4" style={{ paddingTop: 40, paddingBottom: 56, fontSize: 10, fontFamily: c.font, backgroundColor: "#fff", ...bNone() }} wrap>
 
                 {/* â”€â”€ HEADER (theme-specific layout) â”€â”€ */}
-                <DocHeader tpl={tpl} c={c} title="PROPOSAL" refNum={data.referenceNumber || data.invoiceNumber || "PROP-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
+                {/* Cancels the page's paddingTop so page 1 stays flush; continuation pages (which never re-render this once-only header) keep the padding as top breathing room. */}
+                <View style={{ marginTop: -40, ...bNone() }}>
+                    <DocHeader tpl={tpl} c={c} title="PROPOSAL" refNum={data.referenceNumber || data.invoiceNumber || "PROP-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
+                </View>
 
                 {/* â”€â”€ PREPARED BY / FOR â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
@@ -2860,9 +2872,12 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
 
     return (
         <Document>
-            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
+            <Page size="A4" style={{ paddingTop: 40, paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                <DocHeader tpl={tpl} c={c} title="STATEMENT OF WORK" refNum={data.referenceNumber || "SOW-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
+                {/* Cancels the page's paddingTop so page 1 stays flush; continuation pages (which never re-render this once-only header) keep the padding as top breathing room. */}
+                <View style={{ marginTop: -40, ...bNone() }}>
+                    <DocHeader tpl={tpl} c={c} title="STATEMENT OF WORK" refNum={data.referenceNumber || "SOW-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
+                </View>
 
                 {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
@@ -3042,9 +3057,12 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
 
     return (
         <Document>
-            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
+            <Page size="A4" style={{ paddingTop: 40, paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                <DocHeader tpl={tpl} c={c} title="CHANGE ORDER" refNum={data.referenceNumber || "CO-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
+                {/* Cancels the page's paddingTop so page 1 stays flush; continuation pages (which never re-render this once-only header) keep the padding as top breathing room. */}
+                <View style={{ marginTop: -40, ...bNone() }}>
+                    <DocHeader tpl={tpl} c={c} title="CHANGE ORDER" refNum={data.referenceNumber || "CO-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
+                </View>
 
                 {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 16, ...bNone() }} wrap={false}>
@@ -3220,9 +3238,12 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 
     return (
         <Document>
-            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
+            <Page size="A4" style={{ paddingTop: 40, paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                <DocHeader tpl={tpl} c={c} title="NON-DISCLOSURE AGREEMENT" refNum={data.referenceNumber || "NDA-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
+                {/* Cancels the page's paddingTop so page 1 stays flush; continuation pages (which never re-render this once-only header) keep the padding as top breathing room. */}
+                <View style={{ marginTop: -40, ...bNone() }}>
+                    <DocHeader tpl={tpl} c={c} title="NON-DISCLOSURE AGREEMENT" refNum={data.referenceNumber || "NDA-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
+                </View>
 
                 {/* ── PARTIES TABLE ── */}
                 <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }}>
@@ -3363,9 +3384,12 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
 
     return (
         <Document>
-            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
+            <Page size="A4" style={{ paddingTop: 40, paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                <DocHeader tpl={tpl} c={c} title="CLIENT ONBOARDING" refNum={data.referenceNumber || "ONB-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
+                {/* Cancels the page's paddingTop so page 1 stays flush; continuation pages (which never re-render this once-only header) keep the padding as top breathing room. */}
+                <View style={{ marginTop: -40, ...bNone() }}>
+                    <DocHeader tpl={tpl} c={c} title="CLIENT ONBOARDING" refNum={data.referenceNumber || "ONB-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
+                </View>
 
                 {/* â”€â”€ CLIENT DETAILS â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 16, padding: 16, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
@@ -3431,12 +3455,24 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                 {data.customQuestions.length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Additional Information</Text>
-                        {data.customQuestions.map((qa, i) => (
-                            <View key={i} style={{ marginBottom: 12, padding: 12, backgroundColor: bg, ...r(8), ...bNone() }} wrap={false}>
-                                <Text style={{ fontSize: 9, color: pri, fontWeight: 700, marginBottom: 4 }}>Q: {qa.question}</Text>
-                                <Text style={{ fontSize: 10, color: txt, lineHeight: 1.6 }}>A: {qa.answer}</Text>
-                            </View>
-                        ))}
+                        {data.customQuestions.map((qa, i) => {
+                            const hasAnswer = qa.answer && qa.answer.trim().length > 0
+                            return (
+                                <View key={i} style={{ flexDirection: "row", marginBottom: 12, padding: 12, backgroundColor: bg, ...r(8), ...bNone() }} minPresenceAhead={44}>
+                                    <Text style={{ fontSize: 9, color: pri, width: 18, fontWeight: 700, lineHeight: 1.6 }}>{i + 1}.</Text>
+                                    <View style={{ flex: 1, ...bNone() }}>
+                                        <Text style={{ fontSize: 9.5, color: txt, fontWeight: 700, marginBottom: 6, lineHeight: 1.5 }}>{qa.question}</Text>
+                                        {hasAnswer ? (
+                                            <Text style={{ fontSize: 10, color: txt, lineHeight: 1.6 }}>{qa.answer}</Text>
+                                        ) : (
+                                            <View style={{ borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, paddingBottom: 8, width: "100%" }}>
+                                                <Text style={{ fontSize: 8.5, color: mut, fontStyle: "italic" }}>Client to complete</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                </View>
+                            )
+                        })}
                     </View>
                 )}
 
@@ -3516,9 +3552,12 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
 
     return (
         <Document>
-            <Page size="A4" style={{ paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
+            <Page size="A4" style={{ paddingTop: 40, paddingBottom: 56, fontSize: 10, fontFamily: font, backgroundColor: "#fff", ...bNone() }} wrap>
 
-                <DocHeader tpl={tpl} c={c} title="PAYMENT FOLLOW-UP" refNum={data.referenceNumber || "PF-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
+                {/* Cancels the page's paddingTop so page 1 stays flush; continuation pages (which never re-render this once-only header) keep the padding as top breathing room. */}
+                <View style={{ marginTop: -40, ...bNone() }}>
+                    <DocHeader tpl={tpl} c={c} title="PAYMENT FOLLOW-UP" refNum={data.referenceNumber || "PF-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
+                </View>
 
                 {/* â”€â”€ DAYS OVERDUE BANNER (if overdue) â”€â”€ */}
                 {isOverdue && (
