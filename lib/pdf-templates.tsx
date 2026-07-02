@@ -2858,8 +2858,8 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
     const thinLineTop = { ...bw(1, 0, 0, 0), ...bc(bdr, "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
 
-    const includedItems = data.scopeItems.filter(s => s.included)
-    const excludedItems = data.scopeItems.filter(s => !s.included)
+    const includedItems = (data.scopeItems || []).filter(s => s.included)
+    const excludedItems = (data.scopeItems || []).filter(s => !s.included)
 
     const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
     const headerRight = (
@@ -2906,7 +2906,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 )}
 
                 {/* â”€â”€ SCOPE OF WORK â”€â”€ */}
-                {data.scopeItems.length > 0 && (
+                {(data.scopeItems || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Scope of Work</Text>
 
@@ -2946,7 +2946,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 )}
 
                 {/* â”€â”€ DELIVERABLES â”€â”€ */}
-                {data.deliverables.length > 0 && (
+                {(data.deliverables || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Deliverables</Text>
                         <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
@@ -2954,7 +2954,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                             <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Due Date</Text></View>
                             <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Acceptance Criteria</Text></View>
                         </View>
-                        {data.deliverables.map((d, i) => (
+                        {(data.deliverables || []).map((d, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
                                 <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{d.description}</Text></View>
                                 <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "center" }}>{d.dueDate ? fmtDate(d.dueDate) : "\u2014"}</Text></View>
@@ -2965,7 +2965,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 )}
 
                 {/* â”€â”€ MILESTONES â”€â”€ */}
-                {data.milestones.length > 0 && (
+                {(data.milestones || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Milestones</Text>
                         <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
@@ -2973,7 +2973,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                             <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Date</Text></View>
                             <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Description</Text></View>
                         </View>
-                        {data.milestones.map((m, i) => (
+                        {(data.milestones || []).map((m, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
                                 <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, fontWeight: 700 }}>{m.name}</Text></View>
                                 <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 9, color: mut, textAlign: "center" }}>{fmtDate(m.date)}</Text></View>
@@ -2984,10 +2984,10 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 )}
 
                 {/* â”€â”€ ASSUMPTIONS â”€â”€ */}
-                {data.assumptions.length > 0 && (
+                {(data.assumptions || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Assumptions</Text>
-                        {data.assumptions.map((a, i) => (
+                        {(data.assumptions || []).map((a, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>{"\u2022"}</Text>
                                 <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{a}</Text>
@@ -3108,14 +3108,14 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                 </View>
 
                 {/* â”€â”€ ADDITIONS â”€â”€ */}
-                {data.additions.length > 0 && (
+                {(data.additions || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: "#16a34a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Additions</Text>
                         <View style={{ flexDirection: "row", backgroundColor: "#16a34a", ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                             <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
                             <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Cost</Text></View>
                         </View>
-                        {data.additions.map((a, i) => (
+                        {(data.additions || []).map((a, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
                                 <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{a.description}</Text></View>
                                 <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt, textAlign: "right", fontWeight: 700 }}>{a.cost != null ? fmt(a.cost, currency) : "\u2014"}</Text></View>
@@ -3125,14 +3125,14 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                 )}
 
                 {/* â”€â”€ REMOVALS â”€â”€ */}
-                {data.removals.length > 0 && (
+                {(data.removals || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: "#dc2626", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Removals</Text>
                         <View style={{ flexDirection: "row", backgroundColor: "#dc2626", ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                             <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
                             <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Cost Reduction</Text></View>
                         </View>
-                        {data.removals.map((rem, i) => (
+                        {(data.removals || []).map((rem, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: "#fff5f5" } : {}) }} wrap={false}>
                                 <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 9.5, color: txt }}>{rem.description}</Text></View>
                                 <View style={{ width: 100, ...bNone() }}><Text style={{ fontSize: 9.5, color: "#dc2626", textAlign: "right", fontWeight: 700 }}>{rem.costReduction != null ? `-${fmt(rem.costReduction, currency)}` : "\u2014"}</Text></View>
@@ -3142,7 +3142,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                 )}
 
                 {/* â”€â”€ MODIFICATIONS â”€â”€ */}
-                {data.modifications.length > 0 && (
+                {(data.modifications || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Modifications</Text>
                         <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
@@ -3150,7 +3150,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                             <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Revised</Text></View>
                             <View style={{ width: 90, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Cost Impact</Text></View>
                         </View>
-                        {data.modifications.map((mod, i) => (
+                        {(data.modifications || []).map((mod, i) => (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: bg } : {}) }} wrap={false}>
                                 <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: mut, lineHeight: 1.5 }}>{mod.original}</Text></View>
                                 <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 9, color: txt, lineHeight: 1.5 }}>{mod.revised}</Text></View>
@@ -3269,7 +3269,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                         <View style={{ width: 90, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Role</Text></View>
                         <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Address</Text></View>
                     </View>
-                    {data.parties.map((party, i) => (
+                    {(data.parties || []).map((party, i) => (
                         <View key={i} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, ...bNone(), borderBottomWidth: 1, borderBottomColor: bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: acc } : {}) }} wrap={false}>
                             <View style={{ flex: 2, ...bNone() }}>
                                 <Text style={{ fontSize: 9.5, color: txt, fontWeight: 700 }}>{party.name}</Text>
@@ -3294,10 +3294,10 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                 </View>
 
                 {/* â”€â”€ OBLIGATIONS â”€â”€ */}
-                {data.obligations.length > 0 && (
+                {(data.obligations || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Obligations</Text>
-                        {data.obligations.map((o, i) => (
+                        {(data.obligations || []).map((o, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 5, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7, fontWeight: 700 }}>{i + 1}.</Text>
                                 <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{o}</Text>
@@ -3307,10 +3307,10 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                 )}
 
                 {/* â”€â”€ EXCLUSIONS â”€â”€ */}
-                {data.exclusions.length > 0 && (
+                {(data.exclusions || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Exclusions</Text>
-                        {data.exclusions.map((e, i) => (
+                        {(data.exclusions || []).map((e, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>{"\u2022"}</Text>
                                 <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{e}</Text>
@@ -3455,10 +3455,10 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                 </View>
 
                 {/* â”€â”€ REQUIREMENTS â”€â”€ */}
-                {data.requirements.length > 0 && (
+                {(data.requirements || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Requirements</Text>
-                        {data.requirements.map((req, i) => (
+                        {(data.requirements || []).map((req, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 5, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7, fontWeight: 700 }}>{i + 1}.</Text>
                                 <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{req}</Text>
@@ -3468,10 +3468,10 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                 )}
 
                 {/* â”€â”€ CUSTOM Q&A â”€â”€ */}
-                {data.customQuestions.length > 0 && (
+                {(data.customQuestions || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Additional Information</Text>
-                        {data.customQuestions.map((qa, i) => {
+                        {(data.customQuestions || []).map((qa, i) => {
                             const hasAnswer = qa.answer && qa.answer.trim().length > 0
                             return (
                                 <View key={i} style={{ flexDirection: "row", marginBottom: 12, padding: 12, backgroundColor: bg, ...r(8), ...bNone() }} minPresenceAhead={44}>

@@ -314,7 +314,7 @@ function generateSOWDocx(data: SOWData): Document {
 
     // Scope of Work
     sectionHeading("Scope of Work"),
-    ...data.scopeItems.map(item =>
+    ...(data.scopeItems || []).map(item =>
       new Paragraph({
         spacing: { after: 40 },
         bullet: { level: 0 },
@@ -328,7 +328,7 @@ function generateSOWDocx(data: SOWData): Document {
     separator(),
 
     // Deliverables
-    ...(data.deliverables.length > 0 ? [
+    ...((data.deliverables || []).length > 0 ? [
       sectionHeading("Deliverables"),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
@@ -341,7 +341,7 @@ function generateSOWDocx(data: SOWData): Document {
               cell("Acceptance Criteria", { bold: true, shade: true, width: 25 }),
             ],
           }),
-          ...data.deliverables.map(d => new TableRow({
+          ...(data.deliverables || []).map(d => new TableRow({
             children: [
               cell(d.description, { width: 55 }),
               cell(d.dueDate || "—", { width: 20 }),
@@ -354,7 +354,7 @@ function generateSOWDocx(data: SOWData): Document {
     ] : []),
 
     // Milestones
-    ...(data.milestones.length > 0 ? [
+    ...((data.milestones || []).length > 0 ? [
       sectionHeading("Milestones"),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
@@ -367,7 +367,7 @@ function generateSOWDocx(data: SOWData): Document {
               cell("Description", { bold: true, shade: true, width: 40 }),
             ],
           }),
-          ...data.milestones.map(m => new TableRow({
+          ...(data.milestones || []).map(m => new TableRow({
             children: [
               cell(m.name, { width: 40 }),
               cell(m.date, { width: 20 }),
@@ -380,9 +380,9 @@ function generateSOWDocx(data: SOWData): Document {
     ] : []),
 
     // Assumptions
-    ...(data.assumptions.length > 0 ? [
+    ...((data.assumptions || []).length > 0 ? [
       sectionHeading("Assumptions"),
-      ...data.assumptions.map(a => bulletItem(a)),
+      ...(data.assumptions || []).map(a => bulletItem(a)),
       separator(),
     ] : []),
 
@@ -425,39 +425,39 @@ function generateChangeOrderDocx(data: ChangeOrderData): Document {
     separator(),
 
     // Additions
-    ...(data.additions.length > 0 ? [
+    ...((data.additions || []).length > 0 ? [
       sectionHeading("Additions"),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
           new TableRow({ tableHeader: true, children: [cell("Description", { bold: true, shade: true, width: 75 }), cell("Cost", { bold: true, shade: true, width: 25 })] }),
-          ...data.additions.map(a => new TableRow({ children: [cell(a.description, { width: 75 }), cell(a.cost != null ? fmtMoney(a.cost, currency) : "—", { align: AlignmentType.RIGHT, width: 25 })] })),
+          ...(data.additions || []).map(a => new TableRow({ children: [cell(a.description, { width: 75 }), cell(a.cost != null ? fmtMoney(a.cost, currency) : "—", { align: AlignmentType.RIGHT, width: 25 })] })),
         ],
       }),
       separator(),
     ] : []),
 
     // Removals
-    ...(data.removals.length > 0 ? [
+    ...((data.removals || []).length > 0 ? [
       sectionHeading("Removals"),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
           new TableRow({ tableHeader: true, children: [cell("Description", { bold: true, shade: true, width: 75 }), cell("Cost Reduction", { bold: true, shade: true, width: 25 })] }),
-          ...data.removals.map(r => new TableRow({ children: [cell(r.description, { width: 75 }), cell(r.costReduction != null ? fmtMoney(r.costReduction, currency) : "—", { align: AlignmentType.RIGHT, width: 25 })] })),
+          ...(data.removals || []).map(r => new TableRow({ children: [cell(r.description, { width: 75 }), cell(r.costReduction != null ? fmtMoney(r.costReduction, currency) : "—", { align: AlignmentType.RIGHT, width: 25 })] })),
         ],
       }),
       separator(),
     ] : []),
 
     // Modifications
-    ...(data.modifications.length > 0 ? [
+    ...((data.modifications || []).length > 0 ? [
       sectionHeading("Modifications"),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
           new TableRow({ tableHeader: true, children: [cell("Original", { bold: true, shade: true, width: 35 }), cell("Revised", { bold: true, shade: true, width: 40 }), cell("Cost Impact", { bold: true, shade: true, width: 25 })] }),
-          ...data.modifications.map(m => new TableRow({ children: [cell(m.original, { width: 35 }), cell(m.revised, { width: 40 }), cell(m.costImpact != null ? fmtMoney(m.costImpact, currency) : "—", { align: AlignmentType.RIGHT, width: 25 })] })),
+          ...(data.modifications || []).map(m => new TableRow({ children: [cell(m.original, { width: 35 }), cell(m.revised, { width: 40 }), cell(m.costImpact != null ? fmtMoney(m.costImpact, currency) : "—", { align: AlignmentType.RIGHT, width: 25 })] })),
         ],
       }),
       separator(),
@@ -506,13 +506,13 @@ function generateNDADocx(data: NDAData): Document {
     separator(),
 
     // Parties detail (multi-party)
-    ...(data.parties.length > 0 ? [
+    ...((data.parties || []).length > 0 ? [
       sectionHeading("Parties"),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
           new TableRow({ tableHeader: true, children: [cell("Name", { bold: true, shade: true, width: 35 }), cell("Role", { bold: true, shade: true, width: 20 }), cell("Address", { bold: true, shade: true, width: 25 }), cell("Representative", { bold: true, shade: true, width: 20 })] }),
-          ...data.parties.map(p => new TableRow({ children: [cell(p.name, { width: 35 }), cell(p.role, { width: 20 }), cell(p.address || "—", { width: 25 }), cell(p.representative || "—", { width: 20 })] })),
+          ...(data.parties || []).map(p => new TableRow({ children: [cell(p.name, { width: 35 }), cell(p.role, { width: 20 }), cell(p.address || "—", { width: 25 }), cell(p.representative || "—", { width: 20 })] })),
         ],
       }),
       separator(),
@@ -523,12 +523,12 @@ function generateNDADocx(data: NDAData): Document {
     separator(),
 
     sectionHeading("Obligations"),
-    ...data.obligations.map(o => bulletItem(o)),
+    ...(data.obligations || []).map(o => bulletItem(o)),
     separator(),
 
-    ...(data.exclusions.length > 0 ? [
+    ...((data.exclusions || []).length > 0 ? [
       sectionHeading("Exclusions"),
-      ...data.exclusions.map(e => bulletItem(e)),
+      ...(data.exclusions || []).map(e => bulletItem(e)),
       separator(),
     ] : []),
 
@@ -573,15 +573,15 @@ function generateClientOnboardingFormDocx(data: ClientOnboardingFormData): Docum
     ...(data.budgetRange ? [labelValue("Budget Range", data.budgetRange)] : []),
     separator(),
 
-    ...(data.requirements.length > 0 ? [
+    ...((data.requirements || []).length > 0 ? [
       sectionHeading("Requirements"),
-      ...data.requirements.map(r => bulletItem(r)),
+      ...(data.requirements || []).map(r => bulletItem(r)),
       separator(),
     ] : []),
 
-    ...(data.customQuestions.length > 0 ? [
+    ...((data.customQuestions || []).length > 0 ? [
       sectionHeading("Custom Questions"),
-      ...data.customQuestions.flatMap(q => [
+      ...(data.customQuestions || []).flatMap(q => [
         new Paragraph({
           spacing: { before: 120, after: 40 },
           children: [new TextRun({ text: q.question, bold: true, size: 20, font: "Calibri" })],
