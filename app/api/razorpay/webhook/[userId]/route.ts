@@ -298,7 +298,13 @@ async function verifySignature(body: string, signature: string, secret: string):
         const expected = Array.from(new Uint8Array(sigBuffer))
             .map(b => b.toString(16).padStart(2, "0"))
             .join("")
-        return expected === signature
+        // Constant-time comparison to prevent timing attacks on signature verification
+        if (expected.length !== signature.length) return false
+        let diff = 0
+        for (let i = 0; i < expected.length; i++) {
+            diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i)
+        }
+        return diff === 0
     } catch {
         return false
     }

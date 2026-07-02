@@ -24,7 +24,7 @@ import { cookies } from "next/headers"
 
 // ── Configuration ──────────────────────────────────────────────────────
 
-type RouteCategory = "ai" | "export" | "general" | "storage" | "payment" | "email" | "signature"
+type RouteCategory = "ai" | "export" | "general" | "storage" | "payment" | "email" | "signature" | "file_analysis"
 
 const RATE_LIMITS: Record<RouteCategory, { maxRequests: number; windowSeconds: number }> = {
     ai: { maxRequests: 50, windowSeconds: 60 },       // 50 req/min for AI calls (increased for onboarding)
@@ -34,6 +34,7 @@ const RATE_LIMITS: Record<RouteCategory, { maxRequests: number; windowSeconds: n
     payment: { maxRequests: 20, windowSeconds: 60 },   // 20 req/min for payment link creation
     email: { maxRequests: 15, windowSeconds: 60 },     // 15 req/min for email sending
     signature: { maxRequests: 10, windowSeconds: 60 }, // 10 req/min for signature requests
+    file_analysis: { maxRequests: 10, windowSeconds: 60 }, // 10 req/min for OpenAI vision file extraction (expensive — cost protection)
 }
 
 // ── Helper: Extract access token from cookies ──────────────────────────

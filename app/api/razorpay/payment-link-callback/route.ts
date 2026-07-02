@@ -38,6 +38,17 @@ export async function GET(request: NextRequest) {
             .maybeSingle()
 
         if (payment) {
+            // SECURITY: This is Razorpay's `callback_url` redirect — per Razorpay's own
+            // docs it is NOT a webhook and its query params (razorpay_payment_link_status,
+            // razorpay_payment_id, etc.) are NOT signed/verifiable here (Razorpay does not
+            // document an HMAC scheme for Payment Link callback redirects the way it does
+            // for webhooks and standard Checkout orders). Trusting these params to mark an
+            // invoice "paid" would let anyone who obtains a payment_link_id (e.g. from a
+            // shared link) forge a "paid" GET request for free.
+            //
+            // Payment status changes are handled EXCLUSIVELY by the properly HMAC-verified
+            // webhook at /api/razorpay/webhook/[userId] (payment_link.paid event, verified
+            // against the user's own webhook secret). This route only records view analytics.
             const updates: Record<string, unknown> = {
                 view_count: (payment.view_count || 0) + 1,
                 updated_at: new Date().toISOString(),
@@ -46,13 +57,6 @@ export async function GET(request: NextRequest) {
             // Set first-viewed timestamp
             if (!payment.link_viewed_at) {
                 updates.link_viewed_at = new Date().toISOString()
-            }
-
-            // If payment completed, update status
-            if (status === "paid" && paymentId && payment.status !== "paid") {
-                updates.status = "paid"
-                updates.paid_at = new Date().toISOString()
-                updates.razorpay_payment_id = paymentId
             }
 
             await supabase

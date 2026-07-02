@@ -17,7 +17,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
 
-import { checkCostLimit, checkMessageLimit, resolveEffectiveTier, trackUsage, getUserTier } from "@/lib/cost-protection"
+import { checkMessageLimit, trackUsage, getUserTier } from "@/lib/cost-protection"
+import { checkRateLimit } from "@/lib/rate-limiter"
 import { sanitizeText, sanitizeEmail, sanitizePhone } from "@/lib/sanitize"
 import { SUPPORTED_COUNTRIES as COUNTRY_LIST } from "@/lib/countries"
 
@@ -181,9 +182,12 @@ export async function POST(request: NextRequest) {
     // SECURITY: Resolve effective tier from subscription
     const userTier = await getUserTier(auth.supabase, auth.user.id)
 
-        // SECURITY: Cost protection (tier-aware)
-        const costError = await checkCostLimit(auth.supabase, auth.user.id, "onboarding", userTier)
-        if (costError) return costError
+        // SECURITY: Spam protection via per-user rate limit (50/min AI category).
+        // Onboarding is NOT document creation, so it must NOT be gated on the monthly
+        // document limit — that would wrongly block returning free users (at their doc
+        // cap) from editing their profile. Per-session message caps still apply below.
+        const rateLimitError = await checkRateLimit(auth.user.id, "ai", auth.supabase as never)
+        if (rateLimitError) return rateLimitError
 
         const body: OnboardingAPIRequest = await request.json()
 

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { getSecret } from "@/lib/secrets"
 import { sanitizeText } from "@/lib/sanitize"
-import { checkCostLimit, trackUsage, resolveEffectiveTier, type UserTier, getUserTier } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, getUserTier } from "@/lib/cost-protection"
+import { checkRateLimit } from "@/lib/rate-limiter"
 
 /**
  * POST /api/ai/analyze-file
@@ -95,13 +96,18 @@ export async function POST(request: Request) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
+    // SECURITY: Per-user rate limit BEFORE any AI call. OpenAI vision is expensive,
+    // so this endpoint gets its own tight 10/min cap to prevent cost-exhaustion abuse.
+    // (The document-count cost check below does NOT throttle this route because file
+    // analysis never increments the document counter.)
+    const rateLimitError = await checkRateLimit(auth.user.id, "file_analysis", auth.supabase as never)
+    if (rateLimitError) return rateLimitError
+
     // SECURITY: Fetch user tier and check cost limit BEFORE any AI call
     const userTier = await getUserTier(auth.supabase, auth.user.id)
 
     const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
     if (costError) return costError
-
-    // Authentication is sufficient protection — OpenAI has its own rate limits
 
     try {
         const formData = await request.formData()

@@ -100,6 +100,12 @@ export async function verifyCashfreeWebhookSignature(
         )
         const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(body))
         const computed = btoa(String.fromCharCode(...new Uint8Array(sigBuffer)))
-        return computed === signature
+        // Constant-time comparison to prevent timing attacks on signature verification
+        if (computed.length !== signature.length) return false
+        let diff = 0
+        for (let i = 0; i < computed.length; i++) {
+            diff |= computed.charCodeAt(i) ^ signature.charCodeAt(i)
+        }
+        return diff === 0
     } catch { return false }
 }

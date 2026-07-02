@@ -17,6 +17,7 @@ import { renderToBuffer } from "@react-pdf/renderer"
 import { createElement } from "react"
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
 import { authenticateRequest } from "@/lib/api-auth"
+import { checkRateLimit } from "@/lib/rate-limiter"
 import { getObject } from "@/lib/r2"
 import { buildCertificateKey, generateAndStoreCertificate } from "@/lib/certificate-generator"
 import type { Database } from "@/lib/database.types"
@@ -203,6 +204,10 @@ export async function GET(
     // SECURITY: Authenticate user
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
+
+    // SECURITY: Rate limit — evidence package PDF generation + merging is CPU/memory costly
+    const rateLimitError = await checkRateLimit(auth.user.id, "export", auth.supabase as never)
+    if (rateLimitError) return rateLimitError
 
     const { sessionId } = await params
 
