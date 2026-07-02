@@ -1326,7 +1326,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                                 <Text style={{ fontSize: 36, color: "#fff", fontWeight: 700, letterSpacing: -0.5 }}>{title}</Text>
                                 <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>{refNum}</Text>
                             </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                            <View style={{ alignItems: "flex-end", maxWidth: 200, flexShrink: 1, ...bNone() }}>{rightContent}</View>
                         </View>
                     </View>
                     {belowHeader}
@@ -1343,7 +1343,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                             <Text style={{ fontSize: 32, color: c.txt, fontWeight: 700 }}>{title}</Text>
                             <Text style={{ fontSize: 10, color: c.mut, marginTop: 3 }}>{refNum}</Text>
                         </View>
-                        <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                        <View style={{ alignItems: "flex-end", maxWidth: 200, flexShrink: 1, ...bNone() }}>{rightContent}</View>
                     </View>
                     <View style={{ height: 3, backgroundColor: c.pri, marginTop: 18, ...bNone() }} />
                     <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 4, ...bNone() }} />
@@ -1365,7 +1365,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                                 <Text style={{ fontSize: 42, color: "#fff", fontWeight: 700, letterSpacing: 2 }}>{title}</Text>
                                 <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 4, letterSpacing: 1 }}>{refNum}</Text>
                             </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                            <View style={{ alignItems: "flex-end", maxWidth: 180, flexShrink: 1, ...bNone() }}>{rightContent}</View>
                         </View>
                     </View>
                     {/* Bold accent bar below header */}
@@ -1384,7 +1384,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                             <Text style={{ fontSize: 10, color: c.mut, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>{title}</Text>
                             <Text style={{ fontSize: 9, color: c.mut }}>{refNum}</Text>
                         </View>
-                        <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                        <View style={{ alignItems: "flex-end", maxWidth: 200, flexShrink: 1, ...bNone() }}>{rightContent}</View>
                     </View>
                     {/* Single hairline rule */}
                     <View style={{ height: 1, backgroundColor: c.bdr, marginTop: 24, ...bNone() }} />
@@ -1410,7 +1410,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                     </View>
                     {/* Right-side content below center block */}
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", ...bNone() }}>
-                        <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                        <View style={{ alignItems: "flex-end", maxWidth: 260, flexShrink: 1, ...bNone() }}>{rightContent}</View>
                     </View>
                     {belowHeader}
                 </View>
@@ -1429,7 +1429,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                     </View>
                     {/* Right white panel */}
                     <View style={{ flex: 1, paddingHorizontal: 28, paddingTop: 32, paddingBottom: 28, ...bNone() }}>
-                        <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                        <View style={{ alignItems: "flex-end", maxWidth: 240, flexShrink: 1, alignSelf: "flex-end", ...bNone() }}>{rightContent}</View>
                     </View>
                 </View>
             )
@@ -1447,7 +1447,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                                 <Text style={{ fontSize: 34, color: c.pri, fontWeight: 700, letterSpacing: -0.5 }}>{title}</Text>
                                 <Text style={{ fontSize: 9, color: c.mut, marginTop: 3 }}>{refNum}</Text>
                             </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                            <View style={{ alignItems: "flex-end", maxWidth: 200, flexShrink: 1, ...bNone() }}>{rightContent}</View>
                         </View>
                         {/* Diagonal accent: two overlapping rectangles */}
                         <View style={{ flexDirection: "row", marginTop: 16, ...bNone() }}>
@@ -1471,7 +1471,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                                 <Text style={{ fontSize: 32, color: c.pri, fontWeight: 700 }}>{title}</Text>
                                 <Text style={{ fontSize: 9, color: c.mut, marginTop: 3 }}>{refNum}</Text>
                             </View>
-                            <View style={{ backgroundColor: "#fff", ...r(12), padding: 14, alignItems: "flex-end", ...bAll(1, c.bdr), ...bNone(), borderWidth: 1, borderColor: c.bdr, borderStyle: "solid" as any }}>
+                            <View style={{ backgroundColor: "#fff", ...r(12), padding: 14, alignItems: "flex-end", maxWidth: 220, flexShrink: 1, ...bAll(1, c.bdr), ...bNone(), borderWidth: 1, borderColor: c.bdr, borderStyle: "solid" as any }}>
                                 {rightContent}
                             </View>
                         </View>
@@ -1496,7 +1496,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                                 <Text style={{ fontSize: 34, color: "#fff", fontWeight: 700, letterSpacing: 1 }}>{title}</Text>
                                 <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 3, letterSpacing: 0.5 }}>{refNum}</Text>
                             </View>
-                            <View style={{ alignItems: "flex-end", ...bNone() }}>{rightContent}</View>
+                            <View style={{ alignItems: "flex-end", maxWidth: 200, flexShrink: 1, ...bNone() }}>{rightContent}</View>
                         </View>
                     </View>
                     {/* Geometric accent: teal + lighter teal bars */}
@@ -2194,7 +2194,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
     const headerRight = (
         <>
             <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Prepared For</Text>
-            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.txt, fontWeight: 700, marginBottom: 10 }}>{data.toName || "[Client Name]"}</Text>
+            <Text style={{ fontSize: 13, color: onDark ? "#fff" : c.txt, fontWeight: 700, marginBottom: 10, textAlign: "right", lineHeight: 1.3 }}>{data.toName || "[Client Name]"}</Text>
             <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Date</Text>
             <Text style={{ fontSize: 11, color: onDark ? "#fff" : c.txt, fontWeight: 700, marginBottom: data.dueDate ? 8 : 0 }}>{fmtDate(data.invoiceDate)}</Text>
             {data.dueDate && <>
@@ -2865,8 +2865,12 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
     const headerRight = (
         <>
             <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>Project</Text>
-            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{data.title || "Statement of Work"}</Text>
-            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 6 }}>Effective {data.effectiveDate || ""}</Text>
+            {/* textAlign right + explicit lineHeight so a long project title wraps
+                onto multiple lines within the constrained header column instead of
+                overflowing past the page edge (the header wrapper caps the width;
+                this makes the wrapped lines read cleanly right-aligned). */}
+            <Text style={{ fontSize: 13, color: onDark ? "#fff" : c.pri, fontWeight: 700, textAlign: "right", lineHeight: 1.3 }}>{data.title || "Statement of Work"}</Text>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 6 }}>Effective {fmtDate(data.effectiveDate)}</Text>
         </>
     )
 
@@ -3285,8 +3289,8 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
     const headerRight = (
         <>
             <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut }}>Effective Date</Text>
-            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{data.termStart || ""}</Text>
-            {data.governingLaw && <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>{data.governingLaw}</Text>}
+            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{fmtDate(data.termStart)}</Text>
+            {data.governingLaw && <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3, textAlign: "right", lineHeight: 1.3 }}>{data.governingLaw}</Text>}
         </>
     )
 
@@ -3438,8 +3442,8 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
     const headerRight = (
         <>
             <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut }}>Form Type</Text>
-            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{data.projectName || "Onboarding"}</Text>
-            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>{data.fromName || ""}</Text>
+            <Text style={{ fontSize: 13, color: onDark ? "#fff" : c.pri, fontWeight: 700, textAlign: "right", lineHeight: 1.3 }}>{data.projectName || "Onboarding"}</Text>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3, textAlign: "right", lineHeight: 1.3 }}>{data.fromName || ""}</Text>
         </>
     )
 
