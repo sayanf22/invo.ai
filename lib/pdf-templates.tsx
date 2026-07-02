@@ -40,12 +40,25 @@ export class SignatureBlockRenderError extends Error {
 // Disable hyphenation for cleaner text rendering in PDFs
 Font.registerHyphenationCallback(word => [word])
 
+// We only ship regular (upright) weight-400/700 woff files — there are no
+// dedicated italic font files. react-pdf THROWS ("Could not resolve font ...
+// fontStyle italic") the moment any Text uses fontStyle:"italic" with a family
+// that has no matching italic entry registered — which silently broke PDF
+// rendering (e.g. the Client Onboarding "Client to complete" placeholder and
+// the "Electronically Signed" labels). To make italic always resolvable, we
+// register italic variants aliased to the same upright woff. The glyphs render
+// upright rather than slanted, but the document renders instead of crashing —
+// a safe, no-manual-intervention fallback that also future-proofs any new
+// fontStyle:"italic" usage across every template.
+
 // Inter â€” clean sans-serif (default for most templates)
 Font.register({
     family: "Inter",
     fonts: [
         { src: "/fonts/inter-400.woff", fontWeight: 400 },
         { src: "/fonts/inter-700.woff", fontWeight: 700 },
+        { src: "/fonts/inter-400.woff", fontWeight: 400, fontStyle: "italic" },
+        { src: "/fonts/inter-700.woff", fontWeight: 700, fontStyle: "italic" },
     ],
 })
 
@@ -55,6 +68,8 @@ Font.register({
     fonts: [
         { src: "/fonts/lora-400.woff", fontWeight: 400 },
         { src: "/fonts/lora-700.woff", fontWeight: 700 },
+        { src: "/fonts/lora-400.woff", fontWeight: 400, fontStyle: "italic" },
+        { src: "/fonts/lora-700.woff", fontWeight: 700, fontStyle: "italic" },
     ],
 })
 
@@ -64,6 +79,8 @@ Font.register({
     fonts: [
         { src: "/fonts/roboto-mono-400.woff", fontWeight: 400 },
         { src: "/fonts/roboto-mono-700.woff", fontWeight: 700 },
+        { src: "/fonts/roboto-mono-400.woff", fontWeight: 400, fontStyle: "italic" },
+        { src: "/fonts/roboto-mono-700.woff", fontWeight: 700, fontStyle: "italic" },
     ],
 })
 
