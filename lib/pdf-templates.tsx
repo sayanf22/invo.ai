@@ -2862,21 +2862,11 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
     const excludedItems = (data.scopeItems || []).filter(s => !s.included)
 
     const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
-    const hasTotalValue = data.totalValue != null
     const headerRight = (
         <>
-            {hasTotalValue ? (
-                <>
-                    <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut }}>Total Project Value</Text>
-                    <Text style={{ fontSize: 20, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{fmt(data.totalValue as number, data.currency)}</Text>
-                </>
-            ) : (
-                <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut }}>Project</Text>
-            )}
-            <Text style={{ fontSize: hasTotalValue ? 10 : 14, color: onDark ? "#fff" : c.pri, fontWeight: 700, marginTop: hasTotalValue ? 3 : 0 }}>{data.title || "Statement of Work"}</Text>
-            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 6 }}>
-                Effective {fmtDate(data.effectiveDate)}{data.endDate ? ` \u2013 ${fmtDate(data.endDate)}` : ""}
-            </Text>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>Project</Text>
+            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{data.title || "Statement of Work"}</Text>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 6 }}>Effective {data.effectiveDate || ""}</Text>
         </>
     )
 
@@ -2903,6 +2893,27 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                         {data.toAddress ? <Text style={{ fontSize: 9, color: mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
                         {data.toEmail ? <Text style={{ fontSize: 9, color: mut }}>{data.toEmail}</Text> : null}
                     </View>
+                </View>
+
+                {/* â”€â”€ PROJECT META (dates + total value) â”€â”€ */}
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                    <View style={{ flex: 1, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Effective Date</Text>
+                        <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{fmtDate(data.effectiveDate)}</Text>
+                    </View>
+                    <View style={{ flex: 1, ...bNone() }}>
+                        <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Completion Date</Text>
+                        <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{data.endDate ? fmtDate(data.endDate) : "\u2014"}</Text>
+                    </View>
+                    {/* Total Project Value is the single most important figure on a paid SOW —
+                        it was collected in the schema but never rendered anywhere in the PDF
+                        until this fix. */}
+                    {data.totalValue != null && (
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Total Project Value</Text>
+                            <Text style={{ fontSize: 12, color: pri, fontWeight: 700 }}>{fmt(data.totalValue, data.currency || "USD")}</Text>
+                        </View>
+                    )}
                 </View>
 
                 <View style={{ height: 1, backgroundColor: bdr, marginHorizontal: 48, marginBottom: 20, ...bNone() }} />
@@ -3006,17 +3017,6 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                     </View>
                 )}
 
-                {/* â”€â”€ CHANGE CONTROL â”€â”€ */}
-                {/* Standard SOW clause (per industry practice) covering how scope/cost/
-                    schedule changes are handled after this SOW is signed — prevents scope
-                    creep disputes and ties directly into the Change Order document type. */}
-                <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 12, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
-                    <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Change Control</Text>
-                    <Text style={{ fontSize: 9.5, color: txt, lineHeight: 1.6 }}>
-                        Any request to modify the scope, deliverables, cost, or timeline described in this Statement of Work must be documented in a signed Change Order before the additional or altered work begins. Work performed outside this SOW without a signed Change Order is not covered by the fees stated here.
-                    </Text>
-                </View>
-
                 {/* â”€â”€ NOTES / TERMS â”€â”€ */}
                 {data.notes ? (
                     <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
@@ -3030,6 +3030,14 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                         <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.terms}</Text>
                     </View>
                 ) : null}
+
+                {/* â”€â”€ CHANGE CONTROL â”€â”€ */}
+                {/* Standard SOW clause: tells the client up front how scope changes are
+                    handled, so a change goes through a Change Order rather than a dispute. */}
+                <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
+                    <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Change Control</Text>
+                    <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>Any changes to the scope, deliverables, timeline, or fees described in this Statement of Work must be documented in a written Change Order signed by both parties before the additional work begins. Work performed outside this scope without a signed Change Order is not covered by the pricing in this SOW.</Text>
+                </View>
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 {renderSignatureBlock("sow", data as unknown as InvoiceData, c)}

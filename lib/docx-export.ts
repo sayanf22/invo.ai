@@ -386,14 +386,13 @@ function generateSOWDocx(data: SOWData): Document {
       separator(),
     ] : []),
 
-    // Change Control (standard SOW clause — ties into the Change Order document type)
-    sectionHeading("Change Control"),
-    bodyText("Any request to modify the scope, deliverables, cost, or timeline described in this Statement of Work must be documented in a signed Change Order before the additional or altered work begins. Work performed outside this SOW without a signed Change Order is not covered by the fees stated here."),
-    separator(),
-
     // Notes & Terms
     ...(data.notes ? [sectionHeading("Notes"), bodyText(data.notes), separator()] : []),
     ...(data.terms ? [sectionHeading("Terms & Conditions"), bodyText(data.terms), separator()] : []),
+
+    // Change Control — standard SOW clause (parity with PDF export)
+    sectionHeading("Change Control"),
+    bodyText("Any changes to the scope, deliverables, timeline, or fees described in this Statement of Work must be documented in a written Change Order signed by both parties before the additional work begins. Work performed outside this scope without a signed Change Order is not covered by the pricing in this SOW."),
 
     new Paragraph({ spacing: { after: 400 } }),
     docFooter(),
@@ -421,9 +420,8 @@ function generateChangeOrderDocx(data: ChangeOrderData): Document {
     separator(),
     labelValue("Change Order #", data.changeOrderNumber),
     labelValue("Effective Date", data.effectiveDate),
-    // Show the parent's human-readable reference (e.g. "SOW-2026-07-002") when
-    // known. Never print the raw internal parentDocumentId UUID on a client-
-    // facing document.
+    // Prefer the human-readable parent reference (e.g. "SOW-2026-07-002").
+    // Never print the raw parentDocumentId UUID on a client-facing document.
     labelValue("Parent Document", `${data.parentDocumentType.toUpperCase()}${data.parentReferenceNumber ? ` — ${data.parentReferenceNumber}` : ""}`),
     ...(data.timelineImpact ? [labelValue("Timeline Impact", data.timelineImpact)] : []),
     separator(),
@@ -431,8 +429,6 @@ function generateChangeOrderDocx(data: ChangeOrderData): Document {
     sectionHeading("Description of Changes"),
     bodyText(data.description),
     separator(),
-
-    ...(!data.costImpact ? [bodyText("This change order has no cost impact on the original agreement."), separator()] : []),
 
     // Additions
     ...((data.additions || []).length > 0 ? [
@@ -485,9 +481,13 @@ function generateChangeOrderDocx(data: ChangeOrderData): Document {
     ...(data.notes ? [sectionHeading("Notes"), bodyText(data.notes), separator()] : []),
     ...(data.terms ? [sectionHeading("Terms & Conditions"), bodyText(data.terms), separator()] : []),
 
-    bodyText("All other terms and conditions of the original agreement remain in full force and effect. This Change Order becomes binding on both parties upon signature."),
-
-    new Paragraph({ spacing: { after: 400 } }),
+    new Paragraph({
+      spacing: { before: 120, after: 400 },
+      children: [new TextRun({
+        text: "All other terms and conditions of the original agreement remain in full force and effect. This Change Order becomes binding on both parties upon signature.",
+        italics: true, size: 18, font: "Calibri", color: "555555",
+      })],
+    }),
     docFooter(),
   ]
 
