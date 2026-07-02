@@ -12,6 +12,7 @@ import {
   Shield, ClipboardCheck, type LucideIcon,
 } from "lucide-react"
 import { getDocumentTypeConfig, normalizeDocumentType, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
+import { resolvePdfComponent, resolveDocumentReference } from "@/lib/pdf-export-helpers"
 import { toast } from "sonner"
 import { format, formatDistanceToNow } from "date-fns"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -1573,18 +1574,15 @@ export default function MyDocumentsPage() {
       const templates = await import("@/lib/pdf-templates")
       const { pdf } = await import("@react-pdf/renderer")
 
-      let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null }>
-      let filePrefix: string
       const rawDocType = (session.document_type || "invoice").toLowerCase()
       // Normalize so legacy "quotation" and canonical "quote" share the same branch
       const docType = normalizeDocumentType(rawDocType) ?? rawDocType
 
-      switch (docType) {
-        case "contract": PdfComponent = templates.ContractPDF; filePrefix = cleanedData.referenceNumber || "contract"; break
-        case "quote": PdfComponent = templates.QuotationPDF; filePrefix = cleanedData.referenceNumber || "quote"; break
-        case "proposal": PdfComponent = templates.ProposalPDF; filePrefix = cleanedData.referenceNumber || "proposal"; break
-        default: PdfComponent = templates.InvoicePDF; filePrefix = cleanedData.invoiceNumber || "invoice"; break
-      }
+      const PdfComponent = resolvePdfComponent(templates, docType, cleanedData) as React.ComponentType<{
+        data: InvoiceData
+        logoUrl?: string | null
+      }>
+      const filePrefix = resolveDocumentReference(cleanedData, docType)
 
       // Load signature images for signed documents (contracts/quotes/proposals)
       if (["contract", "quote", "proposal"].includes(docType) && session.status === "signed") {

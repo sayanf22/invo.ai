@@ -203,7 +203,7 @@ function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn,
                 </Text>
                 {data.paymentLinkStatus === "partially_paid" && (
                     <Text style={{ fontSize: 8, color: "#d97706", marginTop: 4, fontWeight: 700 }}>
-                        Partial payment received \u2014 balance still due
+                        {"Partial payment received \u2014 balance still due"}
                     </Text>
                 )}
             </View>
@@ -1707,7 +1707,7 @@ type ContractBlock =
     | { kind: "bullet"; text: string }
     | { kind: "paragraph"; text: string }
 
-function parseContractBody(raw: string): ContractBlock[] {
+export function parseContractBody(raw: string): ContractBlock[] {
     const lines = raw.replace(/\r\n/g, "\n").split("\n")
     const blocks: ContractBlock[] = []
     let paragraphBuffer: string[] = []
@@ -1740,10 +1740,10 @@ function parseContractBody(raw: string): ContractBlock[] {
                 continue
             }
         }
-        // Bullet: starts with "- " or "â€¢ "
-        if (/^[-â€¢]\s+/.test(line)) {
+        // Bullet: starts with "- " or "\u2022 "
+        if (/^[-\u2022]\s+/.test(line)) {
             flushParagraph()
-            blocks.push({ kind: "bullet", text: line.replace(/^[-â€¢]\s+/, "").trim() })
+            blocks.push({ kind: "bullet", text: line.replace(/^[-\u2022]\s+/, "").trim() })
             continue
         }
         paragraphBuffer.push(line)
@@ -1781,13 +1781,13 @@ export function ContractPDF({ data, logoUrl }: Props) {
                 {/* â”€â”€ PARTY BLOCKS â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, marginTop: 20, marginBottom: 24, ...bNone() }} wrap={false}>
                     <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
-                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party A \u2014 Provider</Text>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>{"Party A \u2014 Provider"}</Text>
                         <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
                         {data.fromAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.fromAddress}</Text> : null}
                         {data.fromEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.fromEmail}</Text> : null}
                     </View>
                     <View style={{ flex: 1, ...bNone() }}>
-                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Party B \u2014 Client</Text>
+                        <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>{"Party B \u2014 Client"}</Text>
                         <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.toName || "[Client Name]"}</Text>
                         {data.toAddress ? <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
                         {data.toEmail ? <Text style={{ fontSize: 9, color: c.mut }}>{data.toEmail}</Text> : null}
@@ -1826,7 +1826,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                                             style={{ flexDirection: "row", marginLeft: 8, marginBottom: 3, ...bNone() }}
                                             wrap={false}
                                         >
-                                            <Text style={{ fontSize: 10, color: c.mut, width: 12, lineHeight: 1.7 }}>â€¢</Text>
+                                            <Text style={{ fontSize: 10, color: c.mut, width: 12, lineHeight: 1.7 }}>{"\u2022"}</Text>
                                             <Text style={{ fontSize: 10, color: c.txt, flex: 1, lineHeight: 1.7 }}>
                                                 {block.text}
                                             </Text>
@@ -2268,7 +2268,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                                         <Text style={{ fontSize: 10, color: c.txt, fontWeight: bLns.length > 0 ? 700 : 400, marginBottom: bLns.length > 0 ? 4 : 0, lineHeight: 1.4 }}>{tStr}</Text>
                                         {bLns.map((b: string, bi: number) => (
                                             <View key={bi} style={{ flexDirection: "row", marginTop: 3, paddingLeft: 2, ...bNone() }}>
-                                                <Text style={{ fontSize: 9, color: c.pri, marginRight: 6, fontWeight: 700, lineHeight: 1.5 }}>\u2022</Text>
+                                                <Text style={{ fontSize: 9, color: c.pri, marginRight: 6, fontWeight: 700, lineHeight: 1.5 }}>{"\u2022"}</Text>
                                                 <Text style={{ fontSize: 9, color: c.mut, flex: 1, lineHeight: 1.5 }}>{b}</Text>
                                             </View>
                                         ))}
@@ -2737,7 +2737,7 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                 <View style={s.headerRow} wrap={false}>
                     <View>
                         <Text style={s.title}>Receipt</Text>
-                        <Text style={s.subtitle}>Clorefy \u2014 AI Document Platform</Text>
+                        <Text style={s.subtitle}>{"Clorefy \u2014 AI Document Platform"}</Text>
                         <View style={s.paidBadge}>
                             <Text style={s.paidText}>PAID</Text>
                         </View>
@@ -2820,7 +2820,7 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                 </View>
 
                 <View style={s.footer} fixed>
-                    <Text style={s.footerText}>Clorefy \u2014 clorefy.com</Text>
+                    <Text style={s.footerText}>{"Clorefy \u2014 clorefy.com"}</Text>
                     <Text style={s.footerText}>Official payment receipt</Text>
                 </View>
             </Page>
@@ -2974,7 +2974,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Assumptions</Text>
                         {data.assumptions.map((a, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
-                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>â€¢</Text>
+                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>{"\u2022"}</Text>
                                 <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{a}</Text>
                             </View>
                         ))}
@@ -3012,6 +3012,12 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // CHANGE ORDER PDF â€” Amendment to SOW or Contract
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+export function changeOrderIdSuffix(parentDocumentId?: string): string {
+    return parentDocumentId && parentDocumentId.trim().length > 0
+        ? ` (ID: ${parentDocumentId})`
+        : ""
+}
 
 export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoUrl?: string | null }) {
     // Template-aware theming — driven by user's design picker.
@@ -3064,7 +3070,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                         <Text style={{ fontWeight: 700 }}>
                             {data.parentDocumentType === "sow" ? "Statement of Work" : "Contract"}
                         </Text>
-                        {" "}(ID: {data.parentDocumentId})
+                        {changeOrderIdSuffix(data.parentDocumentId)}
                     </Text>
                 </View>
 
@@ -3269,7 +3275,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                         <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Exclusions</Text>
                         {data.exclusions.map((e, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
-                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>â€¢</Text>
+                                <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>{"\u2022"}</Text>
                                 <Text style={{ fontSize: 10, color: txt, flex: 1, lineHeight: 1.7 }}>{e}</Text>
                             </View>
                         ))}

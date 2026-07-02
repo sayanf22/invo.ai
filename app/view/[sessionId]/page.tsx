@@ -16,6 +16,7 @@ import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { normalizeDocumentType, getDocumentTypeConfig } from "@/lib/document-type-registry"
+import { resolvePdfComponent, resolveDocumentReference } from "@/lib/pdf-export-helpers"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -59,16 +60,11 @@ async function buildPdfBlob(data: InvoiceData, paymentQrCode?: string | null): P
   const templates = await import("@/lib/pdf-templates")
   const docType = (cleaned.documentType || "").toLowerCase()
 
-  let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }>
-  switch (docType) {
-    case "contract": PdfComponent = templates.ContractPDF; break
-    case "quote":
-    case "quotation": PdfComponent = templates.QuotationPDF; break
-    case "proposal": PdfComponent = templates.ProposalPDF; break
-    case "receipt": PdfComponent = templates.ReceiptPDF; break
-    default: PdfComponent = (cleaned.design?.layout === "receipt" || cleaned.design?.templateId === "receipt")
-      ? templates.ReceiptPDF : templates.InvoicePDF; break
-  }
+  const PdfComponent = resolvePdfComponent(templates, docType, cleaned) as React.ComponentType<{
+    data: InvoiceData
+    logoUrl?: string | null
+    paymentQrCode?: string | null
+  }>
 
   return pdf(<PdfComponent data={cleaned} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />).toBlob()
 }
@@ -595,7 +591,7 @@ export default function ViewDocumentPage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${docData.invoiceNumber || docData.referenceNumber || "document"}.pdf`
+      a.download = `${resolveDocumentReference(docData, docData.documentType || "invoice")}.pdf`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

@@ -16,6 +16,7 @@ import type { InvoiceData } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { authFetch } from "@/lib/auth-fetch"
 import { cn } from "@/lib/utils"
+import { resolvePdfComponent, resolveDocumentReference } from "@/lib/pdf-export-helpers"
 
 interface ShareButtonProps {
   data: InvoiceData
@@ -66,23 +67,18 @@ async function generatePdfBlob(data: InvoiceData, paymentQrCode?: string | null)
   const docType = (data.documentType || "").toLowerCase()
   const logoUrl = await resolveLogoUrl(data.fromLogo)
 
-  let PdfComponent: React.ComponentType<{ data: InvoiceData; logoUrl?: string | null; paymentQrCode?: string | null }>
-  switch (docType) {
-    case "contract": PdfComponent = templates.ContractPDF; break
-    case "quote":
-    case "quotation": PdfComponent = templates.QuotationPDF; break
-    case "proposal": PdfComponent = templates.ProposalPDF; break
-    case "receipt": PdfComponent = templates.ReceiptPDF; break
-    default: PdfComponent = (data.design?.layout === "receipt" || data.design?.templateId === "receipt")
-      ? templates.ReceiptPDF : templates.InvoicePDF; break
-  }
+  const PdfComponent = resolvePdfComponent(templates, docType, data) as React.ComponentType<{
+    data: InvoiceData
+    logoUrl?: string | null
+    paymentQrCode?: string | null
+  }>
 
   return pdf(<PdfComponent data={data} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />).toBlob()
 }
 
 function getFileName(data: InvoiceData): string {
   const type = (data.documentType || "document").toLowerCase()
-  const ref = data.invoiceNumber || data.referenceNumber || ""
+  const ref = resolveDocumentReference(data, type) || ""
   const client = data.toName || ""
   const safe = `${ref}-${client}`.replace(/[^a-zA-Z0-9]/g, "-").replace(/-+/g, "-").slice(0, 40)
   return `${type}-${safe}.pdf`
