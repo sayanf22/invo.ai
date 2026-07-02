@@ -86,6 +86,7 @@ export function validateDocumentForExport(data: InvoiceData): string[] {
         referenceNumber: data.referenceNumber ?? "",
         parentDocumentId: rawData.parentDocumentId ?? "00000000-0000-0000-0000-000000000000",
         parentDocumentType: rawData.parentDocumentType ?? "contract",
+        parentReferenceNumber: rawData.parentReferenceNumber ?? undefined,
         description: rawData.description ?? data.description ?? "",
         additions: rawData.additions ?? [],
         removals: rawData.removals ?? [],

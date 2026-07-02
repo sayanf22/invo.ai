@@ -290,10 +290,16 @@ export async function POST(request: NextRequest) {
             seedContext.parentContractId = parent.id
         }
 
-        // For Change Order: store parent document type (sow | contract)
+        // For Change Order: store parent document type (sow | contract) and its
+        // human-readable reference number. parentReferenceNumber is what gets
+        // printed on the Change Order PDF/DOCX — never the raw parent_document_id
+        // UUID, which must stay purely internal.
         if (normalizedTargetType === "change_order") {
             if (parentType === "sow" || parentType === "contract") {
                 seedContext.parentDocumentType = parentType
+            }
+            if (parentContext.referenceNumber) {
+                seedContext.parentReferenceNumber = parentContext.referenceNumber
             }
         }
 

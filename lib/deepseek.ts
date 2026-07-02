@@ -761,7 +761,8 @@ Required fields:
 - changeOrderNumber: sequential CO number (e.g. "CO-001")
 - parentDocumentId: UUID of the parent SOW or contract (required — use "" only if truly unknown)
 - parentDocumentType: "sow" or "contract"
-- description: 1-3 sentence summary of why this change order is needed
+- parentReferenceNumber: the parent document's human-readable reference number (e.g. "SOW-2026-07-002" or "CTR-2026-01-014"), if known from PARENT CONTEXT or conversation history. This is what gets printed on the document — leave "" if truly unknown, but NEVER put the raw parentDocumentId UUID here.
+- description: 2-4 sentence summary that clearly states the REASON for the change (e.g. client-requested scope addition, unforeseen site condition, regulatory update) AND its overall effect on scope, cost, and schedule — not just a one-line label
 - additions: array of { id, description, cost (optional) } — new work items being added
 - removals: array of { id, description, costReduction (optional) } — items being removed
 - modifications: array of { id, original, revised, costImpact (optional) } — items being changed

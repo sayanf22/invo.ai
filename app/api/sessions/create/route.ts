@@ -182,6 +182,11 @@ export async function POST(request: NextRequest) {
                 if (parentType === "sow" || parentType === "contract") {
                     parentContext.parentDocumentType = parentType
                 }
+                // Human-readable parent reference (e.g. "SOW-2026-07-002") for the
+                // printed Change Order clause — never the raw parent session UUID.
+                if (rawParentCtx.referenceNumber) {
+                    parentContext.parentReferenceNumber = rawParentCtx.referenceNumber
+                }
             }
         }
 

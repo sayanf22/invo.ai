@@ -55,6 +55,10 @@ export const changeOrderSchema = z.object({
   referenceNumber: z.string(),
   parentDocumentId: z.string().uuid(),
   parentDocumentType: z.enum(["sow", "contract"]),
+  // Human-readable reference of the parent document (e.g. "SOW-2026-07-002").
+  // Used in the printed "Reference" clause instead of the internal parentDocumentId
+  // UUID, which must never be shown to a client on a client-facing document.
+  parentReferenceNumber: z.string().optional(),
   description: z.string().min(1).max(5000),
   additions: z.array(z.object({
     id: z.string(),

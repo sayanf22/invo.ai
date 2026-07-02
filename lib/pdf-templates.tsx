@@ -2862,11 +2862,21 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
     const excludedItems = (data.scopeItems || []).filter(s => !s.included)
 
     const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+    const hasTotalValue = data.totalValue != null
     const headerRight = (
         <>
-            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>Project</Text>
-            <Text style={{ fontSize: 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{data.title || "Statement of Work"}</Text>
-            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 6 }}>Effective {data.effectiveDate || ""}</Text>
+            {hasTotalValue ? (
+                <>
+                    <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut }}>Total Project Value</Text>
+                    <Text style={{ fontSize: 20, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{fmt(data.totalValue as number, data.currency)}</Text>
+                </>
+            ) : (
+                <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut }}>Project</Text>
+            )}
+            <Text style={{ fontSize: hasTotalValue ? 10 : 14, color: onDark ? "#fff" : c.pri, fontWeight: 700, marginTop: hasTotalValue ? 3 : 0 }}>{data.title || "Statement of Work"}</Text>
+            <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 6 }}>
+                Effective {fmtDate(data.effectiveDate)}{data.endDate ? ` \u2013 ${fmtDate(data.endDate)}` : ""}
+            </Text>
         </>
     )
 
@@ -2996,6 +3006,17 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                     </View>
                 )}
 
+                {/* â”€â”€ CHANGE CONTROL â”€â”€ */}
+                {/* Standard SOW clause (per industry practice) covering how scope/cost/
+                    schedule changes are handled after this SOW is signed — prevents scope
+                    creep disputes and ties directly into the Change Order document type. */}
+                <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 12, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
+                    <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Change Control</Text>
+                    <Text style={{ fontSize: 9.5, color: txt, lineHeight: 1.6 }}>
+                        Any request to modify the scope, deliverables, cost, or timeline described in this Statement of Work must be documented in a signed Change Order before the additional or altered work begins. Work performed outside this SOW without a signed Change Order is not covered by the fees stated here.
+                    </Text>
+                </View>
+
                 {/* â”€â”€ NOTES / TERMS â”€â”€ */}
                 {data.notes ? (
                     <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
@@ -3028,6 +3049,10 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
 // CHANGE ORDER PDF â€” Amendment to SOW or Contract
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+// NOTE: despite the "ID" label, this is called with the parent document's
+// human-readable reference number (e.g. "SOW-2026-07-002"), never its raw
+// internal UUID — see the call site in ChangeOrderPDF. Signature preserved
+// for test/back-compat reasons (see pdf-export-helpers.unit.test.ts).
 export function changeOrderIdSuffix(parentDocumentId?: string): string {
     return parentDocumentId && parentDocumentId.trim().length > 0
         ? ` (ID: ${parentDocumentId})`
@@ -3046,11 +3071,19 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
 
     const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+    // Only show a dollar figure in the header when real cost data exists.
+    // Falling back to 0 here would print a fabricated "$0.00" on change orders
+    // that are purely a scope/timeline change with no cost impact (or that
+    // simply haven't been filled in yet) — which reads as a real, misleading
+    // financial figure rather than "no cost impact".
+    const hasCostImpact = data.costImpact != null
     const changeTotal = data.costImpact?.difference ?? 0
     const headerRight = (
         <>
             <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut }}>Change Amount</Text>
-            <Text style={{ fontSize: 22, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>{fmt(changeTotal, currency)}</Text>
+            <Text style={{ fontSize: hasCostImpact ? 22 : 14, color: onDark ? "#fff" : c.pri, fontWeight: 700 }}>
+                {hasCostImpact ? fmt(changeTotal, currency) : "No Cost Impact"}
+            </Text>
             {data.parentDocumentType && <Text style={{ fontSize: 8.5, color: onDark ? "rgba(255,255,255,0.6)" : c.mut, marginTop: 3 }}>Re: {data.parentDocumentType}</Text>}
         </>
     )
@@ -3097,7 +3130,11 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                         <Text style={{ fontWeight: 700 }}>
                             {data.parentDocumentType === "sow" ? "Statement of Work" : "Contract"}
                         </Text>
-                        {changeOrderIdSuffix(data.parentDocumentId)}. All other terms and conditions of the original agreement remain in full force and effect.
+                        {/* Show the human-readable parent reference (e.g. "SOW-2026-07-002") when
+                            available. Never fall back to the raw internal parentDocumentId UUID —
+                            that is a database identifier, not something a client should see on a
+                            signed legal document. */}
+                        {changeOrderIdSuffix(data.parentReferenceNumber)}. All other terms and conditions of the original agreement remain in full force and effect. This Change Order becomes binding on both parties upon signature below.
                     </Text>
                 </View>
 
