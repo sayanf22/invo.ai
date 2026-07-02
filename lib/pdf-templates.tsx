@@ -432,6 +432,46 @@ function ItemRow({ item, i, data, c, CF, CFB, tRow, tRowAlt, cD, cQ, cR, cA }: {
     )
 }
 
+/**
+ * Renders an item/line-item description with automatic bullet-point
+ * formatting: lines prefixed with "- ", "• ", or "* " become indented
+ * bullets with a bold title line above them (matching ItemRow's parsing).
+ *
+ * Extracted so Contract, Quote, and Proposal item tables — which use their
+ * own inline table markup rather than the shared ItemRow component — get
+ * the same clean multi-line formatting as the Invoice table, instead of
+ * dumping the raw "- bullet\n- bullet" text into one unbroken paragraph.
+ */
+function renderItemDescription(rawDescription: string, c: ReturnType<typeof getTheme>, fallback: string) {
+    const rawDesc = rawDescription || fallback
+    const allLines = rawDesc.split("\n").map((l: string) => l.trim()).filter(Boolean)
+    const titleLines: string[] = []
+    const bulletLines: string[] = []
+    let sawBullet = false
+    for (const line of allLines) {
+        if (line.startsWith("- ") || line.startsWith("\u2022 ") || line.startsWith("* ")) {
+            sawBullet = true
+            bulletLines.push(line.replace(/^[-\u2022*]\s+/, "").trim())
+        } else if (!sawBullet) {
+            titleLines.push(line)
+        } else {
+            bulletLines.push(line)
+        }
+    }
+    const titleText = titleLines.join(" | ") || rawDesc
+    return (
+        <>
+            <Text style={{ fontSize: 10, color: c.txt, fontWeight: bulletLines.length > 0 ? 700 : 400 }}>{titleText}</Text>
+            {bulletLines.map((b: string, bi: number) => (
+                <View key={bi} style={{ flexDirection: "row", marginTop: 3, paddingLeft: 4, ...bNone() }}>
+                    <Text style={{ fontSize: 8.5, color: c.pri, marginRight: 5, marginTop: 0.5, fontWeight: 700 }}>{"\u2022"}</Text>
+                    <Text style={{ fontSize: 8.5, color: c.mut, flex: 1, lineHeight: 1.4 }}>{b}</Text>
+                </View>
+            ))}
+        </>
+    )
+}
+
 // Get total of all per-item discounts (single combined line)
 function getItemDiscountTotal(data: InvoiceData): number {
     return data.items.reduce((s, i) => {
@@ -1605,7 +1645,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                         const lineTotal = gross - discAmt
                         return (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, backgroundColor: i % 2 === 1 ? c.bg : "#fff", ...bBottom(1, c.bdr), ...bNone(), ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} wrap={false}>
-                                <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
+                                <View style={{ flex: 1, ...bNone() }}>{renderItemDescription(item.description, c, `Item ${i + 1}`)}</View>
                                 <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
                                 <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
                                 <View style={{ width: 80, ...bNone() }}>
@@ -1673,10 +1713,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View> : null}
-                {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)}</Text>
-                </View> : null}
+                {renderTermsBlock(data.terms, data.showSignatureFields, c)}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bTop(1, c.bdr), ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
@@ -1874,7 +1911,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                             const lineTotal = gross - discAmt
                             return (
                                 <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}) }} wrap={false}>
-                                    <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
+                                    <View style={{ flex: 1, ...bNone() }}>{renderItemDescription(item.description, c, `Item ${i + 1}`)}</View>
                                     <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
                                     <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
                                     <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text></View>
@@ -1912,10 +1949,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View> : null}
-                {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Additional Terms</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)}</Text>
-                </View> : null}
+                {renderTermsBlock(data.terms, data.showSignatureFields, c)}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
@@ -2017,7 +2051,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                         const lineTotal = gross - discAmt
                         return (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}) }} wrap={false}>
-                                <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 10, color: c.txt }}>{item.description || `Item ${i + 1}`}</Text></View>
+                                <View style={{ flex: 1, ...bNone() }}>{renderItemDescription(item.description, c, `Item ${i + 1}`)}</View>
                                 <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
                                 <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
                                 <View style={{ width: 80, ...bNone() }}>
@@ -2091,10 +2125,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                     <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View> : null}
-                {data.terms ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                    <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{sanitizeTermsForDisplay(fixEncoding(data.terms ?? ""), data.showSignatureFields !== false)}</Text>
-                </View> : null}
+                {renderTermsBlock(data.terms, data.showSignatureFields, c)}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
@@ -2139,16 +2170,22 @@ function renderProposalSections(notes: string | undefined, c: ReturnType<typeof 
             const isBul = /^[-\u2022]\s/.test(t)
             if (isNum) {
                 const dot = t.indexOf(".")
-                return (<View key={li} style={{flexDirection:"row",marginBottom:3,paddingLeft:6,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700}}>{t.slice(0,dot+1)}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{t.slice(dot+2).trim()}</Text></View>)
+                // wrap={false} keeps the number and its text on the same page —
+                // without it react-pdf can split the row at a page boundary,
+                // stranding "1." alone at the bottom of one page while its text
+                // starts at the top of the next.
+                return (<View key={li} wrap={false} style={{flexDirection:"row",marginBottom:3,paddingLeft:6,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700}}>{t.slice(0,dot+1)}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{t.slice(dot+2).trim()}</Text></View>)
             }
             if (isBul) {
-                return (<View key={li} style={{flexDirection:"row",marginBottom:3,paddingLeft:6,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700}}>{"\u2022"}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{t.slice(2).trim()}</Text></View>)
+                return (<View key={li} wrap={false} style={{flexDirection:"row",marginBottom:3,paddingLeft:6,...bNone()}}><Text style={{fontSize:9.5,color:c.pri,marginRight:5,fontWeight:700}}>{"\u2022"}</Text><Text style={{fontSize:9.5,color:c.txt,flex:1,lineHeight:1.6}}>{t.slice(2).trim()}</Text></View>)
             }
             return <Text key={li} style={{fontSize:9.5,color:c.txt,lineHeight:1.7,marginBottom:2}}>{t}</Text>
         })
         return (
             <View key={si} style={{ marginHorizontal: 48, marginBottom: 14, ...bNone() }}>
-                {sec.name ? <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{sec.name}</Text> : null}
+                {/* minPresenceAhead ensures the heading doesn't render alone at the very
+                    bottom of a page with its content pushed to the next page. */}
+                {sec.name ? <Text minPresenceAhead={24} style={{ fontSize: 9, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{sec.name}</Text> : null}
                 {lineViews}
             </View>
         )
@@ -2156,8 +2193,19 @@ function renderProposalSections(notes: string | undefined, c: ReturnType<typeof 
     return <View style={{ ...bNone() }}>{sectionViews}</View>
 }
 
-// ─── Proposal terms renderer: parses "Label: text" clauses with bold labels ────
-function renderProposalTerms(terms: string | undefined, showSig: boolean | undefined, c: ReturnType<typeof getTheme>) {
+/**
+ * Renders a Terms & Conditions block with bold, scannable clause labels.
+ *
+ * The AI consistently generates terms as double-newline-separated
+ * "Label: explanation" clauses (Payment Terms:, Project Timeline:,
+ * Intellectual Property:, etc.) across every document type. Bolding the
+ * label — rather than dumping the whole block as one undifferentiated
+ * paragraph — follows standard document-design practice (contrast +
+ * repetition make scannable structure) and matches how ProposalPDF already
+ * formatted its terms. Extracted here so all 9 document types get the same
+ * professional, scannable terms section instead of only Proposal having it.
+ */
+function renderTermsBlock(terms: string | undefined, showSig: boolean | undefined, c: { pri: string; txt: string; mut: string }) {
     if (!terms) return null
     const raw = sanitizeTermsForDisplay(fixEncoding(terms), showSig !== false)
     if (!raw.trim()) return null
@@ -2181,6 +2229,11 @@ function renderProposalTerms(terms: string | undefined, showSig: boolean | undef
             {clauseViews}
         </View>
     )
+}
+
+/** Legacy alias — kept so the existing ProposalPDF call site needs no change. */
+function renderProposalTerms(terms: string | undefined, showSig: boolean | undefined, c: ReturnType<typeof getTheme>) {
+    return renderTermsBlock(terms, showSig, c)
 }
 
 export function ProposalPDF({ data, logoUrl }: Props) {
@@ -3028,12 +3081,9 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                         <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.notes}</Text>
                     </View>
                 ) : null}
-                {data.terms ? (
-                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.terms}</Text>
-                    </View>
-                ) : null}
+                {/* SOWData has no showSignatureFields toggle — SOW always renders its
+                    signature block, so terms are never sanitized for a hidden-signature case. */}
+                {renderTermsBlock(data.terms, true, c)}
 
                 {/* â”€â”€ CHANGE CONTROL â”€â”€ */}
                 {/* Standard SOW clause: tells the client up front how scope changes are
@@ -3249,12 +3299,8 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                         <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.notes}</Text>
                     </View>
                 ) : null}
-                {data.terms ? (
-                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.terms}</Text>
-                    </View>
-                ) : null}
+                {/* ChangeOrderData has no showSignatureFields toggle — always signed. */}
+                {renderTermsBlock(data.terms, true, c)}
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 {renderSignatureBlock("change_order", data as unknown as InvoiceData, c)}
@@ -3402,12 +3448,8 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                         <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.notes}</Text>
                     </View>
                 ) : null}
-                {data.terms ? (
-                    <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Terms & Conditions</Text>
-                        <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.terms}</Text>
-                    </View>
-                ) : null}
+                {/* NDAData has no showSignatureFields toggle — always signed. */}
+                {renderTermsBlock(data.terms, true, c)}
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 {renderSignatureBlock("nda", data as unknown as InvoiceData, c)}
