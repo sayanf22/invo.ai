@@ -3080,15 +3080,24 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                     </View>
                 </View>
 
-                {/* â”€â”€ PARENT DOCUMENT REFERENCE â”€â”€ */}
-                <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 12, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
-                    <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontWeight: 700 }}>Reference</Text>
-                    <Text style={{ fontSize: 10, color: txt }}>
-                        This change order amends{" "}
+                {/* â”€â”€ AMENDMENT REFERENCE â”€â”€ */}
+                <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
+                    <View style={{ flexDirection: "row", marginBottom: 10, ...bNone() }}>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Change Order No.</Text>
+                            <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{data.changeOrderNumber || data.referenceNumber || "CO-0000"}</Text>
+                        </View>
+                        <View style={{ flex: 1, ...bNone() }}>
+                            <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Effective Date</Text>
+                            <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{fmtDate(data.effectiveDate)}</Text>
+                        </View>
+                    </View>
+                    <Text style={{ fontSize: 9.5, color: txt, lineHeight: 1.6 }}>
+                        This change order amends and forms part of the{" "}
                         <Text style={{ fontWeight: 700 }}>
                             {data.parentDocumentType === "sow" ? "Statement of Work" : "Contract"}
                         </Text>
-                        {changeOrderIdSuffix(data.parentDocumentId)}
+                        {changeOrderIdSuffix(data.parentDocumentId)}. All other terms and conditions of the original agreement remain in full force and effect.
                     </Text>
                 </View>
 
@@ -3245,8 +3254,15 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                     <DocHeader tpl={tpl} c={c} title="NON-DISCLOSURE AGREEMENT" refNum={data.referenceNumber || "NDA-0000"} logoUrl={logoUrl} data={data as any} rightContent={headerRight} />
                 </View>
 
+                {/* â”€â”€ RECITAL â”€â”€ */}
+                <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 4, ...bNone() }}>
+                    <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>
+                        This Non-Disclosure Agreement governs the exchange of confidential information between the parties identified below. Each party agrees to protect the other party&#39;s confidential information in accordance with the obligations, exclusions, and terms set out in this Agreement.
+                    </Text>
+                </View>
+
                 {/* ── PARTIES TABLE ── */}
-                <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 20, ...bNone() }}>
+                <View style={{ marginHorizontal: 48, marginTop: 14, marginBottom: 20, ...bNone() }}>
                     <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Parties</Text>
                     <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                         <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Name</Text></View>
