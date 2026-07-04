@@ -31,43 +31,61 @@ export const COUNTRY_PRICING: Record<string, CountryPricing> = {
         country: "United States", countryCode: "US", currency: "USD", currencySymbol: "$", locale: "en-US",
         starter: { monthly: 15, yearly: 12 },
         pro: { monthly: 35, yearly: 28 },
-        agency: { monthly: 80, yearly: 64 },
+        agency: { monthly: 100, yearly: 80 },
     },
     GB: {
         country: "United Kingdom", countryCode: "GB", currency: "GBP", currencySymbol: "£", locale: "en-GB",
         starter: { monthly: 15, yearly: 12 },
         pro: { monthly: 35, yearly: 28 },
-        agency: { monthly: 80, yearly: 64 },
+        agency: { monthly: 100, yearly: 80 },
     },
     DE: {
         country: "Germany", countryCode: "DE", currency: "EUR", currencySymbol: "€", locale: "de-DE",
         starter: { monthly: 15, yearly: 12 },
         pro: { monthly: 35, yearly: 28 },
-        agency: { monthly: 80, yearly: 64 },
+        agency: { monthly: 100, yearly: 80 },
+    },
+    CH: {
+        country: "Switzerland", countryCode: "CH", currency: "CHF", currencySymbol: "CHF", locale: "de-CH",
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 100, yearly: 80 },
     },
     CA: {
         country: "Canada", countryCode: "CA", currency: "CAD", currencySymbol: "CA$", locale: "en-CA",
-        starter: { monthly: 15, yearly: 12 },
-        pro: { monthly: 35, yearly: 28 },
-        agency: { monthly: 80, yearly: 64 },
+        starter: { monthly: 24, yearly: 19 },
+        pro: { monthly: 54, yearly: 43 },
+        agency: { monthly: 152, yearly: 122 },
     },
     AU: {
         country: "Australia", countryCode: "AU", currency: "AUD", currencySymbol: "A$", locale: "en-AU",
-        starter: { monthly: 15, yearly: 12 },
-        pro: { monthly: 35, yearly: 28 },
-        agency: { monthly: 80, yearly: 64 },
+        starter: { monthly: 24, yearly: 19 },
+        pro: { monthly: 55, yearly: 44 },
+        agency: { monthly: 155, yearly: 124 },
+    },
+    NZ: {
+        country: "New Zealand", countryCode: "NZ", currency: "NZD", currencySymbol: "NZ$", locale: "en-NZ",
+        starter: { monthly: 28, yearly: 22 },
+        pro: { monthly: 64, yearly: 51 },
+        agency: { monthly: 180, yearly: 144 },
     },
     SG: {
         country: "Singapore", countryCode: "SG", currency: "SGD", currencySymbol: "S$", locale: "en-SG",
-        starter: { monthly: 15, yearly: 12 },
-        pro: { monthly: 35, yearly: 28 },
-        agency: { monthly: 80, yearly: 64 },
+        starter: { monthly: 22, yearly: 18 },
+        pro: { monthly: 49, yearly: 39 },
+        agency: { monthly: 140, yearly: 112 },
+    },
+    HK: {
+        country: "Hong Kong", countryCode: "HK", currency: "HKD", currencySymbol: "HK$", locale: "en-HK",
+        starter: { monthly: 130, yearly: 104 },
+        pro: { monthly: 300, yearly: 240 },
+        agency: { monthly: 850, yearly: 680 },
     },
     AE: {
         country: "UAE", countryCode: "AE", currency: "AED", currencySymbol: "AED", locale: "en-AE",
-        starter: { monthly: 55, yearly: 44 },
-        pro: { monthly: 130, yearly: 104 },
-        agency: { monthly: 300, yearly: 240 },
+        starter: { monthly: 58, yearly: 46 },
+        pro: { monthly: 135, yearly: 108 },
+        agency: { monthly: 375, yearly: 300 },
     },
     PH: {
         country: "Philippines", countryCode: "PH", currency: "PHP", currencySymbol: "₱", locale: "en-PH",
@@ -79,32 +97,32 @@ export const COUNTRY_PRICING: Record<string, CountryPricing> = {
         country: "France", countryCode: "FR", currency: "EUR", currencySymbol: "€", locale: "fr-FR",
         starter: { monthly: 15, yearly: 12 },
         pro: { monthly: 35, yearly: 28 },
-        agency: { monthly: 80, yearly: 64 },
+        agency: { monthly: 100, yearly: 80 },
     },
     NL: {
         country: "Netherlands", countryCode: "NL", currency: "EUR", currencySymbol: "€", locale: "nl-NL",
         starter: { monthly: 15, yearly: 12 },
         pro: { monthly: 35, yearly: 28 },
-        agency: { monthly: 80, yearly: 64 },
+        agency: { monthly: 100, yearly: 80 },
     },
     // Additional EU countries (EUR)
     ES: {
         country: "Spain", countryCode: "ES", currency: "EUR", currencySymbol: "€", locale: "es-ES",
         starter: { monthly: 15, yearly: 12 },
         pro: { monthly: 35, yearly: 28 },
-        agency: { monthly: 80, yearly: 64 },
+        agency: { monthly: 100, yearly: 80 },
     },
     IT: {
         country: "Italy", countryCode: "IT", currency: "EUR", currencySymbol: "€", locale: "it-IT",
         starter: { monthly: 15, yearly: 12 },
         pro: { monthly: 35, yearly: 28 },
-        agency: { monthly: 80, yearly: 64 },
+        agency: { monthly: 100, yearly: 80 },
     },
     SE: {
         country: "Sweden", countryCode: "SE", currency: "SEK", currencySymbol: "kr", locale: "sv-SE",
-        starter: { monthly: 99, yearly: 79 },
-        pro: { monthly: 249, yearly: 199 },
-        agency: { monthly: 599, yearly: 479 },
+        starter: { monthly: 145, yearly: 116 },
+        pro: { monthly: 335, yearly: 268 },
+        agency: { monthly: 950, yearly: 760 },
     },
     // MENA / South Asia
     SA: {
@@ -256,8 +274,14 @@ export function detectCountryFromTimezone(): string {
             // Australia
             "Australia/Sydney": "AU", "Australia/Melbourne": "AU", "Australia/Brisbane": "AU",
             "Australia/Perth": "AU", "Australia/Adelaide": "AU",
+            // New Zealand
+            "Pacific/Auckland": "NZ",
             // Singapore
             "Asia/Singapore": "SG",
+            // Hong Kong
+            "Asia/Hong_Kong": "HK",
+            // Switzerland
+            "Europe/Zurich": "CH",
             // UAE
             "Asia/Dubai": "AE",
             // Philippines

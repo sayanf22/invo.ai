@@ -65,6 +65,10 @@ type PaidTier = "starter" | "pro" | "agency"
 type BillingCycle = "monthly" | "yearly"
 type CyclePlanIds = { monthly: string; yearly: string }
 
+// v2 pricing: purchasing-power-corrected ladder anchored at $15/$35/$100 (USD-equiv).
+// Created via scripts/create-razorpay-plans-v2.mjs. See lib/pricing.ts for the
+// rationale (currencies weaker than USD get a scaled-up numeral so nobody ever
+// converts to less than the USD anchor; INR plans are untouched/reused).
 export const RAZORPAY_PLAN_IDS_BY_CURRENCY: Record<string, Record<PaidTier, CyclePlanIds>> = {
     INR: {
         starter: { monthly: "plan_SeqvSGEJYtblYF", yearly: "plan_T9X5GIMe6R3Jhk" },
@@ -72,39 +76,59 @@ export const RAZORPAY_PLAN_IDS_BY_CURRENCY: Record<string, Record<PaidTier, Cycl
         agency: { monthly: "plan_SeqvmqZpMvvQYS", yearly: "plan_T9X5H16prTUdjc" },
     },
     USD: {
-        starter: { monthly: "plan_T9WnghL55l3N58", yearly: "plan_T9X5HFYfgjEuF6" },
-        pro: { monthly: "plan_T9Wnh6zWqrVP1U", yearly: "plan_T9X5HYFnrbGOAI" },
-        agency: { monthly: "plan_T9WnhM2k72RCiU", yearly: "plan_T9X5HpVbKBi3Ym" },
+        starter: { monthly: "plan_T9Xbn7v1ZfFwMl", yearly: "plan_T9XbnZbXAsz0Mi" },
+        pro: { monthly: "plan_T9Xbnr0MAmQUUw", yearly: "plan_T9XboFCFkpMxbg" },
+        agency: { monthly: "plan_T9XboTG6cRFbkR", yearly: "plan_T9XbopzZ7rqSYv" },
     },
     EUR: {
-        starter: { monthly: "plan_T9WnhZnEPhBbGE", yearly: "plan_T9X5I5eZYmiVNh" },
-        pro: { monthly: "plan_T9WnhoiztShqYV", yearly: "plan_T9X5IMqoIuN4Pm" },
-        agency: { monthly: "plan_T9Wni2V9pP8OIQ", yearly: "plan_T9X5IgQxj6UcEX" },
+        starter: { monthly: "plan_T9Xbp6ZJ302OKf", yearly: "plan_T9XbpKF7Ym3hu5" },
+        pro: { monthly: "plan_T9XbpXiI0oP19X", yearly: "plan_T9XbptFzeEng1g" },
+        agency: { monthly: "plan_T9XbqBMgVu9kyL", yearly: "plan_T9XbqQjDycchyv" },
     },
     GBP: {
-        starter: { monthly: "plan_T9WniHxSUu4fF9", yearly: "plan_T9X5Iw0h7XAXwk" },
-        pro: { monthly: "plan_T9WniWhUTPyloG", yearly: "plan_T9X5J9MJLuAIne" },
-        agency: { monthly: "plan_T9WnilPGFZZ3uF", yearly: "plan_T9X5JO5DyhfYyF" },
+        starter: { monthly: "plan_T9XbqiH545LxTN", yearly: "plan_T9XbrDbY1hFi4S" },
+        pro: { monthly: "plan_T9XbrQdClDRMgW", yearly: "plan_T9XbrdqtRY1OK0" },
+        agency: { monthly: "plan_T9Xbrsk38EfXD2", yearly: "plan_T9Xbs93tkqCug0" },
     },
-    SGD: {
-        starter: { monthly: "plan_T9Wnj0MiaeYm0T", yearly: "plan_T9X5Jbo6oSBSMs" },
-        pro: { monthly: "plan_T9WnjHK2UN8BRY", yearly: "plan_T9X5JrnJNnOA1v" },
-        agency: { monthly: "plan_T9WnjVUncj8TZk", yearly: "plan_T9X5K8BZoP1aP8" },
-    },
-    AED: {
-        starter: { monthly: "plan_T9WnlB0tzk7fWn", yearly: "plan_T9X5LqO7O6hXuq" },
-        pro: { monthly: "plan_T9WnlYCbcd4eGx", yearly: "plan_T9X5M6F0vpbmwn" },
-        agency: { monthly: "plan_T9WnlsADM2mL9O", yearly: "plan_T9X5MmcEbx6vSM" },
-    },
-    CAD: {
-        starter: { monthly: "plan_T9WnjjzJCIJ37t", yearly: "plan_T9X5KOGVRMW1y3" },
-        pro: { monthly: "plan_T9Wnjyuqbvhgyk", yearly: "plan_T9X5KeN5fOHl9c" },
-        agency: { monthly: "plan_T9WnkDJKbOyRL8", yearly: "plan_T9X5KvmGLSwfr7" },
+    CHF: {
+        starter: { monthly: "plan_T9XbsOILFUDETP", yearly: "plan_T9XbsgTTPv0OK6" },
+        pro: { monthly: "plan_T9Xbsx3ojxxyEy", yearly: "plan_T9XbtBd9HDG89n" },
+        agency: { monthly: "plan_T9XbtRe6LxM98B", yearly: "plan_T9XbtgoTTZLgRs" },
     },
     AUD: {
-        starter: { monthly: "plan_T9WnkSBBSrUJZR", yearly: "plan_T9X5L9UoSFWUab" },
-        pro: { monthly: "plan_T9WnkgkCE38Mt5", yearly: "plan_T9X5LMiWC57ex0" },
-        agency: { monthly: "plan_T9WnkuE4mnAeBy", yearly: "plan_T9X5LbSBPp7JF4" },
+        starter: { monthly: "plan_T9XbtvoBH4Ohf0", yearly: "plan_T9XbuEtXWnt2ra" },
+        pro: { monthly: "plan_T9XbuUkV1hnOnU", yearly: "plan_T9Xbui36Md4qz6" },
+        agency: { monthly: "plan_T9Xbuy9R7a7bdL", yearly: "plan_T9XbvH7fMFPhU6" },
+    },
+    CAD: {
+        starter: { monthly: "plan_T9XbvYCJpJi1uh", yearly: "plan_T9XbvoTqOVhWrD" },
+        pro: { monthly: "plan_T9Xbw2AGcxoqkj", yearly: "plan_T9XbwFq0d5JpzK" },
+        agency: { monthly: "plan_T9XbwUoOBX5h2V", yearly: "plan_T9XbwnATOkbeJ9" },
+    },
+    SGD: {
+        starter: { monthly: "plan_T9Xbx4k3rNdro5", yearly: "plan_T9XbxM4aUdgD91" },
+        pro: { monthly: "plan_T9XbxblbdoaXgb", yearly: "plan_T9XbxpXbMjqPr5" },
+        agency: { monthly: "plan_T9Xby4rIsoPs59", yearly: "plan_T9XbyKzO3BvESb" },
+    },
+    NZD: {
+        starter: { monthly: "plan_T9XbybUvKEvU5k", yearly: "plan_T9XbyqipNMaT0R" },
+        pro: { monthly: "plan_T9Xbz5r4pHJkmQ", yearly: "plan_T9XbzKQhh4M9bs" },
+        agency: { monthly: "plan_T9XbzgpEUzsVLX", yearly: "plan_T9XbzuvRJp2g6m" },
+    },
+    HKD: {
+        starter: { monthly: "plan_T9Xc09qdro7YK1", yearly: "plan_T9Xc0Qle4dBven" },
+        pro: { monthly: "plan_T9Xc0h3KXXlpSG", yearly: "plan_T9Xc0w63JJZzuS" },
+        agency: { monthly: "plan_T9Xc19VlbSTNFa", yearly: "plan_T9Xc1SjdFfi9fY" },
+    },
+    SEK: {
+        starter: { monthly: "plan_T9Xc1kkDh0eZJu", yearly: "plan_T9Xc1z9v2Nk5Hj" },
+        pro: { monthly: "plan_T9Xc2Id5UuXa2Q", yearly: "plan_T9Xc2YgyRsP24K" },
+        agency: { monthly: "plan_T9Xc2qYXn2MiON", yearly: "plan_T9Xc36I2weKUbi" },
+    },
+    AED: {
+        starter: { monthly: "plan_T9Xc3MFmSuENk4", yearly: "plan_T9Xc3dV8KwoYIM" },
+        pro: { monthly: "plan_T9Xc3uixeEIppJ", yearly: "plan_T9Xc491JNXpftC" },
+        agency: { monthly: "plan_T9Xc4PP99rWtM6", yearly: "plan_T9Xc4gSVlVawLW" },
     },
 }
 
@@ -115,13 +139,17 @@ export const RAZORPAY_PLAN_IDS_BY_CURRENCY: Record<string, Record<PaidTier, Cycl
  */
 export const PLAN_PRICES_BY_CURRENCY: Record<string, Record<PaidTier, { monthly: number; yearly: number }>> = {
     INR: { starter: { monthly: 99900, yearly: 958800 }, pro: { monthly: 249900, yearly: 2398800 }, agency: { monthly: 599900, yearly: 5758800 } },
-    USD: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
-    EUR: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
-    GBP: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
-    SGD: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
-    AED: { starter: { monthly: 5500, yearly: 52800 }, pro: { monthly: 13000, yearly: 124800 }, agency: { monthly: 30000, yearly: 288000 } },
-    CAD: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
-    AUD: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
+    USD: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 10000, yearly: 96000 } },
+    EUR: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 10000, yearly: 96000 } },
+    GBP: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 10000, yearly: 96000 } },
+    CHF: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 10000, yearly: 96000 } },
+    AUD: { starter: { monthly: 2400, yearly: 22800 }, pro: { monthly: 5500, yearly: 52800 }, agency: { monthly: 15500, yearly: 148800 } },
+    CAD: { starter: { monthly: 2400, yearly: 22800 }, pro: { monthly: 5400, yearly: 51600 }, agency: { monthly: 15200, yearly: 146400 } },
+    SGD: { starter: { monthly: 2200, yearly: 21600 }, pro: { monthly: 4900, yearly: 46800 }, agency: { monthly: 14000, yearly: 134400 } },
+    NZD: { starter: { monthly: 2800, yearly: 26400 }, pro: { monthly: 6400, yearly: 61200 }, agency: { monthly: 18000, yearly: 172800 } },
+    HKD: { starter: { monthly: 13000, yearly: 124800 }, pro: { monthly: 30000, yearly: 288000 }, agency: { monthly: 85000, yearly: 816000 } },
+    SEK: { starter: { monthly: 14500, yearly: 139200 }, pro: { monthly: 33500, yearly: 321600 }, agency: { monthly: 95000, yearly: 912000 } },
+    AED: { starter: { monthly: 5800, yearly: 55200 }, pro: { monthly: 13500, yearly: 129600 }, agency: { monthly: 37500, yearly: 360000 } },
 }
 
 /** Currencies we can actually charge for recurring subscriptions. */

@@ -103,8 +103,8 @@ const plans: PlanData[] = [
     id: "agency",
     name: "Agency",
     badge: "Coming Soon",
-    monthly: 80,
-    yearly: 64,
+    monthly: 100,
+    yearly: 80,
     desc: "For teams & agencies",
     valueHint: "Unlimited documents",
     cta: "Join Waitlist",
@@ -152,7 +152,7 @@ const faqs: FaqItem[] = [
   },
   {
     question: "Which currency will I be charged in?",
-    answer: "You're shown and charged in your local currency automatically based on your location — including USD, EUR, GBP, SGD, AED, CAD, AUD and INR. If your currency isn't supported for recurring billing, you'll be billed in USD. Prices are detected from your region, not chosen manually.",
+    answer: "You're shown and charged in your local currency automatically based on your location — including USD, EUR, GBP, CHF, SGD, AED, CAD, AUD, NZD, HKD, SEK and INR. If your currency isn't supported for recurring billing, you'll be billed in USD. Prices are detected from your region, not chosen manually, and adjusted per-market so pricing reflects local purchasing power.",
   },
   {
     question: "I have a payment or billing issue — who do I contact?",
@@ -186,7 +186,7 @@ const pricingPlans: PricingPlan[] = [
   },
   {
     name: "Agency",
-    price: 80,
+    price: 100,
     currency: "USD",
     description: "Unlimited documents, all features, 3 team members, priority support, forever history.",
     billingPeriod: "P1M",
