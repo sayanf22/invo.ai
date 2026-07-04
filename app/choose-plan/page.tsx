@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { useRazorpay } from "@/hooks/use-razorpay"
-import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
+import { COUNTRY_PRICING, detectCountryFromTimezone, detectCountryFromIP, formatPrice, DEFAULT_COUNTRY, getBillablePricing, type CountryPricing } from "@/lib/pricing"
 import { toast } from "sonner"
 
 const plans = [
@@ -64,9 +64,18 @@ export default function ChoosePlanPage() {
         if (!isLoading && !user) {
             router.push("/auth/login")
         }
-        // Detect country for pricing
-        const detected = detectCountryFromTimezone()
-        setCountryPricing(COUNTRY_PRICING[detected] || COUNTRY_PRICING[DEFAULT_COUNTRY])
+        // Detect country for pricing. Use IP first (matches the server-side
+        // Cloudflare header that decides the actual charge currency), falling back
+        // to timezone. getBillablePricing() ensures the DISPLAYED price equals what
+        // will actually be charged (countries without a supported currency → USD).
+        let cancelled = false
+        const timezoneCountry = detectCountryFromTimezone()
+        setCountryPricing(getBillablePricing(timezoneCountry))
+        detectCountryFromIP().then((ipCountry) => {
+            if (cancelled) return
+            setCountryPricing(getBillablePricing(ipCountry || timezoneCountry))
+        })
+        return () => { cancelled = true }
     }, [isLoading, user, router])
 
     // Check if plan already selected — only redirect during initial signup flow

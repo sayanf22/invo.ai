@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
-import { verifyPaymentSignature, PLANS, isValidPlanId, getSubscription, planIdToPlan, type PlanId } from "@/lib/razorpay"
+import { verifyPaymentSignature, PLANS, PLAN_PRICES_BY_CURRENCY, isValidPlanId, getSubscription, planIdToPlan, planIdToCurrency, planIdToCycle, type PlanId } from "@/lib/razorpay"
 import { logAudit } from "@/lib/audit-log"
 import { createClient } from "@supabase/supabase-js"
 import type { NextRequest } from "next/server"
@@ -78,15 +78,20 @@ export async function POST(request: NextRequest) {
         // Razorpay's own subscription record (plan_id was set server-side at creation).
         let effectivePlan: PlanId = plan
         let effectiveCycle: string = billingCycle || "monthly"
+        let effectiveCurrency = "INR"
 
         if (isSubscription) {
-            let authoritative: { plan: PlanId | null; cycle: string | null } | null = null
+            let authoritative: { plan: PlanId | null; cycle: string | null; currency: string } | null = null
             try {
                 const sub = await getSubscription(razorpay_subscription_id)
                 if (sub) {
+                    // Cycle is derived from the actual plan_id (authoritative),
+                    // falling back to the server-set note.
+                    const cycleFromPlan = planIdToCycle(sub.plan_id)
                     authoritative = {
                         plan: planIdToPlan(sub.plan_id),
-                        cycle: sub.notes?.billing_cycle === "yearly" ? "yearly" : "monthly",
+                        cycle: cycleFromPlan || (sub.notes?.billing_cycle === "yearly" ? "yearly" : "monthly"),
+                        currency: planIdToCurrency(sub.plan_id) || "INR",
                     }
                 }
             } catch (e) {
@@ -120,12 +125,16 @@ export async function POST(request: NextRequest) {
 
             effectivePlan = authoritative.plan
             effectiveCycle = authoritative.cycle || "monthly"
+            effectiveCurrency = authoritative.currency || "INR"
         }
 
-        const planConfig = PLANS[effectivePlan]
-        const amount = effectiveCycle === "yearly"
-            ? planConfig.yearlyPrice * 12
-            : planConfig.monthlyPrice
+        // Amount stored for records = the real charged amount in the plan's
+        // currency + cycle (yearly = full annual charge).
+        const paidTier = effectivePlan as "starter" | "pro" | "agency"
+        const cycleKey = effectiveCycle === "yearly" ? "yearly" : "monthly"
+        const amount = (PLAN_PRICES_BY_CURRENCY[effectiveCurrency]?.[paidTier]?.[cycleKey])
+            ?? PLAN_PRICES_BY_CURRENCY.INR[paidTier][cycleKey]
+            ?? PLANS[effectivePlan].monthlyPrice
 
         const now = new Date()
         const periodEnd = new Date(now)
@@ -147,7 +156,7 @@ export async function POST(request: NextRequest) {
                 razorpay_order_id: razorpay_order_id || null,
                 razorpay_subscription_id: razorpay_subscription_id || null,
                 amount_paid: amount,
-                currency: "INR",
+                currency: effectiveCurrency,
                 current_period_start: now.toISOString(),
                 current_period_end: periodEnd.toISOString(),
                 updated_at: now.toISOString(),
@@ -176,7 +185,7 @@ export async function POST(request: NextRequest) {
             razorpay_order_id: razorpay_order_id || null,
             razorpay_signature,
             amount,
-            currency: "INR",
+            currency: effectiveCurrency,
             status: "captured",
             plan: effectivePlan,
             billing_cycle: effectiveCycle || "monthly",

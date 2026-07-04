@@ -29,45 +29,45 @@ export const COUNTRY_PRICING: Record<string, CountryPricing> = {
     },
     US: {
         country: "United States", countryCode: "US", currency: "USD", currencySymbol: "$", locale: "en-US",
-        starter: { monthly: 9.99, yearly: 7.99 },
-        pro: { monthly: 24.99, yearly: 19.99 },
-        agency: { monthly: 59.99, yearly: 47.99 },
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 80, yearly: 64 },
     },
     GB: {
         country: "United Kingdom", countryCode: "GB", currency: "GBP", currencySymbol: "£", locale: "en-GB",
-        starter: { monthly: 7.99, yearly: 5.99 },
-        pro: { monthly: 19.99, yearly: 15.99 },
-        agency: { monthly: 47.99, yearly: 37.99 },
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 80, yearly: 64 },
     },
     DE: {
         country: "Germany", countryCode: "DE", currency: "EUR", currencySymbol: "€", locale: "de-DE",
-        starter: { monthly: 8.99, yearly: 6.99 },
-        pro: { monthly: 22.99, yearly: 17.99 },
-        agency: { monthly: 54.99, yearly: 43.99 },
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 80, yearly: 64 },
     },
     CA: {
         country: "Canada", countryCode: "CA", currency: "CAD", currencySymbol: "CA$", locale: "en-CA",
-        starter: { monthly: 12.99, yearly: 9.99 },
-        pro: { monthly: 32.99, yearly: 25.99 },
-        agency: { monthly: 79.99, yearly: 63.99 },
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 80, yearly: 64 },
     },
     AU: {
         country: "Australia", countryCode: "AU", currency: "AUD", currencySymbol: "A$", locale: "en-AU",
-        starter: { monthly: 14.99, yearly: 11.99 },
-        pro: { monthly: 37.99, yearly: 29.99 },
-        agency: { monthly: 89.99, yearly: 71.99 },
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 80, yearly: 64 },
     },
     SG: {
         country: "Singapore", countryCode: "SG", currency: "SGD", currencySymbol: "S$", locale: "en-SG",
-        starter: { monthly: 12.99, yearly: 9.99 },
-        pro: { monthly: 32.99, yearly: 25.99 },
-        agency: { monthly: 79.99, yearly: 63.99 },
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 80, yearly: 64 },
     },
     AE: {
         country: "UAE", countryCode: "AE", currency: "AED", currencySymbol: "AED", locale: "en-AE",
-        starter: { monthly: 36.99, yearly: 28.99 },
-        pro: { monthly: 89.99, yearly: 72.99 },
-        agency: { monthly: 219.99, yearly: 175.99 },
+        starter: { monthly: 55, yearly: 44 },
+        pro: { monthly: 130, yearly: 104 },
+        agency: { monthly: 300, yearly: 240 },
     },
     PH: {
         country: "Philippines", countryCode: "PH", currency: "PHP", currencySymbol: "₱", locale: "en-PH",
@@ -77,28 +77,28 @@ export const COUNTRY_PRICING: Record<string, CountryPricing> = {
     },
     FR: {
         country: "France", countryCode: "FR", currency: "EUR", currencySymbol: "€", locale: "fr-FR",
-        starter: { monthly: 8.99, yearly: 6.99 },
-        pro: { monthly: 22.99, yearly: 17.99 },
-        agency: { monthly: 54.99, yearly: 43.99 },
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 80, yearly: 64 },
     },
     NL: {
         country: "Netherlands", countryCode: "NL", currency: "EUR", currencySymbol: "€", locale: "nl-NL",
-        starter: { monthly: 8.99, yearly: 6.99 },
-        pro: { monthly: 22.99, yearly: 17.99 },
-        agency: { monthly: 54.99, yearly: 43.99 },
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 80, yearly: 64 },
     },
     // Additional EU countries (EUR)
     ES: {
         country: "Spain", countryCode: "ES", currency: "EUR", currencySymbol: "€", locale: "es-ES",
-        starter: { monthly: 8.99, yearly: 6.99 },
-        pro: { monthly: 22.99, yearly: 17.99 },
-        agency: { monthly: 54.99, yearly: 43.99 },
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 80, yearly: 64 },
     },
     IT: {
         country: "Italy", countryCode: "IT", currency: "EUR", currencySymbol: "€", locale: "it-IT",
-        starter: { monthly: 8.99, yearly: 6.99 },
-        pro: { monthly: 22.99, yearly: 17.99 },
-        agency: { monthly: 54.99, yearly: 43.99 },
+        starter: { monthly: 15, yearly: 12 },
+        pro: { monthly: 35, yearly: 28 },
+        agency: { monthly: 80, yearly: 64 },
     },
     SE: {
         country: "Sweden", countryCode: "SE", currency: "SEK", currencySymbol: "kr", locale: "sv-SE",
@@ -187,6 +187,48 @@ export const COUNTRY_PRICING: Record<string, CountryPricing> = {
 
 // Default to India pricing (primary market)
 export const DEFAULT_COUNTRY = "IN"
+
+// Currencies Razorpay can actually charge for recurring subscriptions.
+// Countries whose currency is NOT here are billed (and displayed) in USD.
+export const RAZORPAY_BILLABLE_CURRENCIES = ["INR", "USD", "EUR", "GBP", "SGD", "AED", "CAD", "AUD"]
+
+/**
+ * Map a country to the country whose pricing/currency we can actually charge.
+ * If the country's own currency is billable, keep it; otherwise fall back to the
+ * US (USD) entry. This keeps the DISPLAYED price identical to what will be charged.
+ */
+export function getBillingCountryCode(countryCode: string): string {
+    const p = COUNTRY_PRICING[countryCode]
+    if (p && RAZORPAY_BILLABLE_CURRENCIES.includes(p.currency)) return countryCode
+    return "US"
+}
+
+/**
+ * Pricing the user will actually be billed in (display === charge).
+ * The yearly (per-month) figure is ALWAYS computed as exactly 20% off the
+ * monthly price, so the annual discount is uniform across every country.
+ */
+export function getBillablePricing(countryCode: string): CountryPricing {
+    const base = COUNTRY_PRICING[getBillingCountryCode(countryCode)] ?? COUNTRY_PRICING.US
+    return withAnnualDiscount(base)
+}
+
+/** Yearly per-month price = 20% off monthly, rounded to a clean number. */
+export function annualPerMonth(monthly: number): number {
+    const discounted = monthly * 0.8
+    // Whole-number currencies stay whole; decimal currencies keep 2 dp.
+    return Number.isInteger(monthly) ? Math.round(discounted) : Math.round(discounted * 100) / 100
+}
+
+/** Return a copy of a CountryPricing with yearly forced to 20% off monthly. */
+export function withAnnualDiscount(p: CountryPricing): CountryPricing {
+    return {
+        ...p,
+        starter: { monthly: p.starter.monthly, yearly: annualPerMonth(p.starter.monthly) },
+        pro: { monthly: p.pro.monthly, yearly: annualPerMonth(p.pro.monthly) },
+        agency: { monthly: p.agency.monthly, yearly: annualPerMonth(p.agency.monthly) },
+    }
+}
 
 // ─── Country detection ────────────────────────────────────────────────────────
 
@@ -299,8 +341,10 @@ export async function detectUserPricing(): Promise<CountryPricing> {
  * Format price for display with proper locale formatting.
  */
 export function formatPrice(amount: number, pricing: CountryPricing): string {
-    // Currencies that don't use decimals
-    const noDecimals = ["INR", "PHP", "JPY", "KRW", "PKR", "BDT", "IDR", "NGN", "SEK"].includes(pricing.currency)
+    // Currencies that never use decimals, plus any whole-number amount
+    // (so $15 shows as "$15", not "$15.00").
+    const zeroDecimalCurrency = ["INR", "PHP", "JPY", "KRW", "PKR", "BDT", "IDR", "NGN", "SEK"].includes(pricing.currency)
+    const noDecimals = zeroDecimalCurrency || Number.isInteger(amount)
 
     try {
         return new Intl.NumberFormat(pricing.locale, {

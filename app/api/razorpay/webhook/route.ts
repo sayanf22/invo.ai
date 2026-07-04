@@ -113,12 +113,14 @@ export async function POST(request: Request) {
                     if (billingCycle === "yearly") periodEnd.setFullYear(periodEnd.getFullYear() + 1)
                     else periodEnd.setMonth(periodEnd.getMonth() + 1)
 
-                    // Amount in paise from PLANS config
-                    const { PLANS } = await import("@/lib/razorpay")
-                    const planCfg = (PLANS as any)[plan]
-                    const amount = billingCycle === "yearly"
-                        ? planCfg.yearlyPrice * 12
-                        : planCfg.monthlyPrice
+                    // Amount + currency + cycle derived from the subscription's actual
+                    // plan_id so multi-currency subscriptions record the real charge.
+                    const { PLAN_PRICES_BY_CURRENCY, planIdToCurrency, planIdToCycle } = await import("@/lib/razorpay")
+                    const currency = (subscription.plan_id ? planIdToCurrency(subscription.plan_id) : null) || "INR"
+                    const cycleKey = ((subscription.plan_id ? planIdToCycle(subscription.plan_id) : null) || billingCycle) === "yearly" ? "yearly" : "monthly"
+                    const paidTier = plan as "starter" | "pro" | "agency"
+                    const amount = PLAN_PRICES_BY_CURRENCY[currency]?.[paidTier]?.[cycleKey]
+                        ?? PLAN_PRICES_BY_CURRENCY.INR[paidTier][cycleKey]
 
                     const { error: upsertErr } = await supabase
                         .from("subscriptions" as any)
@@ -129,7 +131,7 @@ export async function POST(request: Request) {
                             status: "active",
                             razorpay_subscription_id: subscription.id,
                             amount_paid: amount,
-                            currency: "INR",
+                            currency,
                             current_period_start: now.toISOString(),
                             current_period_end: periodEnd.toISOString(),
                             updated_at: now.toISOString(),

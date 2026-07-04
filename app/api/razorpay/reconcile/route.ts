@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
-import { getSubscription, planIdToPlan, isValidPlanId, PLANS, type PlanId } from "@/lib/razorpay"
+import { getSubscription, planIdToPlan, planIdToCurrency, planIdToCycle, isValidPlanId, PLANS, PLAN_PRICES_BY_CURRENCY, type PlanId } from "@/lib/razorpay"
 import { logAudit } from "@/lib/audit-log"
 import { createClient } from "@supabase/supabase-js"
 import type { NextRequest } from "next/server"
@@ -82,9 +82,13 @@ export async function POST(request: NextRequest) {
             }
             if (!plan || plan === "free") continue
 
-            const billingCycle = (sub.notes?.billing_cycle === "yearly" ? "yearly" : "monthly") as "monthly" | "yearly"
-            const planConfig = PLANS[plan]
-            const amount = billingCycle === "yearly" ? planConfig.yearlyPrice * 12 : planConfig.monthlyPrice
+            const cycleFromPlan = sub.plan_id ? planIdToCycle(sub.plan_id) : null
+            const billingCycle = (cycleFromPlan || (sub.notes?.billing_cycle === "yearly" ? "yearly" : "monthly")) as "monthly" | "yearly"
+            const currency = (sub.plan_id ? planIdToCurrency(sub.plan_id) : null) || "INR"
+            const paidTier = plan as "starter" | "pro" | "agency"
+            const amount = PLAN_PRICES_BY_CURRENCY[currency]?.[paidTier]?.[billingCycle]
+                ?? PLAN_PRICES_BY_CURRENCY.INR[paidTier][billingCycle]
+                ?? PLANS[plan].monthlyPrice
 
             // Period: use Razorpay's current_start/current_end when present
             const now = new Date()
@@ -108,7 +112,7 @@ export async function POST(request: NextRequest) {
                     status: "active",
                     razorpay_subscription_id: sub.id,
                     amount_paid: amount,
-                    currency: "INR",
+                    currency,
                     current_period_start: periodStart.toISOString(),
                     current_period_end: periodEnd.toISOString(),
                     updated_at: now.toISOString(),

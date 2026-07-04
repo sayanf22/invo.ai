@@ -45,10 +45,10 @@ const plans: PlanData[] = [
     id: "starter",
     name: "Starter",
     badge: null,
-    monthly: 9,
-    yearly: 7,
+    monthly: 15,
+    yearly: 12,
     desc: "For freelancers & solo pros",
-    valueHint: "~$0.18 per document",
+    valueHint: "~$0.30 per document",
     cta: "Start Free Trial",
     ctaNote: "14-day free trial",
     href: "/auth/signup",
@@ -74,10 +74,10 @@ const plans: PlanData[] = [
     id: "pro",
     name: "Pro",
     badge: "Most Popular",
-    monthly: 24,
-    yearly: 19,
+    monthly: 35,
+    yearly: 28,
     desc: "For growing businesses",
-    valueHint: "~$0.16 per document",
+    valueHint: "~$0.23 per document",
     cta: "Start Free Trial",
     ctaNote: "14-day free trial",
     href: "/auth/signup",
@@ -103,8 +103,8 @@ const plans: PlanData[] = [
     id: "agency",
     name: "Agency",
     badge: "Coming Soon",
-    monthly: 59,
-    yearly: 47,
+    monthly: 80,
+    yearly: 64,
     desc: "For teams & agencies",
     valueHint: "Unlimited documents",
     cta: "Join Waitlist",
@@ -150,6 +150,14 @@ const faqs: FaqItem[] = [
     question: "When does Agency launch?",
     answer: "Agency is coming soon. Join the waitlist and you'll be the first to know — plus get an early-bird discount when it launches.",
   },
+  {
+    question: "Which currency will I be charged in?",
+    answer: "You're shown and charged in your local currency automatically based on your location — including USD, EUR, GBP, SGD, AED, CAD, AUD and INR. If your currency isn't supported for recurring billing, you'll be billed in USD. Prices are detected from your region, not chosen manually.",
+  },
+  {
+    question: "I have a payment or billing issue — who do I contact?",
+    answer: "Email support@clorefy.com for any payment, billing, refund, or subscription issue and we'll respond within 24 hours on business days. For card or gateway-specific problems, you can also contact Razorpay support directly.",
+  },
 ]
 
 // ─── Structured data (Product schema) ────────────────────────────────────────
@@ -164,21 +172,21 @@ const pricingPlans: PricingPlan[] = [
   },
   {
     name: "Starter",
-    price: 9,
+    price: 15,
     currency: "USD",
     description: "50 documents/month, all 9 document types, all 9 templates, PDF + DOCX export, 30-day history.",
     billingPeriod: "P1M",
   },
   {
     name: "Pro",
-    price: 24,
+    price: 35,
     currency: "USD",
     description: "150 documents/month, all document types and templates, PDF + DOCX + Image export, digital signatures, custom branding.",
     billingPeriod: "P1M",
   },
   {
     name: "Agency",
-    price: 59,
+    price: 80,
     currency: "USD",
     description: "Unlimited documents, all features, 3 team members, priority support, forever history.",
     billingPeriod: "P1M",
@@ -321,6 +329,17 @@ export default function PricingPage() {
           </AnimatedCard>
 
           <FaqAccordion items={faqs} />
+
+          <p className="text-center text-sm text-[var(--landing-text-muted)] mt-10">
+            Payment or billing questions? Email{" "}
+            <a
+              href="mailto:support@clorefy.com"
+              className="text-[var(--landing-amber)] font-semibold hover:underline"
+            >
+              support@clorefy.com
+            </a>{" "}
+            — we reply within 24 hours on business days.
+          </p>
         </div>
       </section>
     </LandingLayout>

@@ -8,6 +8,8 @@
  * - Subscription status is only updated via server API or webhook
  */
 
+import { getBillablePricing } from "@/lib/pricing"
+
 // Plan pricing in paise (INR smallest unit). 1 INR = 100 paise.
 export const PLANS = {
     free: {
@@ -44,17 +46,137 @@ export const PLANS = {
     },
 } as const
 
-// Razorpay Plan IDs (created via API — these are live plans)
+// Razorpay Plan IDs (created via API — these are live plans).
+// Legacy INR-only map kept for backward compatibility.
 export const RAZORPAY_PLAN_IDS = {
     starter: { monthly: "plan_SeqvSGEJYtblYF" },
     pro: { monthly: "plan_SeqvmVPu1FVuRx" },
     agency: { monthly: "plan_SeqvmqZpMvvQYS" },
 } as const
 
-/** Reverse-map a Razorpay plan_id back to our internal plan key. */
+type PaidTier = "starter" | "pro" | "agency"
+
+/**
+ * Per-currency monthly Plan IDs. Razorpay recurring subscriptions charge in the
+ * currency of their Plan object, so international users pay in their own currency
+ * by subscribing to the matching-currency plan. Created via
+ * scripts/create-razorpay-currency-plans.mjs.
+ */
+type BillingCycle = "monthly" | "yearly"
+type CyclePlanIds = { monthly: string; yearly: string }
+
+export const RAZORPAY_PLAN_IDS_BY_CURRENCY: Record<string, Record<PaidTier, CyclePlanIds>> = {
+    INR: {
+        starter: { monthly: "plan_SeqvSGEJYtblYF", yearly: "plan_T9X5GIMe6R3Jhk" },
+        pro: { monthly: "plan_SeqvmVPu1FVuRx", yearly: "plan_T9X5GlpHxPCuuQ" },
+        agency: { monthly: "plan_SeqvmqZpMvvQYS", yearly: "plan_T9X5H16prTUdjc" },
+    },
+    USD: {
+        starter: { monthly: "plan_T9WnghL55l3N58", yearly: "plan_T9X5HFYfgjEuF6" },
+        pro: { monthly: "plan_T9Wnh6zWqrVP1U", yearly: "plan_T9X5HYFnrbGOAI" },
+        agency: { monthly: "plan_T9WnhM2k72RCiU", yearly: "plan_T9X5HpVbKBi3Ym" },
+    },
+    EUR: {
+        starter: { monthly: "plan_T9WnhZnEPhBbGE", yearly: "plan_T9X5I5eZYmiVNh" },
+        pro: { monthly: "plan_T9WnhoiztShqYV", yearly: "plan_T9X5IMqoIuN4Pm" },
+        agency: { monthly: "plan_T9Wni2V9pP8OIQ", yearly: "plan_T9X5IgQxj6UcEX" },
+    },
+    GBP: {
+        starter: { monthly: "plan_T9WniHxSUu4fF9", yearly: "plan_T9X5Iw0h7XAXwk" },
+        pro: { monthly: "plan_T9WniWhUTPyloG", yearly: "plan_T9X5J9MJLuAIne" },
+        agency: { monthly: "plan_T9WnilPGFZZ3uF", yearly: "plan_T9X5JO5DyhfYyF" },
+    },
+    SGD: {
+        starter: { monthly: "plan_T9Wnj0MiaeYm0T", yearly: "plan_T9X5Jbo6oSBSMs" },
+        pro: { monthly: "plan_T9WnjHK2UN8BRY", yearly: "plan_T9X5JrnJNnOA1v" },
+        agency: { monthly: "plan_T9WnjVUncj8TZk", yearly: "plan_T9X5K8BZoP1aP8" },
+    },
+    AED: {
+        starter: { monthly: "plan_T9WnlB0tzk7fWn", yearly: "plan_T9X5LqO7O6hXuq" },
+        pro: { monthly: "plan_T9WnlYCbcd4eGx", yearly: "plan_T9X5M6F0vpbmwn" },
+        agency: { monthly: "plan_T9WnlsADM2mL9O", yearly: "plan_T9X5MmcEbx6vSM" },
+    },
+    CAD: {
+        starter: { monthly: "plan_T9WnjjzJCIJ37t", yearly: "plan_T9X5KOGVRMW1y3" },
+        pro: { monthly: "plan_T9Wnjyuqbvhgyk", yearly: "plan_T9X5KeN5fOHl9c" },
+        agency: { monthly: "plan_T9WnkDJKbOyRL8", yearly: "plan_T9X5KvmGLSwfr7" },
+    },
+    AUD: {
+        starter: { monthly: "plan_T9WnkSBBSrUJZR", yearly: "plan_T9X5L9UoSFWUab" },
+        pro: { monthly: "plan_T9WnkgkCE38Mt5", yearly: "plan_T9X5LMiWC57ex0" },
+        agency: { monthly: "plan_T9WnkuE4mnAeBy", yearly: "plan_T9X5LbSBPp7JF4" },
+    },
+}
+
+/**
+ * Plan prices per currency+cycle in the currency's smallest unit (paise/cents).
+ * Monthly = one month's charge. Yearly = the full annual charge (20% off × 12).
+ * Used for record-keeping so records match the real charge.
+ */
+export const PLAN_PRICES_BY_CURRENCY: Record<string, Record<PaidTier, { monthly: number; yearly: number }>> = {
+    INR: { starter: { monthly: 99900, yearly: 958800 }, pro: { monthly: 249900, yearly: 2398800 }, agency: { monthly: 599900, yearly: 5758800 } },
+    USD: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
+    EUR: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
+    GBP: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
+    SGD: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
+    AED: { starter: { monthly: 5500, yearly: 52800 }, pro: { monthly: 13000, yearly: 124800 }, agency: { monthly: 30000, yearly: 288000 } },
+    CAD: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
+    AUD: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 8000, yearly: 76800 } },
+}
+
+/** Currencies we can actually charge for recurring subscriptions. */
+export const SUPPORTED_SUBSCRIPTION_CURRENCIES = Object.keys(RAZORPAY_PLAN_IDS_BY_CURRENCY)
+
+/**
+ * Resolve the chargeable currency for a country code.
+ *
+ * Uses the SAME source as the displayed price (lib/pricing getBillablePricing),
+ * so what the user sees is exactly what they're charged. A country is billed in
+ * its own currency only when that currency has real per-currency plans; otherwise
+ * it falls back to USD. Unknown/missing country also falls back to USD.
+ *
+ * SECURITY: the caller must pass a SERVER-derived country (e.g. Cloudflare
+ * cf-ipcountry), never a client-supplied value, to prevent currency spoofing.
+ */
+export function resolveSubscriptionCurrency(countryCode?: string | null): string {
+    const cc = (countryCode || "").toUpperCase()
+    const currency = getBillablePricing(cc).currency
+    return SUPPORTED_SUBSCRIPTION_CURRENCIES.includes(currency) ? currency : "USD"
+}
+
+/** Get the Razorpay plan_id for a paid tier + currency + billing cycle. */
+export function getPlanIdForCurrency(plan: PaidTier, currency: string, cycle: BillingCycle = "monthly"): string | null {
+    const byCur = RAZORPAY_PLAN_IDS_BY_CURRENCY[currency?.toUpperCase()] ?? RAZORPAY_PLAN_IDS_BY_CURRENCY.INR
+    return byCur[plan]?.[cycle] ?? null
+}
+
+/** Reverse-map a Razorpay plan_id back to our internal plan key (any currency/cycle). */
 export function planIdToPlan(razorpayPlanId: string): PlanId | null {
-    for (const [plan, ids] of Object.entries(RAZORPAY_PLAN_IDS)) {
-        if (ids.monthly === razorpayPlanId) return plan as PlanId
+    for (const tiers of Object.values(RAZORPAY_PLAN_IDS_BY_CURRENCY)) {
+        for (const [plan, ids] of Object.entries(tiers)) {
+            if (ids.monthly === razorpayPlanId || ids.yearly === razorpayPlanId) return plan as PlanId
+        }
+    }
+    return null
+}
+
+/** Reverse-map a Razorpay plan_id back to its currency. */
+export function planIdToCurrency(razorpayPlanId: string): string | null {
+    for (const [currency, tiers] of Object.entries(RAZORPAY_PLAN_IDS_BY_CURRENCY)) {
+        for (const ids of Object.values(tiers)) {
+            if (ids.monthly === razorpayPlanId || ids.yearly === razorpayPlanId) return currency
+        }
+    }
+    return null
+}
+
+/** Reverse-map a Razorpay plan_id back to its billing cycle. */
+export function planIdToCycle(razorpayPlanId: string): BillingCycle | null {
+    for (const tiers of Object.values(RAZORPAY_PLAN_IDS_BY_CURRENCY)) {
+        for (const ids of Object.values(tiers)) {
+            if (ids.monthly === razorpayPlanId) return "monthly"
+            if (ids.yearly === razorpayPlanId) return "yearly"
+        }
     }
     return null
 }
@@ -109,7 +231,8 @@ export function isValidPlanId(plan: unknown): plan is PlanId {
 export async function createRazorpaySubscription(
     plan: PlanId,
     billingCycle: "monthly" | "yearly" = "monthly",
-    userId?: string
+    userId?: string,
+    currency: string = "INR"
 ) {
     const { getSecret } = await import("@/lib/secrets")
     const keyId = await getSecret("RAZORPAY_KEY_ID")
@@ -119,12 +242,21 @@ export async function createRazorpaySubscription(
         throw new Error("Razorpay API keys not configured")
     }
 
-    if (plan === "free" || !RAZORPAY_PLAN_IDS[plan as keyof typeof RAZORPAY_PLAN_IDS]) {
+    if (plan === "free") {
         throw new Error("Invalid plan for subscription")
     }
 
-    const planIds = RAZORPAY_PLAN_IDS[plan as keyof typeof RAZORPAY_PLAN_IDS]
-    const razorpayPlanId = planIds.monthly // Currently only monthly plans
+    // Pick the plan_id for the requested currency + cycle (falls back to INR if
+    // the currency has no plan). This is what makes the customer pay in their own
+    // currency — the subscription charges in the currency of its plan. Yearly
+    // plans charge the full annual amount (20% off) once per year.
+    const razorpayPlanId = getPlanIdForCurrency(plan as PaidTier, currency, billingCycle)
+    if (!razorpayPlanId) {
+        throw new Error("Invalid plan for subscription")
+    }
+    const resolvedCurrency = RAZORPAY_PLAN_IDS_BY_CURRENCY[currency?.toUpperCase()] ? currency.toUpperCase() : "INR"
+    // total_count = number of billing cycles: ~10 years either way.
+    const totalCount = billingCycle === "yearly" ? 10 : 120
 
     const response = await fetch("https://api.razorpay.com/v1/subscriptions", {
         method: "POST",
@@ -134,11 +266,12 @@ export async function createRazorpaySubscription(
         },
         body: JSON.stringify({
             plan_id: razorpayPlanId,
-            total_count: 120, // Max 10 years of monthly billing
+            total_count: totalCount,
             quantity: 1,
             notes: {
                 plan,
                 billing_cycle: billingCycle,
+                currency: resolvedCurrency,
                 platform: "clorefy",
                 // user_id lets the webhook map a subscription event back to a user
                 // (safety net if the synchronous verify call is missed).
