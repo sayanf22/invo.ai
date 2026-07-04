@@ -242,9 +242,12 @@ export default function SignupPage() {
                         </Button>
                     </form>
 
-                    {/* Terms */}
-                    <p className="text-center text-xs text-muted-foreground">
-                        By signing up, you agree to our{" "}
+                    {/* Terms & DPDP consent notice — clickwrap. Creating an account
+                        (via email or Google) is the clear affirmative action that
+                        constitutes consent under India's DPDP Act, 2023. */}
+                    <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                        By creating an account, you confirm you are at least 18 years old and
+                        agree to our{" "}
                         <Link href="/terms" className="underline hover:text-foreground">
                             Terms of Service
                         </Link>{" "}
@@ -252,6 +255,10 @@ export default function SignupPage() {
                         <Link href="/privacy" className="underline hover:text-foreground">
                             Privacy Policy
                         </Link>
+                        . You consent to the collection and processing of your personal data
+                        as described in the Privacy Policy, in accordance with India&apos;s
+                        Digital Personal Data Protection Act, 2023. You may withdraw consent at
+                        any time from your account settings.
                     </p>
 
                     {/* Login link */}

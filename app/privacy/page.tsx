@@ -4,7 +4,7 @@ export const metadata = { title: "Privacy Policy" }
 
 export default function PrivacyPage() {
     return (
-        <LegalPageLayout title="Privacy Policy" lastUpdated="April 10, 2026">
+        <LegalPageLayout title="Privacy Policy" lastUpdated="July 5, 2026">
             <h2>1. Introduction</h2>
             <p>Clorefy (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI-powered document generation platform at <a href="https://clorefy.com">clorefy.com</a>.</p>
 
@@ -56,13 +56,15 @@ export default function PrivacyPage() {
             <h2>6. Your Rights</h2>
             <p>You have the right to:</p>
             <ul>
-                <li><strong>Access:</strong> Request a copy of your personal data</li>
-                <li><strong>Correction:</strong> Update or correct inaccurate information via your profile settings</li>
-                <li><strong>Deletion:</strong> Request deletion of your account and associated data</li>
+                <li><strong>Access:</strong> Request a summary and copy of the personal data we hold about you</li>
+                <li><strong>Correction:</strong> Update or correct inaccurate or incomplete information via your profile settings</li>
+                <li><strong>Deletion:</strong> Request deletion of your account and associated data (right to erasure)</li>
                 <li><strong>Export:</strong> Download your documents in PDF, DOCX, or image format</li>
-                <li><strong>Withdraw Consent:</strong> Opt out of non-essential data processing</li>
+                <li><strong>Withdraw Consent:</strong> Withdraw your consent to data processing at any time — this is as easy as giving it (see Section 12)</li>
+                <li><strong>Grievance Redressal:</strong> Raise a complaint about how your data is handled and receive a timely response</li>
+                <li><strong>Nomination:</strong> Nominate another individual to exercise your rights in the event of death or incapacity</li>
             </ul>
-            <p>To exercise these rights, contact us at <a href="mailto:info@clorefy.com">info@clorefy.com</a>.</p>
+            <p>To exercise these rights, contact us at <a href="mailto:info@clorefy.com">info@clorefy.com</a>. We respond to verified requests within the timelines required by applicable law.</p>
 
             <h2>7. Cookies</h2>
             <p>We use essential cookies for authentication and session management. These are necessary for the Service to function and cannot be disabled. We do not use third-party tracking or advertising cookies.</p>
@@ -79,7 +81,25 @@ export default function PrivacyPage() {
             <h2>11. Changes to This Policy</h2>
             <p>We may update this Privacy Policy periodically. We will notify you of material changes via email or through the Service.</p>
 
-            <h2>12. Contact</h2>
+            <h2>12. India — Digital Personal Data Protection Act, 2023 (DPDP)</h2>
+            <p>If you are located in India, the following applies to our processing of your personal data. For the purposes of the DPDP Act, 2023, Clorefy acts as the <strong>Data Fiduciary</strong> and you are the <strong>Data Principal</strong>.</p>
+            <h3>12.1 Notice &amp; Purpose</h3>
+            <p>We collect the personal data listed in Section 2 (such as your name, email, business profile, document content, and usage/device data) for the specific purposes described in Section 3 (providing the Service, generating documents, processing payments, communication, security, and legal compliance). We only process data for these stated, lawful purposes.</p>
+            <h3>12.2 Consent &amp; Legal Basis</h3>
+            <p>We process your personal data based on the consent you provide when you create an account and use the Service, and, where applicable, for &quot;legitimate uses&quot; permitted under the Act (such as fulfilling a service you requested or meeting a legal obligation). Your consent is free, specific, informed, unconditional, and unambiguous, given through a clear affirmative action at sign-up.</p>
+            <h3>12.3 Withdrawing Consent</h3>
+            <p>You may withdraw your consent at any time — it is as easy as giving it — by deleting your account from your account settings or by contacting our Grievance Officer below. Withdrawing consent does not affect the lawfulness of processing carried out before withdrawal. Once consent is withdrawn, we will stop processing your personal data and delete it within the timelines described in Section 8, unless retention is required by law.</p>
+            <h3>12.4 Grievance Officer</h3>
+            <p>If you have concerns about how your personal data is handled, you may contact our Grievance Officer:</p>
+            <ul>
+                <li><strong>Grievance Officer, Clorefy</strong></li>
+                <li>Email: <a href="mailto:info@clorefy.com">info@clorefy.com</a></li>
+            </ul>
+            <p>We will acknowledge and respond to your grievance within the period prescribed under the DPDP Act and its Rules.</p>
+            <h3>12.5 Complaint to the Data Protection Board of India</h3>
+            <p>If your grievance is not resolved to your satisfaction, you have the right to lodge a complaint with the <strong>Data Protection Board of India</strong>, the authority established under the DPDP Act, 2023.</p>
+
+            <h2>13. Contact</h2>
             <p>For privacy-related inquiries, contact us at <a href="mailto:info@clorefy.com">info@clorefy.com</a> or visit our <a href="/contact">Contact page</a>.</p>
         </LegalPageLayout>
     )

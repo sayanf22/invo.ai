@@ -4,7 +4,7 @@ export const metadata = { title: "Terms & Conditions" }
 
 export default function TermsPage() {
     return (
-        <LegalPageLayout title="Terms & Conditions" lastUpdated="April 10, 2026">
+        <LegalPageLayout title="Terms & Conditions" lastUpdated="July 5, 2026">
             <h2>1. Introduction</h2>
             <p>Welcome to Clorefy (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;). Clorefy is an AI-powered document generation platform accessible at <a href="https://clorefy.com">clorefy.com</a> that enables users to create business documents — including invoices, contracts, quotes, proposals, and other supported document types — through conversational AI prompts.</p>
             <p>By accessing or using our website and services, you agree to be bound by these Terms and Conditions. If you do not agree, please do not use our services.</p>
@@ -41,7 +41,7 @@ export default function TermsPage() {
             <p><strong>Clorefy does not provide legal, tax, or financial advice.</strong> The Service is a document generation tool, not a substitute for professional counsel. Clorefy, its officers, employees, and affiliates shall not be held liable for any errors, omissions, inaccuracies, or consequences arising from the use of AI-generated content. All documents require manual human intervention and review before being used for any legal, financial, contractual, or business purpose.</p>
 
             <h2>5. Account Registration</h2>
-            <p>To use the Service, you must create an account by providing accurate and complete information. You are responsible for maintaining the confidentiality of your account credentials and for all activities under your account.</p>
+            <p>To use the Service, you must be at least 18 years of age and create an account by providing accurate and complete information. You are responsible for maintaining the confidentiality of your account credentials and for all activities under your account. By creating an account, you provide your consent, as a clear affirmative action, to our collection and processing of your personal data as described in our <a href="/privacy">Privacy Policy</a>.</p>
 
             <h2>6. Subscription Plans and Billing</h2>
             <p>Clorefy offers a Free tier and paid subscription tiers (currently Starter, Pro, and Agency). Each tier provides different monthly document allowances, messaging limits, available document types, and features.</p>
@@ -73,7 +73,7 @@ export default function TermsPage() {
             </ul>
 
             <h2>10. Data Privacy</h2>
-            <p>Your use of the Service is also governed by our <a href="/privacy">Privacy Policy</a>. We collect and process personal data as described therein.</p>
+            <p>Your use of the Service is also governed by our <a href="/privacy">Privacy Policy</a>. We collect and process personal data as described therein. For users in India, we process personal data in accordance with the Digital Personal Data Protection Act, 2023, including your rights to access, correction, erasure, grievance redressal, and withdrawal of consent. Details, including how to contact our Grievance Officer and the Data Protection Board of India, are set out in the Privacy Policy.</p>
 
             <h2>11. Limitation of Liability</h2>
             <p>To the maximum extent permitted by law, Clorefy shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Service, including but not limited to damages arising from AI-generated content errors, service interruptions, or data loss.</p>
