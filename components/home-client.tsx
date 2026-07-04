@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Suspense } from "react"
-import { AppShell, StartScreenSkeleton } from "@/components/app-shell"
+import { AppShell, HomeScreenSkeleton } from "@/components/app-shell"
 import { useAuth } from "@/components/auth-provider"
 
-// Content-shaped skeleton (same one AppShell uses while detecting doc type)
-// instead of a bare spinner — this is the very first thing most users see.
-const Spinner = () => <StartScreenSkeleton route={null} />
+// Real static home screen (not a fake chat mockup) instead of a bare spinner
+// — this is the very first thing most users see on login/reload.
+const Spinner = () => <HomeScreenSkeleton />
 
 /**
  * Client-side auth routing for authenticated users.
