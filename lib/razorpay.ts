@@ -286,8 +286,10 @@ export function planIdToAmount(razorpayPlanId: string): number | null {
     const currency = planIdToCurrency(razorpayPlanId)
     const plan = planIdToPlan(razorpayPlanId)
     const cycle = planIdToCycle(razorpayPlanId)
-    if (!currency || !plan || !cycle) return null
-    return PLAN_PRICES_BY_CURRENCY[currency]?.[plan]?.[cycle] ?? null
+    // A subscription plan_id can only ever map to a PAID tier (never "free" —
+    // there is no Razorpay plan for the free tier), so this narrowing is safe.
+    if (!currency || !plan || plan === "free" || !cycle) return null
+    return PLAN_PRICES_BY_CURRENCY[currency]?.[plan as PaidTier]?.[cycle] ?? null
 }
 
 /**
