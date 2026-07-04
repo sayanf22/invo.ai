@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
-import { verifyPaymentSignature, PLANS, isValidPlanId } from "@/lib/razorpay"
+import { verifyPaymentSignature, PLANS, isValidPlanId, getSubscription, planIdToPlan, type PlanId } from "@/lib/razorpay"
 import { logAudit } from "@/lib/audit-log"
 import { createClient } from "@supabase/supabase-js"
 import type { NextRequest } from "next/server"
@@ -70,14 +70,66 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Payment verification failed" }, { status: 400 })
         }
 
-        const planConfig = PLANS[plan]
-        const amount = billingCycle === "yearly"
+        // SECURITY: Never trust the client-supplied `plan`/`billingCycle`.
+        // The signature only proves the payment + subscription are authentic; it does
+        // NOT bind them to the plan the client claims. Without this, a user could
+        // subscribe to Starter (cheap) and POST plan="agency" with a genuine signature
+        // to unlock a higher tier for less money. We derive the real plan from
+        // Razorpay's own subscription record (plan_id was set server-side at creation).
+        let effectivePlan: PlanId = plan
+        let effectiveCycle: string = billingCycle || "monthly"
+
+        if (isSubscription) {
+            let authoritative: { plan: PlanId | null; cycle: string | null } | null = null
+            try {
+                const sub = await getSubscription(razorpay_subscription_id)
+                if (sub) {
+                    authoritative = {
+                        plan: planIdToPlan(sub.plan_id),
+                        cycle: sub.notes?.billing_cycle === "yearly" ? "yearly" : "monthly",
+                    }
+                }
+            } catch (e) {
+                console.error("verify: failed to fetch subscription from Razorpay", e)
+            }
+
+            if (!authoritative || !authoritative.plan) {
+                // Could not confirm the real plan with Razorpay. Do NOT grant access
+                // from client input. The webhook (which uses server-set notes) is the
+                // reliable backstop and will activate the correct plan shortly.
+                await logAudit(auth.supabase, {
+                    user_id: auth.user.id,
+                    action: "payment.verify_pending",
+                    metadata: { razorpay_subscription_id, razorpay_payment_id, reason: "plan_not_confirmed" } as any,
+                }, request).catch(() => {})
+                return NextResponse.json({
+                    success: true,
+                    pending: true,
+                    message: "Payment received. Your plan is being activated.",
+                })
+            }
+
+            // If the client lied about the plan, log it as a security event.
+            if (authoritative.plan !== plan) {
+                await logAudit(auth.supabase, {
+                    user_id: auth.user.id,
+                    action: "security.plan_mismatch",
+                    metadata: { claimed_plan: plan, actual_plan: authoritative.plan, razorpay_subscription_id, razorpay_payment_id } as any,
+                }, request).catch(() => {})
+            }
+
+            effectivePlan = authoritative.plan
+            effectiveCycle = authoritative.cycle || "monthly"
+        }
+
+        const planConfig = PLANS[effectivePlan]
+        const amount = effectiveCycle === "yearly"
             ? planConfig.yearlyPrice * 12
             : planConfig.monthlyPrice
 
         const now = new Date()
         const periodEnd = new Date(now)
-        if (billingCycle === "yearly") {
+        if (effectiveCycle === "yearly") {
             periodEnd.setFullYear(periodEnd.getFullYear() + 1)
         } else {
             periodEnd.setMonth(periodEnd.getMonth() + 1)
@@ -88,8 +140,8 @@ export async function POST(request: NextRequest) {
             .from("subscriptions" as any)
             .upsert({
                 user_id: auth.user.id,
-                plan: plan as string,
-                billing_cycle: billingCycle || "monthly",
+                plan: effectivePlan as string,
+                billing_cycle: effectiveCycle || "monthly",
                 status: "active",
                 razorpay_payment_id,
                 razorpay_order_id: razorpay_order_id || null,
@@ -126,32 +178,32 @@ export async function POST(request: NextRequest) {
             amount,
             currency: "INR",
             status: "captured",
-            plan,
-            billing_cycle: billingCycle || "monthly",
+            plan: effectivePlan,
+            billing_cycle: effectiveCycle || "monthly",
         })
 
         // Audit log
         await logAudit(auth.supabase, {
             user_id: auth.user.id,
             action: "payment.verify",
-            metadata: { verifyId, razorpay_payment_id, plan, billing_cycle: billingCycle, amount, status: "success" } as any,
+            metadata: { verifyId, razorpay_payment_id, plan: effectivePlan, billing_cycle: effectiveCycle, amount, status: "success" } as any,
         }, request).catch(() => {})
 
         // Notification
         const { createNotification, PLAN_NAMES } = await import("@/lib/notifications")
-        const planLabel = PLAN_NAMES[plan] || plan
+        const planLabel = PLAN_NAMES[effectivePlan] || effectivePlan
         await createNotification(auth.supabase, {
             user_id: auth.user.id,
             type: "subscription_activated",
             title: `${planLabel} Plan Activated 🎉`,
             message: `Your ${planLabel} plan is now active with automatic monthly billing.`,
-            metadata: { plan, billingCycle, amount, razorpay_payment_id },
+            metadata: { plan: effectivePlan, billingCycle: effectiveCycle, amount, razorpay_payment_id },
         }).catch(() => {})
 
         return NextResponse.json({
             success: true,
-            plan,
-            billingCycle: billingCycle || "monthly",
+            plan: effectivePlan,
+            billingCycle: effectiveCycle || "monthly",
             periodEnd: periodEnd.toISOString(),
         })
     } catch (error) {
