@@ -79,9 +79,12 @@ export async function POST(request: NextRequest) {
         let effectivePlan: PlanId = plan
         let effectiveCycle: string = billingCycle || "monthly"
         let effectiveCurrency = "INR"
+        // The authoritative Razorpay plan_id (set server-side at creation). Used to
+        // record the ACTUAL charged amount (incl. grandfathered legacy prices).
+        let effectivePlanId: string | null = null
 
         if (isSubscription) {
-            let authoritative: { plan: PlanId | null; cycle: string | null; currency: string } | null = null
+            let authoritative: { plan: PlanId | null; cycle: string | null; currency: string; planId: string | null } | null = null
             try {
                 const sub = await getSubscription(razorpay_subscription_id)
                 if (sub) {
@@ -92,6 +95,7 @@ export async function POST(request: NextRequest) {
                         plan: planIdToPlan(sub.plan_id),
                         cycle: cycleFromPlan || (sub.notes?.billing_cycle === "yearly" ? "yearly" : "monthly"),
                         currency: planIdToCurrency(sub.plan_id) || "INR",
+                        planId: sub.plan_id || null,
                     }
                 }
             } catch (e) {
@@ -126,6 +130,7 @@ export async function POST(request: NextRequest) {
             effectivePlan = authoritative.plan
             effectiveCycle = authoritative.cycle || "monthly"
             effectiveCurrency = authoritative.currency || "INR"
+            effectivePlanId = authoritative.planId
         }
 
         // Amount stored for records = the ACTUAL charged amount for this
@@ -134,7 +139,7 @@ export async function POST(request: NextRequest) {
         // recorded, not today's (possibly different) current price.
         const paidTier = effectivePlan as "starter" | "pro" | "agency"
         const cycleKey = effectiveCycle === "yearly" ? "yearly" : "monthly"
-        const amount = (isSubscription ? planIdToAmount(razorpay_subscription_id) : null)
+        const amount = (effectivePlanId ? planIdToAmount(effectivePlanId) : null)
             ?? PLAN_PRICES_BY_CURRENCY[effectiveCurrency]?.[paidTier]?.[cycleKey]
             ?? PLAN_PRICES_BY_CURRENCY.INR[paidTier][cycleKey]
             ?? PLANS[effectivePlan].monthlyPrice
@@ -147,8 +152,19 @@ export async function POST(request: NextRequest) {
             periodEnd.setMonth(periodEnd.getMonth() + 1)
         }
 
-        // Upsert subscription
-        const { error: subError } = await auth.supabase
+        // Service-role client. Paid subscription activation MUST bypass RLS:
+        // the subscriptions RLS policies (sub_insert_free_only / sub_update_free_only)
+        // only permit plan='free' for authenticated users, so a paid upsert via the
+        // RLS-bound client silently fails with a policy violation. The webhook uses
+        // service_role for the same reason — verify must match.
+        const svc = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { persistSession: false, autoRefreshToken: false } }
+        )
+
+        // Upsert subscription (service role — bypasses free-only RLS)
+        const { error: subError } = await svc
             .from("subscriptions" as any)
             .upsert({
                 user_id: auth.user.id,
@@ -171,28 +187,32 @@ export async function POST(request: NextRequest) {
         }
 
         // Mark plan as selected in profile (protected column — service role only)
-        const svc = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            { auth: { persistSession: false, autoRefreshToken: false } }
-        )
         await svc
             .from("profiles")
             .update({ plan_selected: true } as any)
             .eq("id", auth.user.id)
 
-        // Log payment
-        await auth.supabase.from("payment_history" as any).insert({
-            user_id: auth.user.id,
-            razorpay_payment_id,
-            razorpay_order_id: razorpay_order_id || null,
-            razorpay_signature,
-            amount,
-            currency: effectiveCurrency,
-            status: "captured",
-            plan: effectivePlan,
-            billing_cycle: effectiveCycle || "monthly",
-        })
+        // Log payment (service role — RLS on payment_history is read-own/insert-restricted).
+        // Idempotent guard: skip if this payment was already recorded (e.g. by webhook).
+        const { data: existingPayment } = await svc
+            .from("payment_history" as any)
+            .select("id")
+            .eq("razorpay_payment_id", razorpay_payment_id)
+            .maybeSingle()
+
+        if (!existingPayment) {
+            await svc.from("payment_history" as any).insert({
+                user_id: auth.user.id,
+                razorpay_payment_id,
+                razorpay_order_id: razorpay_order_id || null,
+                razorpay_signature,
+                amount,
+                currency: effectiveCurrency,
+                status: "captured",
+                plan: effectivePlan,
+                billing_cycle: effectiveCycle || "monthly",
+            })
+        }
 
         // Audit log
         await logAudit(auth.supabase, {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { authenticateRequest } from "@/lib/api-auth"
+import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
 import { PLANS, type PlanId, cancelRazorpaySubscription } from "@/lib/razorpay"
 import { createClient } from "@supabase/supabase-js"
 
@@ -16,6 +16,9 @@ import { createClient } from "@supabase/supabase-js"
  * SECURITY: Server-side only, validates plan hierarchy.
  */
 export async function POST(request: Request) {
+    const originError = validateOrigin(request as any)
+    if (originError) return originError
+
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
@@ -27,7 +30,18 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Invalid target plan" }, { status: 400 })
         }
 
-        // Get current subscription
+        // Service-role client. Subscription writes MUST bypass RLS: the
+        // sub_update_free_only policy's WITH CHECK requires the resulting row to
+        // have plan='free', so ANY update to a paid row (plan stays 'pro'/'starter'/
+        // 'agency' until period end) via the authenticated client is rejected. This
+        // is why scheduling a downgrade/cancel silently failed for paid users.
+        const svc = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { persistSession: false, autoRefreshToken: false } }
+        )
+
+        // Get current subscription (SELECT via RLS-bound client — read-own is allowed)
         const { data: sub } = await auth.supabase
             .from("subscriptions" as any)
             .select("*")
@@ -48,8 +62,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "This is not a downgrade" }, { status: 400 })
         }
 
-        // Schedule the downgrade — takes effect at end of current period
-        const { error } = await auth.supabase
+        // Schedule the downgrade — takes effect at end of current period.
+        // Service role: the row still has a paid plan, which the free-only RLS
+        // UPDATE policy would otherwise reject.
+        const { error } = await svc
             .from("subscriptions" as any)
             .update({
                 scheduled_downgrade: targetPlan,
@@ -76,7 +92,8 @@ export async function POST(request: Request) {
             }
 
             // 2. Mark the subscription cancelled locally (keeps access until period end).
-            await auth.supabase
+            //    Service role — same free-only RLS reason as above.
+            await svc
                 .from("subscriptions" as any)
                 .update({ cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
                 .eq("user_id", auth.user.id)
@@ -85,11 +102,6 @@ export async function POST(request: Request) {
             //    pending scheduled email reminders. Uses the service-role client so
             //    RLS on these tables can't block the cleanup.
             try {
-                const svc = createClient(
-                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-                    { auth: { persistSession: false, autoRefreshToken: false } }
-                )
                 await (svc as any)
                     .from("recurring_invoices")
                     .update({ is_active: false, updated_at: new Date().toISOString() })

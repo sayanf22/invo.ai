@@ -11,7 +11,7 @@ import { authFetch } from "@/lib/auth-fetch"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { PageLoader } from "@/components/ui/page-loader"
 import { toast } from "sonner"
-import { COUNTRY_PRICING, detectCountryFromTimezone, detectCountryFromIP, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
+import { getBillablePricing, detectCountryFromTimezone, detectCountryFromIP, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import Link from "next/link"
@@ -78,7 +78,7 @@ export default function BillingPage() {
     const [loading, setLoading] = useState(true)
     const [downgradeTarget, setDowngradeTarget] = useState<string | null>(null)
     const [isDowngrading, setIsDowngrading] = useState(false)
-    const [countryPricing, setCountryPricing] = useState<CountryPricing>(COUNTRY_PRICING[DEFAULT_COUNTRY])
+    const [countryPricing, setCountryPricing] = useState<CountryPricing>(getBillablePricing(DEFAULT_COUNTRY))
     const [payments, setPayments] = useState<PaymentRecord[]>([])
     const [downloadingReceiptId, setDownloadingReceiptId] = useState<string | null>(null)
 
@@ -175,13 +175,16 @@ export default function BillingPage() {
             }
         })
         fetchPayments()
-        // Step 1: instant timezone detection
+        // Step 1: instant timezone detection.
+        // getBillablePricing() ensures the DISPLAYED currency/price is exactly what
+        // will be CHARGED — countries without a billable currency fall back to USD
+        // (matches server-side resolveSubscriptionCurrency), and yearly is 20% off.
         const tzCountry = detectCountryFromTimezone()
-        setCountryPricing(COUNTRY_PRICING[tzCountry] || COUNTRY_PRICING[DEFAULT_COUNTRY])
+        setCountryPricing(getBillablePricing(tzCountry))
         // Step 2: refine with IP detection (Cloudflare header, more accurate)
         detectCountryFromIP().then((ipCountry) => {
-            if (ipCountry && COUNTRY_PRICING[ipCountry]) {
-                setCountryPricing(COUNTRY_PRICING[ipCountry])
+            if (ipCountry) {
+                setCountryPricing(getBillablePricing(ipCountry))
             }
         })
     }, [user, router, fetchUsage, fetchPayments, autoReconcile])

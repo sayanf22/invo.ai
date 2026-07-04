@@ -46,14 +46,6 @@ export const PLANS = {
     },
 } as const
 
-// Razorpay Plan IDs (created via API — these are live plans).
-// Legacy INR-only map kept for backward compatibility.
-export const RAZORPAY_PLAN_IDS = {
-    starter: { monthly: "plan_SeqvSGEJYtblYF" },
-    pro: { monthly: "plan_SeqvmVPu1FVuRx" },
-    agency: { monthly: "plan_SeqvmqZpMvvQYS" },
-} as const
-
 type PaidTier = "starter" | "pro" | "agency"
 
 /**

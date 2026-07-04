@@ -1,8 +1,12 @@
 /**
  * Multi-currency pricing for the major supported markets.
- * Prices are set manually per country to look natural (e.g., ₹999, $9.99, €8.99).
- * Razorpay always charges in INR — the displayed price is for UX only.
- * The actual charge amount is the INR price.
+ * Prices are set manually per country to look natural (e.g., ₹649, $15, €15).
+ *
+ * Currencies listed in RAZORPAY_BILLABLE_CURRENCIES have real per-currency
+ * Razorpay plans, so users in those countries are BOTH shown and charged in
+ * their own currency (display === charge). Every other country is shown and
+ * charged in USD (getBillablePricing falls back to the US entry), so the
+ * displayed price always matches the actual charge.
  */
 
 export interface CountryPricing {
@@ -17,8 +21,9 @@ export interface CountryPricing {
 }
 
 // ─── Prices by country ────────────────────────────────────────────────────────
-// Designed to look natural in each currency.
-// Razorpay charges in INR — these are display prices for UX only.
+// Designed to look natural in each currency. Countries whose currency is in
+// RAZORPAY_BILLABLE_CURRENCIES are charged in that currency; the rest fall back
+// to USD at checkout (see getBillablePricing / getBillingCountryCode).
 
 export const COUNTRY_PRICING: Record<string, CountryPricing> = {
     IN: {
@@ -208,7 +213,7 @@ export const DEFAULT_COUNTRY = "IN"
 
 // Currencies Razorpay can actually charge for recurring subscriptions.
 // Countries whose currency is NOT here are billed (and displayed) in USD.
-export const RAZORPAY_BILLABLE_CURRENCIES = ["INR", "USD", "EUR", "GBP", "SGD", "AED", "CAD", "AUD"]
+export const RAZORPAY_BILLABLE_CURRENCIES = ["INR", "USD", "EUR", "GBP", "SGD", "AED", "CAD", "AUD", "CHF", "NZD", "HKD", "SEK"]
 
 /**
  * Map a country to the country whose pricing/currency we can actually charge.

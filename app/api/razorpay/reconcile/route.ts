@@ -105,8 +105,18 @@ export async function POST(request: NextRequest) {
                     return d
                 })()
 
+            // Service-role client. Paid activation MUST bypass RLS — the
+            // subscriptions RLS policies only permit plan='free' for the
+            // authenticated (RLS-bound) client, so a paid upsert via auth.supabase
+            // silently fails. Matches the webhook's service_role activation path.
+            const svc = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                { auth: { persistSession: false, autoRefreshToken: false } }
+            )
+
             // ── Activate (upsert) — trigger syncs profiles.tier ──
-            const { error: subError } = await auth.supabase
+            const { error: subError } = await svc
                 .from("subscriptions" as any)
                 .upsert({
                     user_id: auth.user.id,
@@ -127,11 +137,6 @@ export async function POST(request: NextRequest) {
             }
 
             // Mark plan_selected on profile (protected column → service role)
-            const svc = createClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.SUPABASE_SERVICE_ROLE_KEY!,
-                { auth: { persistSession: false, autoRefreshToken: false } }
-            )
             await svc.from("profiles").update({ plan_selected: true } as any).eq("id", auth.user.id)
 
             // Audit + notify (best-effort)

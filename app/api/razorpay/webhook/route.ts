@@ -109,9 +109,21 @@ export async function POST(request: Request) {
                 const VALID_PLANS = ["starter", "pro", "agency"]
                 if (userId && plan && VALID_PLANS.includes(plan)) {
                     const now = new Date()
-                    const periodEnd = new Date(now)
-                    if (billingCycle === "yearly") periodEnd.setFullYear(periodEnd.getFullYear() + 1)
-                    else periodEnd.setMonth(periodEnd.getMonth() + 1)
+                    // Period from Razorpay's authoritative current_start/current_end
+                    // (unix seconds) so the stored period tracks the real billing cycle
+                    // and never drifts across renewals. Fall back to a computed window
+                    // only if Razorpay omits them.
+                    const periodStart = subscription.current_start
+                        ? new Date(subscription.current_start * 1000)
+                        : now
+                    const periodEnd = subscription.current_end
+                        ? new Date(subscription.current_end * 1000)
+                        : (() => {
+                            const d = new Date(now)
+                            if (billingCycle === "yearly") d.setFullYear(d.getFullYear() + 1)
+                            else d.setMonth(d.getMonth() + 1)
+                            return d
+                        })()
 
                     // Amount + currency + cycle derived from the subscription's actual
                     // plan_id so multi-currency (and grandfathered-price) subscriptions
@@ -134,7 +146,7 @@ export async function POST(request: Request) {
                             razorpay_subscription_id: subscription.id,
                             amount_paid: amount,
                             currency,
-                            current_period_start: now.toISOString(),
+                            current_period_start: periodStart.toISOString(),
                             current_period_end: periodEnd.toISOString(),
                             updated_at: now.toISOString(),
                         }, { onConflict: "user_id" })
@@ -148,6 +160,31 @@ export async function POST(request: Request) {
                             .update({ plan_selected: true } as any)
                             .eq("id", userId)
                             .then(() => {})
+
+                        // Record the charge in payment_history so the billing page
+                        // "Payment History" + receipts are populated on every renewal.
+                        // Uses the real payment entity (present on subscription.charged)
+                        // and is idempotent on razorpay_payment_id.
+                        const chargePayment = event.payload?.payment?.entity
+                        if (chargePayment?.id) {
+                            const { data: existingCharge } = await supabase
+                                .from("payment_history" as any)
+                                .select("id")
+                                .eq("razorpay_payment_id", chargePayment.id)
+                                .maybeSingle()
+                            if (!existingCharge) {
+                                await supabase.from("payment_history" as any).insert({
+                                    user_id: userId,
+                                    razorpay_payment_id: chargePayment.id,
+                                    razorpay_order_id: chargePayment.order_id ?? null,
+                                    amount: chargePayment.amount ?? amount,
+                                    currency: chargePayment.currency ?? currency,
+                                    status: "captured",
+                                    plan,
+                                    billing_cycle: billingCycle,
+                                }).then(() => {})
+                            }
+                        }
 
                         // Notify the user (only on first activation, deduped by event_id above)
                         if (eventType === "subscription.activated") {

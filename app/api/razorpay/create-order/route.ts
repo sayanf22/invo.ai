@@ -7,6 +7,7 @@ import {
     resolveSubscriptionCurrency,
     type PlanId,
 } from "@/lib/razorpay"
+import { getSecret } from "@/lib/secrets"
 
 export async function POST(request: Request) {
     const originError = validateOrigin(request)
@@ -39,9 +40,14 @@ export async function POST(request: Request) {
         const amount = (PLAN_PRICES_BY_CURRENCY[currency]?.[tier]?.[cycle])
             ?? PLAN_PRICES_BY_CURRENCY.INR[tier][cycle]
 
+        // Use getSecret (checks process.env first, then Cloudflare Worker bindings,
+        // then Vault) so the publishable key is returned even when it was set via
+        // `wrangler secret put` (bindings live on globalThis, not process.env).
+        const keyId = await getSecret("RAZORPAY_KEY_ID")
+
         return NextResponse.json({
             subscriptionId: subscription.id,
-            keyId: process.env.RAZORPAY_KEY_ID,
+            keyId,
             plan,
             billingCycle: cycle,
             planName: PLANS[plan as PlanId].name,
