@@ -283,36 +283,18 @@ export default function RootLayout({
                 "Worldwide country support",
               ],
               "screenshot": "https://clorefy.com/favicon.png",
-              "offers": [
-                {
-                  "@type": "Offer",
-                  "name": "Free Plan",
-                  "price": "0",
-                  "priceCurrency": "USD",
-                  "description": "5 documents per month, Invoice/Contract/Quote, e-signatures, no credit card",
-                },
-                {
-                  "@type": "Offer",
-                  "name": "Starter Plan",
-                  "price": "9",
-                  "priceCurrency": "USD",
-                  "description": "50 documents per month, all 9 document types, recurring invoices",
-                },
-                {
-                  "@type": "Offer",
-                  "name": "Pro Plan",
-                  "price": "24",
-                  "priceCurrency": "USD",
-                  "description": "150 documents per month, auto-invoice on sign, all features",
-                },
-                {
-                  "@type": "Offer",
-                  "name": "Agency Plan",
-                  "price": "59",
-                  "priceCurrency": "USD",
-                  "description": "Unlimited documents, team members, priority support",
-                },
-              ],
+              // Only the Free tier carries a fixed price in structured data. Paid-tier
+              // pricing is localized per region and changes over time, so we do NOT
+              // hardcode numeric prices here (stale/incorrect prices in schema can get
+              // rich results suppressed). Live pricing lives on /pricing.
+              "offers": {
+                "@type": "Offer",
+                "name": "Free Plan",
+                "price": "0",
+                "priceCurrency": "USD",
+                "description": "Free plan: monthly document allowance, Invoice/Contract/Quote, e-signatures, no credit card. Paid plans (Starter, Pro, Agency) are available — see clorefy.com/pricing for current pricing.",
+                "url": "https://clorefy.com/pricing",
+              },
               "creator": {
                 "@id": "https://clorefy.com/#organization",
               },

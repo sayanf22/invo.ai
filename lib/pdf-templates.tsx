@@ -2753,14 +2753,28 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
         ? `Rs. ${amountInRupees.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : `${receiptData.currency} ${amountInRupees.toFixed(2)}`
 
-    const dateDisplay = (() => {
+    const fmtLongDate = (value: string | Date) => {
         try {
-            return new Date(receiptData.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-        } catch { return receiptData.date }
-    })()
+            return new Date(value).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+        } catch { return String(value) }
+    }
+
+    const dateDisplay = fmtLongDate(receiptData.date)
 
     const planLabel = receiptData.plan.charAt(0).toUpperCase() + receiptData.plan.slice(1)
     const cycleLabel = receiptData.billingCycle === "yearly" ? "Annual" : "Monthly"
+
+    // Service/billing period covered by THIS payment, derived from the payment
+    // date + billing cycle (accurate per-payment, independent of current sub state).
+    const periodRange = (() => {
+        try {
+            const start = new Date(receiptData.date)
+            const end = new Date(start)
+            if (receiptData.billingCycle === "yearly") end.setFullYear(end.getFullYear() + 1)
+            else end.setMonth(end.getMonth() + 1)
+            return { start: fmtLongDate(start), end: fmtLongDate(end) }
+        } catch { return null }
+    })()
 
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
     const thinLineTop = { ...bw(1, 0, 0, 0), ...bc(bdr, "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
@@ -2839,6 +2853,16 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                         <Text style={s.metaLabel}>Order ID</Text>
                         <Text style={s.metaValue}>{receiptData.orderId}</Text>
                     </View>
+                    <View style={s.metaRow}>
+                        <Text style={s.metaLabel}>Billing cycle</Text>
+                        <Text style={s.metaValue}>{cycleLabel}</Text>
+                    </View>
+                    {periodRange ? (
+                        <View style={s.metaRow}>
+                            <Text style={s.metaLabel}>Service period</Text>
+                            <Text style={s.metaValue}>{periodRange.start} {"\u2013"} {periodRange.end}</Text>
+                        </View>
+                    ) : null}
                 </View>
 
                 <View style={s.addrRow} wrap={false}>
@@ -2867,8 +2891,8 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                     </View>
                     <View style={s.tableRow} wrap={false}>
                         <View style={s.colDesc}>
-                            <Text style={s.td}>Clorefy {planLabel} Plan â€” {cycleLabel}</Text>
-                            <Text style={s.tdSub}>Subscription Â· {dateDisplay}</Text>
+                            <Text style={s.td}>Clorefy {planLabel} Plan {"\u2014"} {cycleLabel}</Text>
+                            <Text style={s.tdSub}>{periodRange ? `Service period: ${periodRange.start} \u2013 ${periodRange.end}` : `Subscription \u00b7 ${dateDisplay}`}</Text>
                         </View>
                         <View style={s.colAmt}>
                             <Text style={s.tdB}>{amountDisplay}</Text>

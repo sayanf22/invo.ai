@@ -6,7 +6,7 @@ export default function TermsPage() {
     return (
         <LegalPageLayout title="Terms & Conditions" lastUpdated="April 10, 2026">
             <h2>1. Introduction</h2>
-            <p>Welcome to Clorefy (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;). Clorefy is an AI-powered document generation platform accessible at <a href="https://clorefy.com">clorefy.com</a> that enables users to create invoices, contracts, quotations, and proposals through conversational AI prompts.</p>
+            <p>Welcome to Clorefy (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;). Clorefy is an AI-powered document generation platform accessible at <a href="https://clorefy.com">clorefy.com</a> that enables users to create business documents — including invoices, contracts, quotes, proposals, and other supported document types — through conversational AI prompts.</p>
             <p>By accessing or using our website and services, you agree to be bound by these Terms and Conditions. If you do not agree, please do not use our services.</p>
 
             <h2>2. Definitions</h2>
@@ -20,12 +20,13 @@ export default function TermsPage() {
             <h2>3. Service Description</h2>
             <p>Clorefy provides AI-powered document generation for businesses worldwide. Users describe their document needs in natural language, and our AI generates professionally formatted, country-specific compliant documents. The Service includes:</p>
             <ul>
-                <li>AI-powered generation of invoices, contracts, quotations, and proposals</li>
+                <li>AI-powered generation of multiple business document types (such as invoices, contracts, quotes, proposals, statements of work, NDAs, and more)</li>
                 <li>Country-specific tax compliance and formatting</li>
                 <li>Document editing and customization</li>
-                <li>PDF, DOCX, and image export</li>
-                <li>Digital signature workflows</li>
-                <li>9 professional template styles</li>
+                <li>PDF, DOCX, and image export (availability varies by plan)</li>
+                <li>Digital signature and client-response workflows</li>
+                <li>Professional template styles</li>
+                <li>Payment collection links and automated payment reminders</li>
             </ul>
 
             <h2>4. AI-Generated Content Disclaimer</h2>
@@ -43,22 +44,17 @@ export default function TermsPage() {
             <p>To use the Service, you must create an account by providing accurate and complete information. You are responsible for maintaining the confidentiality of your account credentials and for all activities under your account.</p>
 
             <h2>6. Subscription Plans and Billing</h2>
-            <p>Clorefy offers the following subscription tiers:</p>
-            <ul>
-                <li><strong>Free:</strong> 5 documents/month, 10 messages/document, Invoice and Contract types only</li>
-                <li><strong>Starter (₹749/month or ₹599/month billed yearly):</strong> 50 documents/month, 25 messages/document, all document types</li>
-                <li><strong>Pro (₹1,999/month or ₹1,599/month billed yearly):</strong> 150 documents/month, 30 messages/document, all document types, priority support</li>
-                <li><strong>Agency (Coming Soon):</strong> Unlimited documents and messages</li>
-            </ul>
-            <p>Subscriptions are billed in advance on a monthly or yearly basis. All prices are in Indian Rupees (INR) and are inclusive of applicable taxes unless stated otherwise.</p>
+            <p>Clorefy offers a Free tier and paid subscription tiers (currently Starter, Pro, and Agency). Each tier provides different monthly document allowances, messaging limits, available document types, and features.</p>
+            <p>Current plan names, features, pricing, and billing cycles (monthly or yearly) are shown on our <a href="/pricing">Pricing page</a> and in the Billing &amp; Plans section of your account. Pricing is localized to your region and may be updated from time to time; the price displayed at the time of purchase is the price that applies to that billing period.</p>
+            <p>Subscriptions are billed in advance on a monthly or yearly basis. Applicable taxes are applied in accordance with local law and are shown at checkout unless stated otherwise.</p>
 
             <h2>7. Payment Processing</h2>
             <p>All payments are processed securely through Razorpay, a PCI-DSS Level 1 compliant payment gateway regulated by the Reserve Bank of India (RBI). By making a payment, you agree to the following:</p>
             <ul>
                 <li>We do not store, process, or have access to your credit card, debit card, or bank account details. All payment information is handled directly by Razorpay.</li>
                 <li>Payment processing is subject to Razorpay&apos;s <a href="https://razorpay.com/terms/" target="_blank" rel="noopener noreferrer">Terms of Service</a> and <a href="https://razorpay.com/privacy/" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</li>
-                <li>Subscriptions are auto-renewed at the end of each billing cycle unless cancelled before the renewal date.</li>
-                <li>All prices displayed are in Indian Rupees (INR) and are inclusive of applicable GST (18%).</li>
+                <li>Paid subscriptions are auto-renewed at the end of each billing cycle unless cancelled before the renewal date.</li>
+                <li>Prices are localized to your region and any applicable taxes are shown at checkout.</li>
                 <li>Failed payment attempts may result in temporary suspension of premium features until payment is resolved.</li>
             </ul>
             <p>For payment-related queries, contact us at <a href="mailto:support@clorefy.com">support@clorefy.com</a>. For Razorpay-specific issues, contact Razorpay support directly.</p>

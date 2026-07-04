@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { PLANS, type PlanId } from "@/lib/razorpay"
-import { getTierLimits, type UserTier } from "@/lib/cost-protection"
+import { getTierLimits, resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 
 /**
  * GET /api/usage
@@ -25,7 +25,11 @@ export async function GET(request: Request) {
             .eq("user_id", userId)
             .single()
 
-        const plan = ((sub as any)?.plan || "free") as PlanId
+        // EFFECTIVE tier — a cancelled/expired subscription resolves to "free" so the
+        // billing UI (plan name + limits) always matches what the API actually enforces.
+        // The raw stored plan is returned separately as `storedPlan` for reference.
+        const storedPlan = ((sub as any)?.plan || "free") as PlanId
+        const plan = resolveEffectiveTier(sub as any) as PlanId
         const planConfig = PLANS[plan]
 
         // Get usage from user_usage table — documents_count is a cumulative counter
@@ -47,10 +51,26 @@ export async function GET(request: Request) {
         // Get tier limits for message caps
         const tierLimits = getTierLimits(plan as UserTier)
 
+        // Derive a clear display status for the billing UI:
+        //   active   → subscription is live and (if paid) auto-renews at current_period_end
+        //   expired  → paid plan whose period has ended / been cancelled → now on free
+        //   free     → never had a paid plan
+        const rawStatus = (sub as any)?.status ?? "active"
+        const periodEnd = (sub as any)?.current_period_end ?? null
+        const isPaidStored = storedPlan !== "free"
+        const effectivelyDowngraded = isPaidStored && plan === "free"
+        const displayStatus = effectivelyDowngraded
+            ? "expired"
+            : rawStatus
+
         return NextResponse.json({
             plan,
+            storedPlan,
             planName: planConfig.name,
             subscription: sub || null,
+            billingStatus: displayStatus,
+            periodEnd,
+            isExpired: effectivelyDowngraded,
             usage: {
                 documentsUsed,
                 documentsLimit,

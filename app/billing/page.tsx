@@ -42,8 +42,12 @@ const PLAN_LABELS: Record<string, string> = { free: "Free", starter: "Starter", 
 
 interface UsageData {
     plan: string
+    storedPlan?: string
     planName: string
     subscription: any
+    billingStatus?: string
+    periodEnd?: string | null
+    isExpired?: boolean
     usage: {
         documentsUsed: number
         documentsLimit: number
@@ -232,9 +236,19 @@ export default function BillingPage() {
                             </div>
                         </div>
                     </div>
-                    {data?.subscription?.current_period_end && (
+                    {data?.isExpired ? (
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium pt-3 mt-1 border-t border-border/40">
+                            {data?.storedPlan && data.storedPlan !== "free"
+                                ? `Your ${PLAN_LABELS[data.storedPlan] || data.storedPlan} plan ended${data?.periodEnd ? ` on ${new Date(data.periodEnd).toLocaleDateString()}` : ""} — now on Free`
+                                : "Subscription ended — now on Free"}
+                        </p>
+                    ) : data?.plan !== "free" && data?.subscription?.current_period_end && (
                         <p className="text-[11px] text-muted-foreground font-medium pt-3 mt-1 border-t border-border/40">
-                            Renews {new Date(data.subscription.current_period_end).toLocaleDateString()}
+                            {(data?.subscription?.cancelled_at || data?.subscription?.scheduled_downgrade === "free")
+                                ? `Access until ${new Date(data.subscription.current_period_end).toLocaleDateString()}`
+                                : data?.subscription?.scheduled_downgrade
+                                    ? `Changes plan on ${new Date(data.subscription.current_period_end).toLocaleDateString()}`
+                                    : `Renews ${new Date(data.subscription.current_period_end).toLocaleDateString()}`}
                         </p>
                     )}
                 </div>

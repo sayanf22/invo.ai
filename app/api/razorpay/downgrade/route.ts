@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
-import { PLANS, type PlanId } from "@/lib/razorpay"
+import { PLANS, type PlanId, cancelRazorpaySubscription } from "@/lib/razorpay"
+import { createClient } from "@supabase/supabase-js"
 
 /**
  * POST /api/razorpay/downgrade
  * Schedules a plan downgrade for the end of the current billing period.
  * The user keeps their current plan until the period ends, then switches.
- * 
+ *
+ * When the target is "free" (i.e. a cancellation), we ALSO cancel the underlying
+ * Razorpay recurring subscription at cycle end so the customer is never charged
+ * again, and we disable their paid-only automations (recurring invoices +
+ * pending email reminders).
+ *
  * SECURITY: Server-side only, validates plan hierarchy.
  */
 export async function POST(request: Request) {
@@ -54,6 +60,49 @@ export async function POST(request: Request) {
         if (error) {
             console.error("Downgrade schedule error:", error)
             return NextResponse.json({ error: "Failed to schedule downgrade" }, { status: 500 })
+        }
+
+        // ── Cancellation path (downgrade to Free) ────────────────────────────
+        // Cancelling means: stop future Razorpay charges AND turn off paid-only
+        // automations. The user keeps access until current_period_end (cancel at
+        // cycle end), after which the expiry RPC flips them to Free.
+        if (targetPlan === "free") {
+            // 1. Cancel the recurring Razorpay subscription at cycle end (non-fatal —
+            //    if Razorpay rejects, the scheduled_downgrade still applies locally).
+            try {
+                await cancelRazorpaySubscription(currentSub.razorpay_subscription_id, true)
+            } catch (cancelErr) {
+                console.error("[downgrade] Razorpay cancel failed (non-fatal):", cancelErr)
+            }
+
+            // 2. Mark the subscription cancelled locally (keeps access until period end).
+            await auth.supabase
+                .from("subscriptions" as any)
+                .update({ cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+                .eq("user_id", auth.user.id)
+
+            // 3. Disable paid-only automations immediately: recurring invoices +
+            //    pending scheduled email reminders. Uses the service-role client so
+            //    RLS on these tables can't block the cleanup.
+            try {
+                const svc = createClient(
+                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                    { auth: { persistSession: false, autoRefreshToken: false } }
+                )
+                await (svc as any)
+                    .from("recurring_invoices")
+                    .update({ is_active: false, updated_at: new Date().toISOString() })
+                    .eq("user_id", auth.user.id)
+                    .eq("is_active", true)
+                await (svc as any)
+                    .from("email_schedules")
+                    .update({ status: "cancelled", cancelled_reason: "subscription_cancelled", updated_at: new Date().toISOString() })
+                    .eq("user_id", auth.user.id)
+                    .eq("status", "pending")
+            } catch (cleanupErr) {
+                console.error("[downgrade] automation cleanup failed (non-fatal):", cleanupErr)
+            }
         }
 
         const periodEnd = currentSub.current_period_end

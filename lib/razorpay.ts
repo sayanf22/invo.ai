@@ -472,6 +472,52 @@ export async function getPaymentLink(paymentLinkId: string): Promise<RazorpayPay
 }
 
 /**
+ * Cancel a Razorpay recurring Subscription so the customer stops being charged.
+ *
+ * @param subscriptionId - Razorpay subscription id (sub_xxx)
+ * @param cancelAtCycleEnd - when true, the subscription stays active until the
+ *   end of the current billing cycle and is NOT charged again (the customer
+ *   keeps access until current_period_end). When false, it cancels immediately.
+ *
+ * Returns the updated subscription entity, or null if there is no id to cancel.
+ * Throws on a genuine API error so callers can decide whether to treat it as fatal.
+ */
+export async function cancelRazorpaySubscription(
+    subscriptionId: string | null | undefined,
+    cancelAtCycleEnd: boolean = true
+): Promise<{ id: string; status: string } | null> {
+    if (!subscriptionId || !subscriptionId.startsWith("sub_")) return null
+
+    const { getSecret } = await import("@/lib/secrets")
+    const keyId = await getSecret("RAZORPAY_KEY_ID")
+    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+    if (!keyId || !keySecret) throw new Error("Razorpay API keys not configured")
+
+    const res = await fetch(
+        `https://api.razorpay.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}`,
+            },
+            body: JSON.stringify({ cancel_at_cycle_end: cancelAtCycleEnd ? 1 : 0 }),
+            signal: AbortSignal.timeout(10000),
+        }
+    )
+
+    if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        const desc = error?.error?.description || ""
+        // Idempotent: if it's already cancelled, treat as success.
+        if (desc.toLowerCase().includes("cancel")) return { id: subscriptionId, status: "cancelled" }
+        throw new Error(desc || "Failed to cancel subscription")
+    }
+
+    return res.json()
+}
+
+/**
  * Cancel a payment link.
  */
 export async function cancelPaymentLink(paymentLinkId: string): Promise<void> {
