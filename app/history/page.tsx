@@ -18,6 +18,7 @@ import { authFetch } from "@/lib/auth-fetch"
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
 import { getDocumentTypeConfig, normalizeDocumentType, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 import { motion } from "framer-motion"
+import { PageHeaderSkeleton, FilterPillsSkeleton, ListItemSkeleton } from "@/components/ui/skeletons"
 
 // ── Icon lookup map (icon name string → Lucide component) ─────────────────────
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
@@ -280,13 +281,15 @@ export default function HistoryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background px-4 pt-12 max-w-2xl mx-auto">
-        <div className="animate-pulse space-y-3">
-          <div className="h-7 bg-muted rounded-xl w-40" />
-          <div className="h-4 bg-muted rounded w-52" />
-          <div className="h-16 bg-muted rounded-2xl mt-6" />
-          <div className="h-16 bg-muted rounded-2xl" />
-          <div className="h-16 bg-muted rounded-2xl" />
+      <div className="min-h-screen bg-background pb-20">
+        <PageHeaderSkeleton titleWidth={16} />
+        <div className="max-w-2xl mx-auto px-4 pt-6 pb-20 space-y-5">
+          <div className="space-y-2">
+            <div className="h-7 w-28 rounded-lg bg-muted animate-pulse" />
+            <div className="h-4 w-24 rounded-md bg-muted/60 animate-pulse" />
+          </div>
+          <FilterPillsSkeleton />
+          <ListItemSkeleton count={5} />
         </div>
       </div>
     )

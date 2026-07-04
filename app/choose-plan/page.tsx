@@ -11,6 +11,7 @@ import { HamburgerMenu } from "@/components/hamburger-menu"
 import { useRazorpay } from "@/hooks/use-razorpay"
 import { COUNTRY_PRICING, detectCountryFromTimezone, detectCountryFromIP, formatPrice, DEFAULT_COUNTRY, getBillablePricing, type CountryPricing } from "@/lib/pricing"
 import { toast } from "sonner"
+import { PlanGridSkeleton } from "@/components/ui/skeletons"
 
 const plans = [
     {
@@ -133,7 +134,21 @@ export default function ChoosePlanPage() {
     }, [subscribe, billingCycle, countryPricing])
 
     if (isLoading) {
-        return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+        return (
+            <div className="min-h-screen bg-background flex flex-col">
+                <header className="py-4 px-4 sm:px-6 flex items-center justify-between shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-muted animate-pulse" />
+                    <div className="w-9 h-9 rounded-xl bg-muted animate-pulse" />
+                </header>
+                <div className="flex-1 px-4 sm:px-6 py-6 max-w-6xl mx-auto w-full space-y-6">
+                    <div className="text-center space-y-2">
+                        <div className="h-7 w-56 rounded-lg bg-muted animate-pulse mx-auto" />
+                        <div className="h-4 w-72 rounded-md bg-muted/60 animate-pulse mx-auto" />
+                    </div>
+                    <PlanGridSkeleton count={4} />
+                </div>
+            </div>
+        )
     }
 
     return (

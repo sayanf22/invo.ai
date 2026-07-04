@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { ClorefyLogo } from "@/components/clorefy-logo"
-import Link from "next/link"
+import { PageHeaderSkeleton, ListItemSkeleton } from "@/components/ui/skeletons"
 
 interface Notification {
   id: string
@@ -108,8 +108,15 @@ export default function NotificationsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-background pb-20">
+        <PageHeaderSkeleton titleWidth={24} />
+        <div className="container mx-auto p-4 sm:p-6 max-w-2xl pt-6 sm:pt-10 space-y-6">
+          <div className="space-y-2">
+            <div className="h-7 w-40 rounded-lg bg-muted animate-pulse" />
+            <div className="h-4 w-48 rounded-md bg-muted/60 animate-pulse" />
+          </div>
+          <ListItemSkeleton count={6} avatar="circle" />
+        </div>
       </div>
     )
   }

@@ -1366,17 +1366,36 @@ export default function MyDocumentsPage() {
         return ctx.documentType || ctx.fromName || ctx.toName || (Array.isArray(ctx.items) && ctx.items.length > 0)
       })
 
-      // Load payment records for all sessions
+      // Load payment records, emails, and email schedules for all sessions.
+      // These three queries are independent of each other (all just need
+      // sessionIds), so run them in parallel instead of one-after-another —
+      // this cuts the DB wait time for this page roughly to a third.
       const sessionIds = withContent.map((s: any) => s.id)
       let paymentMap: Record<string, PaymentRecord> = {}
+      let emailMap: Record<string, EmailRecord> = {}
+      let emailStatsMap: Record<string, EmailStats> = {}
 
       if (sessionIds.length > 0) {
-        const { data: payments } = await (supabase as any)
-          .from("invoice_payments")
-          .select("id, session_id, short_url, amount, currency, status, amount_paid, paid_at, expires_at, created_at, view_count, link_viewed_at, reference_id, customer_name, gateway, razorpay_payment_link_id, is_manual, manual_payment_method, manual_payment_note, manually_marked_at")
-          .in("session_id", sessionIds)
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
+        const [{ data: payments }, { data: emails }, { data: scheduleRows }] = await Promise.all([
+          (supabase as any)
+            .from("invoice_payments")
+            .select("id, session_id, short_url, amount, currency, status, amount_paid, paid_at, expires_at, created_at, view_count, link_viewed_at, reference_id, customer_name, gateway, razorpay_payment_link_id, is_manual, manual_payment_method, manual_payment_note, manually_marked_at")
+            .in("session_id", sessionIds)
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false }),
+          (supabase as any)
+            .from("document_emails")
+            .select("id, session_id, recipient_email, status, created_at")
+            .in("session_id", sessionIds)
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false }),
+          (supabase as any)
+            .from("email_schedules")
+            .select("id, session_id, sequence_step, sequence_type, scheduled_for, status, sent_at, cancelled_reason")
+            .in("session_id", sessionIds)
+            .eq("user_id", user.id)
+            .order("scheduled_for", { ascending: true }),
+        ])
 
         // Keep only the most recent payment per session
         for (const p of (payments || [])) {
@@ -1384,26 +1403,6 @@ export default function MyDocumentsPage() {
             paymentMap[p.session_id] = p as PaymentRecord
           }
         }
-      }
-
-      // Load all emails per session for stats
-      let emailMap: Record<string, EmailRecord> = {}
-      let emailStatsMap: Record<string, EmailStats> = {}
-      if (sessionIds.length > 0) {
-        const { data: emails } = await (supabase as any)
-          .from("document_emails")
-          .select("id, session_id, recipient_email, status, created_at")
-          .in("session_id", sessionIds)
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-
-        // Load pending email schedules for all sessions
-        const { data: scheduleRows } = await (supabase as any)
-          .from("email_schedules")
-          .select("id, session_id, sequence_step, sequence_type, scheduled_for, status, sent_at, cancelled_reason")
-          .in("session_id", sessionIds)
-          .eq("user_id", user.id)
-          .order("scheduled_for", { ascending: true })
 
         // Group schedules by session
         const schedulesBySession: Record<string, EmailSchedule[]> = {}

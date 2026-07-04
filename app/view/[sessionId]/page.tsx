@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { DocumentPreviewSkeleton } from "@/components/ui/skeletons"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -608,8 +609,15 @@ export default function ViewDocumentPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="min-h-screen flex flex-col bg-background">
+        <header className="border-b py-3 px-4 flex items-center justify-between">
+          <div className="w-8 h-8 rounded-lg bg-muted animate-pulse" />
+          <div className="h-4 w-24 rounded-md bg-muted animate-pulse" />
+          <div className="w-8 h-8 rounded-lg bg-muted animate-pulse" />
+        </header>
+        <div className="flex-1 flex items-center justify-center px-4 py-8">
+          <DocumentPreviewSkeleton />
+        </div>
       </div>
     )
   }

@@ -7,7 +7,7 @@ import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { Button } from "@/components/ui/button"
 import { useSafeBack } from "@/hooks/use-safe-back"
-import { PageLoader } from "@/components/ui/page-loader"
+import { PageHeaderSkeleton, FormSectionSkeleton } from "@/components/ui/skeletons"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -554,7 +554,27 @@ export default function ProfilePage() {
         }
     }, [user, profile, loadProfile])
 
-    if (authLoading || isLoading) return <PageLoader />
+    if (authLoading || isLoading) {
+        return (
+            <div className="min-h-screen flex flex-col bg-background pb-20">
+                <PageHeaderSkeleton titleWidth={32} />
+                <main className="flex-1 p-4 sm:p-6 pt-6 sm:pt-10">
+                    <div className="max-w-4xl mx-auto space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-2">
+                                <div className="h-7 w-48 rounded-lg bg-muted animate-pulse" />
+                                <div className="h-4 w-64 rounded-md bg-muted/60 animate-pulse" />
+                            </div>
+                            <div className="h-9 w-32 rounded-lg bg-muted animate-pulse" />
+                        </div>
+                        <FormSectionSkeleton fields={4} />
+                        <FormSectionSkeleton fields={4} />
+                        <FormSectionSkeleton fields={2} />
+                    </div>
+                </main>
+            </div>
+        )
+    }
     if (!user || !profile) return null
 
     const taxIdLabel = profile.country ? getTaxIdFieldName(profile.country) : "Tax ID"

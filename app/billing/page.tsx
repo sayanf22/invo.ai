@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { useRazorpay } from "@/hooks/use-razorpay"
 import { authFetch } from "@/lib/auth-fetch"
 import { useSafeBack } from "@/hooks/use-safe-back"
-import { PageLoader } from "@/components/ui/page-loader"
+import { PageHeaderSkeleton, StatTilesSkeleton, PlanGridSkeleton, ListItemSkeleton } from "@/components/ui/skeletons"
 import { toast } from "sonner"
 import { getBillablePricing, detectCountryFromTimezone, detectCountryFromIP, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
 import { HamburgerMenu } from "@/components/hamburger-menu"
@@ -192,7 +192,23 @@ export default function BillingPage() {
     const currentPlan = data?.plan || "free"
 
     if (loading) {
-        return <PageLoader />
+        return (
+            <div className="min-h-screen bg-background pb-20">
+                <PageHeaderSkeleton titleWidth={20} />
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10 space-y-8">
+                    <div className="mb-2 space-y-2">
+                        <div className="h-7 w-48 rounded-lg bg-muted animate-pulse" />
+                        <div className="h-4 w-64 rounded-md bg-muted/60 animate-pulse" />
+                    </div>
+                    <StatTilesSkeleton count={3} />
+                    <div className="space-y-3">
+                        <div className="h-5 w-36 rounded-md bg-muted animate-pulse" />
+                        <ListItemSkeleton count={2} />
+                    </div>
+                    <PlanGridSkeleton count={4} />
+                </div>
+            </div>
+        )
     }
 
     const usage = data?.usage

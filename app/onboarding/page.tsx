@@ -8,13 +8,14 @@ import { OnboardingChat, type CollectedData } from "@/components/onboarding-chat
 import { UploadScreen } from "@/components/upload-screen"
 import { LogoUploader } from "@/components/logo-uploader"
 import { toast } from "sonner"
-import { Loader2, ImageIcon, ArrowRight, CreditCard } from "lucide-react"
+import { ImageIcon, ArrowRight, CreditCard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getTaxIdFieldName } from "@/lib/countries"
 import { PaymentSettings } from "@/components/payment-settings"
 import { OnboardingSupportButton } from "@/components/onboarding-support-button"
 import { motion, AnimatePresence } from "framer-motion"
 import { logErrorToDatabase } from "@/lib/error-logger"
+import { ChatBubbleSkeleton } from "@/components/ui/skeletons"
 
 /** Fire-and-forget POST to /api/onboarding/track. Never blocks the UI. */
 function trackPhaseTransition(
@@ -274,8 +275,17 @@ export default function OnboardingPage() {
 
     if (isLoading) {
         return (
-            <div className="h-[100dvh] flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="h-[100dvh] flex flex-col bg-background overflow-hidden">
+                <header className="border-b py-4 px-5 flex items-center justify-between shrink-0 bg-card shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-muted animate-pulse" />
+                        <div className="h-4 w-28 rounded-md bg-muted animate-pulse" />
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-muted animate-pulse" />
+                </header>
+                <div className="flex-1 flex items-center justify-center px-4">
+                    <ChatBubbleSkeleton />
+                </div>
             </div>
         )
     }

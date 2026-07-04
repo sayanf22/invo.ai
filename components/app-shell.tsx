@@ -10,7 +10,6 @@ import { CategoryPills } from "@/components/category-pills"
 import { PromptScreen } from "@/components/prompt-screen"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { authFetch } from "@/lib/auth-fetch"
-import { PageLoader } from "@/components/ui/page-loader"
 import { useTier } from "@/hooks/use-tier"
 import { toast } from "sonner"
 import { ChatOnlyScreen } from "@/components/chat-only-screen"
@@ -44,7 +43,7 @@ function Shimmer({ className, style }: { className?: string; style?: React.CSSPr
 // ── Skeleton: morphs from chat-only → split-screen when route is known ──────
 // Phase 1 (route = null or "chat-only"): full-width chat panel, no preview
 // Phase 2 (route = "direct-create"):     chat panel shrinks, preview slides in
-function StartScreenSkeleton({ route }: { route: "chat-only" | "direct-create" | null }) {
+export function StartScreenSkeleton({ route }: { route: "chat-only" | "direct-create" | null }) {
   const isSplit = route === "direct-create"
 
   return (
@@ -296,19 +295,19 @@ export function AppShell() {
     async function checkOnboarding() {
       if (authLoading || !user) { setCheckingOnboarding(false); return }
       try {
-        const { data: profile, error } = await supabase
-          .from("profiles").select("onboarding_complete").eq("id", user.id).single()
+        // Fire both queries in parallel — the business-profile check does NOT
+        // depend on the onboarding_complete result, so there's no reason to
+        // wait for the first round-trip before starting the second. This
+        // roughly halves the DB wait time on every page load for this check.
+        const [{ data: profile, error }, { data: business }] = await Promise.all([
+          supabase.from("profiles").select("onboarding_complete").eq("id", user.id).single(),
+          supabase.from("businesses").select("name, country, email").eq("user_id", user.id).single(),
+        ])
         if (!error && profile && (profile as any).onboarding_complete === false) {
           // New user — clear any stale session from localStorage
           localStorage.removeItem("clorefy_active_session")
           router.push("/onboarding"); return
         }
-        // Check if business profile is actually filled out
-        const { data: business } = await supabase
-          .from("businesses")
-          .select("name, country, email")
-          .eq("user_id", user.id)
-          .single()
         if (!business || !business.name || !business.country || !business.email) {
           setSetupIncomplete(true)
         } else {
@@ -636,7 +635,9 @@ export function AppShell() {
   }, [])
 
   if (authLoading || checkingOnboarding) {
-    return <PageLoader />
+    // Content-shaped skeleton (chat-only layout) instead of a bare spinner —
+    // this is the very first screen most users see on every load.
+    return <StartScreenSkeleton route={null} />
   }
 
   if (detectingType) {

@@ -26,6 +26,7 @@ import { toast } from "sonner"
 import Image from "next/image"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
+import { DocumentPreviewSkeleton } from "@/components/ui/skeletons"
 
 interface BusinessData {
     name: string
@@ -524,8 +525,14 @@ export default function SigningPage() {
     // Loading state
     if (isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-background">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="min-h-screen flex flex-col bg-background">
+                <header className="border-b py-4 px-6 flex items-center justify-between">
+                    <div className="w-8 h-8 rounded-lg bg-muted animate-pulse" />
+                    <div className="h-4 w-24 rounded-md bg-muted animate-pulse" />
+                </header>
+                <div className="flex-1 flex items-center justify-center px-4 py-8">
+                    <DocumentPreviewSkeleton />
+                </div>
             </div>
         )
     }

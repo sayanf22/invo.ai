@@ -3,24 +3,12 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Suspense } from "react"
-import { AppShell } from "@/components/app-shell"
+import { AppShell, StartScreenSkeleton } from "@/components/app-shell"
 import { useAuth } from "@/components/auth-provider"
 
-const Spinner = () => (
-  <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
-    <div className="relative w-12 h-12">
-      <div
-        className="absolute inset-0 rounded-full border-[3px] border-transparent animate-spin"
-        style={{
-          borderTopColor: "hsl(33 17% 10%)",
-          borderRightColor: "hsl(33 17% 10% / 0.15)",
-          animationDuration: "0.75s",
-        }}
-      />
-    </div>
-    <p className="text-xs font-medium text-muted-foreground tracking-wide">Clorefy</p>
-  </div>
-)
+// Content-shaped skeleton (same one AppShell uses while detecting doc type)
+// instead of a bare spinner — this is the very first thing most users see.
+const Spinner = () => <StartScreenSkeleton route={null} />
 
 /**
  * Client-side auth routing for authenticated users.
