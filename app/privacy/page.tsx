@@ -48,8 +48,8 @@ export default function PrivacyPage() {
             <p>We do not sell your personal information. We may share data with:</p>
             <ul>
                 <li><strong>Payment Processors:</strong> Razorpay for processing payments (subject to their privacy policy)</li>
-                <li><strong>AI Service Providers:</strong> DeepSeek for document generation (prompts are processed but not stored by the provider)</li>
-                <li><strong>Infrastructure Providers:</strong> Supabase for database hosting, Cloudflare for content delivery</li>
+                <li><strong>AI Service Providers:</strong> We generate documents using the DeepSeek and Kimi (Moonshot AI) models, which we access through Amazon Web Services (Amazon Bedrock). Your prompts are processed to produce your documents; they are not stored by Amazon Bedrock and are not used to train the underlying models.</li>
+                <li><strong>Infrastructure Providers:</strong> Supabase for database hosting, Amazon Web Services (Amazon Bedrock) for AI model hosting, and Cloudflare for hosting and content delivery</li>
                 <li><strong>Legal Requirements:</strong> When required by law, court order, or government request</li>
             </ul>
 
