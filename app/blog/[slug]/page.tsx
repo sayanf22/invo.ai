@@ -56,13 +56,15 @@ const CATEGORY_LABELS: Record<string, string> = {
     news: "News",
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-    guides: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-    templates: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-    country: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-    tips: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-    comparisons: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
-    news: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
+// A restrained two-tone badge system (brand green + amber) — matches the
+// listing page instead of a rainbow of unrelated colors per category.
+const CATEGORY_BADGE: Record<string, string> = {
+    guides: "bg-[var(--landing-green)]/8 text-[var(--landing-green)]",
+    templates: "bg-[var(--landing-amber)]/12 text-[var(--landing-amber)]",
+    country: "bg-[var(--landing-green)]/8 text-[var(--landing-green)]",
+    tips: "bg-[var(--landing-amber)]/12 text-[var(--landing-amber)]",
+    comparisons: "bg-stone-900/6 text-stone-700",
+    news: "bg-[var(--landing-green)]/8 text-[var(--landing-green)]",
 }
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -87,32 +89,31 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     })
 
     const categoryLabel = CATEGORY_LABELS[post.category] ?? post.category
-    const categoryColor = CATEGORY_COLORS[post.category] ?? "bg-muted text-muted-foreground"
+    const categoryBadge = CATEGORY_BADGE[post.category] ?? "bg-stone-100 text-stone-600"
 
     return (
         <LandingLayout>
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-            <div className="bg-[#FAFAF9]">
-                {/* Top progress bar — visual reading indicator */}
-                <div className="fixed top-0 left-0 right-0 h-0.5 bg-stone-200 z-50">
+            <div className="bg-[var(--landing-cream)]">
+                {/* Reading progress bar — the navbar floats with a top-6 margin, leaving an
+                    empty strip at the very top of the viewport, so a bar at top-0 with a
+                    lower z-index sits in that gap rather than overlapping the nav. */}
+                <div className="fixed top-0 left-0 right-0 h-0.5 bg-stone-200/60 z-40">
                     <div
                         id="reading-progress"
-                        className="h-full bg-[var(--landing-amber,#C67A3C)] transition-all duration-100"
+                        className="h-full bg-[var(--landing-amber)] transition-all duration-100"
                         style={{ width: "0%" }}
                     />
                 </div>
-
-                {/* Reading progress bar — client component handles scroll */}
                 <ReadingProgress />
 
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-                    <div className="flex gap-12 items-start">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                    <div className="flex gap-10 lg:gap-14 items-start">
 
                         {/* ── Main content column ── */}
-                        <article className="flex-1 min-w-0 max-w-3xl">
+                        <article className="flex-1 min-w-0 max-w-[42rem]">
 
-                            {/* Breadcrumbs */}
                             <div className="mb-8">
                                 <Breadcrumbs
                                     items={[
@@ -123,15 +124,14 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                                 />
                             </div>
 
-                            {/* Article header */}
-                            <header className="mb-10">
-                                {/* Category + meta row */}
-                                <div className="flex flex-wrap items-center gap-3 mb-5">
-                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${categoryColor}`}>
+                            {/* Article header — calm, generous spacing */}
+                            <header className="mb-10 sm:mb-12">
+                                <div className="flex flex-wrap items-center gap-3 mb-6">
+                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${categoryBadge}`}>
                                         <Tag className="w-3 h-3" />
                                         {categoryLabel}
                                     </span>
-                                    <span className="flex items-center gap-1.5 text-sm text-stone-500">
+                                    <span className="flex items-center gap-1.5 text-sm text-[var(--landing-text-muted)]">
                                         <Calendar className="w-3.5 h-3.5" />
                                         <time dateTime={post.publishedAt}>
                                             {new Date(post.publishedAt).toLocaleDateString("en-US", {
@@ -139,54 +139,58 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                                             })}
                                         </time>
                                     </span>
-                                    <span className="flex items-center gap-1.5 text-sm text-stone-500">
+                                    <span className="flex items-center gap-1.5 text-sm text-[var(--landing-text-muted)]">
                                         <Clock className="w-3.5 h-3.5" />
                                         {post.readTime} min read
                                     </span>
                                 </div>
 
-                                {/* Title */}
-                                <h1 className="text-3xl sm:text-4xl lg:text-[2.6rem] font-bold tracking-tight leading-[1.15] text-[#1C1A17] mb-5">
+                                <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.75rem] font-semibold tracking-tight leading-[1.15] text-[var(--landing-text-dark)] mb-6">
                                     {post.title}
                                 </h1>
 
-                                {/* Description / deck */}
-                                <p className="text-lg sm:text-xl text-stone-600 leading-relaxed border-l-4 border-[var(--landing-amber,#C67A3C)] pl-4">
+                                <p className="text-lg sm:text-xl text-[var(--landing-text-muted)] leading-relaxed border-l-[3px] border-[var(--landing-amber)] pl-5">
                                     {post.description}
                                 </p>
                             </header>
 
-                            {/* Divider */}
-                            <div className="border-t border-stone-200 mb-10" />
+                            <div className="border-t border-stone-200/70 mb-10 sm:mb-12" />
 
-                            {/* Article body */}
+                            {/* Article body — now that @tailwindcss/typography is installed,
+                                these prose classes actually apply spacing/hierarchy (they were
+                                previously silent no-ops, which was the #1 cause of clutter). */}
                             <div
                                 className="
                                     prose prose-stone max-w-none
-                                    prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-[#1C1A17]
-                                    prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4 prose-h2:pb-2 prose-h2:border-b prose-h2:border-stone-100
-                                    prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-3
-                                    prose-p:text-[17px] prose-p:leading-[1.85] prose-p:text-stone-700
+                                    prose-headings:font-display prose-headings:font-semibold prose-headings:tracking-tight prose-headings:text-[var(--landing-text-dark)] prose-headings:scroll-mt-24
+                                    prose-h2:text-[1.6rem] prose-h2:mt-14 prose-h2:mb-5 prose-h2:pb-3 prose-h2:border-b prose-h2:border-stone-200/70
+                                    prose-h3:text-[1.2rem] prose-h3:mt-9 prose-h3:mb-3
+                                    prose-p:text-[17px] prose-p:leading-[1.85] prose-p:text-stone-700 prose-p:my-5
                                     prose-li:text-[17px] prose-li:leading-[1.75] prose-li:text-stone-700
-                                    prose-strong:text-[#1C1A17] prose-strong:font-semibold
-                                    prose-a:text-[#C67A3C] prose-a:font-medium prose-a:no-underline hover:prose-a:underline
-                                    prose-blockquote:border-l-4 prose-blockquote:border-[#C67A3C] prose-blockquote:bg-amber-50 prose-blockquote:rounded-r-lg prose-blockquote:py-1
-                                    prose-code:bg-stone-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm
-                                    prose-pre:bg-[#1C1A17] prose-pre:rounded-xl
-                                    prose-img:rounded-xl prose-img:shadow-md
-                                    prose-ol:space-y-1 prose-ul:space-y-1
+                                    prose-ul:my-6 prose-ol:my-6 prose-ul:space-y-2 prose-ol:space-y-2
+                                    prose-strong:text-[var(--landing-text-dark)] prose-strong:font-semibold
+                                    prose-a:text-[var(--landing-amber)] prose-a:font-medium prose-a:no-underline hover:prose-a:underline
+                                    prose-blockquote:not-italic prose-blockquote:font-normal prose-blockquote:border-l-[3px] prose-blockquote:border-[var(--landing-amber)] prose-blockquote:bg-[var(--landing-cream-deep)] prose-blockquote:rounded-r-xl prose-blockquote:py-3 prose-blockquote:px-5 prose-blockquote:my-8
+                                    prose-code:bg-stone-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-[0.85em] prose-code:font-medium prose-code:before:content-none prose-code:after:content-none
+                                    prose-pre:bg-[var(--landing-dark)] prose-pre:rounded-2xl
+                                    prose-img:rounded-2xl prose-img:shadow-md prose-img:my-8
+                                    prose-hr:border-stone-200/70 prose-hr:my-12
+                                    prose-table:my-8 prose-table:text-[15px] prose-table:border prose-table:border-stone-200/80 prose-table:rounded-xl prose-table:overflow-hidden
+                                    prose-thead:bg-[var(--landing-cream-deep)]
+                                    prose-th:font-bold prose-th:text-[var(--landing-text-dark)] prose-th:px-4 prose-th:py-3 prose-th:text-left
+                                    prose-td:px-4 prose-td:py-3 prose-td:border-t prose-td:border-stone-200/70
                                 "
                                 dangerouslySetInnerHTML={{ __html: post.content ?? "" }}
                             />
 
                             {/* Related Tool Pages */}
                             {post.relatedToolPages && post.relatedToolPages.length > 0 && (
-                                <div className="mt-14 p-6 rounded-2xl border border-amber-200 bg-amber-50">
-                                    <h3 className="text-base font-bold text-[#1C1A17] mb-4 flex items-center gap-2">
-                                        <span className="w-5 h-5 rounded-full bg-[#C67A3C] flex items-center justify-center text-white text-xs">→</span>
+                                <div className="mt-14 p-6 sm:p-7 rounded-[1.75rem] border border-[var(--landing-amber)]/25 bg-[var(--landing-amber)]/[0.05]">
+                                    <h3 className="text-base font-bold text-[var(--landing-text-dark)] mb-4 flex items-center gap-2">
+                                        <span className="w-5 h-5 rounded-full bg-[var(--landing-amber)] flex items-center justify-center text-white text-xs shrink-0">→</span>
                                         Try These Free Tools
                                     </h3>
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="flex flex-wrap gap-2.5">
                                         {post.relatedToolPages.map((toolPath) => {
                                             const label = toolPath
                                                 .replace("/tools/", "")
@@ -198,7 +202,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                                                 <Link
                                                     key={toolPath}
                                                     href={toolPath}
-                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-amber-200 text-sm font-medium text-[#C67A3C] hover:bg-amber-100 transition-colors shadow-sm"
+                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white border border-[var(--landing-amber)]/25 text-sm font-medium text-[var(--landing-amber)] hover:bg-[var(--landing-amber)] hover:text-white hover:border-[var(--landing-amber)] transition-colors shadow-sm"
                                                 >
                                                     {label}
                                                     <ArrowRight className="w-3.5 h-3.5" />
@@ -209,20 +213,20 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                                 </div>
                             )}
 
-                            {/* CTA box */}
-                            <div className="mt-12 p-8 rounded-2xl bg-[#1C1A17] text-white">
+                            {/* CTA box — brand dark ink, matches landing page CTA styling */}
+                            <div className="mt-10 p-7 sm:p-8 rounded-[1.75rem] bg-[var(--landing-dark)] text-white">
                                 <div className="flex items-start gap-4">
-                                    <div className="w-10 h-10 rounded-xl bg-[#C67A3C] flex items-center justify-center shrink-0 mt-0.5">
+                                    <div className="w-11 h-11 rounded-2xl bg-[var(--landing-amber)] flex items-center justify-center shrink-0">
                                         <span className="text-white font-bold text-lg">C</span>
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold mb-1">Generate this document in 30 seconds</h3>
-                                        <p className="text-stone-400 text-sm leading-relaxed mb-4">
+                                        <h3 className="text-lg font-bold mb-2">Generate this document in 30 seconds</h3>
+                                        <p className="text-white/60 text-sm leading-relaxed mb-5">
                                             Clorefy uses AI to create professional invoices, contracts, and proposals from a single sentence. GST, VAT, and sales tax handled automatically for every country worldwide.
                                         </p>
                                         <Link
                                             href="/auth/signup"
-                                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C67A3C] text-white rounded-xl text-sm font-semibold hover:bg-[#b56a2c] transition-colors"
+                                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--landing-amber)] text-white rounded-full text-sm font-semibold hover:opacity-90 transition-opacity"
                                         >
                                             Try Clorefy Free — No credit card
                                             <ArrowRight className="w-4 h-4" />
@@ -234,22 +238,22 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                             {/* Related Posts */}
                             {related.length > 0 && (
                                 <div className="mt-16">
-                                    <h2 className="text-xl font-bold text-[#1C1A17] mb-6">Keep Reading</h2>
-                                    <div className="grid sm:grid-cols-2 gap-4">
+                                    <h2 className="font-display text-xl font-semibold text-[var(--landing-text-dark)] mb-6">Keep Reading</h2>
+                                    <div className="grid sm:grid-cols-2 gap-5">
                                         {related.map((r) => (
                                             <Link
                                                 key={r.slug}
                                                 href={`/blog/${r.slug}`}
-                                                className="group block p-5 border border-stone-200 rounded-2xl hover:border-[#C67A3C] hover:shadow-md transition-all bg-white"
+                                                className="group block p-5 border border-stone-200/70 rounded-[1.5rem] hover:-translate-y-0.5 card-depth transition-all bg-white"
                                             >
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold mb-3 ${CATEGORY_COLORS[r.category] ?? "bg-muted text-muted-foreground"}`}>
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold mb-3 ${CATEGORY_BADGE[r.category] ?? "bg-stone-100 text-stone-600"}`}>
                                                     {CATEGORY_LABELS[r.category] ?? r.category}
                                                 </span>
-                                                <h3 className="font-semibold text-[#1C1A17] group-hover:text-[#C67A3C] transition-colors leading-snug mb-2">
+                                                <h3 className="font-semibold text-[var(--landing-text-dark)] group-hover:text-[var(--landing-amber)] transition-colors leading-snug mb-2">
                                                     {r.title}
                                                 </h3>
-                                                <p className="text-sm text-stone-500 line-clamp-2">{r.description}</p>
-                                                <span className="inline-flex items-center gap-1 text-xs text-[#C67A3C] font-medium mt-3">
+                                                <p className="text-sm text-[var(--landing-text-muted)] line-clamp-2">{r.description}</p>
+                                                <span className="inline-flex items-center gap-1 text-xs text-[var(--landing-amber)] font-medium mt-3">
                                                     Read article <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                                                 </span>
                                             </Link>
@@ -258,55 +262,51 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                                 </div>
                             )}
 
-                            {/* Back to blog */}
-                            <div className="mt-12 pt-8 border-t border-stone-200">
-                                <Link href="/blog" className="inline-flex items-center gap-2 text-sm text-stone-500 hover:text-[#1C1A17] transition-colors font-medium">
+                            <div className="mt-12 pt-8 border-t border-stone-200/70">
+                                <Link href="/blog" className="inline-flex items-center gap-2 text-sm text-[var(--landing-text-muted)] hover:text-[var(--landing-text-dark)] transition-colors font-medium">
                                     <ArrowLeft className="w-4 h-4" /> All articles
                                 </Link>
                             </div>
                         </article>
 
-                        {/* ── Sticky sidebar (desktop only) ── */}
-                        <aside className="hidden xl:block w-72 shrink-0 sticky top-8">
-                            {/* Author / brand card */}
-                            <div className="p-5 rounded-2xl border border-stone-200 bg-white mb-6">
+                        {/* ── Sticky sidebar (desktop only) — quieter, more air between cards ── */}
+                        <aside className="hidden xl:block w-72 shrink-0 sticky top-28 space-y-6">
+                            <div className="p-5 rounded-[1.5rem] border border-stone-200/70 bg-white">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <div className="w-10 h-10 rounded-full bg-[#1C1A17] flex items-center justify-center text-white font-bold">C</div>
+                                    <div className="w-10 h-10 rounded-full bg-[var(--landing-green)] flex items-center justify-center text-white font-bold">C</div>
                                     <div>
-                                        <p className="text-sm font-semibold text-[#1C1A17]">Clorefy Team</p>
-                                        <p className="text-xs text-stone-500">AI Document Experts</p>
+                                        <p className="text-sm font-semibold text-[var(--landing-text-dark)]">Clorefy Team</p>
+                                        <p className="text-xs text-[var(--landing-text-muted)]">AI Document Experts</p>
                                     </div>
                                 </div>
-                                <p className="text-xs text-stone-500 leading-relaxed">
-                                    We build AI tools that generate invoices, contracts, and proposals for every country worldwide. This article is written by our team of document automation experts.
+                                <p className="text-xs text-[var(--landing-text-muted)] leading-relaxed">
+                                    We build AI tools that generate invoices, contracts, and proposals for every country worldwide.
                                 </p>
                             </div>
 
-                            {/* Quick CTA */}
-                            <div className="p-5 rounded-2xl bg-[#1C1A17] text-white mb-6">
+                            <div className="p-5 rounded-[1.5rem] bg-[var(--landing-dark)] text-white">
                                 <p className="text-sm font-semibold mb-2">Generate documents with AI</p>
-                                <p className="text-xs text-stone-400 mb-4 leading-relaxed">
+                                <p className="text-xs text-white/55 mb-4 leading-relaxed">
                                     Create professional invoices, contracts & proposals in 30 seconds. Free plan available.
                                 </p>
                                 <Link
                                     href="/auth/signup"
-                                    className="block text-center px-4 py-2.5 bg-[#C67A3C] text-white rounded-xl text-sm font-semibold hover:bg-[#b56a2c] transition-colors"
+                                    className="block text-center px-4 py-2.5 bg-[var(--landing-amber)] text-white rounded-full text-sm font-semibold hover:opacity-90 transition-opacity"
                                 >
                                     Start Free →
                                 </Link>
                             </div>
 
-                            {/* Related posts in sidebar */}
                             {related.length > 0 && (
-                                <div className="p-5 rounded-2xl border border-stone-200 bg-white">
-                                    <p className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-4">Related Articles</p>
+                                <div className="p-5 rounded-[1.5rem] border border-stone-200/70 bg-white">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-[var(--landing-text-muted)] mb-4">Related Articles</p>
                                     <div className="space-y-4">
                                         {related.slice(0, 3).map((r) => (
                                             <Link key={r.slug} href={`/blog/${r.slug}`} className="group block">
-                                                <p className="text-sm font-medium text-[#1C1A17] group-hover:text-[#C67A3C] transition-colors leading-snug">
+                                                <p className="text-sm font-medium text-[var(--landing-text-dark)] group-hover:text-[var(--landing-amber)] transition-colors leading-snug">
                                                     {r.title}
                                                 </p>
-                                                <p className="text-xs text-stone-400 mt-1 flex items-center gap-1">
+                                                <p className="text-xs text-[var(--landing-text-muted)] mt-1 flex items-center gap-1">
                                                     <Clock className="w-3 h-3" /> {r.readTime} min
                                                 </p>
                                             </Link>

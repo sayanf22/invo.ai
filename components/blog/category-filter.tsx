@@ -36,14 +36,14 @@ export function BlogCategoryFilter({ categories, activeCategory }: BlogCategoryF
   )
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-center gap-2.5">
       <button
         type="button"
         onClick={() => handleSelect(null)}
-        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+        className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
           !activeCategory
-            ? "bg-primary text-primary-foreground shadow-sm"
-            : "border border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
+            ? "bg-[var(--landing-dark)] text-white shadow-sm"
+            : "border border-stone-200/80 bg-white text-[var(--landing-text-muted)] hover:border-[var(--landing-amber)]/40 hover:text-[var(--landing-text-dark)]"
         }`}
       >
         All
@@ -53,10 +53,10 @@ export function BlogCategoryFilter({ categories, activeCategory }: BlogCategoryF
           key={cat}
           type="button"
           onClick={() => handleSelect(cat)}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+          className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
             activeCategory === cat
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "border border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
+              ? "bg-[var(--landing-dark)] text-white shadow-sm"
+              : "border border-stone-200/80 bg-white text-[var(--landing-text-muted)] hover:border-[var(--landing-amber)]/40 hover:text-[var(--landing-text-dark)]"
           }`}
         >
           {CATEGORY_LABELS[cat] || cat}

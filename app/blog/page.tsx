@@ -28,13 +28,15 @@ const CATEGORY_LABELS: Record<string, string> = {
     news: "News",
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-    guides: "bg-blue-100 text-blue-700",
-    templates: "bg-purple-100 text-purple-700",
-    country: "bg-green-100 text-green-700",
-    tips: "bg-amber-100 text-amber-700",
-    comparisons: "bg-rose-100 text-rose-700",
-    news: "bg-sky-100 text-sky-700",
+// A restrained two-tone badge system (brand green + amber) instead of a
+// rainbow of unrelated colors per category — keeps the page calm and on-brand.
+const CATEGORY_BADGE: Record<string, string> = {
+    guides: "bg-[var(--landing-green)]/8 text-[var(--landing-green)]",
+    templates: "bg-[var(--landing-amber)]/12 text-[var(--landing-amber)]",
+    country: "bg-[var(--landing-green)]/8 text-[var(--landing-green)]",
+    tips: "bg-[var(--landing-amber)]/12 text-[var(--landing-amber)]",
+    comparisons: "bg-stone-900/6 text-stone-700",
+    news: "bg-[var(--landing-green)]/8 text-[var(--landing-green)]",
 }
 
 interface BlogPageProps {
@@ -53,124 +55,115 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
 
     return (
         <LandingLayout>
-            <div className="bg-[#FAFAF9]">
-                {/* Header */}
-                <header className="border-b border-stone-200 bg-white">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
-                    <div className="flex items-start justify-between gap-8">
-                        <div>
-                            <div className="flex items-center gap-2 mb-4">
-                                <BookOpen className="w-5 h-5 text-[#C67A3C]" />
-                                <span className="text-sm font-semibold text-[#C67A3C] uppercase tracking-wider">Clorefy Blog</span>
-                            </div>
-                            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-[#1C1A17] leading-tight">
-                                Invoicing, Contracts<br />& Business Docs
-                            </h1>
-                            <p className="text-lg text-stone-500 mt-4 max-w-xl leading-relaxed">
-                                Practical guides for freelancers, agencies, and SMBs. Learn how to get paid faster, stay tax-compliant, and automate your document workflow.
-                            </p>
+            <div className="bg-[var(--landing-cream)]">
+                {/* Header — generous vertical space, single focused message */}
+                <header className="px-4 sm:px-6">
+                    <div className="max-w-5xl mx-auto py-16 sm:py-24 text-center">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-stone-200/70 shadow-sm mb-6">
+                            <BookOpen className="w-4 h-4 text-[var(--landing-green)]" />
+                            <span className="text-xs font-bold text-[var(--landing-green)] uppercase tracking-widest">Clorefy Blog</span>
                         </div>
-                        <div className="hidden sm:flex flex-col items-end gap-2 shrink-0">
-                            <div className="text-3xl font-bold text-[#1C1A17]">{allPosts.length}</div>
-                            <div className="text-sm text-stone-500">articles published</div>
+                        <h1 className="font-display text-4xl sm:text-6xl font-semibold tracking-tight text-[var(--landing-text-dark)] leading-[1.05] mb-5">
+                            Invoicing, contracts<br className="hidden sm:block" />
+                            <span className="font-serif italic text-[var(--landing-amber)]"> & business docs</span>
+                        </h1>
+                        <p className="text-base sm:text-lg text-[var(--landing-text-muted)] max-w-xl mx-auto leading-relaxed">
+                            Practical guides for freelancers, agencies, and SMBs — get paid faster, stay tax-compliant, and automate your document workflow.
+                        </p>
+                    </div>
+                </header>
+
+                <main className="max-w-5xl mx-auto px-4 sm:px-6 pb-20 sm:pb-28">
+                    {/* Category filter */}
+                    <Suspense fallback={null}>
+                        <div className="mb-10 sm:mb-14 flex justify-center">
+                            <BlogCategoryFilter
+                                categories={categories}
+                                activeCategory={category || null}
+                            />
                         </div>
-                    </div>
-                </div>
-            </header>
+                    </Suspense>
 
-            <main className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
-                {/* Category filter */}
-                <Suspense fallback={null}>
-                    <div className="mb-10">
-                        <BlogCategoryFilter
-                            categories={categories}
-                            activeCategory={category || null}
-                        />
-                    </div>
-                </Suspense>
-
-                {allPosts.length === 0 ? (
-                    <div className="text-center py-20 text-stone-400">
-                        No articles in this category yet.
-                    </div>
-                ) : (
-                    <>
-                        {/* Featured post (first one, full width) */}
-                        {featuredPost && !category && (
-                            <Link
-                                href={`/blog/${featuredPost.slug}`}
-                                className="group block mb-10 p-8 rounded-2xl border border-stone-200 bg-white hover:border-[#C67A3C] hover:shadow-lg transition-all"
-                            >
-                                <div className="flex flex-col sm:flex-row sm:items-start gap-6">
-                                    <div className="flex-1">
-                                        <div className="flex flex-wrap items-center gap-3 mb-4">
-                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${CATEGORY_COLORS[featuredPost.category] ?? "bg-muted text-muted-foreground"}`}>
-                                                {CATEGORY_LABELS[featuredPost.category] ?? featuredPost.category}
-                                            </span>
-                                            <span className="text-xs text-stone-400 font-medium uppercase tracking-wider">Featured</span>
-                                        </div>
-                                        <h2 className="text-2xl sm:text-3xl font-bold text-[#1C1A17] group-hover:text-[#C67A3C] transition-colors leading-tight mb-3">
-                                            {featuredPost.title}
-                                        </h2>
-                                        <p className="text-stone-600 leading-relaxed mb-5 max-w-2xl">
-                                            {featuredPost.description}
-                                        </p>
-                                        <div className="flex items-center gap-4 text-sm text-stone-400">
-                                            <span className="flex items-center gap-1.5">
-                                                <Calendar className="w-3.5 h-3.5" />
-                                                {new Date(featuredPost.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                                            </span>
-                                            <span className="flex items-center gap-1.5">
-                                                <Clock className="w-3.5 h-3.5" />
-                                                {featuredPost.readTime} min read
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="shrink-0 self-center">
-                                        <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1C1A17] text-white rounded-xl text-sm font-semibold group-hover:bg-[#C67A3C] transition-colors">
-                                            Read article <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                        </span>
-                                    </div>
-                                </div>
-                            </Link>
-                        )}
-
-                        {/* Grid of remaining posts */}
-                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {(category ? allPosts : restPosts).map((post) => (
+                    {allPosts.length === 0 ? (
+                        <div className="text-center py-24 text-[var(--landing-text-muted)] rounded-3xl border border-dashed border-stone-300 bg-white/50">
+                            No articles in this category yet.
+                        </div>
+                    ) : (
+                        <div className="space-y-12 sm:space-y-16">
+                            {/* Featured post — full width, roomy, calm */}
+                            {featuredPost && !category && (
                                 <Link
-                                    key={post.slug}
-                                    href={`/blog/${post.slug}`}
-                                    className="group flex flex-col p-6 border border-stone-200 rounded-2xl bg-white hover:border-[#C67A3C] hover:shadow-md transition-all"
+                                    href={`/blog/${featuredPost.slug}`}
+                                    className="group block p-8 sm:p-12 rounded-[2rem] border border-stone-200/70 bg-white card-depth hover:-translate-y-1 transition-all duration-300"
                                 >
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${CATEGORY_COLORS[post.category] ?? "bg-muted text-muted-foreground"}`}>
-                                            {CATEGORY_LABELS[post.category] ?? post.category}
-                                        </span>
-                                    </div>
-                                    <h2 className="text-base font-bold text-[#1C1A17] group-hover:text-[#C67A3C] transition-colors leading-snug mb-2 flex-1">
-                                        {post.title}
-                                    </h2>
-                                    <p className="text-sm text-stone-500 line-clamp-2 leading-relaxed mb-4">
-                                        {post.description}
-                                    </p>
-                                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-stone-100">
-                                        <div className="flex items-center gap-3 text-xs text-stone-400">
-                                            <span className="flex items-center gap-1">
-                                                <Clock className="w-3 h-3" /> {post.readTime} min
-                                            </span>
-                                            <span>
-                                                {new Date(post.publishedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                                    <div className="flex flex-col sm:flex-row sm:items-center gap-8 sm:gap-12">
+                                        <div className="flex-1">
+                                            <div className="flex flex-wrap items-center gap-3 mb-5">
+                                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${CATEGORY_BADGE[featuredPost.category] ?? "bg-stone-100 text-stone-600"}`}>
+                                                    {CATEGORY_LABELS[featuredPost.category] ?? featuredPost.category}
+                                                </span>
+                                                <span className="text-xs text-[var(--landing-text-muted)] font-bold uppercase tracking-widest">Featured</span>
+                                            </div>
+                                            <h2 className="font-display text-2xl sm:text-[2rem] font-semibold text-[var(--landing-text-dark)] group-hover:text-[var(--landing-amber)] transition-colors leading-[1.2] mb-4">
+                                                {featuredPost.title}
+                                            </h2>
+                                            <p className="text-[var(--landing-text-muted)] leading-relaxed mb-6 max-w-2xl">
+                                                {featuredPost.description}
+                                            </p>
+                                            <div className="flex items-center gap-5 text-sm text-[var(--landing-text-muted)]">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Calendar className="w-3.5 h-3.5" />
+                                                    {new Date(featuredPost.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                                </span>
+                                                <span className="flex items-center gap-1.5">
+                                                    <Clock className="w-3.5 h-3.5" />
+                                                    {featuredPost.readTime} min read
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="shrink-0 self-start sm:self-center">
+                                            <span className="inline-flex items-center gap-2 px-5 py-3 bg-[var(--landing-dark)] text-white rounded-full text-sm font-bold group-hover:bg-[var(--landing-amber)] transition-colors">
+                                                Read article <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                             </span>
                                         </div>
-                                        <ArrowRight className="w-4 h-4 text-stone-300 group-hover:text-[#C67A3C] group-hover:translate-x-1 transition-all" />
                                     </div>
                                 </Link>
-                            ))}
+                            )}
+
+                            {/* Grid of remaining posts — generous gap, breathing room */}
+                            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+                                {(category ? allPosts : restPosts).map((post) => (
+                                    <Link
+                                        key={post.slug}
+                                        href={`/blog/${post.slug}`}
+                                        className="group flex flex-col p-6 sm:p-7 rounded-[1.75rem] border border-stone-200/70 bg-white hover:-translate-y-1 card-depth transition-all duration-300"
+                                    >
+                                        <span className={`inline-flex items-center self-start px-3 py-1 rounded-full text-xs font-bold mb-4 ${CATEGORY_BADGE[post.category] ?? "bg-stone-100 text-stone-600"}`}>
+                                            {CATEGORY_LABELS[post.category] ?? post.category}
+                                        </span>
+                                        <h2 className="text-base font-bold text-[var(--landing-text-dark)] group-hover:text-[var(--landing-amber)] transition-colors leading-snug mb-2.5 flex-1">
+                                            {post.title}
+                                        </h2>
+                                        <p className="text-sm text-[var(--landing-text-muted)] line-clamp-2 leading-relaxed mb-5">
+                                            {post.description}
+                                        </p>
+                                        <div className="flex items-center justify-between mt-auto pt-4 border-t border-stone-100">
+                                            <div className="flex items-center gap-3 text-xs text-[var(--landing-text-muted)]">
+                                                <span className="flex items-center gap-1">
+                                                    <Clock className="w-3 h-3" /> {post.readTime} min
+                                                </span>
+                                                <span>
+                                                    {new Date(post.publishedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                                                </span>
+                                            </div>
+                                            <ArrowRight className="w-4 h-4 text-stone-300 group-hover:text-[var(--landing-amber)] group-hover:translate-x-1 transition-all" />
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
                         </div>
-                    </>
-                )}
-            </main>
+                    )}
+                </main>
             </div>
         </LandingLayout>
     )
