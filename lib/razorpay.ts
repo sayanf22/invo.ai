@@ -22,24 +22,24 @@ export const PLANS = {
     },
     starter: {
         name: "Starter",
-        monthlyPrice: 99900,  // ₹999 in paise
-        yearlyPrice: 79900,   // ₹799/mo in paise
+        monthlyPrice: 64900,  // ₹649 in paise
+        yearlyPrice: 51900,   // ₹519/mo in paise (20% off, billed annually)
         documentsPerMonth: 50,
         messagesPerSession: 25,
         features: ["Document generation platform", "All supported templates", "Global document workflows", "PDF + DOCX", "30-day history"],
     },
     pro: {
         name: "Pro",
-        monthlyPrice: 249900,  // ₹2499 in paise
-        yearlyPrice: 199900,   // ₹1999/mo in paise
+        monthlyPrice: 179900,  // ₹1799 in paise
+        yearlyPrice: 143900,   // ₹1439/mo in paise (20% off, billed annually)
         documentsPerMonth: 150,
         messagesPerSession: 30,
         features: ["Document generation platform", "All supported templates", "Global document workflows", "All export formats", "1-year history", "E-signatures", "Custom branding"],
     },
     agency: {
         name: "Agency",
-        monthlyPrice: 599900,  // ₹5999 in paise
-        yearlyPrice: 479900,   // ₹4799/mo in paise
+        monthlyPrice: 499900,  // ₹4999 in paise
+        yearlyPrice: 399900,   // ₹3999/mo in paise (20% off, billed annually)
         documentsPerMonth: -1, // unlimited
         messagesPerSession: -1,
         features: ["Everything in Pro", "Unlimited documents", "Unlimited messages", "3 team members", "Priority support", "Forever history"],
@@ -70,10 +70,14 @@ type CyclePlanIds = { monthly: string; yearly: string }
 // rationale (currencies weaker than USD get a scaled-up numeral so nobody ever
 // converts to less than the USD anchor; INR plans are untouched/reused).
 export const RAZORPAY_PLAN_IDS_BY_CURRENCY: Record<string, Record<PaidTier, CyclePlanIds>> = {
+    // Lowered India pricing (₹649/₹1799/₹4999) — created via
+    // scripts/create-razorpay-inr-v2-plans.mjs. Old ₹999/₹2499/₹5999 plans
+    // remain valid for existing subscribers (Razorpay plans are immutable and
+    // cannot be deleted); new signups get these lower plan_ids.
     INR: {
-        starter: { monthly: "plan_SeqvSGEJYtblYF", yearly: "plan_T9X5GIMe6R3Jhk" },
-        pro: { monthly: "plan_SeqvmVPu1FVuRx", yearly: "plan_T9X5GlpHxPCuuQ" },
-        agency: { monthly: "plan_SeqvmqZpMvvQYS", yearly: "plan_T9X5H16prTUdjc" },
+        starter: { monthly: "plan_T9YVcZW782wqrV", yearly: "plan_T9YVcynGToWUXt" },
+        pro: { monthly: "plan_T9YVdDh330CpPq", yearly: "plan_T9YVdSkREWjjmy" },
+        agency: { monthly: "plan_T9YVdkXNz86VV1", yearly: "plan_T9YVe0GHKAJxUe" },
     },
     USD: {
         starter: { monthly: "plan_T9Xbn7v1ZfFwMl", yearly: "plan_T9XbnZbXAsz0Mi" },
@@ -138,7 +142,7 @@ export const RAZORPAY_PLAN_IDS_BY_CURRENCY: Record<string, Record<PaidTier, Cycl
  * Used for record-keeping so records match the real charge.
  */
 export const PLAN_PRICES_BY_CURRENCY: Record<string, Record<PaidTier, { monthly: number; yearly: number }>> = {
-    INR: { starter: { monthly: 99900, yearly: 958800 }, pro: { monthly: 249900, yearly: 2398800 }, agency: { monthly: 599900, yearly: 5758800 } },
+    INR: { starter: { monthly: 64900, yearly: 622800 }, pro: { monthly: 179900, yearly: 1726800 }, agency: { monthly: 499900, yearly: 4798800 } },
     USD: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 10000, yearly: 96000 } },
     EUR: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 10000, yearly: 96000 } },
     GBP: { starter: { monthly: 1500, yearly: 14400 }, pro: { monthly: 3500, yearly: 33600 }, agency: { monthly: 10000, yearly: 96000 } },
@@ -151,6 +155,60 @@ export const PLAN_PRICES_BY_CURRENCY: Record<string, Record<PaidTier, { monthly:
     SEK: { starter: { monthly: 14500, yearly: 139200 }, pro: { monthly: 33500, yearly: 321600 }, agency: { monthly: 95000, yearly: 912000 } },
     AED: { starter: { monthly: 5800, yearly: 55200 }, pro: { monthly: 13500, yearly: 129600 }, agency: { monthly: 37500, yearly: 360000 } },
 }
+
+/**
+ * LEGACY plan IDs — no longer used for NEW subscriptions (superseded by
+ * RAZORPAY_PLAN_IDS_BY_CURRENCY above), but MUST stay resolvable forever
+ * because existing subscribers who signed up under the old price remain on
+ * these plan_ids for the life of their subscription (Razorpay does not
+ * migrate existing subscriptions when you point new signups at a different
+ * plan, and plans cannot be deleted). Every renewal webhook for these
+ * subscribers looks up plan/currency/cycle/amount by this exact plan_id, so
+ * removing an entry here would corrupt their billing records on next renewal.
+ *
+ * Add a new block here (never remove one) whenever a pricing change points
+ * RAZORPAY_PLAN_IDS_BY_CURRENCY at fresh plan_ids.
+ */
+const LEGACY_PLAN_IDS: Array<{
+    id: string
+    plan: PaidTier
+    currency: string
+    cycle: BillingCycle
+    amount: number // smallest currency unit, exact price of THIS plan
+}> = [
+    // Original India pricing (₹999 / ₹2499 / ₹5999) — superseded by the
+    // ₹649 / ₹1799 / ₹4999 plans above. Still active for subscribers who
+    // joined before the price drop.
+    { id: "plan_SeqvSGEJYtblYF", plan: "starter", currency: "INR", cycle: "monthly", amount: 99900 },
+    { id: "plan_SeqvmVPu1FVuRx", plan: "pro", currency: "INR", cycle: "monthly", amount: 249900 },
+    { id: "plan_SeqvmqZpMvvQYS", plan: "agency", currency: "INR", cycle: "monthly", amount: 599900 },
+    { id: "plan_T9X5GIMe6R3Jhk", plan: "starter", currency: "INR", cycle: "yearly", amount: 958800 },
+    { id: "plan_T9X5GlpHxPCuuQ", plan: "pro", currency: "INR", cycle: "yearly", amount: 2398800 },
+    { id: "plan_T9X5H16prTUdjc", plan: "agency", currency: "INR", cycle: "yearly", amount: 5758800 },
+    // v1 flat-numeral international pricing (15/35/80 same numeral across
+    // currencies) — superseded by the PPP-corrected v2 ladder above.
+    { id: "plan_T9WnghL55l3N58", plan: "starter", currency: "USD", cycle: "monthly", amount: 1500 },
+    { id: "plan_T9Wnh6zWqrVP1U", plan: "pro", currency: "USD", cycle: "monthly", amount: 3500 },
+    { id: "plan_T9WnhM2k72RCiU", plan: "agency", currency: "USD", cycle: "monthly", amount: 8000 },
+    { id: "plan_T9WnhZnEPhBbGE", plan: "starter", currency: "EUR", cycle: "monthly", amount: 1500 },
+    { id: "plan_T9WnhoiztShqYV", plan: "pro", currency: "EUR", cycle: "monthly", amount: 3500 },
+    { id: "plan_T9Wni2V9pP8OIQ", plan: "agency", currency: "EUR", cycle: "monthly", amount: 8000 },
+    { id: "plan_T9WniHxSUu4fF9", plan: "starter", currency: "GBP", cycle: "monthly", amount: 1500 },
+    { id: "plan_T9WniWhUTPyloG", plan: "pro", currency: "GBP", cycle: "monthly", amount: 3500 },
+    { id: "plan_T9WnilPGFZZ3uF", plan: "agency", currency: "GBP", cycle: "monthly", amount: 8000 },
+    { id: "plan_T9Wnj0MiaeYm0T", plan: "starter", currency: "SGD", cycle: "monthly", amount: 1500 },
+    { id: "plan_T9WnjHK2UN8BRY", plan: "pro", currency: "SGD", cycle: "monthly", amount: 3500 },
+    { id: "plan_T9WnjVUncj8TZk", plan: "agency", currency: "SGD", cycle: "monthly", amount: 8000 },
+    { id: "plan_T9WnjjzJCIJ37t", plan: "starter", currency: "CAD", cycle: "monthly", amount: 1500 },
+    { id: "plan_T9Wnjyuqbvhgyk", plan: "pro", currency: "CAD", cycle: "monthly", amount: 3500 },
+    { id: "plan_T9WnkDJKbOyRL8", plan: "agency", currency: "CAD", cycle: "monthly", amount: 8000 },
+    { id: "plan_T9WnkSBBSrUJZR", plan: "starter", currency: "AUD", cycle: "monthly", amount: 1500 },
+    { id: "plan_T9WnkgkCE38Mt5", plan: "pro", currency: "AUD", cycle: "monthly", amount: 3500 },
+    { id: "plan_T9WnkuE4mnAeBy", plan: "agency", currency: "AUD", cycle: "monthly", amount: 8000 },
+    { id: "plan_T9WnlB0tzk7fWn", plan: "starter", currency: "AED", cycle: "monthly", amount: 5500 },
+    { id: "plan_T9WnlYCbcd4eGx", plan: "pro", currency: "AED", cycle: "monthly", amount: 13000 },
+    { id: "plan_T9WnlsADM2mL9O", plan: "agency", currency: "AED", cycle: "monthly", amount: 30000 },
+]
 
 /** Currencies we can actually charge for recurring subscriptions. */
 export const SUPPORTED_SUBSCRIPTION_CURRENCIES = Object.keys(RAZORPAY_PLAN_IDS_BY_CURRENCY)
@@ -178,27 +236,33 @@ export function getPlanIdForCurrency(plan: PaidTier, currency: string, cycle: Bi
     return byCur[plan]?.[cycle] ?? null
 }
 
-/** Reverse-map a Razorpay plan_id back to our internal plan key (any currency/cycle). */
+/**
+ * Reverse-map a Razorpay plan_id back to our internal plan key.
+ * Checks CURRENT plans first, then LEGACY_PLAN_IDS — so subscribers on an
+ * old (superseded) plan_id still resolve correctly on every renewal.
+ */
 export function planIdToPlan(razorpayPlanId: string): PlanId | null {
     for (const tiers of Object.values(RAZORPAY_PLAN_IDS_BY_CURRENCY)) {
         for (const [plan, ids] of Object.entries(tiers)) {
             if (ids.monthly === razorpayPlanId || ids.yearly === razorpayPlanId) return plan as PlanId
         }
     }
-    return null
+    const legacy = LEGACY_PLAN_IDS.find((p) => p.id === razorpayPlanId)
+    return legacy?.plan ?? null
 }
 
-/** Reverse-map a Razorpay plan_id back to its currency. */
+/** Reverse-map a Razorpay plan_id back to its currency (current or legacy). */
 export function planIdToCurrency(razorpayPlanId: string): string | null {
     for (const [currency, tiers] of Object.entries(RAZORPAY_PLAN_IDS_BY_CURRENCY)) {
         for (const ids of Object.values(tiers)) {
             if (ids.monthly === razorpayPlanId || ids.yearly === razorpayPlanId) return currency
         }
     }
-    return null
+    const legacy = LEGACY_PLAN_IDS.find((p) => p.id === razorpayPlanId)
+    return legacy?.currency ?? null
 }
 
-/** Reverse-map a Razorpay plan_id back to its billing cycle. */
+/** Reverse-map a Razorpay plan_id back to its billing cycle (current or legacy). */
 export function planIdToCycle(razorpayPlanId: string): BillingCycle | null {
     for (const tiers of Object.values(RAZORPAY_PLAN_IDS_BY_CURRENCY)) {
         for (const ids of Object.values(tiers)) {
@@ -206,7 +270,24 @@ export function planIdToCycle(razorpayPlanId: string): BillingCycle | null {
             if (ids.yearly === razorpayPlanId) return "yearly"
         }
     }
-    return null
+    const legacy = LEGACY_PLAN_IDS.find((p) => p.id === razorpayPlanId)
+    return legacy?.cycle ?? null
+}
+
+/**
+ * Get the exact price for a plan_id — checks legacy plans first so an
+ * existing subscriber's renewal always records their ACTUAL grandfathered
+ * price, not the current (possibly different) price for that tier/currency.
+ * Falls back to PLAN_PRICES_BY_CURRENCY for current plan_ids.
+ */
+export function planIdToAmount(razorpayPlanId: string): number | null {
+    const legacy = LEGACY_PLAN_IDS.find((p) => p.id === razorpayPlanId)
+    if (legacy) return legacy.amount
+    const currency = planIdToCurrency(razorpayPlanId)
+    const plan = planIdToPlan(razorpayPlanId)
+    const cycle = planIdToCycle(razorpayPlanId)
+    if (!currency || !plan || !cycle) return null
+    return PLAN_PRICES_BY_CURRENCY[currency]?.[plan]?.[cycle] ?? null
 }
 
 /**

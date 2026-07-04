@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
-import { getSubscription, planIdToPlan, planIdToCurrency, planIdToCycle, isValidPlanId, PLANS, PLAN_PRICES_BY_CURRENCY, type PlanId } from "@/lib/razorpay"
+import { getSubscription, planIdToPlan, planIdToCurrency, planIdToCycle, planIdToAmount, isValidPlanId, PLANS, PLAN_PRICES_BY_CURRENCY, type PlanId } from "@/lib/razorpay"
 import { logAudit } from "@/lib/audit-log"
 import { createClient } from "@supabase/supabase-js"
 import type { NextRequest } from "next/server"
@@ -86,7 +86,10 @@ export async function POST(request: NextRequest) {
             const billingCycle = (cycleFromPlan || (sub.notes?.billing_cycle === "yearly" ? "yearly" : "monthly")) as "monthly" | "yearly"
             const currency = (sub.plan_id ? planIdToCurrency(sub.plan_id) : null) || "INR"
             const paidTier = plan as "starter" | "pro" | "agency"
-            const amount = PLAN_PRICES_BY_CURRENCY[currency]?.[paidTier]?.[billingCycle]
+            // planIdToAmount records the subscriber's ACTUAL (possibly
+            // grandfathered) price rather than today's current price.
+            const amount = (sub.plan_id ? planIdToAmount(sub.plan_id) : null)
+                ?? PLAN_PRICES_BY_CURRENCY[currency]?.[paidTier]?.[billingCycle]
                 ?? PLAN_PRICES_BY_CURRENCY.INR[paidTier][billingCycle]
                 ?? PLANS[plan].monthlyPrice
 

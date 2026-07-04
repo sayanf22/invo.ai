@@ -114,12 +114,14 @@ export async function POST(request: Request) {
                     else periodEnd.setMonth(periodEnd.getMonth() + 1)
 
                     // Amount + currency + cycle derived from the subscription's actual
-                    // plan_id so multi-currency subscriptions record the real charge.
-                    const { PLAN_PRICES_BY_CURRENCY, planIdToCurrency, planIdToCycle } = await import("@/lib/razorpay")
+                    // plan_id so multi-currency (and grandfathered-price) subscriptions
+                    // record the real charge, not today's current price for that tier.
+                    const { PLAN_PRICES_BY_CURRENCY, planIdToCurrency, planIdToCycle, planIdToAmount } = await import("@/lib/razorpay")
                     const currency = (subscription.plan_id ? planIdToCurrency(subscription.plan_id) : null) || "INR"
                     const cycleKey = ((subscription.plan_id ? planIdToCycle(subscription.plan_id) : null) || billingCycle) === "yearly" ? "yearly" : "monthly"
                     const paidTier = plan as "starter" | "pro" | "agency"
-                    const amount = PLAN_PRICES_BY_CURRENCY[currency]?.[paidTier]?.[cycleKey]
+                    const amount = (subscription.plan_id ? planIdToAmount(subscription.plan_id) : null)
+                        ?? PLAN_PRICES_BY_CURRENCY[currency]?.[paidTier]?.[cycleKey]
                         ?? PLAN_PRICES_BY_CURRENCY.INR[paidTier][cycleKey]
 
                     const { error: upsertErr } = await supabase

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
-import { verifyPaymentSignature, PLANS, PLAN_PRICES_BY_CURRENCY, isValidPlanId, getSubscription, planIdToPlan, planIdToCurrency, planIdToCycle, type PlanId } from "@/lib/razorpay"
+import { verifyPaymentSignature, PLANS, PLAN_PRICES_BY_CURRENCY, isValidPlanId, getSubscription, planIdToPlan, planIdToCurrency, planIdToCycle, planIdToAmount, type PlanId } from "@/lib/razorpay"
 import { logAudit } from "@/lib/audit-log"
 import { createClient } from "@supabase/supabase-js"
 import type { NextRequest } from "next/server"
@@ -128,11 +128,14 @@ export async function POST(request: NextRequest) {
             effectiveCurrency = authoritative.currency || "INR"
         }
 
-        // Amount stored for records = the real charged amount in the plan's
-        // currency + cycle (yearly = full annual charge).
+        // Amount stored for records = the ACTUAL charged amount for this
+        // subscription's plan_id. planIdToAmount checks legacy (grandfathered)
+        // plans first so an existing subscriber's real historical price is
+        // recorded, not today's (possibly different) current price.
         const paidTier = effectivePlan as "starter" | "pro" | "agency"
         const cycleKey = effectiveCycle === "yearly" ? "yearly" : "monthly"
-        const amount = (PLAN_PRICES_BY_CURRENCY[effectiveCurrency]?.[paidTier]?.[cycleKey])
+        const amount = (isSubscription ? planIdToAmount(razorpay_subscription_id) : null)
+            ?? PLAN_PRICES_BY_CURRENCY[effectiveCurrency]?.[paidTier]?.[cycleKey]
             ?? PLAN_PRICES_BY_CURRENCY.INR[paidTier][cycleKey]
             ?? PLANS[effectivePlan].monthlyPrice
 

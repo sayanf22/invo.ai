@@ -23,9 +23,9 @@ export interface CountryPricing {
 export const COUNTRY_PRICING: Record<string, CountryPricing> = {
     IN: {
         country: "India", countryCode: "IN", currency: "INR", currencySymbol: "₹", locale: "en-IN",
-        starter: { monthly: 999, yearly: 799 },
-        pro: { monthly: 2499, yearly: 1999 },
-        agency: { monthly: 5999, yearly: 4799 },
+        starter: { monthly: 649, yearly: 519 },
+        pro: { monthly: 1799, yearly: 1439 },
+        agency: { monthly: 4999, yearly: 3999 },
     },
     US: {
         country: "United States", countryCode: "US", currency: "USD", currencySymbol: "$", locale: "en-US",
