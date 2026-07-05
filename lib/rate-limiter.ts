@@ -34,10 +34,14 @@ const RATE_LIMITS: Record<RouteCategory, { maxRequests: number; windowSeconds: n
     payment: { maxRequests: 20, windowSeconds: 60 },   // 20 req/min for payment link creation
     email: { maxRequests: 15, windowSeconds: 60 },     // 15 req/min for email sending
     signature: { maxRequests: 10, windowSeconds: 60 }, // 10 req/min for signature requests
-    file_analysis: { maxRequests: 20, windowSeconds: 60 }, // 20 req/min for OpenAI vision file extraction — raised from 10 because
-    // onboarding legitimately involves uploading several catalogs/invoices back to back
-    // (processed sequentially client-side, but each still counts as one request here).
-    // Still bounded — real cost protection is the separate per-user monthly checkCostLimit().
+    // 40 req/min for OpenAI vision file extraction. Raised twice: 10 -> 20 was
+    // still too tight because each file that needs an OpenAI-side transient
+    // retry counts as 2 requests against this window, so a normal onboarding
+    // batch of several documents (each potentially retrying once) burns
+    // through a low budget fast. The REAL cost control is the separate
+    // per-user monthly checkCostLimit() — this per-minute gate only exists to
+    // stop a runaway burst, so it can afford to be generous.
+    file_analysis: { maxRequests: 40, windowSeconds: 60 },
 }
 
 // ── Helper: Extract access token from cookies ──────────────────────────
