@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createServerClient } from "@supabase/ssr"
+import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import {
   RATE_LIMITS,
   ipStore,
@@ -367,6 +367,19 @@ export async function middleware(request: NextRequest) {
     request: { headers: requestHeaders },
   })
 
+  // Collect any refreshed auth cookies so we can re-apply them to WHATEVER
+  // response we ultimately return — including redirects. Supabase rotates the
+  // refresh token on refresh; if we drop the new cookie (e.g. by returning a
+  // redirect that doesn't carry it), the browser keeps the OLD refresh token,
+  // and presenting it later triggers reuse detection → the whole session is
+  // revoked → the user is unexpectedly logged out. Carrying these cookies onto
+  // every return path is the @supabase/ssr-recommended fix.
+  const refreshedCookies: { name: string; value: string; options: CookieOptions }[] = []
+  const withAuthCookies = (res: NextResponse): NextResponse => {
+    refreshedCookies.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
+    return res
+  }
+
   try {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -385,6 +398,10 @@ export async function middleware(request: NextRequest) {
             // Also copy to the main response
             cookiesToSet.forEach(({ name, value, options }) =>
               response.cookies.set(name, value, options)
+            )
+            // Remember them so redirect responses can carry them too
+            cookiesToSet.forEach(({ name, value, options }) =>
+              refreshedCookies.push({ name, value, options: options as CookieOptions })
             )
           },
         },
@@ -431,7 +448,7 @@ export async function middleware(request: NextRequest) {
   ) {
     const suspended = await isUserSuspended(userId)
     if (suspended) {
-      return NextResponse.redirect(new URL("/suspended", request.url))
+      return withAuthCookies(NextResponse.redirect(new URL("/suspended", request.url)))
     }
   }
 
@@ -453,7 +470,7 @@ export async function middleware(request: NextRequest) {
   if (!isAuthenticated && !isPublicPath(pathname)) {
     const loginUrl = new URL("/auth/login", request.url)
     loginUrl.searchParams.set("redirectTo", pathname)
-    return NextResponse.redirect(loginUrl)
+    return withAuthCookies(NextResponse.redirect(loginUrl))
   }
 
   // Redirect authenticated users away from auth pages (login/signup/reset)
@@ -465,7 +482,7 @@ export async function middleware(request: NextRequest) {
     !pathname.startsWith("/auth/confirm") &&
     !pathname.startsWith("/auth/update-password")
   ) {
-    return NextResponse.redirect(new URL("/", request.url))
+    return withAuthCookies(NextResponse.redirect(new URL("/", request.url)))
   }
 
   // ── Onboarding guard: prevent completed users from re-entering ───────
@@ -505,7 +522,7 @@ export async function middleware(request: NextRequest) {
               if (Array.isArray(businesses) && businesses.length > 0) {
                 const biz = businesses[0]
                 if (biz.name && biz.country && biz.email) {
-                  return NextResponse.redirect(new URL("/", request.url))
+                  return withAuthCookies(NextResponse.redirect(new URL("/", request.url)))
                 }
               }
             }
@@ -538,7 +555,7 @@ export async function middleware(request: NextRequest) {
           if (Array.isArray(profiles) && profiles.length > 0) {
             const profile = profiles[0]
             if (profile.plan_selected && profile.onboarding_complete) {
-              return NextResponse.redirect(new URL("/", request.url))
+              return withAuthCookies(NextResponse.redirect(new URL("/", request.url)))
             }
           }
         }
