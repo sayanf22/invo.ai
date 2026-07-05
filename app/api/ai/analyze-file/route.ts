@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { authenticateRequest } from "@/lib/api-auth"
+import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
 import { getSecret } from "@/lib/secrets"
 import { sanitizeText } from "@/lib/sanitize"
 import { checkCostLimit, trackUsage, getUserTier } from "@/lib/cost-protection"
@@ -93,6 +93,14 @@ function buildFileContextSummary(extracted: any): string {
 }
 
 export async function POST(request: Request) {
+    // SECURITY: Reject cross-origin / CSRF requests before doing any work. This
+    // is a state-changing POST that calls a paid OpenAI vision API, so it MUST
+    // only be callable from our own site (same-origin browser fetch sends a
+    // matching Origin/Referer). Combined with authenticateRequest + the per-user
+    // rate limit below, this prevents anyone from driving up our OpenAI bill.
+    const originError = validateOrigin(request as never)
+    if (originError) return originError
+
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
@@ -241,27 +249,45 @@ RULES:
         }
 
         // Call OpenAI API with gpt-5.4-mini (supports images + PDFs natively, 3x cheaper than gpt-5.4)
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${openaiKey}`,
-            },
-            body: JSON.stringify({
-                model: "gpt-5.4-mini",
-                messages: [
-                    {
-                        role: "user",
-                        content: contentParts,
-                    },
-                ],
-                max_completion_tokens: 2000,
-                temperature: 0.1,
-            }),
-        })
+        // A 55s timeout guards against a hung upstream request being killed opaquely
+        // by the Cloudflare Worker (which would otherwise surface as a confusing
+        // generic failure with no clear cause).
+        let response: Response
+        try {
+            response = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${openaiKey}`,
+                },
+                body: JSON.stringify({
+                    model: "gpt-5.4-mini",
+                    messages: [
+                        {
+                            role: "user",
+                            content: contentParts,
+                        },
+                    ],
+                    max_completion_tokens: 2000,
+                    temperature: 0.1,
+                }),
+                signal: AbortSignal.timeout(55_000),
+            })
+        } catch (fetchErr: any) {
+            // AbortSignal.timeout throws a TimeoutError; network drops throw too.
+            const isTimeout = fetchErr?.name === "TimeoutError" || fetchErr?.name === "AbortError"
+            console.error("OpenAI fetch failed:", fetchErr?.name, fetchErr?.message)
+            return NextResponse.json(
+                { error: isTimeout ? "The document took too long to analyze. Please try a smaller file or type your details." : "AI service temporarily unavailable. Please try again." },
+                { status: isTimeout ? 504 : 502 }
+            )
+        }
 
         if (!response.ok) {
             const err = await response.json().catch(() => ({ error: { message: "Unknown error" } }))
+            // Log the upstream status + code so production can distinguish a real
+            // OpenAI 429 (quota/TPM) from an auth/model error (401/404) — these
+            // otherwise both look like a generic failure to the user.
             console.error("OpenAI API error:", response.status, JSON.stringify(err))
             if (response.status === 429) {
                 return NextResponse.json({ error: "AI service is busy. Please wait a moment and try again." }, { status: 429 })

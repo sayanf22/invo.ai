@@ -300,7 +300,7 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
             const analyzeFormData = new FormData()
             analyzeFormData.append("file", uploadedFile.file)
 
-            let res = await fetch("/api/ai/analyze-file", {
+            let res = await authFetch("/api/ai/analyze-file", {
                 method: "POST",
                 body: analyzeFormData,
             })
@@ -308,7 +308,7 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
             // Handle 429 with retry
             if (res.status === 429) {
                 await new Promise(resolve => setTimeout(resolve, 5000))
-                res = await fetch("/api/ai/analyze-file", {
+                res = await authFetch("/api/ai/analyze-file", {
                     method: "POST",
                     body: analyzeFormData,
                 })
@@ -372,7 +372,15 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
         if (validFiles.length === 0) return
 
         setFiles(prev => [...prev, ...validFiles])
-        validFiles.forEach(f => processFile(f))
+        // Process SEQUENTIALLY (not in parallel). Each file triggers an expensive
+        // OpenAI vision call that's rate-limited to 10/min per user; firing several
+        // at once would trip that limit and surface as "Service is busy". One at a
+        // time keeps every upload within the budget and reduces upstream load.
+        void (async () => {
+            for (const f of validFiles) {
+                await processFile(f)
+            }
+        })()
     }, [processFile])
 
     const retryFile = useCallback((fileId: string) => {
