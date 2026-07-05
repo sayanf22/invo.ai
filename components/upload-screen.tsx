@@ -305,26 +305,30 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                 body: analyzeFormData,
             })
 
-            // Handle 429 with retry
+            // Only a 429 is genuinely transient (OpenAI TPM/RPM). Retry it ONCE,
+            // honoring the server's Retry-After hint (capped) instead of a blind
+            // 5s wait. Everything else (502/503) is not helped by retrying — the
+            // server already returns a clear, actionable message for those.
             if (res.status === 429) {
-                await new Promise(resolve => setTimeout(resolve, 5000))
+                const retryBody = await res.clone().json().catch(() => ({} as any))
+                const retryAfterSec = Math.min(Number(retryBody?.retryAfter) || 8, 20)
+                await new Promise(resolve => setTimeout(resolve, retryAfterSec * 1000))
                 res = await authFetch("/api/ai/analyze-file", {
                     method: "POST",
                     body: analyzeFormData,
                 })
-                if (!res.ok) {
-                    setFiles(prev => prev.map(f =>
-                        f.id === uploadedFile.id
-                            ? { ...f, status: "failed" as const, error: "Service is busy. You can continue to the chat and type your details." }
-                            : f
-                    ))
-                    return
-                }
-            } else if (!res.ok) {
-                const errBody = await res.json().catch(() => ({}))
+            }
+
+            if (!res.ok) {
+                // Surface the server's actual message — it now tells the user
+                // precisely what to do (e.g. "type your details in the chat").
+                const errBody = await res.json().catch(() => ({} as any))
+                const fallback = res.status === 429
+                    ? "Service is busy right now. You can continue to the chat and type your details."
+                    : "Couldn't analyze this file. You can continue to the chat and type your details."
                 setFiles(prev => prev.map(f =>
                     f.id === uploadedFile.id
-                        ? { ...f, status: "failed" as const, error: errBody.error || "Analysis failed." }
+                        ? { ...f, status: "failed" as const, error: errBody?.error || fallback }
                         : f
                 ))
                 return

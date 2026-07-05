@@ -70,6 +70,29 @@ IMPORTANT:
 - The "additionalContext" field should contain any extra details like payment terms, conditions, notes, and policies mentioned in the document
 - Return ONLY valid JSON, no markdown or explanation`
 
+/**
+ * Persist a file-analysis failure to error_logs so production failures are
+ * observable (the Cloudflare console is not visible to us). Fire-and-forget:
+ * never throws, never blocks the response.
+ */
+async function logAnalyzeFailure(
+    supabase: any,
+    userId: string,
+    reason: string,
+    metadata: Record<string, unknown>
+): Promise<void> {
+    try {
+        await supabase.from("error_logs").insert({
+            user_id: userId,
+            error_context: "ai_analyze_file",
+            error_message: reason,
+            metadata,
+        })
+    } catch {
+        // swallow — logging must never break the request
+    }
+}
+
 function buildFileContextSummary(extracted: any): string {
     const parts: string[] = []
     if (extracted.businessName) parts.push(`Business: ${extracted.businessName}`)
@@ -156,7 +179,10 @@ export async function POST(request: Request) {
         const openaiKey = await getSecret("OPENAI_API_KEY")
         if (!openaiKey) {
             console.error("OPENAI_API_KEY not found. ENV keys available:", Object.keys(process.env).filter(k => k.includes("OPENAI") || k.includes("DEEPSEEK") || k.includes("SUPABASE_SERVICE")).join(", ") || "none")
-            return NextResponse.json({ error: "File analysis is temporarily unavailable. Please type your details manually." }, { status: 503 })
+            await logAnalyzeFailure(auth.supabase, auth.user.id, "openai_key_missing", {
+                hint: "getSecret returned empty — key not in process.env, Worker binding, or Vault (needs SUPABASE_SERVICE_ROLE_KEY to reach Vault).",
+            })
+            return NextResponse.json({ error: "Document analysis is temporarily unavailable. Please type your details in the chat instead." }, { status: 503 })
         }
 
         // Convert file to base64 — use chunked approach for large files
@@ -277,6 +303,12 @@ RULES:
             // AbortSignal.timeout throws a TimeoutError; network drops throw too.
             const isTimeout = fetchErr?.name === "TimeoutError" || fetchErr?.name === "AbortError"
             console.error("OpenAI fetch failed:", fetchErr?.name, fetchErr?.message)
+            await logAnalyzeFailure(auth.supabase, auth.user.id, isTimeout ? "openai_timeout" : "openai_network_error", {
+                errorName: fetchErr?.name,
+                errorMessage: fetchErr?.message,
+                fileType: file.type,
+                fileSizeKb: Math.round(file.size / 1024),
+            })
             return NextResponse.json(
                 { error: isTimeout ? "The document took too long to analyze. Please try a smaller file or type your details." : "AI service temporarily unavailable. Please try again." },
                 { status: isTimeout ? 504 : 502 }
@@ -285,14 +317,50 @@ RULES:
 
         if (!response.ok) {
             const err = await response.json().catch(() => ({ error: { message: "Unknown error" } }))
-            // Log the upstream status + code so production can distinguish a real
-            // OpenAI 429 (quota/TPM) from an auth/model error (401/404) — these
-            // otherwise both look like a generic failure to the user.
-            console.error("OpenAI API error:", response.status, JSON.stringify(err))
-            if (response.status === 429) {
-                return NextResponse.json({ error: "AI service is busy. Please wait a moment and try again." }, { status: 429 })
+            const openaiCode: string = err?.error?.code || err?.error?.type || "unknown"
+            const openaiMessage: string = err?.error?.message || "Unknown error"
+            // Log the upstream status + code so production can distinguish the real
+            // cause — a quota/billing failure, a transient rate limit, an auth/model
+            // error, or a bad request all otherwise look identical to the user.
+            console.error("OpenAI API error:", response.status, openaiCode, openaiMessage)
+            await logAnalyzeFailure(auth.supabase, auth.user.id, `openai_${response.status}`, {
+                upstreamStatus: response.status,
+                openaiCode,
+                openaiMessage,
+                fileType: file.type,
+                fileSizeKb: Math.round(file.size / 1024),
+            })
+
+            // Billing/quota exhaustion (OpenAI returns 429 with code
+            // insufficient_quota). This is NOT transient — retrying won't help,
+            // so tell the user plainly and DON'T advertise a retry.
+            if (response.status === 429 && openaiCode === "insufficient_quota") {
+                return NextResponse.json(
+                    { error: "Document analysis is temporarily unavailable. Please type your details in the chat — it works exactly the same." },
+                    { status: 503 }
+                )
             }
-            return NextResponse.json({ error: "AI service temporarily unavailable. Please try again." }, { status: 500 })
+
+            // Transient rate limit (TPM/RPM). Surface Retry-After so the client
+            // can back off intelligently instead of a blind 5s retry.
+            if (response.status === 429) {
+                const retryAfter = response.headers.get("retry-after") || "15"
+                return NextResponse.json(
+                    { error: "AI service is busy. Please wait a moment and try again.", retryAfter: Number(retryAfter) || 15 },
+                    { status: 429, headers: { "Retry-After": String(retryAfter) } }
+                )
+            }
+
+            // Auth/model/config errors (401/403/404) are our fault, not transient.
+            // Route the user to the manual path immediately rather than looping.
+            if (response.status === 401 || response.status === 403 || response.status === 404) {
+                return NextResponse.json(
+                    { error: "Document analysis is temporarily unavailable. Please type your details in the chat instead." },
+                    { status: 503 }
+                )
+            }
+
+            return NextResponse.json({ error: "AI service temporarily unavailable. Please try again." }, { status: 502 })
         }
 
         const data = await response.json()
