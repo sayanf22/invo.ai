@@ -14,7 +14,11 @@ const ScrollArea = React.forwardRef<
     className={cn('relative overflow-hidden', className)}
     {...props}
   >
-    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+    {/* [&>div]:!block overrides Radix's inline `display:table` on the internal
+        content wrapper. `table` sizes to intrinsic content width and ignores the
+        parent, which leaks horizontal overflow on mobile. `block` constrains the
+        wrapper to the viewport width so children (truncate/break-words) behave. */}
+    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit] [&>div]:!block [&>div]:!min-w-0">
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />
