@@ -15,7 +15,7 @@ import { toast } from "sonner"
 import { ChatOnlyScreen } from "@/components/chat-only-screen"
 import { cn } from "@/lib/utils"
 import type { IntentSuggestion } from "@/lib/intent-router"
-import { Paperclip, Clock, ArrowUp, ClipboardList, ChevronRight } from "lucide-react"
+import { Loader } from "@/components/ui/loader"
 
 type View = "start" | "chat-only" | "prompt"
 
@@ -41,99 +41,16 @@ function Shimmer({ className, style }: { className?: string; style?: React.CSSPr
   )
 }
 
-// ── Home screen skeleton: shown while checking auth/onboarding on login or
-// when navigating back to the start screen. Unlike StartScreenSkeleton below
-// (which mimics an in-progress chat and is used only during the brief
-// "detecting doc type" transition), this renders the ACTUAL static home
-// screen — real heading, real input shell, real prompt pill — since none of
-// that content depends on any data fetch. There's no reason to fake it with
-// shimmer bars when the real thing is just as fast to paint.
+// ── Home screen loading: shown while checking auth/onboarding on login or
+// when navigating back to the start screen. A simple centered spinner reads
+// as an honest "we're loading" state rather than faking the real home screen
+// (which caused a jarring flash when the actual content swapped in). The brand
+// mark keeps it feeling on-brand while the auth/onboarding check resolves.
 export function HomeScreenSkeleton() {
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Header — same shape as the real one, buttons inert until hydration */}
-      <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
-        <span className="inline-flex items-center gap-1.5 shrink-0">
-          <span className="w-9 h-9 rounded-lg bg-muted/60" />
-        </span>
-        <span className="flex items-center justify-center w-10 h-10 rounded-xl">
-          <svg width="36" height="36" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-foreground/70">
-            <path d="M27 10 13 10C10.8 10 9 8.2 9 6 9 3.5 10.8 2 13 2 15.2 2 17 3.8 17 6L17 26C17 28.2 18.8 30 21 30 23.2 30 25 28.2 25 26 25 23.8 23.2 22 21 22L7 22" style={{ strokeDasharray: "12 63" }} />
-            <path d="M7 16 27 16" />
-          </svg>
-        </span>
-      </header>
-
-      <main className="flex-1 overflow-y-auto">
-        <section className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center px-4 py-12">
-          <div className="flex flex-col items-center gap-6 w-full max-w-[720px]">
-            <span className="inline-flex items-center gap-1.5 shrink-0">
-              <span className="w-20 h-20 rounded-lg bg-muted/60" />
-            </span>
-            <h1 className="text-[40px] md:text-[48px] font-display font-medium tracking-tight text-foreground text-center text-balance leading-tight">
-              What do you want to <span className="font-medium relative text-amber-700 dark:text-amber-500">create<span className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-amber-700/30 dark:bg-amber-500/30" /></span>?
-            </h1>
-            <div className="w-full mt-2">
-              <div className="w-full max-w-[720px] mx-auto">
-                <div className="rounded-2xl border border-border bg-card shadow-sm">
-                  <div className="px-6 pt-5 pb-2">
-                    <p className="text-base text-muted-foreground/40 min-h-[44px] py-2.5 leading-relaxed">
-                      Describe your document... e.g. Create an invoice for web design services
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between px-5 pb-4">
-                    <div className="flex items-center gap-1.5">
-                      <span className="flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground">
-                        <Paperclip className="w-[18px] h-[18px]" />
-                      </span>
-                      <span className="flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground">
-                        <Clock className="w-[18px] h-[18px]" />
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1.5 text-[14px] text-muted-foreground select-none">
-                        <span className="font-medium">Clorefy AI</span>
-                        <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
-                          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
-                      <span className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary text-muted-foreground/40">
-                        <ArrowUp className="w-[18px] h-[18px]" />
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-center text-[13px] text-muted-foreground mt-3">
-                  AI generates structured data only. Always review your documents.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-2 w-full mt-2">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/40 select-none">
-                Try a prompt
-              </p>
-              <div className="flex items-center gap-2 w-full max-w-[420px]">
-                <div className="relative flex-1 overflow-hidden">
-                  <div className="flex items-center gap-2.5 w-full px-4 py-2.5 rounded-2xl border border-border/70 bg-card text-foreground shadow-sm text-[13.5px] font-medium text-left whitespace-nowrap min-h-[44px]">
-                    <span className="w-[18px] h-[18px] flex items-center justify-center shrink-0">
-                      <ClipboardList className="w-[15px] h-[15px] text-muted-foreground/70" />
-                    </span>
-                    <span className="truncate">SOW for 6-week mobile app build</span>
-                  </div>
-                </div>
-                <span className="w-8 h-8 rounded-xl border border-border/60 bg-card shrink-0 flex items-center justify-center text-muted-foreground/60">
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </span>
-              </div>
-              <div className="flex items-center gap-[5px] mt-0.5">
-                {Array.from({ length: 9 }, (_, i) => (
-                  <span key={i} className={i === 4 ? "rounded-full w-[14px] h-[4px] bg-foreground/25" : "rounded-full w-[4px] h-[4px] bg-muted-foreground/15"} />
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+      <Loader size="xl" variant="muted" aria-label="Loading" />
+      <p className="text-sm text-muted-foreground/70 select-none">Loading…</p>
     </div>
   )
 }
