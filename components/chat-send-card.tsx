@@ -79,7 +79,7 @@ export function ChatSendCard({
   const [email, setEmail] = useState(detectedEmail)
   const [message, setMessage] = useState("")
   const [includePayment, setIncludePayment] = useState(false)
-  const [scheduleFollowUps, setScheduleFollowUps] = useState(true)
+  const [scheduleFollowUps, setScheduleFollowUps] = useState(userTier !== "free")
   const [makeRecurring, setMakeRecurring] = useState(false)
   const [recurringFrequency, setRecurringFrequency] = useState<"weekly" | "monthly" | "quarterly">("monthly")
   const [autoInvoiceOnSign, setAutoInvoiceOnSign] = useState(false)
@@ -536,8 +536,9 @@ export function ChatSendCard({
               )}
             </div>
 
-            {/* Auto follow-up reminders — invoices only */}
+            {/* Auto follow-up reminders — invoices only, paid tiers only */}
             {isInvoice && (
+              isPaidTier ? (
               <label className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-muted/30 border border-border/30 cursor-pointer">
                 <div className="flex items-center gap-2.5">
                   {scheduleFollowUps
@@ -562,6 +563,20 @@ export function ChatSendCard({
                   )} />
                 </div>
               </label>
+              ) : (
+              <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-muted/30 border border-border/30 opacity-60">
+                <div className="flex items-center gap-2.5">
+                  <BellOff className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <span className="text-xs font-medium text-foreground block">Auto follow-up reminders <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ml-1">Paid</span></span>
+                    <span className="text-[11px] text-muted-foreground">Upgrade to send payment reminders automatically</span>
+                  </div>
+                </div>
+                <div className="relative w-9 h-5 rounded-full bg-muted-foreground/20 shrink-0 cursor-not-allowed">
+                  <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow" />
+                </div>
+              </div>
+              )
             )}
 
             {/* Recurring invoice — invoices only, paid tier only */}

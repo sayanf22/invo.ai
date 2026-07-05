@@ -77,7 +77,7 @@ export function SendEmailDialog({
   const [message, setMessage] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSending, setIsSending] = useState(false)
-  const [scheduleFollowUps, setScheduleFollowUps] = useState(true)
+  const [scheduleFollowUps, setScheduleFollowUps] = useState(userTier !== "free")
   const [paymentLinkExpiryDays, setPaymentLinkExpiryDays] = useState(30)
   // Payment link toggle state (invoices only)
   const [includePaymentLink, setIncludePaymentLink] = useState(true)
@@ -505,19 +505,28 @@ export function SendEmailDialog({
             </div>
           )}
 
-          {/* Auto follow-up toggle — invoices only */}
+          {/* Auto follow-up toggle — invoices only, paid tiers only */}
           {isInvoice && (
             <div className="rounded-2xl border border-border bg-card overflow-hidden">
               <div className="px-4 py-3 flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5">
-                  {scheduleFollowUps
+                  {scheduleFollowUps && isPaidTier
                     ? <Bell className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                     : <BellOff className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                   }
                   <div>
-                    <p className="text-sm font-medium text-foreground">Auto follow-up reminders</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground">Auto follow-up reminders</p>
+                      {!isPaidTier && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          Paid
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                      {scheduleFollowUps
+                      {!isPaidTier
+                        ? "Upgrade to Starter to auto-send payment reminders."
+                        : scheduleFollowUps
                         ? "Reminders sent automatically if unpaid. Stops when paid."
                         : "No automatic reminders. Send manually anytime."
                       }
@@ -527,15 +536,17 @@ export function SendEmailDialog({
                 <button
                   type="button"
                   aria-label="Toggle auto follow-up reminders"
-                  onClick={() => setScheduleFollowUps(v => !v)}
+                  onClick={() => isPaidTier && setScheduleFollowUps(v => !v)}
+                  disabled={!isPaidTier}
                   className={cn(
                     "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
-                    scheduleFollowUps ? "bg-primary" : "bg-muted"
+                    scheduleFollowUps && isPaidTier ? "bg-primary" : "bg-muted",
+                    !isPaidTier && "opacity-40 cursor-not-allowed"
                   )}
                 >
                   <span className={cn(
                     "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
-                    scheduleFollowUps ? "translate-x-[18px]" : "translate-x-0.5"
+                    scheduleFollowUps && isPaidTier ? "translate-x-[18px]" : "translate-x-0.5"
                   )} />
                 </button>
               </div>
