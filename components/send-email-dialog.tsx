@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Mail, Loader2, X, Send, AlertTriangle, CheckCircle2, XCircle, Calendar, Bell, BellOff, Repeat2, FileText, Sparkles } from "lucide-react"
+import { Mail, Loader2, X, Send, AlertTriangle, CheckCircle2, XCircle, Calendar, Bell, BellOff, Repeat2, FileText, Sparkles, CreditCard, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import type { InvoiceData } from "@/lib/invoice-types"
@@ -79,6 +79,9 @@ export function SendEmailDialog({
   const [isSending, setIsSending] = useState(false)
   const [scheduleFollowUps, setScheduleFollowUps] = useState(true)
   const [paymentLinkExpiryDays, setPaymentLinkExpiryDays] = useState(30)
+  // Payment link toggle state (invoices only)
+  const [includePaymentLink, setIncludePaymentLink] = useState(true)
+  const [gatewayConnected, setGatewayConnected] = useState<boolean | null>(null) // null = loading
   // Recurring state (invoices only)
   const [makeRecurring, setMakeRecurring] = useState(initialRecurring)
   const [recurringFrequency, setRecurringFrequency] = useState<"weekly" | "monthly" | "quarterly">("monthly")
@@ -91,6 +94,32 @@ export function SendEmailDialog({
   const [emailError, setEmailError] = useState<string | null>(null)
   const emailValidationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const emailInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Check payment gateway on mount (invoices only) ───────────────────────────
+  useEffect(() => {
+    if (!open || !isInvoice) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await authFetch("/api/payments/settings")
+        if (cancelled) return
+        if (res.ok) {
+          const data = await res.json()
+          const s = data.settings
+          const hasGateway = !!(s?.razorpay || s?.stripe || s?.cashfree)
+          setGatewayConnected(hasGateway)
+          setIncludePaymentLink(hasGateway) // default ON if connected
+        } else {
+          setGatewayConnected(false)
+          setIncludePaymentLink(false)
+        }
+      } catch {
+        setGatewayConnected(false)
+        setIncludePaymentLink(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [open, isInvoice])
 
   // ── Email validation ────────────────────────────────────────────────────────
   const validateEmail = useCallback(async (value: string) => {
@@ -230,6 +259,7 @@ export function SendEmailDialog({
           personalMessage: message.trim() || undefined,
           scheduleFollowUps: scheduleFollowUps && isInvoice,
           paymentLinkExpiryDays: isInvoice ? paymentLinkExpiryDays : undefined,
+          ...(isInvoice && !includePaymentLink ? { skipPaymentLink: true } : {}),
         }),
       })
 
@@ -422,6 +452,59 @@ export function SendEmailDialog({
             </p>
           </div>
 
+          {/* Include payment link toggle — invoices only */}
+          {isInvoice && (
+            <div className={cn(
+              "rounded-2xl border bg-card overflow-hidden",
+              includePaymentLink && gatewayConnected ? "border-emerald-200 dark:border-emerald-800/50" : "border-border"
+            )}>
+              <div className="px-4 py-3 flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <CreditCard className={cn("w-4 h-4 shrink-0 mt-0.5", includePaymentLink && gatewayConnected ? "text-emerald-600" : "text-muted-foreground")} />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Include payment link</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      {gatewayConnected === null
+                        ? "Checking payment provider..."
+                        : gatewayConnected
+                        ? includePaymentLink
+                          ? "A payment link will be included in the email."
+                          : "No payment link will be included."
+                        : (
+                          <span className="inline-flex items-center gap-1 flex-wrap">
+                            Connect a payment provider to use this.{" "}
+                            <a
+                              href="/integrations/payments/razorpay"
+                              className="inline-flex items-center gap-0.5 text-primary hover:underline font-medium"
+                            >
+                              Connect now <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </span>
+                        )
+                      }
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Toggle include payment link"
+                  onClick={() => gatewayConnected && setIncludePaymentLink(v => !v)}
+                  disabled={!gatewayConnected}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer mt-0.5",
+                    includePaymentLink && gatewayConnected ? "bg-emerald-500" : "bg-muted",
+                    !gatewayConnected && "opacity-40 cursor-not-allowed"
+                  )}
+                >
+                  <span className={cn(
+                    "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200",
+                    includePaymentLink && gatewayConnected ? "translate-x-[18px]" : "translate-x-0.5"
+                  )} />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Auto follow-up toggle — invoices only */}
           {isInvoice && (
             <div className="rounded-2xl border border-border bg-card overflow-hidden">
@@ -562,8 +645,8 @@ export function SendEmailDialog({
             </div>
           )}
 
-          {/* Payment link expiry — invoices only */}
-          {isInvoice && (
+          {/* Payment link expiry — invoices only, when payment link is enabled */}
+          {isInvoice && includePaymentLink && gatewayConnected && (
             <div className="rounded-2xl border border-border bg-card overflow-hidden">
               <div className="px-4 py-3">
                 <div className="flex items-center gap-2 mb-2">

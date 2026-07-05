@@ -166,11 +166,22 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
         <tr>
           <td class="mobile-pad" style="padding:28px 28px 8px 28px;">
 
-            <!-- Greeting -->
+            ${showPersonalMessage ? `
+            <!-- Personal message as the main body (replaces generic greeting to avoid duplication) -->
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+              <tr>
+                <td style="font-size:15px;color:#3f3f46;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                  ${h(personalMessage ?? "").replace(/\n/g, "<br/>")}
+                </td>
+              </tr>
+            </table>
+            ` : `
+            <!-- Generic greeting (only when no personal message) -->
             <p style="margin:0 0 6px 0;font-size:16px;font-weight:600;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Hi ${h(recipientName)},</p>
             <p style="margin:0 0 24px 0;font-size:15px;color:#52525b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;">
               ${h(businessName)} has sent you a ${h(docLabel.toLowerCase())}. ${h(bodyText)}
             </p>
+            `}
 
             <!-- Document summary card -->
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fafafa;border-radius:10px;border:1px solid #e4e4e7;margin-bottom:24px;">
@@ -193,16 +204,6 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
                 </td>
               </tr>
             </table>
-
-            ${showPersonalMessage ? `
-            <!-- Personal message -->
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
-              <tr>
-                <td class="mobile-pad-sm" style="padding:16px 20px;background-color:#fafafa;border-radius:10px;border:1px solid #e4e4e7;font-size:14px;color:#3f3f46;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-                  ${h(personalMessage ?? "").replace(/\n/g, "<br/>")}
-                </td>
-              </tr>
-            </table>` : ""}
 
           </td>
         </tr>
