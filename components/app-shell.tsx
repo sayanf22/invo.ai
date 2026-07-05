@@ -15,7 +15,6 @@ import { toast } from "sonner"
 import { ChatOnlyScreen } from "@/components/chat-only-screen"
 import { cn } from "@/lib/utils"
 import type { IntentSuggestion } from "@/lib/intent-router"
-import { Loader } from "@/components/ui/loader"
 
 type View = "start" | "chat-only" | "prompt"
 
@@ -42,15 +41,21 @@ function Shimmer({ className, style }: { className?: string; style?: React.CSSPr
 }
 
 // ── Home screen loading: shown while checking auth/onboarding on login or
-// when navigating back to the start screen. A simple centered spinner reads
-// as an honest "we're loading" state rather than faking the real home screen
-// (which caused a jarring flash when the actual content swapped in). The brand
-// mark keeps it feeling on-brand while the auth/onboarding check resolves.
+// when navigating back to the start screen. A minimal, text-free brand-logo
+// pulse — the logo sits dead-center, exactly where the real home screen paints
+// its logo, so the swap to the real screen feels continuous instead of a jarring
+// flash. A soft expanding ring underneath gives it gentle motion.
 export function HomeScreenSkeleton() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-      <Loader size="xl" variant="muted" aria-label="Loading" />
-      <p className="text-sm text-muted-foreground/70 select-none">Loading…</p>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="relative flex items-center justify-center" aria-label="Loading" role="status">
+        {/* Soft expanding ring behind the mark */}
+        <span className="absolute w-20 h-20 rounded-2xl bg-amber-700/10 dark:bg-amber-500/10 animate-[home-loader-ring_1.8s_ease-out_infinite]" />
+        {/* Brand mark with a gentle breathing pulse */}
+        <span className="relative animate-[home-loader-pulse_1.8s_ease-in-out_infinite]">
+          <ClorefyLogo size={56} />
+        </span>
+      </div>
     </div>
   )
 }

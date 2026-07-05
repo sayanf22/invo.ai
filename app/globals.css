@@ -219,6 +219,38 @@
   }
 }
 
+/* Home loading animation — gentle breathing brand mark + expanding ring */
+@keyframes home-loader-pulse {
+
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(0.94);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes home-loader-ring {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+
+  70% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
 @keyframes gradient-shift {
 
   0%,
