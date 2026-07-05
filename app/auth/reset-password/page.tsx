@@ -124,9 +124,14 @@ export default function ResetPasswordPage() {
                         </div>
 
                         <div className="rounded-lg border bg-muted/50 p-3 space-y-1.5">
-                            <p className="text-xs font-medium">Didn&apos;t get the email?</p>
-                            <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                                <li>Check your spam/junk folder</li>
+                            <p className="text-xs font-medium">Don&apos;t see it in your inbox?</p>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                It sometimes lands in your spam or promotions folder while our
+                                emails are still new to your provider — worth a quick peek there.
+                                Marking it &quot;Not spam&quot; helps future emails from us arrive
+                                in your inbox right away.
+                            </p>
+                            <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside pt-1">
                                 <li>Make sure you entered the correct email</li>
                                 <li>The email may take 1-2 minutes to arrive</li>
                             </ul>

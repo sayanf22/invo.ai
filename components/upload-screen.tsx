@@ -280,6 +280,7 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
 
             if (!uploadRes.ok) {
                 const err = await uploadRes.json().catch(() => ({}))
+                console.error("[upload-screen] storage upload failed:", uploadRes.status, err)
                 setFiles(prev => prev.map(f =>
                     f.id === uploadedFile.id
                         ? { ...f, status: "failed" as const, error: err.error || "Upload failed. Tap to retry." }
@@ -323,6 +324,9 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                 // Surface the server's actual message — it now tells the user
                 // precisely what to do (e.g. "type your details in the chat").
                 const errBody = await res.json().catch(() => ({} as any))
+                // Log the real status + server error to the console so failures are
+                // debuggable instead of a silent generic banner with nothing behind it.
+                console.error("[upload-screen] analyze-file failed:", res.status, errBody)
                 const fallback = res.status === 429
                     ? "Service is busy right now. You can continue to the chat and type your details."
                     : "Couldn't analyze this file. You can continue to the chat and type your details."
@@ -349,6 +353,7 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
 
             toast.success(`${fieldsFound} field${fieldsFound !== 1 ? "s" : ""} extracted!`, { duration: 2000 })
         } catch (err: unknown) {
+            console.error("[upload-screen] unexpected error during file processing:", err)
             setFiles(prev => prev.map(f =>
                 f.id === uploadedFile.id
                     ? { ...f, status: "failed" as const, error: "Connection issue. Check your internet and try again." }
