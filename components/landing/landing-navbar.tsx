@@ -179,7 +179,7 @@ export function LandingNavbar() {
             >
                 {/* Logo */}
                 <Link href="/" className="flex items-center px-2 lg:px-4 mr-1 lg:mr-2 border-r border-stone-200/60 pr-4 lg:pr-6">
-                    <ClorefyLogo size={48} />
+                    <ClorefyLogo size={38} />
                 </Link>
 
                 <NavDropdown label="Product" items={productItems} isOpen={openDropdown === "product"} onOpen={() => openMenu("product")} onClose={() => closeMenu("product")} />
@@ -202,7 +202,7 @@ export function LandingNavbar() {
                     className="flex items-center justify-between px-4 py-3 rounded-2xl bg-white border-[2.5px] border-[var(--landing-dark)] shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] transition-all duration-300"
                 >
                     <Link href="/" className="flex items-center">
-                        <ClorefyLogo size={48} />
+                        <ClorefyLogo size={38} />
                     </Link>
                     <motion.button
                         onClick={() => setMobileOpen(!mobileOpen)}

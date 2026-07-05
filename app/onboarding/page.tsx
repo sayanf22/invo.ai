@@ -295,7 +295,7 @@ export default function OnboardingPage() {
             {/* Header */}
             <header className="border-b py-4 px-5 flex items-center justify-between shrink-0 bg-card shadow-sm">
                 <div className="flex items-center gap-3">
-                    <InvoLogo size={40} />
+                    <InvoLogo size={30} />
                     <span className="text-sm font-semibold text-foreground">Business Setup</span>
                 </div>
                 <div className="flex items-center gap-2">

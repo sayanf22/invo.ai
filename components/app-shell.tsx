@@ -55,7 +55,7 @@ export function HomeScreenSkeleton() {
         aria-label="Loading"
         role="status"
       >
-        <ClorefyLogo size={76} />
+        <ClorefyLogo size={52} />
       </span>
     </div>
   )
@@ -714,7 +714,7 @@ export function AppShell() {
   return (
     <div className="animate-in fade-in duration-300 min-h-screen flex flex-col bg-background">
       <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
-        <ClorefyLogo size={48} />
+        <ClorefyLogo size={34} />
         <HamburgerMenu />
       </header>
 
@@ -734,7 +734,7 @@ export function AppShell() {
         {/* ── Hero: Centered prompt ──────────────────────── */}
         <section className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center px-4 py-12">
           <div className="flex flex-col items-center gap-6 w-full max-w-[720px]">
-            <ClorefyLogo size={104} />
+            <ClorefyLogo size={68} />
             <h1 className="text-[40px] md:text-[48px] font-display font-medium tracking-tight text-foreground text-center text-balance leading-tight">
               {selectedCategory ? (
                 <>{"Describe your "}<span className="font-medium relative text-amber-700 dark:text-amber-500">{selectedCategory.toLowerCase()}<span className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-amber-700/30 dark:bg-amber-500/30" /></span></>

@@ -46,7 +46,7 @@ export default async function ClientsPage() {
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div className="hidden sm:flex items-center gap-2">
-              <ClorefyLogo size={32} />
+              <ClorefyLogo size={22} />
               <span className="font-semibold text-sm">Clients</span>
             </div>
           </div>

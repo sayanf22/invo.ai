@@ -17,7 +17,7 @@ export default function SuspendedPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
       <div className="w-full max-w-md text-center space-y-6">
         <div className="flex justify-center">
-          <ClorefyLogo size={52} />
+          <ClorefyLogo size={40} />
         </div>
 
         <div className="flex justify-center">

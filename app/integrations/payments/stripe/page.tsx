@@ -22,7 +22,7 @@ export default function StripeGuidePage() {
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div className="hidden sm:flex items-center gap-3">
-              <ClorefyLogo size={32} />
+              <ClorefyLogo size={22} />
               <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Integration Guide</span>
             </div>
           </div>

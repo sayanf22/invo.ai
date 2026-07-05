@@ -77,7 +77,7 @@ export default function SupportPage() {
             <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-30">
                 <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
                     <Link href="/" className="flex items-center gap-2">
-                        <ClorefyLogo size={40} />
+                        <ClorefyLogo size={28} />
                     </Link>
                     <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
                         <ArrowLeft className="h-3.5 w-3.5" />

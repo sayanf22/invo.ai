@@ -47,7 +47,7 @@ export default function Error({
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4">
-      <InvoLogo size={60} />
+      <InvoLogo size={44} />
       <h1 className="mt-8 text-[48px] font-bold tracking-tight text-foreground leading-none">
         Something went wrong
       </h1>
