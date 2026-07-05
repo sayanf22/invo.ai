@@ -214,7 +214,7 @@ export function LandingFooter() {
                 {/* Bottom bar */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-t border-black/10">
                     <div className="flex items-center gap-2.5">
-                        <ClorefyLogo size={24} />
+                        <ClorefyLogo size={30} />
                         <span className="font-bold text-sm">Clorefy</span>
                     </div>
                     <p className="text-xs font-medium text-[var(--landing-text-dark)]/60">

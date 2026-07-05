@@ -229,7 +229,7 @@ export default function BillingPage() {
                         >
                             <ArrowLeft className="w-5 h-5" />
                         </button>
-                        <Link href="/" className="flex items-center gap-2"><ClorefyLogo size={28} /><span className="font-bold text-lg hidden sm:block">Clorefy</span></Link>
+                        <Link href="/" className="flex items-center gap-2"><ClorefyLogo size={36} /><span className="font-bold text-lg hidden sm:block">Clorefy</span></Link>
                     </div>
                     <HamburgerMenu />
                 </div>

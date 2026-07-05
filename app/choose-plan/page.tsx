@@ -155,7 +155,7 @@ export default function ChoosePlanPage() {
         <div className="min-h-screen bg-background flex flex-col">
             {/* Header */}
             <header className="py-4 px-4 sm:px-6 flex items-center justify-between shrink-0">
-                <ClorefyLogo size={36} />
+                <ClorefyLogo size={48} />
                 <HamburgerMenu />
             </header>
 

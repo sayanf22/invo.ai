@@ -280,7 +280,7 @@ export default function LoginPage() {
             {/* Header */}
             <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
                 <Link href="/" aria-label="Go to home page">
-                    <InvoLogo size={36} />
+                    <InvoLogo size={48} />
                 </Link>
                 <nav className="flex items-center gap-4 text-[14px]">
                 <Link href="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>

@@ -1,0 +1,1142 @@
+{
+  "collectionId": null,
+  "workspaceId": null,
+  "environmentId": null,
+  "collection": {
+    "info": {
+      "name": "Invo.ai API",
+      "_postman_id": "invo-api-collection-v1",
+      "description": "Complete API collection for Invo.ai — AI-powered document generation platform.\n\nVariables used:\n- `base_url`      : http://localhost:3000 (dev) or https://clorefy.com (prod)\n- `auth_token`    : Supabase JWT access token (from browser cookie / login response)\n- `session_id`    : Active document_session UUID\n- `client_id`     : Client record UUID\n- `user_id`       : Auth user UUID\n- `brevo_api_key` : Brevo API key for direct Brevo health-check requests\n\nSections:\n🔐 Auth & CSRF · 📄 Sessions · 🤖 AI · 📧 Emails · 💳 Payments\n✍️ Signatures · 👥 Clients · 🗂️ Storage · 👤 Profile · 📊 Usage\n🔄 Recurring · 💬 Quotations · 🔔 Onboarding · 📨 Brevo CRM Sync\n💰 Razorpay · 🆘 Support · 🛡️ Admin",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+      { "key": "base_url",      "value": "http://localhost:3000", "type": "string" },
+      { "key": "auth_token",    "value": "",                      "type": "string" },
+      { "key": "session_id",    "value": "",                      "type": "string" },
+      { "key": "client_id",     "value": "",                      "type": "string" },
+      { "key": "user_id",       "value": "",                      "type": "string" },
+      { "key": "brevo_api_key", "value": "",                      "type": "string",
+        "description": "Brevo API key (xkeysib-...). Set this to test the Brevo health check directly. Corresponds to BREVO_API_KEY env var." }
+    ],
+    "auth": {
+      "type": "bearer",
+      "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }]
+    },
+    "item": [
+
+      {
+        "name": "🔐 Auth & CSRF",
+        "item": [
+          {
+            "name": "Get CSRF Token",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/csrf", "host": ["{{base_url}}"], "path": ["api","csrf"] },
+              "description": "Fetch a fresh HMAC-signed CSRF token for state-changing requests."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Has csrfToken', () => { const j = pm.response.json(); pm.expect(j).to.have.property('csrfToken'); });"
+            ], "type": "text/javascript" }}]
+          }
+        ]
+      },
+
+      {
+        "name": "📄 Sessions",
+        "item": [
+          {
+            "name": "Create Session",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/sessions/create", "host": ["{{base_url}}"], "path": ["api","sessions","create"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"documentType\": \"invoice\",\n  \"initialPrompt\": \"Invoice for Acme Corp for web development\",\n  \"forceNew\": false\n}"
+              },
+              "description": "Create a new document session. Returns session ID, type, and status."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Has session.id', () => {",
+              "  const j = pm.response.json();",
+              "  pm.expect(j.success).to.be.true;",
+              "  pm.expect(j.session).to.have.property('id');",
+              "  pm.collectionVariables.set('session_id', j.session.id);",
+              "});"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Create Chat Session",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/sessions/create-chat", "host": ["{{base_url}}"], "path": ["api","sessions","create-chat"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"initialPrompt\": \"I need help with invoicing\"\n}" }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Has session.id', () => { const j = pm.response.json(); pm.expect(j).to.have.property('sessionId'); });"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Create Linked Session",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/sessions/create-linked", "host": ["{{base_url}}"], "path": ["api","sessions","create-linked"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"parentSessionId\": \"{{session_id}}\",\n  \"documentType\": \"payment_followup\"\n}"
+              },
+              "description": "Create a child document linked to a parent session (e.g. payment follow-up from invoice)."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 400', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Get Linked Sessions",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/sessions/linked?sessionId={{session_id}}",
+                "host": ["{{base_url}}"], "path": ["api","sessions","linked"],
+                "query": [{ "key": "sessionId", "value": "{{session_id}}" }]
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Finalize Session",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/sessions/finalize", "host": ["{{base_url}}"], "path": ["api","sessions","finalize"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{session_id}}\"\n}" }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Unlock Session",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/sessions/unlock", "host": ["{{base_url}}"], "path": ["api","sessions","unlock"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{session_id}}\"\n}" }
+            }
+          },
+          {
+            "name": "Cancel Session",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/sessions/cancel", "host": ["{{base_url}}"], "path": ["api","sessions","cancel"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{session_id}}\"\n}" }
+            }
+          },
+          {
+            "name": "Delete Session",
+            "request": {
+              "method": "DELETE",
+              "url": {
+                "raw": "{{base_url}}/api/sessions/delete?sessionId={{session_id}}",
+                "host": ["{{base_url}}"],
+                "path": ["api","sessions","delete"],
+                "query": [{ "key": "sessionId", "value": "{{session_id}}" }]
+              },
+              "description": "Permanently deletes a document session owned by the authenticated user.\n\nPasses sessionId as a query parameter (not a request body).\n\nProtected statuses (paid, signed) cannot be deleted — these are legal/financial records.\nNo rate limiting — low-frequency action protected by auth + RLS ownership check.\n\nReturns:\n- 200: { success: true }\n- 400: Invalid session ID format\n- 403: Session is paid or signed\n- 404: Session not found or not owned by user"
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 404 or 403', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 403, 404]));",
+              "if (pm.response.code === 200) {",
+              "  pm.test('success=true', () => pm.expect(pm.response.json().success).to.be.true);",
+              "}"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Promote Chat Session",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/sessions/promote", "host": ["{{base_url}}"], "path": ["api","sessions","promote"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"documentType\": \"invoice\",\n  \"initialPrompt\": \"Create invoice for Acme Corp\"\n}" }
+            }
+          },
+          {
+            "name": "Auto Invoice (on signing)",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/sessions/auto-invoice", "host": ["{{base_url}}"], "path": ["api","sessions","auto-invoice"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{session_id}}\"\n}" }
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "🤖 AI",
+        "item": [
+          {
+            "name": "Detect Document Type",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/ai/detect-type", "host": ["{{base_url}}"], "path": ["api","ai","detect-type"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"prompt\": \"Invoice for consulting services for Acme Corp\"\n}" },
+              "description": "Classifies user intent to determine document type and routing (chat-only vs direct-create)."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Has type field', () => { const j = pm.response.json(); pm.expect(j).to.have.property('type'); pm.expect(j).to.have.property('route'); });"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "AI Stream (Document Generation)",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/ai/stream", "host": ["{{base_url}}"], "path": ["api","ai","stream"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"prompt\": \"Invoice for web development for Acme Corp, $2500\",\n  \"documentType\": \"invoice\",\n  \"sessionId\": \"{{session_id}}\",\n  \"thinkingMode\": \"fast\"\n}"
+              },
+              "description": "Main AI generation endpoint. Returns Server-Sent Events (SSE) stream with activity, delta, and complete events."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Content-Type is text/event-stream', () => { pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream'); });"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "AI Onboarding",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/ai/onboarding", "host": ["{{base_url}}"], "path": ["api","ai","onboarding"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"messages\": [{\"role\": \"user\", \"content\": \"Hi, I'm a freelance web developer in India\"}],\n  \"collectedData\": {}\n}"
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Analyze File",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/ai/analyze-file", "host": ["{{base_url}}"], "path": ["api","ai","analyze-file"] },
+              "body": {
+                "mode": "formdata",
+                "formdata": [
+                  { "key": "file", "type": "file", "src": "" },
+                  { "key": "message", "value": "Extract client details from this file", "type": "text" }
+                ]
+              },
+              "description": "Analyze an uploaded file (PDF, image) to extract client/business details."
+            }
+          },
+          {
+            "name": "AI Profile Update",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/ai/profile-update", "host": ["{{base_url}}"], "path": ["api","ai","profile-update"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"messages\": [{\"role\": \"user\", \"content\": \"My business name is PixelCraft\"}],\n  \"currentProfile\": {},\n  \"section\": \"business\"\n}"
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "AI Clients Suggest",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/ai/clients", "host": ["{{base_url}}"], "path": ["api","ai","clients"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"prompt\": \"invoice for acme\"\n}" }
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "📧 Emails",
+        "item": [
+          {
+            "name": "Send Document",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/emails/send-document", "host": ["{{base_url}}"], "path": ["api","emails","send-document"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"recipientEmail\": \"client@example.com\",\n  \"recipientName\": \"John Doe\",\n  \"subject\": \"Invoice from Invo\",\n  \"message\": \"Please find your invoice attached.\"\n}"
+              },
+              "description": "Send a document via email with optional payment link."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 429', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 429]));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Generate Email Message",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/emails/generate-message", "host": ["{{base_url}}"], "path": ["api","emails","generate-message"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"recipientName\": \"John Doe\",\n  \"documentType\": \"invoice\"\n}"
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Get Email Schedules",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/emails/schedules?sessionId={{session_id}}",
+                "host": ["{{base_url}}"], "path": ["api","emails","schedules"],
+                "query": [{ "key": "sessionId", "value": "{{session_id}}" }]
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Delete Email Schedules (Stop Reminders)",
+            "request": {
+              "method": "DELETE",
+              "url": {
+                "raw": "{{base_url}}/api/emails/schedules?sessionId={{session_id}}",
+                "host": ["{{base_url}}"], "path": ["api","emails","schedules"],
+                "query": [{ "key": "sessionId", "value": "{{session_id}}" }]
+              }
+            }
+          },
+          {
+            "name": "Validate Email",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/emails/validate-email?email=test@example.com",
+                "host": ["{{base_url}}"], "path": ["api","emails","validate-email"],
+                "query": [{ "key": "email", "value": "test@example.com" }]
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Has valid field', () => { const j = pm.response.json(); pm.expect(j).to.have.property('valid'); });"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Email Webhook (Mailtrap)",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/emails/webhook", "host": ["{{base_url}}"], "path": ["api","emails","webhook"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"events\": [{\"event\": \"delivery\", \"email\": \"client@example.com\", \"message_id\": \"test-123\"}]\n}"
+              },
+              "description": "Webhook endpoint for email delivery status updates from Mailtrap."
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "💳 Payments",
+        "item": [
+          {
+            "name": "Get Payment Settings",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/payments/settings", "host": ["{{base_url}}"], "path": ["api","payments","settings"] }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Update Payment Settings",
+            "request": {
+              "method": "PUT",
+              "url": { "raw": "{{base_url}}/api/payments/settings", "host": ["{{base_url}}"], "path": ["api","payments","settings"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"gateway\": \"razorpay\",\n  \"razorpayKeyId\": \"rzp_test_xxx\",\n  \"razorpayKeySecret\": \"xxx\"\n}" }
+            }
+          },
+          {
+            "name": "Create Payment Link",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/payments/create-link", "host": ["{{base_url}}"], "path": ["api","payments","create-link"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"amount\": 250000,\n  \"currency\": \"INR\",\n  \"description\": \"Invoice payment\",\n  \"customerName\": \"John Doe\",\n  \"customerEmail\": \"john@example.com\"\n}"
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 400', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 422]));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Cancel Payment Link",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/payments/cancel-link", "host": ["{{base_url}}"], "path": ["api","payments","cancel-link"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"razorpayPaymentLinkId\": \"plink_xxx\"\n}" }
+            }
+          },
+          {
+            "name": "Regenerate Payment Link",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/payments/regenerate-link", "host": ["{{base_url}}"], "path": ["api","payments","regenerate-link"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{session_id}}\"\n}" }
+            }
+          },
+          {
+            "name": "Mark as Paid (Manual)",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/payments/mark-paid", "host": ["{{base_url}}"], "path": ["api","payments","mark-paid"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"paymentMethod\": \"bank_transfer\",\n  \"note\": \"Received via NEFT\"\n}"
+              }
+            }
+          },
+          {
+            "name": "Get Payment Status",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/payments/status?sessionId={{session_id}}",
+                "host": ["{{base_url}}"], "path": ["api","payments","status"],
+                "query": [{ "key": "sessionId", "value": "{{session_id}}" }]
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Get Offline Payment Methods",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/payments/offline-methods", "host": ["{{base_url}}"], "path": ["api","payments","offline-methods"] }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Get Webhook Secret",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/payments/webhook-secret", "host": ["{{base_url}}"], "path": ["api","payments","webhook-secret"] }
+            }
+          },
+          {
+            "name": "Test Webhook",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/payments/test-webhook", "host": ["{{base_url}}"], "path": ["api","payments","test-webhook"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"gateway\": \"razorpay\"\n}" }
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "✍️ Signatures",
+        "item": [
+          {
+            "name": "Get Signatures",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/signatures?sessionId={{session_id}}",
+                "host": ["{{base_url}}"], "path": ["api","signatures"],
+                "query": [{ "key": "sessionId", "value": "{{session_id}}" }]
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Has signatures array', () => { const j = pm.response.json(); pm.expect(j).to.have.property('signatures'); });"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Request Signature (Send for Signing)",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/signatures", "host": ["{{base_url}}"], "path": ["api","signatures"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"signerName\": \"John Doe\",\n  \"signerEmail\": \"john@example.com\",\n  \"party\": \"client\"\n}"
+              }
+            }
+          },
+          {
+            "name": "Self Sign",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/signatures/self-sign", "host": ["{{base_url}}"], "path": ["api","signatures","self-sign"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{session_id}}\"\n}" }
+            }
+          },
+          {
+            "name": "Cancel Signature Request",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/signatures/cancel", "host": ["{{base_url}}"], "path": ["api","signatures","cancel"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{session_id}}\"\n}" }
+            }
+          },
+          {
+            "name": "Get Signature Certificate",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/signatures/certificate?sessionId={{session_id}}",
+                "host": ["{{base_url}}"], "path": ["api","signatures","certificate"],
+                "query": [{ "key": "sessionId", "value": "{{session_id}}" }]
+              }
+            }
+          },
+          {
+            "name": "Get Signature Evidence",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/signatures/evidence/{{session_id}}", "host": ["{{base_url}}"], "path": ["api","signatures","evidence","{{session_id}}"] }
+            }
+          },
+          {
+            "name": "Download Signed Document",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/signatures/download/{{session_id}}", "host": ["{{base_url}}"], "path": ["api","signatures","download","{{session_id}}"] }
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "👥 Clients",
+        "item": [
+          {
+            "name": "List Clients",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/clients?search=&limit=20",
+                "host": ["{{base_url}}"], "path": ["api","clients"],
+                "query": [
+                  { "key": "search", "value": "" },
+                  { "key": "limit",  "value": "20" }
+                ]
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Has clients array', () => { const j = pm.response.json(); pm.expect(j).to.have.property('clients'); });"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Create Client",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/clients", "host": ["{{base_url}}"], "path": ["api","clients"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"Acme Corporation\",\n  \"email\": \"billing@acme.com\",\n  \"phone\": \"+1 555 0100\",\n  \"address\": \"123 Main St, New York, NY 10001\",\n  \"taxId\": \"12-3456789\"\n}"
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 201', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+              "pm.test('Has client.id', () => { const j = pm.response.json(); if (j.client) pm.collectionVariables.set('client_id', j.client.id); });"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Get Client",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/clients/{{client_id}}", "host": ["{{base_url}}"], "path": ["api","clients","{{client_id}}"] }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Update Client",
+            "request": {
+              "method": "PUT",
+              "url": { "raw": "{{base_url}}/api/clients/{{client_id}}", "host": ["{{base_url}}"], "path": ["api","clients","{{client_id}}"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"name\": \"Acme Corp (Updated)\",\n  \"email\": \"billing@acme.com\"\n}" }
+            }
+          },
+          {
+            "name": "Delete Client",
+            "request": {
+              "method": "DELETE",
+              "url": { "raw": "{{base_url}}/api/clients/{{client_id}}", "host": ["{{base_url}}"], "path": ["api","clients","{{client_id}}"] }
+            }
+          },
+          {
+            "name": "Bulk Import Clients",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/clients/bulk", "host": ["{{base_url}}"], "path": ["api","clients","bulk"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"clients\": [\n    { \"name\": \"Client A\", \"email\": \"a@example.com\" },\n    { \"name\": \"Client B\", \"email\": \"b@example.com\" }\n  ]\n}"
+              }
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "🗂️ Storage",
+        "item": [
+          {
+            "name": "Upload File",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/storage/upload", "host": ["{{base_url}}"], "path": ["api","storage","upload"] },
+              "body": {
+                "mode": "formdata",
+                "formdata": [
+                  { "key": "file", "type": "file", "src": "" },
+                  { "key": "type", "value": "logo", "type": "text" }
+                ]
+              },
+              "description": "Upload a file (logo, signature image) to Cloudflare R2."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 400', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Get Signed URL",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/storage/url?key=logos%2Fmy-logo.png",
+                "host": ["{{base_url}}"], "path": ["api","storage","url"],
+                "query": [{ "key": "key", "value": "logos/my-logo.png" }]
+              }
+            }
+          },
+          {
+            "name": "Delete File",
+            "request": {
+              "method": "DELETE",
+              "url": {
+                "raw": "{{base_url}}/api/storage/url?key=logos%2Fmy-logo.png",
+                "host": ["{{base_url}}"], "path": ["api","storage","url"],
+                "query": [{ "key": "key", "value": "logos/my-logo.png" }]
+              }
+            }
+          },
+          {
+            "name": "Get Storage Image",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/storage/image?key=logos%2Fmy-logo.png",
+                "host": ["{{base_url}}"], "path": ["api","storage","image"],
+                "query": [{ "key": "key", "value": "logos/my-logo.png" }]
+              }
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "👤 Profile & Signature",
+        "item": [
+          {
+            "name": "Get Saved Signature",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/profile/signature", "host": ["{{base_url}}"], "path": ["api","profile","signature"] }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Save Signature",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/profile/signature", "host": ["{{base_url}}"], "path": ["api","profile","signature"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"signatureDataUrl\": \"data:image/png;base64,iVBORw0KGgo...\"\n}" }
+            }
+          },
+          {
+            "name": "Delete Signature",
+            "request": {
+              "method": "DELETE",
+              "url": { "raw": "{{base_url}}/api/profile/signature", "host": ["{{base_url}}"], "path": ["api","profile","signature"] }
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "📊 Usage",
+        "item": [
+          {
+            "name": "Get Usage Stats",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/usage", "host": ["{{base_url}}"], "path": ["api","usage"] }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Has usage data', () => {",
+              "  const j = pm.response.json();",
+              "  pm.expect(j).to.have.property('tier');",
+              "  pm.expect(j).to.have.property('documentsUsed');",
+              "  pm.expect(j).to.have.property('documentsLimit');",
+              "});"
+            ], "type": "text/javascript" }}]
+          }
+        ]
+      },
+
+      {
+        "name": "🔄 Recurring Invoices",
+        "item": [
+          {
+            "name": "Get Recurring Config",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/recurring?sessionId={{session_id}}",
+                "host": ["{{base_url}}"], "path": ["api","recurring"],
+                "query": [{ "key": "sessionId", "value": "{{session_id}}" }]
+              }
+            }
+          },
+          {
+            "name": "Enable Recurring",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/recurring", "host": ["{{base_url}}"], "path": ["api","recurring"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"frequency\": \"monthly\"\n}" }
+            }
+          },
+          {
+            "name": "Disable Recurring",
+            "request": {
+              "method": "DELETE",
+              "url": {
+                "raw": "{{base_url}}/api/recurring?sessionId={{session_id}}",
+                "host": ["{{base_url}}"], "path": ["api","recurring"],
+                "query": [{ "key": "sessionId", "value": "{{session_id}}" }]
+              }
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "💬 Quotation Responses",
+        "item": [
+          {
+            "name": "Respond to Quotation",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/quotations/respond", "host": ["{{base_url}}"], "path": ["api","quotations","respond"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"token\": \"qr_xxx\",\n  \"response\": \"accepted\",\n  \"message\": \"Looks good, proceeding!\"\n}"
+              },
+              "description": "Public endpoint — client accepts or rejects a quotation/proposal via their unique token."
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "🔔 Onboarding",
+        "item": [
+          {
+            "name": "Track Onboarding Step",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/onboarding/track", "host": ["{{base_url}}"], "path": ["api","onboarding","track"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"step\": \"business_details\",\n  \"completed\": true\n}" }
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "📨 Brevo CRM Sync",
+        "description": "Internal Brevo contact sync calls. These are triggered automatically from auth callbacks and onboarding — not called directly by the frontend. Documented here for observability and debugging.",
+        "item": [
+          {
+            "name": "Sync User on Login (internal)",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/brevo/sync-login", "host": ["{{base_url}}"], "path": ["api","brevo","sync-login"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"email\": \"user@example.com\",\n  \"firstName\": \"Alice\",\n  \"isNewUser\": true,\n  \"onboardingComplete\": false,\n  \"signupAt\": \"2026-01-01T00:00:00Z\"\n}"
+              },
+              "description": "Creates or updates a Brevo contact on login. Called from /auth/callback. New users land in the Onboarding Started list (list ID from BREVO_ONBOARDING_LIST_ID). Completed users land in Active Users (BREVO_ACTIVE_LIST_ID). Sets LAST_ACTIVE, FIRSTNAME, SIGNUP_AT attributes."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "// This is an internal call — 200 or fire-and-forget 204 are both acceptable",
+              "pm.test('Status 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Sync Onboarding Complete (internal)",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/onboarding/track", "host": ["{{base_url}}"], "path": ["api","onboarding","track"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"phase\": \"completed\"\n}"
+              },
+              "description": "Calling /api/onboarding/track with phase='completed' triggers syncOnboardingComplete() which: (1) moves the contact from Onboarding Started → Active Users list, (2) sets ONBOARDING_COMPLETE=true and LAST_ACTIVE=today."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Send Transactional Email (via brevo lib)",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/emails/send-document", "host": ["{{base_url}}"], "path": ["api","emails","send-document"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"recipientEmail\": \"client@example.com\",\n  \"recipientName\": \"John Doe\",\n  \"subject\": \"Invoice from Clorefy\",\n  \"message\": \"Please find your invoice attached.\"\n}"
+              },
+              "description": "The email send route internally calls sendTransactionalEmail() from lib/brevo.ts. Sends via Brevo SMTP API to noreply@clorefy.com. Returns {success, messageId} on 200. Returns 429 if email limit exceeded for the user's tier."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 429', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 429]));",
+              "pm.test('Has success field on 200', () => {",
+              "  if (pm.response.code === 200) {",
+              "    const j = pm.response.json();",
+              "    pm.expect(j).to.have.property('success');",
+              "  }",
+              "});"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Brevo Health Check (direct API ping)",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "https://api.brevo.com/v3/account",
+                "raw": "https://api.brevo.com/v3/account",
+                "host": ["api.brevo.com"],
+                "path": ["v3","account"],
+                "protocol": "https"
+              },
+              "header": [
+                { "key": "api-key", "value": "{{brevo_api_key}}", "type": "string" }
+              ],
+              "description": "Direct ping to Brevo API to verify the BREVO_API_KEY is valid and the account is active. Use this to debug Brevo connectivity issues. Expects 200 with account details."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Brevo API reachable', () => pm.response.to.have.status(200));",
+              "pm.test('Has account email', () => {",
+              "  const j = pm.response.json();",
+              "  pm.expect(j).to.have.property('email');",
+              "});"
+            ], "type": "text/javascript" }}]
+          }
+        ]
+      },
+
+      {
+        "name": "💰 Razorpay",
+        "item": [
+          {
+            "name": "Create Subscription Order",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/razorpay/create-order", "host": ["{{base_url}}"], "path": ["api","razorpay","create-order"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"plan\": \"starter\"\n}" }
+            }
+          },
+          {
+            "name": "Verify Payment",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/razorpay/verify", "host": ["{{base_url}}"], "path": ["api","razorpay","verify"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"razorpay_payment_id\": \"pay_xxx\",\n  \"razorpay_order_id\": \"order_xxx\",\n  \"razorpay_signature\": \"sig_xxx\",\n  \"plan\": \"starter\"\n}"
+              }
+            }
+          },
+          {
+            "name": "Create Subscription",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/razorpay/subscription", "host": ["{{base_url}}"], "path": ["api","razorpay","subscription"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"plan\": \"pro\"\n}" }
+            }
+          },
+          {
+            "name": "Downgrade Subscription",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/razorpay/downgrade", "host": ["{{base_url}}"], "path": ["api","razorpay","downgrade"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"targetPlan\": \"free\"\n}" }
+            }
+          }
+        ]
+      },
+
+      {
+        "name": "🆘 Support",
+        "item": [
+          {
+            "name": "Submit Support Ticket",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/support/submit", "host": ["{{base_url}}"], "path": ["api","support","submit"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"subject\": \"Can't download invoice\",\n  \"message\": \"When I click Download PDF, nothing happens.\",\n  \"category\": \"bug\"\n}"
+              }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ], "type": "text/javascript" }}]
+          }
+        ]
+      },
+
+      {
+        "name": "🛡️ Admin",
+        "item": [
+          {
+            "name": "Verify Admin PIN",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/admin/auth/verify-pin", "host": ["{{base_url}}"], "path": ["api","admin","auth","verify-pin"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"pin\": \"000000\"\n}" },
+              "description": "Verify the admin PIN to get a temporary admin session."
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 401', () => pm.expect(pm.response.code).to.be.oneOf([200, 401, 403]));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Admin Logout",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/admin/auth/logout", "host": ["{{base_url}}"], "path": ["api","admin","auth","logout"] }
+            }
+          },
+          {
+            "name": "Get Admin Overview",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/admin/overview", "host": ["{{base_url}}"], "path": ["api","admin","overview"] }
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 401 or 403', () => pm.expect(pm.response.code).to.be.oneOf([200, 401, 403]));"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "List Users",
+            "request": {
+              "method": "GET",
+              "url": {
+                "raw": "{{base_url}}/api/admin/users?page=1&limit=20",
+                "host": ["{{base_url}}"], "path": ["api","admin","users"],
+                "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "20" }]
+              }
+            }
+          },
+          {
+            "name": "Get User Detail",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/admin/users/{{user_id}}", "host": ["{{base_url}}"], "path": ["api","admin","users","{{user_id}}"] },
+              "description": "Returns full user detail for admin drawer.\n\nResponse shape (key fields):\n- profile: profiles row\n- business: businesses row\n- usageStats: user_usage row for current month + extra all-time fields:\n    - documents_count_all_time (from generation_history WHERE success=true)\n    - emails_count_all_time (from document_emails)\n- recentDocuments: last 10 rows from generation_history (fields: id, document_type, prompt, success, tokens_used, generation_time_ms, created_at, session_id, title)\n    NOTE: source changed from 'documents' table to 'generation_history' table\n- recentEmails: last 10 document_emails rows (fields: id, document_type, status, created_at, recipient_email, subject)\n    NOTE: 'subject' field added\n- recentAuditLogs: last 20 audit_log rows\n- totalEmailsSent: all-time email count (integer)"
+            },
+            "event": [{ "listen": "test", "script": { "exec": [
+              "pm.test('Status 200 or 401 or 403', () => pm.expect(pm.response.code).to.be.oneOf([200, 401, 403]));",
+              "if (pm.response.code === 200) {",
+              "  pm.test('Has usageStats with all-time counts', () => {",
+              "    const j = pm.response.json();",
+              "    pm.expect(j).to.have.property('usageStats');",
+              "    pm.expect(j.usageStats).to.have.property('documents_count_all_time');",
+              "    pm.expect(j.usageStats).to.have.property('emails_count_all_time');",
+              "  });",
+              "  pm.test('recentDocuments has title field', () => {",
+              "    const j = pm.response.json();",
+              "    if (j.recentDocuments && j.recentDocuments.length > 0) {",
+              "      pm.expect(j.recentDocuments[0]).to.have.property('title');",
+              "      pm.expect(j.recentDocuments[0]).to.have.property('document_type');",
+              "      pm.expect(j.recentDocuments[0]).to.have.property('success');",
+              "      pm.expect(j.recentDocuments[0]).to.have.property('tokens_used');",
+              "    }",
+              "  });",
+              "  pm.test('recentEmails has subject field', () => {",
+              "    const j = pm.response.json();",
+              "    if (j.recentEmails && j.recentEmails.length > 0) {",
+              "      pm.expect(j.recentEmails[0]).to.have.property('subject');",
+              "      pm.expect(j.recentEmails[0]).to.have.property('recipient_email');",
+              "    }",
+              "  });",
+              "}"
+            ], "type": "text/javascript" }}]
+          },
+          {
+            "name": "Change User Tier",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/admin/users/{{user_id}}/tier", "host": ["{{base_url}}"], "path": ["api","admin","users","{{user_id}}","tier"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"tier\": \"pro\"\n}" }
+            }
+          },
+          {
+            "name": "Suspend User",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/admin/users/{{user_id}}/suspend", "host": ["{{base_url}}"], "path": ["api","admin","users","{{user_id}}","suspend"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Terms of service violation\"\n}" }
+            }
+          },
+          {
+            "name": "Reset User Usage",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/admin/users/{{user_id}}/reset-usage", "host": ["{{base_url}}"], "path": ["api","admin","users","{{user_id}}","reset-usage"] }
+            }
+          },
+          {
+            "name": "Export Users CSV",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/admin/users/export", "host": ["{{base_url}}"], "path": ["api","admin","users","export"] }
+            }
+          },
+          {
+            "name": "Get AI Usage Stats",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/admin/ai-usage", "host": ["{{base_url}}"], "path": ["api","admin","ai-usage"] }
+            }
+          },
+          {
+            "name": "Get Revenue Stats",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/admin/revenue", "host": ["{{base_url}}"], "path": ["api","admin","revenue"] }
+            }
+          },
+          {
+            "name": "Get Security Audit",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/admin/security", "host": ["{{base_url}}"], "path": ["api","admin","security"] }
+            }
+          },
+          {
+            "name": "Override Subscription",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/admin/subscriptions/override", "host": ["{{base_url}}"], "path": ["api","admin","subscriptions","override"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"plan\": \"agency\",\n  \"expiresAt\": null\n}" }
+            }
+          },
+          {
+            "name": "Create Announcement",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/admin/settings/announcement", "host": ["{{base_url}}"], "path": ["api","admin","settings","announcement"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"message\": \"Scheduled maintenance on Saturday 2am UTC.\",\n  \"type\": \"info\"\n}" }
+            }
+          },
+          {
+            "name": "Generate Blog Post",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/admin/blog/generate", "host": ["{{base_url}}"], "path": ["api","admin","blog","generate"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"topic\": \"How to invoice clients internationally\",\n  \"keywords\": [\"invoicing\", \"international\", \"GST\"]\n}" }
+            }
+          },
+          {
+            "name": "List Blog Posts",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/api/admin/blog/list", "host": ["{{base_url}}"], "path": ["api","admin","blog","list"] }
+            }
+          },
+          {
+            "name": "Publish Blog Post",
+            "request": {
+              "method": "POST",
+              "url": { "raw": "{{base_url}}/api/admin/blog/publish", "host": ["{{base_url}}"], "path": ["api","admin","blog","publish"] },
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"postId\": \"post-uuid\"\n}" }
+            }
+          }
+        ]
+      }
+
+    ]
+  }
+}

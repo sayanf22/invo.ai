@@ -886,7 +886,7 @@ export function ChatOnlyScreen({
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
-                    <ClorefyLogo size={26} />
+                    <ClorefyLogo size={34} />
                     <span className="hidden sm:inline-flex items-center px-2 py-0.5 ml-1 rounded-full text-[10px] font-medium uppercase tracking-wide text-muted-foreground bg-muted border border-border/60">
                         Chat
                     </span>

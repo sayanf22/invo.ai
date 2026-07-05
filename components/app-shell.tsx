@@ -50,10 +50,10 @@ export function HomeScreenSkeleton() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="relative flex items-center justify-center" aria-label="Loading" role="status">
         {/* Soft expanding ring behind the mark */}
-        <span className="absolute w-20 h-20 rounded-2xl bg-amber-700/10 dark:bg-amber-500/10 animate-[home-loader-ring_1.8s_ease-out_infinite]" />
+        <span className="absolute w-28 h-28 rounded-2xl bg-amber-700/10 dark:bg-amber-500/10 animate-[home-loader-ring_1.8s_ease-out_infinite]" />
         {/* Brand mark with a gentle breathing pulse */}
         <span className="relative animate-[home-loader-pulse_1.8s_ease-in-out_infinite]">
-          <ClorefyLogo size={56} />
+          <ClorefyLogo size={76} />
         </span>
       </div>
     </div>
@@ -727,7 +727,7 @@ export function AppShell() {
   return (
     <div className="animate-in fade-in duration-300 min-h-screen flex flex-col bg-background">
       <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
-        <ClorefyLogo size={36} />
+        <ClorefyLogo size={48} />
         <HamburgerMenu />
       </header>
 
@@ -747,7 +747,7 @@ export function AppShell() {
         {/* ── Hero: Centered prompt ──────────────────────── */}
         <section className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center px-4 py-12">
           <div className="flex flex-col items-center gap-6 w-full max-w-[720px]">
-            <ClorefyLogo size={80} />
+            <ClorefyLogo size={104} />
             <h1 className="text-[40px] md:text-[48px] font-display font-medium tracking-tight text-foreground text-center text-balance leading-tight">
               {selectedCategory ? (
                 <>{"Describe your "}<span className="font-medium relative text-amber-700 dark:text-amber-500">{selectedCategory.toLowerCase()}<span className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-amber-700/30 dark:bg-amber-500/30" /></span></>

@@ -593,7 +593,7 @@ export default function ProfilePage() {
                             <ArrowLeft className="w-4 h-4" />
                         </button>
                         <div className="hidden sm:flex items-center gap-2">
-                            <ClorefyLogo size={24} />
+                            <ClorefyLogo size={32} />
                             <span className="font-semibold text-sm">Business Profile</span>
                         </div>
                     </div>

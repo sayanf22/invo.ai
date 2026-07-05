@@ -1,0 +1,178 @@
+version: "2"
+type: frontend
+tech_stack:
+  - TypeScript
+  - Next.js 16.2.4
+  - React 19
+  - Tailwind CSS 3.4.17
+  - shadcn/ui
+  - Radix UI
+  - Supabase
+  - Cloudflare Workers
+routes:
+  - path: /
+    file: app/page.tsx
+    auth_required: false
+    description: Landing page with hero, features, and pricing overview
+  - path: /pricing
+    file: app/pricing/page.tsx
+    auth_required: false
+    description: Pricing plans page with billing toggle (monthly/yearly)
+  - path: /developers
+    file: app/developers/page.tsx
+    auth_required: false
+    description: Developer and API information page
+  - path: /auth/login
+    file: app/auth/login/page.tsx
+    auth_required: false
+    description: User login page with email/password and Google OAuth
+  - path: /auth/signup
+    file: app/auth/signup/page.tsx
+    auth_required: false
+    description: User registration page
+  - path: /auth/reset-password
+    file: app/auth/reset-password/page.tsx
+    auth_required: false
+    description: Password reset request page
+  - path: /auth/update-password
+    file: app/auth/update-password/page.tsx
+    auth_required: false
+    description: Set new password after reset
+  - path: /documents
+    file: app/documents/page.tsx
+    auth_required: true
+    description: Document listing and management page
+  - path: /history
+    file: app/history/page.tsx
+    auth_required: true
+    description: Session history page
+  - path: /billing
+    file: app/billing/page.tsx
+    auth_required: true
+    description: Subscription and payment management
+  - path: /settings
+    file: app/settings/page.tsx
+    auth_required: true
+    description: App settings page
+  - path: /profile
+    file: app/profile/page.tsx
+    auth_required: true
+    description: User profile and business info
+  - path: /notifications
+    file: app/notifications/page.tsx
+    auth_required: true
+    description: Notification center
+features:
+  - name: Landing Page
+    description: Public landing page showcasing Clorefy features, persona tabs, and call-to-action
+    files:
+      - app/page.tsx
+      - components/landing/features-section.tsx
+      - components/landing/persona-tabs.tsx
+      - components/landing/landing-navbar.tsx
+    entry_route: /
+    user_interactions:
+      - View hero section with product description
+      - Browse feature cards
+      - Switch between persona tabs (freelancer, agency, etc.)
+      - Click Get Started button to navigate to signup
+      - Click Login button to navigate to login
+    api_calls: []
+    auth_required: false
+  - name: User Login
+    description: Login with email/password or Google OAuth
+    files:
+      - app/auth/login/page.tsx
+      - lib/supabase.ts
+    entry_route: /auth/login
+    user_interactions:
+      - Fill email input field
+      - Fill password input field
+      - Click Login button to submit
+      - Click Google OAuth button
+      - Click Forgot Password link
+      - See error message on invalid credentials
+    api_calls:
+      - method: POST
+        endpoint: /auth/callback
+    auth_required: false
+  - name: User Signup
+    description: Register a new account with email/password or Google OAuth
+    files:
+      - app/auth/signup/page.tsx
+      - lib/supabase.ts
+    entry_route: /auth/signup
+    user_interactions:
+      - Fill name input field
+      - Fill email input field
+      - Fill password input field
+      - Click Sign Up button
+      - Click Google OAuth button
+      - See validation errors
+    api_calls:
+      - method: POST
+        endpoint: /auth/callback
+    auth_required: false
+  - name: Pricing Page
+    description: View pricing plans with monthly/yearly toggle and feature comparison
+    files:
+      - app/pricing/page.tsx
+    entry_route: /pricing
+    user_interactions:
+      - Toggle between monthly and yearly billing
+      - View plan features comparison
+      - Click Subscribe button on a plan
+      - View INR or USD pricing based on location
+    api_calls: []
+    auth_required: false
+  - name: AI Document Generation
+    description: Conversational AI chat to generate invoices, contracts, quotations, and proposals
+    files:
+      - components/prompt-screen.tsx
+      - components/invoice-chat.tsx
+      - components/document-preview.tsx
+      - components/editor-panel.tsx
+      - app/api/ai/stream/route.ts
+    entry_route: /
+    user_interactions:
+      - Type document request in chat input
+      - View AI streaming response
+      - See generated document preview
+      - Edit document fields in editor panel
+      - Switch between chat and preview views
+    api_calls:
+      - method: POST
+        endpoint: /api/ai/stream
+      - method: POST
+        endpoint: /api/sessions/create
+    auth_required: true
+  - name: PDF Export
+    description: Export generated documents as PDF in multiple templates
+    files:
+      - components/pdf-download-button.tsx
+      - lib/pdf-templates.tsx
+    entry_route: /
+    user_interactions:
+      - Click Download PDF button
+      - Select template style
+      - Download generated PDF file
+    api_calls: []
+    auth_required: true
+  - name: Document History
+    description: View and manage past document sessions
+    files:
+      - app/history/page.tsx
+      - components/session-history-sidebar.tsx
+    entry_route: /history
+    user_interactions:
+      - View list of past sessions
+      - Click on a session to reopen it
+      - See session metadata (date, type, status)
+    api_calls:
+      - method: GET
+        endpoint: /api/sessions/linked
+    auth_required: true
+known_limitations:
+  - issue: Dev server limited to 15 frontend tests to prevent overload
+    location: localhost:3000
+    impact: Full test suite requires production build
