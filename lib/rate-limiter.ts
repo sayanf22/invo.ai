@@ -87,6 +87,27 @@ async function createAuthenticatedClient() {
     )
 }
 
+// ── Helper: Category-aware user-facing throttle message ────────────────
+
+function rateLimitMessage(category: RouteCategory): string {
+    switch (category) {
+        case "file_analysis":
+            return "You've uploaded several files in a short time. Give it a minute and try again — or continue in the chat and type your details."
+        case "ai":
+            return "You're sending messages very quickly. Give it a minute and try again."
+        case "export":
+            return "Too many exports in a short time. Please wait a minute and try again."
+        case "email":
+            return "Too many emails sent in a short time. Please wait a minute and try again."
+        case "payment":
+            return "Too many payment link requests. Please wait a minute and try again."
+        case "signature":
+            return "Too many signature requests. Please wait a minute and try again."
+        default:
+            return "You're making requests too quickly. Please wait a minute and try again."
+    }
+}
+
 // ── Main Function ──────────────────────────────────────────────────────
 
 /**
@@ -122,33 +143,46 @@ export async function checkRateLimit(
             return null
         }
 
-        const result = data as { allowed: boolean; remaining: number; retry_after: number; error?: string }
+        // CRITICAL: check_rate_limit is defined as `RETURNS TABLE(...)`, so
+        // Supabase/PostgREST returns an ARRAY of rows (`[{...}]`), NOT a single
+        // object. Casting `data` directly to an object left `allowed` as
+        // `undefined`, which made `!result.allowed` always true and produced a
+        // spurious 429 (`app_rate_limit`) on EVERY request. Unwrap the first row
+        // and tolerate both shapes in case the RPC signature ever changes.
+        const row = (Array.isArray(data) ? data[0] : data) as
+            | { allowed: boolean; remaining: number; retry_after: number; error?: string }
+            | undefined
 
-        if (!result || result.error === 'Unauthorized') {
+        if (!row) {
+            // No row returned — unexpected. Fail open rather than block legit users.
+            console.warn("Rate limit: empty RPC response, failing open for", category)
+            return null
+        }
+
+        if (row.error === 'Unauthorized') {
             // JWT context mismatch — fail open rather than block legitimate users
             console.warn("Rate limit: JWT context mismatch, failing open for", category)
             return null
         }
 
-        if (result.error) {
-            console.error("Rate limit validation error:", result.error)
-            return null // Fail open for config errors
-        }
-
-        if (!result.allowed) {
+        // `allowed === false` is the authoritative block signal. The RPC only
+        // sets it (with a populated retry_after and error='Rate limit exceeded')
+        // when the count genuinely exceeds the window cap, so we must NOT fail
+        // open here — this is a real throttle.
+        if (row.allowed === false) {
             return NextResponse.json(
                 {
-                    error: "You've uploaded several files in a short time. Give it a minute and try again — or continue in the chat and type your details.",
+                    error: rateLimitMessage(category),
                     // Distinguishes "our own app-level throttle" from an upstream OpenAI
                     // 429 so the client knows NOT to retry quickly — the window genuinely
                     // hasn't cleared yet, unlike a transient OpenAI rate limit.
                     code: "app_rate_limit",
-                    retryAfter: result.retry_after,
+                    retryAfter: row.retry_after,
                 },
                 {
                     status: 429,
                     headers: {
-                        "Retry-After": String(result.retry_after),
+                        "Retry-After": String(row.retry_after ?? config.windowSeconds),
                         "X-RateLimit-Limit": String(config.maxRequests),
                         "X-RateLimit-Remaining": "0",
                     },
