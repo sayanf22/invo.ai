@@ -174,6 +174,15 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
     const editInputRef = useRef<HTMLInputElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
+    // Single shared processing queue. addFiles() and retryFile() both enqueue
+    // here instead of calling processFile directly — this is what actually
+    // guarantees only ONE analyze-file request is in flight at a time, even if
+    // the user drops a new batch or hits retry while a previous batch is still
+    // running. Without this, two independent call sites (addFiles' sequential
+    // loop + retryFile) could each kick off their own concurrent request.
+    const processingQueueRef = useRef<UploadedFile[]>([])
+    const isProcessingQueueRef = useRef(false)
+
     // Persist extracted data to localStorage whenever it changes
     useEffect(() => {
         const hasData = Object.keys(mergedData).length > 0
@@ -367,6 +376,23 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
         }
     }, [user])
 
+    // Drains the shared queue one file at a time. Safe to call from multiple
+    // places (addFiles, retryFile) — the isProcessingQueueRef guard ensures
+    // only one drain loop ever runs, so a second call just appends to the
+    // queue instead of starting a competing loop.
+    const drainQueue = useCallback(async () => {
+        if (isProcessingQueueRef.current) return
+        isProcessingQueueRef.current = true
+        try {
+            while (processingQueueRef.current.length > 0) {
+                const next = processingQueueRef.current.shift()!
+                await processFile(next)
+            }
+        } finally {
+            isProcessingQueueRef.current = false
+        }
+    }, [processFile])
+
     const addFiles = useCallback((newFiles: File[]) => {
         const validFiles: UploadedFile[] = []
 
@@ -386,23 +412,21 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
         if (validFiles.length === 0) return
 
         setFiles(prev => [...prev, ...validFiles])
-        // Process SEQUENTIALLY (not in parallel). Each file triggers an expensive
-        // OpenAI vision call that's rate-limited to 10/min per user; firing several
-        // at once would trip that limit and surface as "Service is busy". One at a
-        // time keeps every upload within the budget and reduces upstream load.
-        void (async () => {
-            for (const f of validFiles) {
-                await processFile(f)
-            }
-        })()
-    }, [processFile])
+        // Enqueue — NEVER call processFile directly here. This is what keeps
+        // uploads sequential even across multiple drops/selections: if a batch
+        // is still draining, these just join the same queue instead of firing
+        // a second concurrent request to OpenAI.
+        processingQueueRef.current.push(...validFiles)
+        void drainQueue()
+    }, [drainQueue])
 
     const retryFile = useCallback((fileId: string) => {
         const file = files.find(f => f.id === fileId)
         if (!file) return
         setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: "pending" as const, error: undefined } : f))
-        processFile({ ...file, status: "pending", error: undefined })
-    }, [files, processFile])
+        processingQueueRef.current.push({ ...file, status: "pending", error: undefined })
+        void drainQueue()
+    }, [files, drainQueue])
 
     const removeFile = useCallback((fileId: string) => {
         setFiles(prev => prev.filter(f => f.id !== fileId))
