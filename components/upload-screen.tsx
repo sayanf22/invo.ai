@@ -306,18 +306,23 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                 body: analyzeFormData,
             })
 
-            // Only a 429 is genuinely transient (OpenAI TPM/RPM). Retry it ONCE,
-            // honoring the server's Retry-After hint (capped) instead of a blind
-            // 5s wait. Everything else (502/503) is not helped by retrying — the
-            // server already returns a clear, actionable message for those.
+            // A 429 can mean two different things, and only one of them is worth
+            // retrying quickly:
+            //  - OpenAI-side transient rate limit (no `code` field) — genuinely
+            //    clears within seconds, so one quick retry is worth it.
+            //  - Our OWN app-level throttle (`code: "app_rate_limit"`) — the window
+            //    is a full 60s and a short retry will just fail again with the same
+            //    error. Don't retry; show the server's friendly message immediately.
             if (res.status === 429) {
                 const retryBody = await res.clone().json().catch(() => ({} as any))
-                const retryAfterSec = Math.min(Number(retryBody?.retryAfter) || 8, 20)
-                await new Promise(resolve => setTimeout(resolve, retryAfterSec * 1000))
-                res = await authFetch("/api/ai/analyze-file", {
-                    method: "POST",
-                    body: analyzeFormData,
-                })
+                if (retryBody?.code !== "app_rate_limit") {
+                    const retryAfterSec = Math.min(Number(retryBody?.retryAfter) || 8, 20)
+                    await new Promise(resolve => setTimeout(resolve, retryAfterSec * 1000))
+                    res = await authFetch("/api/ai/analyze-file", {
+                        method: "POST",
+                        body: analyzeFormData,
+                    })
+                }
             }
 
             if (!res.ok) {

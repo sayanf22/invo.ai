@@ -34,7 +34,10 @@ const RATE_LIMITS: Record<RouteCategory, { maxRequests: number; windowSeconds: n
     payment: { maxRequests: 20, windowSeconds: 60 },   // 20 req/min for payment link creation
     email: { maxRequests: 15, windowSeconds: 60 },     // 15 req/min for email sending
     signature: { maxRequests: 10, windowSeconds: 60 }, // 10 req/min for signature requests
-    file_analysis: { maxRequests: 10, windowSeconds: 60 }, // 10 req/min for OpenAI vision file extraction (expensive — cost protection)
+    file_analysis: { maxRequests: 20, windowSeconds: 60 }, // 20 req/min for OpenAI vision file extraction — raised from 10 because
+    // onboarding legitimately involves uploading several catalogs/invoices back to back
+    // (processed sequentially client-side, but each still counts as one request here).
+    // Still bounded — real cost protection is the separate per-user monthly checkCostLimit().
 }
 
 // ── Helper: Extract access token from cookies ──────────────────────────
@@ -131,7 +134,11 @@ export async function checkRateLimit(
         if (!result.allowed) {
             return NextResponse.json(
                 {
-                    error: "Rate limit exceeded. Please try again later.",
+                    error: "You've uploaded several files in a short time. Give it a minute and try again — or continue in the chat and type your details.",
+                    // Distinguishes "our own app-level throttle" from an upstream OpenAI
+                    // 429 so the client knows NOT to retry quickly — the window genuinely
+                    // hasn't cleared yet, unlike a transient OpenAI rate limit.
+                    code: "app_rate_limit",
                     retryAfter: result.retry_after,
                 },
                 {
