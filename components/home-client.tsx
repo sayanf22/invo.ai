@@ -1,57 +1,44 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Suspense } from "react"
 import { AppShell, HomeScreenSkeleton } from "@/components/app-shell"
 import { useAuth } from "@/components/auth-provider"
 
-// Real static home screen (not a fake chat mockup) instead of a bare spinner
-// — this is the very first thing most users see on login/reload.
+// Subtle brand loader — only shown during the near-instant auth bootstrap.
 const Spinner = () => <HomeScreenSkeleton />
 
 /**
  * Client-side auth routing for authenticated users.
  * Only mounted when the user has auth cookies — unauthenticated visitors
  * see the server-rendered LandingPage directly (good for SEO).
+ *
+ * Perf: we render the real app AS SOON AS the user is known and run the
+ * profile/onboarding check in the BACKGROUND. New users (no plan / not
+ * onboarded) are redirected once that background check resolves, so there's
+ * no second full-screen loading gate — the app feels instant.
  */
 export function HomeClient() {
   const { user, supabase, isLoading } = useAuth()
   const router = useRouter()
-  const [ready, setReady] = useState(false)
-  const [showApp, setShowApp] = useState(false)
   const profileCheckedRef = useRef(false)
 
   useEffect(() => {
-    if (isLoading) return
-
-    if (!user) {
-      const hasAuthCookie =
-        typeof document !== "undefined" &&
-        document.cookie
-          .split(";")
-          .some((c) => c.trim().startsWith("sb-") && c.includes("-auth-token"))
-
-      if (hasAuthCookie) {
-        const timer = setTimeout(() => setReady(true), 2000)
-        return () => clearTimeout(timer)
-      }
-
-      setReady(true)
-      return
-    }
-
+    if (isLoading || !user) return
     if (profileCheckedRef.current) return
     profileCheckedRef.current = true
 
-    async function checkProfile() {
+    ;(async () => {
       try {
         const { data: profile } = (await supabase
           .from("profiles")
           .select("onboarding_complete, plan_selected")
-          .eq("id", user!.id)
+          .eq("id", user.id)
           .single()) as any
 
+        // Redirect priority: plan selection first, then onboarding. These run
+        // in the background while the app is already on screen.
         if (!profile?.plan_selected) {
           router.replace("/choose-plan")
           return
@@ -60,27 +47,19 @@ export function HomeClient() {
           router.replace("/onboarding")
           return
         }
-        setShowApp(true)
-        setReady(true)
       } catch {
-        setShowApp(true)
-        setReady(true)
+        // On error, keep the user on the app rather than trapping them on a loader.
       }
-    }
-
-    checkProfile()
+    })()
   }, [user, isLoading, supabase, router])
 
-  if (isLoading || !ready) return <Spinner />
+  // Only gate on the (fast, cached) auth bootstrap. Everything else loads in
+  // the background so the app renders instantly.
+  if (isLoading || !user) return <Spinner />
 
-  if (user && showApp) {
-    return (
-      <Suspense fallback={<Spinner />}>
-        <AppShell />
-      </Suspense>
-    )
-  }
-
-  // Still loading / redirecting
-  return <Spinner />
+  return (
+    <Suspense fallback={<Spinner />}>
+      <AppShell />
+    </Suspense>
+  )
 }

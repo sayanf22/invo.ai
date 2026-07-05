@@ -48,14 +48,15 @@ function Shimmer({ className, style }: { className?: string; style?: React.CSSPr
 export function HomeScreenSkeleton() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="relative flex items-center justify-center" aria-label="Loading" role="status">
-        {/* Soft expanding ring behind the mark */}
-        <span className="absolute w-28 h-28 rounded-2xl bg-amber-700/10 dark:bg-amber-500/10 animate-[home-loader-ring_1.8s_ease-out_infinite]" />
-        {/* Brand mark with a gentle breathing pulse */}
-        <span className="relative animate-[home-loader-pulse_1.8s_ease-in-out_infinite]">
-          <ClorefyLogo size={76} />
-        </span>
-      </div>
+      {/* Subtle, slow breathing brand mark — no ring, no text. Only shown for
+          the brief auth bootstrap; everything else loads in the background. */}
+      <span
+        className="animate-[home-loader-pulse_2.4s_ease-in-out_infinite]"
+        aria-label="Loading"
+        role="status"
+      >
+        <ClorefyLogo size={76} />
+      </span>
     </div>
   )
 }
@@ -252,7 +253,6 @@ export function AppShell() {
   const [initialPrompt, setInitialPrompt] = useState<string | undefined>(undefined)
   const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(undefined)
   const [promptKey, setPromptKey] = useState(0)
-  const [checkingOnboarding, setCheckingOnboarding] = useState(true)
   const [setupIncomplete, setSetupIncomplete] = useState(false)
   const [detectingType, setDetectingType] = useState(false)
   const [detectedRoute, setDetectedRoute] = useState<"chat-only" | "direct-create" | null>(null)
@@ -312,45 +312,39 @@ export function AppShell() {
   }
 
   useEffect(() => {
-    async function checkOnboarding() {
-      if (authLoading || !user) { setCheckingOnboarding(false); return }
+    if (authLoading || !user) return
+    let cancelled = false
+
+    // Session housekeeping — clear any stale localStorage session on a fresh
+    // landing (no ?sessionId) so the user always starts on the start screen.
+    const urlSessionId = new URLSearchParams(window.location.search).get("sessionId")
+    if (!urlSessionId) {
+      localStorage.removeItem("clorefy_active_session")
+    }
+
+    // Background business-profile check — drives ONLY the "complete your profile"
+    // banner. It never blocks render and never redirects: plan/onboarding
+    // redirects are owned solely by HomeClient (avoids a double-redirect race).
+    ;(async () => {
       try {
-        // Fire both queries in parallel — the business-profile check does NOT
-        // depend on the onboarding_complete result, so there's no reason to
-        // wait for the first round-trip before starting the second. This
-        // roughly halves the DB wait time on every page load for this check.
-        const [{ data: profile, error }, { data: business }] = await Promise.all([
-          supabase.from("profiles").select("onboarding_complete").eq("id", user.id).single(),
-          supabase.from("businesses").select("name, country, email").eq("user_id", user.id).single(),
-        ])
-        if (!error && profile && (profile as any).onboarding_complete === false) {
-          // New user — clear any stale session from localStorage
-          localStorage.removeItem("clorefy_active_session")
-          router.push("/onboarding"); return
-        }
+        const { data: business } = await supabase
+          .from("businesses")
+          .select("name, country, email")
+          .eq("user_id", user.id)
+          .single()
+        if (cancelled) return
         if (!business || !business.name || !business.country || !business.email) {
           setSetupIncomplete(true)
         } else {
-          // Business is complete, clear any skip flags
           localStorage.removeItem("clorefy_onboarding_skipped")
         }
-
-        // Only NOW (after onboarding check passes) attempt to restore a mid-session
-        // This prevents the session restore from racing with the onboarding redirect
-        // We only restore if there's a URL sessionId param — localStorage restore is intentionally
-        // removed to prevent auto-jumping into the prompt screen on every login.
-        // Users should always land on the start screen and choose what to do.
-        const urlSessionId = new URLSearchParams(window.location.search).get("sessionId")
-        if (!urlSessionId) {
-          // Always clear stale localStorage session on fresh login — user should start fresh
-          localStorage.removeItem("clorefy_active_session")
-        }
       } catch (error) {
-        console.error("Error checking onboarding:", error)
-      } finally { setCheckingOnboarding(false) }
-    }
-    checkOnboarding()
-  }, [authLoading, user, supabase, router])
+        console.error("Error checking business profile:", error)
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [authLoading, user, supabase])
 
   const handleGoToSetup = useCallback(() => {
     router.push("/onboarding")
@@ -653,13 +647,6 @@ export function AppShell() {
     // Clear animation flag after transition completes
     setTimeout(() => setIsAnimating(false), 500)
   }, [])
-
-  if (authLoading || checkingOnboarding) {
-    // Real static home screen (not a fake chat mockup) — this is the very
-    // first screen most users see on every load/login, and none of its
-    // content depends on data, so there's no reason to show a shimmer.
-    return <HomeScreenSkeleton />
-  }
 
   if (detectingType) {
     return <StartScreenSkeleton route={detectedRoute} />
