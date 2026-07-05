@@ -163,6 +163,27 @@ export async function POST(request: NextRequest) {
             { auth: { persistSession: false, autoRefreshToken: false } }
         )
 
+        // Capture any PRE-EXISTING Razorpay subscription id BEFORE the upsert
+        // overwrites it. When a UPI/eMandate subscriber upgrades, create-order
+        // spins up a NEW subscription (different id) and the user re-authorises
+        // it here. Once this new subscription is confirmed active (below), the
+        // OLD one must be cancelled so it never charges again — but ONLY after
+        // the new activation succeeds, so there's never a double-charge or an
+        // access gap. For normal signups/renewals the id matches (or there is
+        // none), so nothing is cancelled.
+        let previousSubscriptionId: string | null = null
+        if (isSubscription && razorpay_subscription_id) {
+            const { data: existingRow } = await svc
+                .from("subscriptions" as any)
+                .select("razorpay_subscription_id")
+                .eq("user_id", auth.user.id)
+                .maybeSingle()
+            const existingId = (existingRow as any)?.razorpay_subscription_id
+            if (existingId && existingId !== razorpay_subscription_id) {
+                previousSubscriptionId = existingId
+            }
+        }
+
         // Upsert subscription (service role — bypasses free-only RLS)
         const { error: subError } = await svc
             .from("subscriptions" as any)
@@ -184,6 +205,22 @@ export async function POST(request: NextRequest) {
         if (subError) {
             console.error("Subscription upsert error:", subError)
             return NextResponse.json({ error: "Failed to activate subscription" }, { status: 500 })
+        }
+
+        // Now that the NEW subscription is confirmed active and persisted,
+        // cancel the OLD one from a UPI/eMandate re-authorise upgrade so it
+        // never debits again. Immediate cancel (not cycle-end): the user is
+        // already on the new plan, so we must stop the old mandate now to
+        // avoid a duplicate charge on its original renewal date.
+        // cancelRazorpaySubscription is idempotent, so a stale/already-cancelled
+        // id is harmless.
+        if (previousSubscriptionId) {
+            try {
+                const { cancelRazorpaySubscription } = await import("@/lib/razorpay")
+                await cancelRazorpaySubscription(previousSubscriptionId, false)
+            } catch (cancelErr) {
+                console.error("[verify] failed to cancel old subscription after re-auth upgrade (non-fatal):", cancelErr)
+            }
         }
 
         // Mark plan as selected in profile (protected column — service role only)

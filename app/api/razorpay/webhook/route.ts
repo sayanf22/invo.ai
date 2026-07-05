@@ -109,6 +109,27 @@ export async function POST(request: Request) {
                 const VALID_PLANS = ["starter", "pro", "agency"]
                 if (userId && plan && VALID_PLANS.includes(plan)) {
                     const now = new Date()
+
+                    // Capture any PRE-EXISTING Razorpay subscription id BEFORE the
+                    // upsert overwrites it. When a UPI/eMandate subscriber upgrades,
+                    // create-order spins up a NEW subscription (different id). If the
+                    // synchronous /verify call was missed and THIS webhook is the one
+                    // activating the new plan, the OLD subscription must still be
+                    // cancelled so it never auto-debits again (double-billing guard).
+                    // For renewals/re-verified activations the id matches, so nothing
+                    // is cancelled. Cancellation runs only after a successful upsert.
+                    let previousSubscriptionId: string | null = null
+                    if (subscription.id) {
+                        const { data: existingRow } = await supabase
+                            .from("subscriptions" as any)
+                            .select("razorpay_subscription_id")
+                            .eq("user_id", userId)
+                            .maybeSingle()
+                        const existingId = (existingRow as any)?.razorpay_subscription_id
+                        if (existingId && existingId !== subscription.id) {
+                            previousSubscriptionId = existingId
+                        }
+                    }
                     // Period from Razorpay's authoritative current_start/current_end
                     // (unix seconds) so the stored period tracks the real billing cycle
                     // and never drifts across renewals. Fall back to a computed window
@@ -154,6 +175,18 @@ export async function POST(request: Request) {
                     if (upsertErr) {
                         console.error("[webhook] subscription activation upsert failed:", upsertErr.message)
                     } else {
+                        // Cancel the OLD subscription from a UPI/eMandate re-authorise
+                        // upgrade, now that the new one is confirmed active. Immediate
+                        // cancel (idempotent) so the old mandate never debits again.
+                        if (previousSubscriptionId) {
+                            try {
+                                const { cancelRazorpaySubscription } = await import("@/lib/razorpay")
+                                await cancelRazorpaySubscription(previousSubscriptionId, false)
+                            } catch (cancelErr) {
+                                console.error("[webhook] failed to cancel old subscription after re-auth upgrade (non-fatal):", cancelErr)
+                            }
+                        }
+
                         // Mark plan_selected on profile (protected column → service role)
                         await supabase
                             .from("profiles")
@@ -200,6 +233,46 @@ export async function POST(request: Request) {
                     }
                 } else {
                     console.warn("[webhook] subscription event missing user_id/plan in notes:", subscription.id)
+                }
+                break
+            }
+
+            case "subscription.updated": {
+                // Defensive sync only: when a subscription's plan_id changes on
+                // Razorpay's side (e.g. via the downgrade/upgrade Update Subscription
+                // API calls added in this fix), cross-check that our stored
+                // amount_paid/plan/currency match the authoritative plan_id. This is
+                // NOT required for the core fix (7.1-7.3, 7.6-7.7) to be correct —
+                // it's a safety net in case a PATCH succeeds on Razorpay's side but
+                // our own row update (e.g. in the upgrade path) fails for some reason.
+                const subscription = event.payload.subscription.entity
+                console.log("Subscription updated:", subscription.id, subscription.plan_id)
+
+                if (subscription.id && subscription.plan_id) {
+                    const { planIdToPlan, planIdToAmount, planIdToCurrency } = await import("@/lib/razorpay")
+                    const syncedPlan = planIdToPlan(subscription.plan_id)
+                    const syncedAmount = planIdToAmount(subscription.plan_id)
+                    const syncedCurrency = planIdToCurrency(subscription.plan_id)
+
+                    if (syncedPlan && syncedPlan !== "free") {
+                        const updatePayload: Record<string, unknown> = {
+                            plan: syncedPlan,
+                            updated_at: new Date().toISOString(),
+                        }
+                        if (syncedAmount != null) updatePayload.amount_paid = syncedAmount
+                        if (syncedCurrency) updatePayload.currency = syncedCurrency
+
+                        const { error: syncErr } = await supabase
+                            .from("subscriptions" as any)
+                            .update(updatePayload)
+                            .eq("razorpay_subscription_id", subscription.id)
+
+                        if (syncErr) {
+                            console.error("[webhook] subscription.updated sync failed (non-fatal):", syncErr.message)
+                        }
+                    } else {
+                        console.warn("[webhook] subscription.updated: could not resolve plan_id", subscription.plan_id)
+                    }
                 }
                 break
             }

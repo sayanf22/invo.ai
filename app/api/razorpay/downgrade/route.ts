@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
-import { PLANS, type PlanId, cancelRazorpaySubscription } from "@/lib/razorpay"
+import { PLANS, type PlanId, cancelRazorpaySubscription, updateRazorpaySubscriptionPlan, getPlanIdForCurrency } from "@/lib/razorpay"
 import { createClient } from "@supabase/supabase-js"
 
 /**
@@ -114,6 +114,29 @@ export async function POST(request: Request) {
                     .eq("status", "pending")
             } catch (cleanupErr) {
                 console.error("[downgrade] automation cleanup failed (non-fatal):", cleanupErr)
+            }
+        } else if (currentSub.razorpay_subscription_id) {
+            // ── Paid→paid downgrade path ─────────────────────────────────────
+            // targetPlan is a paid tier lower than the current one (validated by
+            // the currentIdx/targetIdx check above). Tell Razorpay to change the
+            // subscription's plan_id at the end of the current billing cycle so
+            // the customer is charged the NEW (lower) amount starting next cycle,
+            // with no proration. Non-fatal on failure — `scheduled_downgrade` in
+            // Supabase is already the source of truth for the UI and the
+            // check_subscription_expiry RPC.
+            try {
+                const targetPlanId = getPlanIdForCurrency(
+                    targetPlan as "starter" | "pro" | "agency",
+                    currentSub.currency,
+                    currentSub.billing_cycle
+                )
+                if (targetPlanId) {
+                    await updateRazorpaySubscriptionPlan(currentSub.razorpay_subscription_id, targetPlanId)
+                } else {
+                    console.error("[downgrade] no Razorpay plan_id found for", targetPlan, currentSub.currency, currentSub.billing_cycle)
+                }
+            } catch (updateErr) {
+                console.error("[downgrade] Razorpay plan update failed (non-fatal):", updateErr)
             }
         }
 

@@ -60,6 +60,20 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
 
             const data = await orderRes.json()
 
+            // If create-order updated an EXISTING Razorpay subscription in place
+            // (a paid→paid upgrade — see app/api/razorpay/create-order/route.ts),
+            // there's nothing to check out: the plan change already took effect
+            // server-side. Skip opening Razorpay Checkout entirely and complete
+            // immediately, rather than re-collecting payment details the user
+            // already has authorized.
+            if (data.upgraded) {
+                const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1)
+                toast.success(`🎉 ${planLabel} plan activated!`)
+                setIsProcessing(false)
+                onSuccess?.(plan, billingCycle)
+                return
+            }
+
             // Open Razorpay Checkout with subscription_id
             const options: any = {
                 key: data.keyId,

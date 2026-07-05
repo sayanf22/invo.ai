@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { PLANS, type PlanId } from "@/lib/razorpay"
 import { getTierLimits, resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
+import { createNotification, PLAN_NAMES } from "@/lib/notifications"
 
 /**
  * GET /api/usage
@@ -15,8 +16,34 @@ export async function GET(request: Request) {
         const userId = auth.user.id
         const now = new Date()
 
+        // Capture the plan BEFORE the expiry check runs, so we can tell whether
+        // a scheduled downgrade just completed (plan changed) vs. a genuine
+        // payment failure (plan unchanged, status flips to past_due).
+        const { data: subBeforeExpiry } = await auth.supabase
+            .from("subscriptions" as any)
+            .select("plan")
+            .eq("user_id", userId)
+            .single()
+        const planBeforeExpiry = (subBeforeExpiry as any)?.plan ?? "free"
+
         // Run subscription expiry check first
-        await (auth.supabase.rpc as any)("check_subscription_expiry", { p_user_id: userId })
+        const { data: expiryResult } = await (auth.supabase.rpc as any)("check_subscription_expiry", { p_user_id: userId })
+        const expiry = Array.isArray(expiryResult) ? expiryResult[0] : expiryResult
+
+        // A scheduled downgrade just completed (as opposed to a genuine payment
+        // failure) when the RPC reports is_expired = true, status = 'active',
+        // and the plan actually changed. Notify the user, following the exact
+        // createNotification pattern used in app/api/razorpay/verify/route.ts.
+        if (expiry?.is_expired && expiry?.status === "active" && expiry?.plan !== planBeforeExpiry) {
+            const planLabel = PLAN_NAMES[expiry.plan] || expiry.plan
+            await createNotification(auth.supabase, {
+                user_id: userId,
+                type: "subscription_downgrade_completed",
+                title: "Plan Changed",
+                message: `Your plan has changed to ${planLabel}.`,
+                metadata: { plan: expiry.plan },
+            }).catch(() => {})
+        }
 
         // Get subscription (after expiry check)
         const { data: sub } = await auth.supabase

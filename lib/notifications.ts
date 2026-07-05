@@ -5,6 +5,7 @@ export type NotificationType =
     | "subscription_free_grant"
     | "subscription_cancelled"
     | "subscription_renewed"
+    | "subscription_downgrade_completed"
     | "document_limit_warning"
     | "general"
 

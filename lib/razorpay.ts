@@ -293,6 +293,7 @@ export async function getSubscription(subscriptionId: string): Promise<{
     id: string
     status: string
     plan_id: string
+    payment_method?: string | null
     notes?: Record<string, string>
     current_start?: number | null
     current_end?: number | null
@@ -751,6 +752,153 @@ export async function cancelRazorpaySubscription(
     }
 
     return res.json()
+}
+
+/**
+ * Structured error thrown by Razorpay API helpers so callers can branch on
+ * `code`/`description`/`reason` reliably instead of doing fragile substring
+ * matching on a generic `Error.message`. Mirrors the shape Razorpay itself
+ * returns: `{ error: { code, description, source, step, reason, metadata } }`.
+ */
+export class RazorpayApiError extends Error {
+    code?: string
+    description: string
+    source?: string
+    step?: string
+    reason?: string
+    metadata?: Record<string, unknown>
+
+    constructor(errorBody: {
+        code?: string
+        description?: string
+        source?: string
+        step?: string
+        reason?: string
+        metadata?: Record<string, unknown>
+    }) {
+        super(errorBody.description || "Razorpay API error")
+        this.name = "RazorpayApiError"
+        this.code = errorBody.code
+        this.description = errorBody.description || ""
+        this.source = errorBody.source
+        this.step = errorBody.step
+        this.reason = errorBody.reason
+        this.metadata = errorBody.metadata
+    }
+}
+
+/**
+ * Update an EXISTING Razorpay recurring Subscription's plan (plan_id) via
+ * Razorpay's Update Subscription API. Used by BOTH the downgrade path
+ * (paid→paid downgrade, `scheduleChangeAt: "cycle_end"` — deferred, no
+ * proration) and the upgrade path (paid→paid upgrade, `scheduleChangeAt:
+ * "now"` — immediate, prorated). This is a SINGLE parameterized function
+ * shared by both call sites; do NOT split it into separate
+ * "...Now"/"...CycleEnd" variants.
+ *
+ * @param subscriptionId - Razorpay subscription id (sub_xxx) to update.
+ * @param newPlanId - Target Razorpay plan_id (from getPlanIdForCurrency).
+ * @param scheduleChangeAt - "cycle_end" (default) defers the change to the
+ *   next billing cycle with no proration; "now" applies immediately and lets
+ *   Razorpay prorate/charge the difference right away.
+ *
+ * Returns the updated subscription entity. Throws `RazorpayApiError` on a
+ * genuine, non-idempotent API error so callers can inspect the structured
+ * `description`/`code` (e.g. the upgrade path treats the documented
+ * "difference amount... less than... smallest currency subunit" condition
+ * as a successful no-op, see create-order/route.ts).
+ */
+export async function updateRazorpaySubscriptionPlan(
+    subscriptionId: string | null | undefined,
+    newPlanId: string,
+    scheduleChangeAt: "now" | "cycle_end" = "cycle_end"
+): Promise<{ id: string; status: string; plan_id?: string; current_start?: number | null; current_end?: number | null }> {
+    if (!subscriptionId || !subscriptionId.startsWith("sub_")) {
+        throw new Error("Invalid or missing Razorpay subscription id")
+    }
+    if (!newPlanId) {
+        throw new Error("Missing target plan_id for subscription update")
+    }
+
+    const { getSecret } = await import("@/lib/secrets")
+    const keyId = await getSecret("RAZORPAY_KEY_ID")
+    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+    if (!keyId || !keySecret) throw new Error("Razorpay API keys not configured")
+
+    const res = await fetch(`https://api.razorpay.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}`,
+        },
+        body: JSON.stringify({ plan_id: newPlanId, schedule_change_at: scheduleChangeAt }),
+        signal: AbortSignal.timeout(10000),
+    })
+
+    if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({}))
+        const desc: string = errorBody?.error?.description || ""
+        // Idempotent: if the subscription is already on this plan, treat as success
+        // (mirrors cancelRazorpaySubscription's idempotency handling above).
+        if (desc.toLowerCase().includes("already") && desc.toLowerCase().includes("plan")) {
+            return { id: subscriptionId, status: "active", plan_id: newPlanId }
+        }
+        throw new RazorpayApiError(errorBody?.error || { description: "Failed to update subscription plan" })
+    }
+
+    return res.json()
+}
+
+export interface RazorpaySubscriptionInvoice {
+    id: string
+    payment_id: string | null
+    order_id: string | null
+    subscription_id: string
+    amount: number
+    amount_paid: number
+    amount_due: number
+    currency: string
+    status: string
+    issued_at: number | null
+    paid_at: number | null
+}
+
+/**
+ * Fetch the most recent invoice(s) for a Razorpay Subscription via
+ * `GET /v1/invoices?subscription_id=:id`. Used after an immediate
+ * (`schedule_change_at: "now"`) plan update to discover the REAL prorated
+ * amount Razorpay charged (or determined needed no charge) — the Update
+ * Subscription PATCH response itself does NOT include the charged amount,
+ * only plan/period metadata.
+ *
+ * Returns invoices in the order Razorpay returns them (most recent first).
+ * Returns an empty array (never throws) on a fetch failure, since this is a
+ * best-effort lookup for billing-record accuracy, not a blocker for the
+ * plan change itself having already succeeded.
+ */
+export async function getSubscriptionInvoices(
+    subscriptionId: string,
+    count: number = 1
+): Promise<RazorpaySubscriptionInvoice[]> {
+    try {
+        const { getSecret } = await import("@/lib/secrets")
+        const keyId = await getSecret("RAZORPAY_KEY_ID")
+        const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+        if (!keyId || !keySecret) return []
+
+        const res = await fetch(
+            `https://api.razorpay.com/v1/invoices?subscription_id=${encodeURIComponent(subscriptionId)}&count=${count}`,
+            {
+                headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+                signal: AbortSignal.timeout(10000),
+            }
+        )
+        if (!res.ok) return []
+        const body = await res.json().catch(() => null)
+        return Array.isArray(body?.items) ? body.items : []
+    } catch {
+        return []
+    }
 }
 
 /**
