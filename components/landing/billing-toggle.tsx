@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Check, Minus, ArrowRight, Clock, Zap, Lock } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing, getValueHint } from "@/lib/pricing"
+import { COUNTRY_PRICING, detectCountryFromTimezone, formatPrice, DEFAULT_COUNTRY, type CountryPricing } from "@/lib/pricing"
 import { createClient } from "@/lib/supabase"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -21,7 +21,6 @@ export interface PlanData {
   monthly: number
   yearly: number
   desc: string
-  valueHint: string
   cta: string
   ctaNote: string
   href: string
@@ -296,20 +295,6 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
                       <p className="text-xs text-stone-500">Price announced at launch</p>
                     )}
                   </div>
-                </div>
-
-                {/* Value hint pill — matches landing pill style */}
-                <div
-                  className="inline-flex text-[11px] font-semibold mb-3 px-2.5 py-1 rounded-full w-fit border"
-                  style={
-                    plan.featured
-                      ? { backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.1)" }
-                      : { backgroundColor: "#faf7f2", color: "var(--landing-text-muted)", borderColor: "#ebe6dd" }
-                  }
-                >
-                  {plan.id === "free" || plan.comingSoon
-                    ? plan.valueHint
-                    : getValueHint(plan.id as "starter" | "pro" | "agency", cp, billing)}
                 </div>
 
                 <p className={`text-sm mb-5 leading-relaxed ${plan.featured ? "text-white/60" : "text-[var(--landing-text-muted)]"}`}>
