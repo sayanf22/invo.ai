@@ -407,14 +407,16 @@ export function getPlanPrice(
 /**
  * Returns a human-readable per-document cost hint for a given plan/country.
  * e.g. "~₹16 per document"
+ * Uses the effective monthly price (yearly price if billing=yearly, otherwise monthly).
  */
 export function getValueHint(
     plan: "starter" | "pro" | "agency",
-    pricing: CountryPricing
+    pricing: CountryPricing,
+    billing: "monthly" | "yearly" = "monthly"
 ): string {
     const limits: Record<string, number> = { starter: 50, pro: 150, agency: 500 }
-    const monthlyPrice = pricing[plan].monthly
-    const perDoc = monthlyPrice / limits[plan]
+    const effectiveMonthly = billing === "yearly" ? pricing[plan].yearly : pricing[plan].monthly
+    const perDoc = effectiveMonthly / limits[plan]
     const formatted = formatPrice(perDoc, pricing)
     return `~${formatted} per document`
 }

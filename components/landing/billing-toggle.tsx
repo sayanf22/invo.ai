@@ -309,7 +309,7 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
                 >
                   {plan.id === "free" || plan.comingSoon
                     ? plan.valueHint
-                    : getValueHint(plan.id as "starter" | "pro" | "agency", cp)}
+                    : getValueHint(plan.id as "starter" | "pro" | "agency", cp, billing)}
                 </div>
 
                 <p className={`text-sm mb-5 leading-relaxed ${plan.featured ? "text-white/60" : "text-[var(--landing-text-muted)]"}`}>
