@@ -274,7 +274,7 @@ export default function PricingPage() {
               {/* Value props strip */}
               <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[var(--landing-text-muted)] font-medium">
                 <span className="flex items-center gap-1.5">
-                  <Clock size={13} className="text-[var(--landing-amber)]" strokeWidth={2.5} /> Save 3–5 hrs per document
+                  <Clock size={13} className="text-[var(--landing-amber)]" strokeWidth={2.5} /> Generate documents in seconds
                 </span>
                 <span className="w-1 h-1 rounded-full bg-stone-300" />
                 <span className="flex items-center gap-1.5">
