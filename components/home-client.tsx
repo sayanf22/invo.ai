@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Suspense } from "react"
 import { AppShell, HomeScreenSkeleton } from "@/components/app-shell"
 import { useAuth } from "@/components/auth-provider"
+import { LandingPage } from "@/components/landing/landing-page"
 
 // Subtle brand loader — only shown during the near-instant auth bootstrap.
 const Spinner = () => <HomeScreenSkeleton />
@@ -55,7 +56,10 @@ export function HomeClient() {
 
   // Only gate on the (fast, cached) auth bootstrap. Everything else loads in
   // the background so the app renders instantly.
-  if (isLoading || !user) return <Spinner />
+  // If auth finishes loading but there's no user (stale cookie / expired session),
+  // show the landing page instead of trapping on the logo.
+  if (isLoading) return <Spinner />
+  if (!user) return <LandingPage />
 
   return (
     <Suspense fallback={<Spinner />}>
