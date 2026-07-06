@@ -256,11 +256,12 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
                       className="flex items-baseline gap-1"
                     >
                       <span
-                        className={`font-display font-bold leading-none tracking-tight ${
+                        className={`font-sans font-semibold leading-none tracking-tight ${
                           plan.featured ? "text-white" : plan.comingSoon ? "text-stone-400" : "text-[var(--landing-text-dark)]"
                         }`}
                         style={{
-                          fontSize: plan.comingSoon ? "1.75rem" : plan.monthly === 0 ? "3rem" : "2.75rem",
+                          fontSize: plan.comingSoon ? "1.75rem" : plan.monthly === 0 ? "2.5rem" : "2.25rem",
+                          letterSpacing: "-0.02em",
                         }}
                       >
                         {plan.monthly === 0
