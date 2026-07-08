@@ -27,7 +27,9 @@ export async function DELETE(
 
   try {
     const { id } = await params
-    if (!id) return NextResponse.json({ error: "Missing document id." }, { status: 400 })
+    if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return NextResponse.json({ error: "Invalid document id." }, { status: 400 })
+    }
 
     // Fetch the row first (RLS-scoped) to get the R2 key.
     const db = auth.supabase as any

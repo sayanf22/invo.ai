@@ -149,10 +149,27 @@ export function applyAnswersToContext(
     ? (context.customQuestions as RawQuestion[])
     : []
 
-  next.customQuestions = questions.map((q) => {
-    const id = typeof q.id === "string" ? q.id : ""
-    const raw = id && typeof answers[id] === "string" ? (answers[id] as string) : q.answer ?? ""
-    return { ...q, answer: raw }
+  // Build a lookup from field-id → answer value. Field ids were assigned in
+  // buildOnboardingFields (using q.id when present, otherwise q_<random>).
+  // The original context's customQuestions[].id may be empty/missing, so we
+  // also map by positional index as a fallback.
+  const textFields = fields.filter((f) => f.type !== "file")
+  const answerByFieldId = new Map<string, string>()
+  for (const f of textFields) {
+    const v = answers[f.id]
+    if (typeof v === "string") answerByFieldId.set(f.id, v)
+  }
+
+  next.customQuestions = questions.map((q, idx) => {
+    const qId = typeof q.id === "string" ? q.id : ""
+    // Try direct id match first, then positional fallback.
+    let answer: string | undefined
+    if (qId && answerByFieldId.has(qId)) {
+      answer = answerByFieldId.get(qId)
+    } else if (idx < textFields.length) {
+      answer = answerByFieldId.get(textFields[idx].id)
+    }
+    return { ...q, answer: answer ?? q.answer ?? "" }
   })
 
   if (uploadedFileNames.length > 0) {

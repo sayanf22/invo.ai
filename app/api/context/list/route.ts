@@ -43,8 +43,16 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
 
     if (chainId) {
-      query = sessionId
-        ? query.or(`chain_id.eq.${chainId},session_id.eq.${sessionId}`)
+      // Include docs from ALL sessions in the chain (mirrors the RPC).
+      const { data: chainSessions } = await auth.supabase
+        .from("document_sessions")
+        .select("id")
+        .eq("user_id", auth.user.id)
+        .eq("chain_id", chainId)
+      const chainSessionIds = (chainSessions ?? []).map((s: any) => s.id).filter(Boolean)
+      if (sessionId && !chainSessionIds.includes(sessionId)) chainSessionIds.push(sessionId)
+      query = chainSessionIds.length > 0
+        ? query.or(`chain_id.eq.${chainId},session_id.in.(${chainSessionIds.join(",")})`)
         : query.eq("chain_id", chainId)
     } else if (sessionId) {
       query = query.eq("session_id", sessionId)

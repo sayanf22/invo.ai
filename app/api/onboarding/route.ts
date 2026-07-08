@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       personalMessage?: string
     }
 
-    if (!sessionId || !isEmail(clientEmail)) {
+    if (!sessionId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId) || !isEmail(clientEmail)) {
       return NextResponse.json({ error: "sessionId and a valid clientEmail are required." }, { status: 400 })
     }
     if (personalMessage && String(personalMessage).length > 2000) {

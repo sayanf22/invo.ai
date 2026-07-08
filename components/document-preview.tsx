@@ -297,7 +297,15 @@ function LivePDFPreview({ data, zoom, onPageCount, locked = false, lockReason }:
         if (!cancelled && mountedRef.current) setError("Could not load preview")
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      // Destroy the previous PDF document to prevent memory leaks when the
+      // effect re-runs (user edits trigger new pdfBytes → new getDocument).
+      if (pdfDocRef.current) {
+        pdfDocRef.current.destroy?.()
+        pdfDocRef.current = null
+      }
+    }
   }, [pdfBytes, viewerReady, pageWidth, locked, onPageCount])
 
   // Early return AFTER all hooks to avoid "Rendered fewer hooks" error

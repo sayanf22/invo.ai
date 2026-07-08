@@ -28,7 +28,7 @@ interface Field {
 interface FileRef { fileId: string; fileName: string }
 type AnswerValue = string | FileRef[]
 
-interface FormData {
+interface OnboardFormData {
   token: string
   title: string | null
   status: "in_progress" | "submitted" | "expired"
@@ -50,7 +50,7 @@ export default function OnboardFillPage() {
 
   const [screen, setScreen] = useState<Screen>("loading")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [form, setForm] = useState<FormData | null>(null)
+  const [form, setForm] = useState<OnboardFormData | null>(null)
   const [business, setBusiness] = useState<Business | null>(null)
 
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({})
@@ -80,7 +80,7 @@ export default function OnboardFillPage() {
           return
         }
         const data = await res.json()
-        const f: FormData = data.form
+        const f: OnboardFormData = data.form
         setForm(f)
         setBusiness(data.business)
         setClientName(f.clientName || "")

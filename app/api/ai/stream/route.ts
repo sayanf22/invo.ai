@@ -466,9 +466,22 @@ export async function POST(request: NextRequest) {
                                 .eq("user_id", auth.user.id)
                                 .eq("status", "ready")
                                 .limit(10)
-                            docsQuery = refChainId
-                                ? docsQuery.or(`chain_id.eq.${refChainId},session_id.eq.${refSessionId}`)
-                                : docsQuery.eq("session_id", refSessionId)
+                            if (refChainId) {
+                                // Include docs attached to any session in the chain
+                                // (mirrors the RPC's chain-membership logic).
+                                const { data: chainSessions } = await auth.supabase
+                                    .from("document_sessions")
+                                    .select("id")
+                                    .eq("user_id", auth.user.id)
+                                    .eq("chain_id", refChainId)
+                                const chainSessionIds = (chainSessions ?? []).map((s: any) => s.id).filter(Boolean)
+                                if (refSessionId && !chainSessionIds.includes(refSessionId)) chainSessionIds.push(refSessionId)
+                                docsQuery = chainSessionIds.length > 0
+                                    ? docsQuery.or(`chain_id.eq.${refChainId},session_id.in.(${chainSessionIds.join(",")})`)
+                                    : docsQuery.eq("chain_id", refChainId)
+                            } else {
+                                docsQuery = docsQuery.eq("session_id", refSessionId)
+                            }
                             const { data: refDocs } = await docsQuery
                             const referenceFiles: string[] = (refDocs ?? []).map((d: any) => d.file_name).filter(Boolean)
 
