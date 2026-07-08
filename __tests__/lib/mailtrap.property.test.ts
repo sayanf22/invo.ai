@@ -7,7 +7,10 @@
  * (a) the URL `https://send.api.mailtrap.io/api/send`
  * (b) an `Authorization: Bearer {token}` header
  * (c) `from.email` equal to `no-reply@clorefy.com`
- * (d) `from.name` equal to `"{senderName} via Clorefy"` when senderName is non-empty
+ * (d) `from.name` equal to `senderName` verbatim when senderName is non-empty
+ *     (no forced "via Clorefy" suffix — that phrasing mirrors the "via" tag
+ *     mail clients show on DKIM/DMARC-misaligned senders and reads as an
+ *     impersonation warning)
  *
  * Validates: Requirements 1.1, 1.2, 1.3
  */
@@ -65,8 +68,8 @@ describe("Feature: email-sending, Property 1: Mailtrap payload construction inva
           // (c) from.email must always be no-reply@clorefy.com
           expect(body.from.email).toBe("no-reply@clorefy.com")
 
-          // (d) from.name must be "{senderName} via Clorefy" when senderName is non-empty
-          expect(body.from.name).toBe(`${senderName} via Clorefy`)
+          // (d) from.name must equal senderName verbatim when senderName is non-empty
+          expect(body.from.name).toBe(senderName)
         }
       ),
       { numRuns: 100 }

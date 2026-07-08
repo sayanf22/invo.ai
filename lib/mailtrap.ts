@@ -32,12 +32,19 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailRespo
     )
   }
 
-  // Sender display name: "{BusinessName} via Clorefy" when a sender name is
-  // provided, otherwise plain "Clorefy" (Req 1.3). The name is used verbatim
-  // (no trimming) so the display reflects exactly what the caller passed.
+  // Sender display name: the business name itself when provided, otherwise
+  // plain "Clorefy". We intentionally avoid a "{BusinessName} via Clorefy"
+  // pattern — that phrasing mirrors the "via" tag Gmail/Outlook show on
+  // messages that fail DKIM/DMARC alignment (an impersonation warning), so
+  // it reads as suspicious even though our domain is properly authenticated.
+  // Established platforms (PandaDoc, FreshBooks) send under the business's
+  // own name without a forced platform suffix; the from-address
+  // (no-reply@clorefy.com) already identifies the sending platform when a
+  // recipient expands the header. The name is used verbatim (no trimming)
+  // so the display reflects exactly what the caller passed.
   const fromName =
     params.senderName && params.senderName.length > 0
-      ? `${params.senderName} via Clorefy`
+      ? params.senderName
       : "Clorefy"
 
   // Sender address is always no-reply@clorefy.com on every outgoing email

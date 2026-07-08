@@ -37,12 +37,44 @@ function getDocLabel(documentType: string): string {
   }
 }
 
+/**
+ * Builds the email subject line. Each document type gets phrasing suited to
+ * how that document is actually used (a signable agreement reads
+ * differently than a reminder or a quote) rather than one generic template
+ * with the label swapped in — matching how QuickBooks, FreshBooks, and
+ * PandaDoc vary subject copy by document/notification type.
+ */
 export function generateEmailSubject(
   documentType: string,
   referenceNumber: string,
   businessName: string
 ): string {
-  return `${getDocLabel(documentType)} ${referenceNumber} from ${businessName}`
+  const t = (documentType || "").toLowerCase()
+  const docLabel = getDocLabel(documentType)
+
+  switch (t) {
+    case "invoice":
+      return `Invoice ${referenceNumber} from ${businessName}`
+    case "quote":
+    case "quotation":
+      return `Quote ${referenceNumber} from ${businessName}`
+    case "payment_followup":
+      return `Payment reminder: Invoice ${referenceNumber} from ${businessName}`
+    case "contract":
+      return `Contract for your review — ${businessName}`
+    case "proposal":
+      return `Proposal from ${businessName}`
+    case "sow":
+      return `Statement of Work ${referenceNumber} from ${businessName}`
+    case "change_order":
+      return `Change Order ${referenceNumber} from ${businessName}`
+    case "nda":
+      return `NDA for your signature — ${businessName}`
+    case "client_onboarding_form":
+      return `Please complete this form for ${businessName}`
+    default:
+      return `${docLabel} ${referenceNumber} from ${businessName}`
+  }
 }
 
 /**

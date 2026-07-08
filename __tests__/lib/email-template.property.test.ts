@@ -247,12 +247,46 @@ describe("Feature: email-sending, Property 7: Email template uses table layout a
 })
 
 /**
+ * Mirror of generateEmailSubject()'s per-type phrasing from email-template.ts.
+ * Each document type gets subject copy suited to how that document is used
+ * rather than one generic template with the label swapped in.
+ */
+function expectedSubject(documentType: string, referenceNumber: string, businessName: string): string {
+  const t = (documentType || "").toLowerCase()
+  const docLabel = getDocLabel(documentType)
+  switch (t) {
+    case "invoice":
+      return `Invoice ${referenceNumber} from ${businessName}`
+    case "quote":
+    case "quotation":
+      return `Quote ${referenceNumber} from ${businessName}`
+    case "payment_followup":
+      return `Payment reminder: Invoice ${referenceNumber} from ${businessName}`
+    case "contract":
+      return `Contract for your review — ${businessName}`
+    case "proposal":
+      return `Proposal from ${businessName}`
+    case "sow":
+      return `Statement of Work ${referenceNumber} from ${businessName}`
+    case "change_order":
+      return `Change Order ${referenceNumber} from ${businessName}`
+    case "nda":
+      return `NDA for your signature — ${businessName}`
+    case "client_onboarding_form":
+      return `Please complete this form for ${businessName}`
+    default:
+      return `${docLabel} ${referenceNumber} from ${businessName}`
+  }
+}
+
+/**
  * Property 8: Subject line formatting for all document types
  *
  * For any document type, reference number, and business name,
- * generateEmailSubject SHALL produce:
- * "{DocLabel} {referenceNumber} from {businessName}"
- * where DocLabel is the human-readable label for the type.
+ * generateEmailSubject SHALL produce type-appropriate phrasing matching
+ * expectedSubject() above — each canonical document type has copy suited
+ * to how that document is actually used (signable agreement vs. reminder
+ * vs. quote) rather than one generic template.
  *
  * Validates: Requirements 10.2, 10.3, 10.4, 10.5
  */
@@ -267,8 +301,7 @@ describe("Feature: email-sending, Property 8: Subject line formatting for all do
         ),
         ([documentType, referenceNumber, businessName]) => {
           const subject = generateEmailSubject(documentType, referenceNumber, businessName)
-          const expectedLabel = getDocLabel(documentType)
-          expect(subject).toBe(`${expectedLabel} ${referenceNumber} from ${businessName}`)
+          expect(subject).toBe(expectedSubject(documentType, referenceNumber, businessName))
         }
       ),
       { numRuns: 100 }
