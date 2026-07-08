@@ -249,6 +249,31 @@ export function SendEmailDialog({
     if (!isEmailFormatValid) return
     setIsSending(true)
     try {
+      // Onboarding forms are client-fillable: create a tokenized fill link and
+      // email it, instead of sending a static document.
+      if (documentType.toLowerCase().replace(/\s+/g, "_") === "client_onboarding_form") {
+        const res = await authFetch("/api/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            clientEmail: email.trim(),
+            clientName: invoiceData.toName || undefined,
+            personalMessage: message.trim() || undefined,
+          }),
+        })
+        if (res.ok) {
+          onClose()
+          toast.success(`Onboarding form sent to ${email.trim()}`)
+          onEmailSent?.()
+        } else {
+          let errorMessage = "Failed to send the form"
+          try { const d = await res.json(); errorMessage = d.error || errorMessage } catch { /* ignore */ }
+          toast.error(errorMessage)
+        }
+        return
+      }
+
       const res = await authFetch("/api/emails/send-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

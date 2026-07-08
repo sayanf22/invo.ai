@@ -435,6 +435,99 @@ export async function POST(request: NextRequest) {
                         }
                     }
 
+                    // ── 2d. Reference documents — Kimi decides, then retrieve ──
+                    // Agentic RAG: Kimi (the orchestrator) decides whether the
+                    // user's uploaded reference documents are relevant to THIS
+                    // request. Only if it decides RETRIEVE do we embed the query
+                    // and pull matching passages. Falls back to a heuristic
+                    // classifier when Kimi is unavailable. Small edits / questions
+                    // are skipped so trivial changes stay fast and undiluted.
+                    try {
+                        const { classifyRetrievalIntent, getReferenceContext, isUuid } = await import("@/lib/context-rag")
+                        const rawRefSession = (body as any).sessionId
+                        const refSessionId = isUuid(rawRefSession) ? rawRefSession as string : undefined
+                        const hasExistingDocument = !!(body.currentData && Object.keys(body.currentData).length > 0)
+
+                        // Reference context is a Pro-and-above feature.
+                        const contextTierAllowed = userTier === "pro" || userTier === "agency"
+                        if (refSessionId && intentType === "document" && contextTierAllowed) {
+                            // Resolve chain + list of ready reference docs (existence gate).
+                            const { data: sess } = await auth.supabase
+                                .from("document_sessions")
+                                .select("chain_id")
+                                .eq("id", refSessionId)
+                                .eq("user_id", auth.user.id)
+                                .single()
+                            const refChainId: string | null = (sess as any)?.chain_id ?? null
+
+                            let docsQuery = (auth.supabase as any)
+                                .from("context_documents")
+                                .select("file_name")
+                                .eq("user_id", auth.user.id)
+                                .eq("status", "ready")
+                                .limit(10)
+                            docsQuery = refChainId
+                                ? docsQuery.or(`chain_id.eq.${refChainId},session_id.eq.${refSessionId}`)
+                                : docsQuery.eq("session_id", refSessionId)
+                            const { data: refDocs } = await docsQuery
+                            const referenceFiles: string[] = (refDocs ?? []).map((d: any) => d.file_name).filter(Boolean)
+
+                            if (referenceFiles.length > 0) {
+                                // Decision: Kimi first, heuristic fallback.
+                                let shouldRetrieve = false
+                                let decisionReason = ""
+                                if (bedrockKey && bedrockKey.length > 10) {
+                                    sendEvent({ type: "activity", action: "think", label: "Checking your reference documents", detail: "Clorefy" })
+                                    const { decideReferenceRetrieval } = await import("@/lib/bedrock")
+                                    const kimiDecision = await decideReferenceRetrieval(bedrockKey, {
+                                        userPrompt: cleanedPrompt,
+                                        documentType: docType,
+                                        hasExistingDocument,
+                                        referenceFiles,
+                                    })
+                                    if (kimiDecision) {
+                                        shouldRetrieve = kimiDecision.retrieve
+                                        decisionReason = kimiDecision.reason
+                                    } else {
+                                        const h = classifyRetrievalIntent(cleanedPrompt, hasExistingDocument)
+                                        shouldRetrieve = h.retrieve
+                                        decisionReason = "heuristic fallback"
+                                    }
+                                } else {
+                                    const h = classifyRetrievalIntent(cleanedPrompt, hasExistingDocument)
+                                    shouldRetrieve = h.retrieve
+                                    decisionReason = "heuristic"
+                                }
+
+                                if (shouldRetrieve) {
+                                    sendEvent({ type: "activity", action: "search", label: "Reading your reference documents", detail: decisionReason || undefined })
+                                    const refContext = await getReferenceContext(auth.supabase, {
+                                        userId: auth.user.id,
+                                        chainId: refChainId,
+                                        sessionId: refSessionId,
+                                        query: cleanedPrompt,
+                                        documentType: docType,
+                                    })
+                                    if (refContext.retrieved) {
+                                        // Retrieved text originates from user-uploaded files → treat as
+                                        // untrusted data: strip any [SYSTEM:]-style injection attempts.
+                                        body.referenceContext = stripPromptInjection(refContext.formattedContext).slice(0, 12_000)
+                                        await trackUsage(auth.supabase, auth.user.id, "embedding", 100)
+                                        sendEvent({
+                                            type: "activity",
+                                            action: "search",
+                                            label: "Reading your reference documents",
+                                            detail: `Matched ${refContext.chunks.length} passage${refContext.chunks.length === 1 ? "" : "s"} from ${refContext.sourceFiles.length} file${refContext.sourceFiles.length === 1 ? "" : "s"}`,
+                                            content: refContext.sourceFiles.join(", "),
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Reference-context retrieval failed:", err instanceof Error ? err.message : err)
+                    }
+
                     // ── 2c. Kimi compliance rules commentary ──
                     let complianceRulesForValidation: any[] = []
                     if (orchestrateInThinkingMode) {

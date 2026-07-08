@@ -41,6 +41,7 @@ import {
   paymentFollowupSchema,
 } from "@/lib/document-schemas"
 import { z } from "zod"
+import { EditorContextSection } from "@/components/context-manager"
 
 // ─── Field validation per document type ──────────────────────────────────────
 
@@ -227,6 +228,8 @@ interface EditorPanelProps {
   data: InvoiceData
   onChange: (updates: Partial<InvoiceData>) => void
   documentStatus?: string
+  /** Current document session id — scopes reference-context uploads/retrieval. */
+  sessionId?: string
 }
 
 /* ─── Reusable Step accordion ─── */
@@ -776,7 +779,7 @@ export function EditorPanel(props: EditorPanelProps) {
   return <LegacyEditorPanel {...props} />
 }
 
-function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps) {
+function LegacyEditorPanel({ data, onChange, documentStatus, sessionId }: EditorPanelProps) {
   const isPaid = documentStatus === "paid"
   const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
   const [openStep, setOpenStep] = useState(1)
@@ -938,6 +941,9 @@ function LegacyEditorPanel({ data, onChange, documentStatus }: EditorPanelProps)
             </div>
           </div>
         )}
+        {/* ═══ Reference Context (RAG) — teach the AI your document style ═══ */}
+        <EditorContextSection sessionId={sessionId} disabled={isPaid || isSent} />
+
         {/* ═══ Step 1: Document Type, Currency, Branding ═══ */}
         <Step
           number={1}
@@ -1935,12 +1941,16 @@ function TypedEditorShell({
   totalSteps,
   completedSteps,
   isPaid,
+  sessionId,
+  isLocked,
   children,
 }: {
   title: string
   totalSteps: number
   completedSteps: number
   isPaid: boolean
+  sessionId?: string
+  isLocked?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -1958,6 +1968,8 @@ function TypedEditorShell({
             <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Document is read-only</p>
           </div>
         )}
+        {/* Reference Context (RAG) — teach the AI your document style */}
+        <EditorContextSection sessionId={sessionId} disabled={isLocked || isPaid} />
         {children}
       </div>
     </div>
@@ -1972,7 +1984,7 @@ function ValidateBeforeExportButton({ data, isPaid }: { data: InvoiceData; isPai
 
 // ─── 14.1 SOW Editor ──────────────────────────────────────────────────────────
 
-function SOWEditor({ data, onChange, documentStatus }: EditorPanelProps) {
+function SOWEditor({ data, onChange, documentStatus, sessionId }: EditorPanelProps) {
   const isPaid = documentStatus === "paid"
   const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
   const [openStep, setOpenStep] = useState(1)
@@ -1993,7 +2005,7 @@ function SOWEditor({ data, onChange, documentStatus }: EditorPanelProps) {
   ].filter(Boolean).length
 
   return (
-    <TypedEditorShell title="SOW Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
+    <TypedEditorShell title="SOW Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid} sessionId={sessionId} isLocked={isSent}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
         <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800/40">
@@ -2228,7 +2240,7 @@ function SOWEditor({ data, onChange, documentStatus }: EditorPanelProps) {
 
 // ─── 14.2 Change Order Editor ────────────────────────────────────────────────
 
-function ChangeOrderEditor({ data, onChange, documentStatus }: EditorPanelProps) {
+function ChangeOrderEditor({ data, onChange, documentStatus, sessionId }: EditorPanelProps) {
   const isPaid = documentStatus === "paid"
   const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
   const [openStep, setOpenStep] = useState(1)
@@ -2252,7 +2264,7 @@ function ChangeOrderEditor({ data, onChange, documentStatus }: EditorPanelProps)
   ].filter(Boolean).length
 
   return (
-    <TypedEditorShell title="Change Order Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
+    <TypedEditorShell title="Change Order Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid} sessionId={sessionId} isLocked={isSent}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
         <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40">
@@ -2430,7 +2442,7 @@ function ChangeOrderEditor({ data, onChange, documentStatus }: EditorPanelProps)
 
 // ─── 14.3 NDA Editor ──────────────────────────────────────────────────────────
 
-function NDAEditor({ data, onChange, documentStatus }: EditorPanelProps) {
+function NDAEditor({ data, onChange, documentStatus, sessionId }: EditorPanelProps) {
   const isPaid = documentStatus === "paid"
   const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
   const [openStep, setOpenStep] = useState(1)
@@ -2461,7 +2473,7 @@ function NDAEditor({ data, onChange, documentStatus }: EditorPanelProps) {
   }
 
   return (
-    <TypedEditorShell title="NDA Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
+    <TypedEditorShell title="NDA Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid} sessionId={sessionId} isLocked={isSent}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
         <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/40">
@@ -2574,7 +2586,7 @@ function NDAEditor({ data, onChange, documentStatus }: EditorPanelProps) {
 
 // ─── 14.4 Client Onboarding Form Editor ──────────────────────────────────────
 
-function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPanelProps) {
+function ClientOnboardingFormEditor({ data, onChange, documentStatus, sessionId }: EditorPanelProps) {
   const isPaid = documentStatus === "paid"
   const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
   const [openStep, setOpenStep] = useState(1)
@@ -2602,12 +2614,12 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPa
   }
 
   return (
-    <TypedEditorShell title="Onboarding Form Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
+    <TypedEditorShell title="Onboarding Form Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid} sessionId={sessionId} isLocked={isSent}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
         <div className="flex flex-col gap-3">
-          <div className="px-3 py-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800/40">
-            <p className="text-xs font-semibold text-teal-800 dark:text-teal-300">Client Onboarding Form</p>
-            <p className="text-[11px] text-teal-700 dark:text-teal-400 mt-0.5">Intake form to collect structured client details and project requirements.</p>
+          <div className="px-3 py-2.5 rounded-xl bg-muted/40 border border-border">
+            <p className="text-xs font-semibold text-foreground">Client Onboarding Form</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Intake form to collect structured client details and project requirements.</p>
           </div>
           <Field id="cof-ref" label="Reference Number" value={data.referenceNumber} onChange={(v) => onChange({ referenceNumber: v })} placeholder="ONB-0001" disabled={isPaid} />
           <button
@@ -2746,7 +2758,7 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus }: EditorPa
 
 // ─── 14.5 Payment Follow-up Editor ───────────────────────────────────────────
 
-function PaymentFollowupEditor({ data, onChange, documentStatus }: EditorPanelProps) {
+function PaymentFollowupEditor({ data, onChange, documentStatus, sessionId }: EditorPanelProps) {
   const isPaid = documentStatus === "paid"
   const isSent = documentStatus === "sent" || documentStatus === "signed" || documentStatus === "finalized"
   const [openStep, setOpenStep] = useState(1)
@@ -2768,7 +2780,7 @@ function PaymentFollowupEditor({ data, onChange, documentStatus }: EditorPanelPr
   ].filter(Boolean).length
 
   return (
-    <TypedEditorShell title="Payment Follow-up Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid}>
+    <TypedEditorShell title="Payment Follow-up Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid} sessionId={sessionId} isLocked={isSent}>
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
         <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40">

@@ -123,6 +123,9 @@ import { ChatPaymentCard } from "@/components/chat-payment-card"
 import { ChatCancelPaymentCard } from "@/components/chat-cancel-payment-card"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
+import { useContextDocuments } from "@/hooks/use-context-documents"
+import { useUserTier, isReferenceContextEnabled } from "@/hooks/use-user-tier"
+import { ContextManagerDialog } from "@/components/context-manager"
 
 // ── Send intent detection ─────────────────────────────────────────────────────
 // Detects when user wants to SEND/DELIVER the document.
@@ -416,6 +419,18 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
     // Payment methods hook — to check if any gateway is connected
     const { hasAnyGateway } = usePaymentMethods()
+
+    // Reference-context (RAG) — uploaded docs the AI retrieves on-demand
+    const {
+        documents: contextDocuments,
+        usage: contextUsage,
+        uploading: contextUploading,
+        upload: uploadContext,
+        remove: removeContext,
+    } = useContextDocuments(session?.id)
+    const [contextOpen, setContextOpen] = useState(false)
+    const contextTier = useUserTier()
+    const contextEnabled = isReferenceContextEnabled(contextTier)
 
     const scrollRef = useRef<HTMLDivElement>(null)
     const initialPromptSentRef = useRef(false)
@@ -2604,6 +2619,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     onFileRemove={() => setStagedFile(null)}
                                     thinkingMode={thinkingMode}
                                     onThinkingModeChange={setThinkingMode}
+                                    showContextButton={contextEnabled}
+                                    onContextClick={() => setContextOpen(true)}
+                                    contextFillPercent={contextUsage.fillPercent}
                                 />
                             </>
                         ) : (
@@ -2630,12 +2648,27 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                 onFileRemove={() => setStagedFile(null)}
                                 thinkingMode={thinkingMode}
                                 onThinkingModeChange={setThinkingMode}
+                                showContextButton={contextEnabled}
+                                onContextClick={() => setContextOpen(true)}
+                                contextFillPercent={contextUsage.fillPercent}
                             />
                         )
                     )}
                 </div>
                 </div>
             </div>
+
+            {/* Reference Context manager — opened from the chat bar's context button */}
+            <ContextManagerDialog
+                open={contextOpen}
+                onOpenChange={setContextOpen}
+                documents={contextDocuments}
+                usage={contextUsage}
+                uploading={contextUploading}
+                onUpload={uploadContext}
+                onRemove={removeContext}
+                disabledReason={!session ? "Start or open a document first, then add reference context." : null}
+            />
 
             {/* Upgrade Modal — shown when tier limit or restriction is hit */}
             {upgradeInfo && (
@@ -2673,3 +2706,4 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         </div>
     )
 }
+

@@ -98,30 +98,31 @@ function LivePDFPreview({ data, zoom, onPageCount, locked = false, lockReason }:
   const [isRendering, setIsRendering] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [viewerReady, setViewerReady] = useState(false)
-  const [ViewerComponents, setViewerComponents] = useState<{
-    Document: any
-    Page: any
-  } | null>(null)
   const renderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mountedRef = useRef(true)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
-  // useRef guarantees the same object identity across ALL renders and HMR updates
-  // This silences react-pdf's "options changed" warning in dev mode
-  const pdfOptionsRef = useRef(PDF_OPTIONS)
+  // Holds the pdfjs library loaded directly from /public (bypasses Webpack).
+  const pdfjsLibRef = useRef<any>(null)
+  // The parsed PDF document proxy for the current bytes.
+  const pdfDocRef = useRef<any>(null)
+  // Container that holds the per-page <canvas> elements.
+  const pagesContainerRef = useRef<HTMLDivElement>(null)
 
-  // Dynamically load react-pdf to avoid SSR issues
+  // Load pdfjs-dist from /public with a native, Webpack-ignored dynamic import.
+  // react-pdf + pdfjs-dist v5 are pure ESM and Next.js 16's Webpack breaks them
+  // ("Object.defineProperty called on non-object" from __webpack_require__.r).
+  // Loading the browser build directly as a real ES module sidesteps the bundler
+  // entirely, then we render pages to <canvas> ourselves.
   useEffect(() => {
     let cancelled = false
     async function loadViewer() {
       try {
-        const reactPdf = await import("react-pdf")
-        reactPdf.pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
+        const origin = typeof window !== "undefined" ? window.location.origin : ""
+        const pdfjs = await import(/* webpackIgnore: true */ `${origin}/pdfjs/pdf.min.mjs`)
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.mjs"
         if (!cancelled) {
-          setViewerComponents({
-            Document: reactPdf.Document,
-            Page: reactPdf.Page,
-          })
+          pdfjsLibRef.current = pdfjs
           setViewerReady(true)
         }
       } catch (err) {
@@ -242,26 +243,62 @@ function LivePDFPreview({ data, zoom, onPageCount, locked = false, lockReason }:
     return () => { mountedRef.current = false }
   }, [])
 
-  const onDocumentLoadSuccess = useCallback(({ numPages: n }: { numPages: number }) => {
-    setNumPages(n)
-    onPageCount(n)
-  }, [onPageCount])
-
-  const onDocumentLoadError = useCallback((err: Error) => {
-    console.error("react-pdf Document load error:", err)
-    setError("Could not load preview")
-  }, [])
-
   // A4 aspect ratio: 595pt wide. Base width is container - padding, scaled by zoom.
   const baseWidth = containerWidth > 0 ? Math.min(containerWidth - 48, 800) : 600
   const pageWidth = Math.round(baseWidth * (zoom / 100))
 
-  const fileData = useMemo(() => {
-    if (!pdfBytes) return null
-    // Always pass a fresh copy — react-pdf transfers the buffer to its Worker,
-    // which detaches the original. A new copy avoids "already detached" errors.
-    return { data: pdfBytes.slice() }
-  }, [pdfBytes])
+  // Render the generated PDF bytes to <canvas> pages using pdfjs (loaded from
+  // /public). Re-runs when the document changes or the page width/zoom changes.
+  useEffect(() => {
+    const pdfjs = pdfjsLibRef.current
+    if (!viewerReady || !pdfjs || !pdfBytes || pageWidth <= 0) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const doc = await pdfjs.getDocument({ data: pdfBytes.slice(), ...PDF_OPTIONS }).promise
+        if (cancelled) { doc.destroy?.(); return }
+        pdfDocRef.current = doc
+        if (mountedRef.current) { setNumPages(doc.numPages); onPageCount(doc.numPages) }
+
+        const container = pagesContainerRef.current
+        if (!container) return
+        container.innerHTML = ""
+        const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 2)
+
+        for (let i = 1; i <= doc.numPages; i++) {
+          if (cancelled) return
+          const page = await doc.getPage(i)
+          const unscaled = page.getViewport({ scale: 1 })
+          const scale = pageWidth / unscaled.width
+          const viewport = page.getViewport({ scale: scale * dpr })
+
+          const wrapper = document.createElement("div")
+          wrapper.className = "relative shadow-lg rounded-lg overflow-hidden mb-6 bg-white"
+          const canvas = document.createElement("canvas")
+          canvas.width = Math.floor(viewport.width)
+          canvas.height = Math.floor(viewport.height)
+          canvas.style.width = `${Math.floor(viewport.width / dpr)}px`
+          canvas.style.height = `${Math.floor(viewport.height / dpr)}px`
+          canvas.style.display = "block"
+          const ctx = canvas.getContext("2d")
+          if (!ctx) continue
+          wrapper.appendChild(canvas)
+          if (locked) {
+            const ribbon = document.createElement("div")
+            ribbon.className = "absolute top-3 right-3 pointer-events-none select-none"
+            ribbon.innerHTML = '<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-900/85 text-white text-[10px] font-semibold uppercase tracking-wider shadow-md backdrop-blur-sm">Locked</div>'
+            wrapper.appendChild(ribbon)
+          }
+          container.appendChild(wrapper)
+          await page.render({ canvasContext: ctx, viewport }).promise
+        }
+      } catch (err) {
+        console.error("pdfjs render error:", err)
+        if (!cancelled && mountedRef.current) setError("Could not load preview")
+      }
+    })()
+    return () => { cancelled = true }
+  }, [pdfBytes, viewerReady, pageWidth, locked, onPageCount])
 
   // Early return AFTER all hooks to avoid "Rendered fewer hooks" error
   if (error) {
@@ -286,59 +323,24 @@ function LivePDFPreview({ data, zoom, onPageCount, locked = false, lockReason }:
         </div>
       </div>
 
-      {fileData && viewerReady && ViewerComponents ? (
-        <div className={cn(
-          "flex flex-col items-center gap-6 py-6 transition-opacity duration-500",
-          isRendering ? "opacity-60" : "opacity-100"
-        )}>
-          <ViewerComponents.Document
-            file={fileData}
-            onLoadSuccess={onDocumentLoadSuccess}
-            onLoadError={onDocumentLoadError}
-            options={pdfOptionsRef.current}
-            loading={
-              <div className="flex items-center gap-2.5 py-12">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Loading document...</span>
-              </div>
-            }
-            error={
-              <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
-                <FileText className="w-8 h-8" />
-                <p className="text-sm">Could not load preview</p>
-              </div>
-            }
-          >
-            {Array.from({ length: numPages }, (_, i) => (
-              <div key={i} className="relative shadow-lg rounded-lg overflow-hidden mb-6 bg-white">
-                <ViewerComponents.Page
-                  pageNumber={i + 1}
-                  width={pageWidth}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
-                />
-                {/* Lock corner ribbon — monochrome, non-intrusive, visible on every page */}
-                {locked && (
-                  <div
-                    className="absolute top-3 right-3 pointer-events-none select-none"
-                    aria-label="Document locked"
-                  >
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-900/85 text-white text-[10px] font-semibold uppercase tracking-wider shadow-md backdrop-blur-sm">
-                      <Lock className="w-3 h-3" strokeWidth={2.5} />
-                      <span>Locked</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </ViewerComponents.Document>
-          {numPages > 0 && (
-            <p className="text-xs text-muted-foreground pb-2">
-              {numPages} {numPages === 1 ? "page" : "pages"}
-            </p>
-          )}
-        </div>
-      ) : (
+      {/* Canvas pages are rendered imperatively into this container by the
+          pdfjs render effect above. */}
+      <div
+        className={cn(
+          "flex flex-col items-center gap-0 py-6 transition-opacity duration-500",
+          isRendering ? "opacity-60" : "opacity-100",
+          pdfBytes && viewerReady && numPages > 0 ? "" : "hidden",
+        )}
+      >
+        <div ref={pagesContainerRef} className="flex flex-col items-center" />
+        {numPages > 0 && (
+          <p className="text-xs text-muted-foreground pb-2">
+            {numPages} {numPages === 1 ? "page" : "pages"}
+          </p>
+        )}
+      </div>
+
+      {!(pdfBytes && viewerReady && numPages > 0) && (
         <div className="flex items-center justify-center h-full">
           <div className="flex items-center gap-2.5">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />

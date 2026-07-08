@@ -88,6 +88,8 @@ export interface AIGenerationRequest {
     }
     fileContext?: string
     complianceContext?: string
+    /** Retrieved excerpts from the user's own uploaded reference documents (RAG). */
+    referenceContext?: string
     thinkingMode?: "fast" | "thinking"
     sessionStatus?: "active" | "finalized" | "signed" | "paid"
 }
@@ -1156,6 +1158,13 @@ BUSINESS PROFILE (use for all "from" fields):
     // Compliance context (RAG-retrieved rules)
     if (request.complianceContext) {
         prompt += `\n\n${request.complianceContext}`
+    }
+
+    // Reference-document context (RAG-retrieved excerpts of the user's own
+    // previous documents). Retrieved on-demand only — see lib/context-rag.ts.
+    // Used to mirror the user's structure/wording/tone, NOT to copy specifics.
+    if (request.referenceContext) {
+        prompt += `\n\n${request.referenceContext}`
     }
 
     // Pre-selected client context — injected when user picks a client from their client book

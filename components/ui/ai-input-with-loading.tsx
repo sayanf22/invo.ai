@@ -1,6 +1,6 @@
 "use client"
 
-import { CornerRightUp, Square, Paperclip, X, FileText, ImageIcon, Loader2, Zap, Brain } from "lucide-react"
+import { CornerRightUp, Square, Paperclip, X, FileText, ImageIcon, Loader2, Zap, Brain, Library } from "lucide-react"
 import { useState, useRef, useCallback } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -46,6 +46,11 @@ interface AIInputWithLoadingProps {
   isUploading?: boolean
   thinkingMode?: "fast" | "thinking"
   onThinkingModeChange?: (mode: "fast" | "thinking") => void
+  /** Show the reference-context button (opens the context manager). */
+  showContextButton?: boolean
+  onContextClick?: () => void
+  /** 0–100 fill of the context budget; drives the ring indicator. */
+  contextFillPercent?: number
 }
 
 export function AIInputWithLoading({
@@ -68,6 +73,9 @@ export function AIInputWithLoading({
   isUploading = false,
   thinkingMode,
   onThinkingModeChange,
+  showContextButton = false,
+  onContextClick,
+  contextFillPercent = 0,
 }: AIInputWithLoadingProps) {
   const [internalValue, setInternalValue] = useState("")
   const inputValue = controlledValue !== undefined ? controlledValue : internalValue
@@ -143,7 +151,7 @@ export function AIInputWithLoading({
             placeholder={stagedFile ? "Add a message about this file..." : placeholder}
             className={cn(
               "w-full rounded-2xl border-none bg-transparent pr-24 pt-3 pb-2",
-              showAttachButton ? "pl-12" : "pl-5",
+              showAttachButton && showContextButton ? "pl-[84px]" : (showAttachButton || showContextButton) ? "pl-12" : "pl-5",
               "text-[15px] text-foreground placeholder:text-muted-foreground/40",
               "resize-none leading-relaxed focus-visible:ring-0 focus-visible:ring-offset-0",
               "overflow-y-auto"
@@ -201,6 +209,34 @@ export function AIInputWithLoading({
                 {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
               </label>
             </>
+          )}
+
+          {/* Reference-context button (opens the context manager) */}
+          {showContextButton && (
+            <button
+              type="button"
+              onClick={() => { if (!(disabled)) onContextClick?.() }}
+              disabled={disabled}
+              className={cn(
+                "absolute bottom-3 flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200",
+                showAttachButton ? "left-11" : "left-3",
+                disabled
+                  ? "opacity-40 cursor-not-allowed text-muted-foreground"
+                  : "cursor-pointer text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50"
+              )}
+              aria-label="Manage reference context"
+              title={contextFillPercent > 0 ? `Reference context • ${contextFillPercent}% full` : "Add reference documents"}
+            >
+              <Library className="w-4 h-4" />
+              {contextFillPercent > 0 && (
+                <span
+                  className={cn(
+                    "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-card",
+                    contextFillPercent >= 100 ? "bg-destructive" : contextFillPercent >= 80 ? "bg-amber-500" : "bg-primary"
+                  )}
+                />
+              )}
+            </button>
           )}
 
           {/* Thinking mode toggle */}

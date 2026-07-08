@@ -115,6 +115,7 @@ const PUBLIC_PATHS = [
   "/use-cases",
   "/developers",
   "/sign",
+  "/onboard", // public client-onboarding fill pages — /onboard/[token] accessible without auth
   "/pay", // public payment pages — /pay/[sessionId] accessible without auth
   "/d", // short link redirects — /d/[shortId] redirects to /pay/[sessionId], must be public
   "/view", // public document view — /view/[sessionId] accessible without auth (for email recipients)

@@ -377,6 +377,77 @@ export function CORRECTION_INSTRUCTION_PROMPT(data: {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+ * Reference-context retrieval decision (Agentic RAG router).
+ *
+ * Kimi acts as the retrieval router: given the user's request and the list of
+ * reference documents they've uploaded, it decides whether pulling those
+ * documents in would actually help this specific request. This implements the
+ * "decide whether to retrieve, then act" control loop (ReAct-style agentic RAG)
+ * rather than retrieving on every turn.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/** System prompt for the retrieval-router role. */
+export const RETRIEVAL_ROUTER_SYSTEM_PROMPT =
+    "You are a retrieval router for a document-generation assistant. " +
+    "You decide whether the user's own uploaded reference documents (their past " +
+    "contracts, invoices, proposals) should be pulled in to answer the current " +
+    "request. Retrieve ONLY when the reference material would meaningfully improve " +
+    "the result — e.g. writing a new document from scratch, or when the user asks " +
+    "to follow their usual style/format/wording. Do NOT retrieve for tiny edits " +
+    "(change a date, fix a number), pure questions about the current document, or " +
+    "small tweaks. Answer with a single word: RETRIEVE or SKIP."
+
+/** Build the retrieval-decision prompt. */
+export function REFERENCE_RETRIEVAL_DECISION_PROMPT(data: {
+    userPrompt: string
+    documentType: string
+    hasExistingDocument: boolean
+    referenceFiles: string[]
+}): string {
+    return (
+        `Decide whether to pull in the user's reference documents for this request.\n\n` +
+        `User request: "${data.userPrompt}"\n` +
+        `Document type being worked on: ${data.documentType}\n` +
+        `Editing an existing document: ${data.hasExistingDocument ? "Yes" : "No (new document)"}\n` +
+        `Reference documents available: ${data.referenceFiles.length > 0 ? data.referenceFiles.join(", ") : "none"}\n\n` +
+        `Reply with ONLY one word on the first line — RETRIEVE or SKIP — then a short reason on the next line.`
+    )
+}
+
+/**
+ * Ask Kimi whether to retrieve the user's reference documents.
+ * Returns null on any failure so the caller can fall back to a heuristic.
+ */
+export async function decideReferenceRetrieval(
+    apiKey: string,
+    data: {
+        userPrompt: string
+        documentType: string
+        hasExistingDocument: boolean
+        referenceFiles: string[]
+    }
+): Promise<{ retrieve: boolean; reason: string } | null> {
+    const raw = await callBedrockBrief(
+        RETRIEVAL_ROUTER_SYSTEM_PROMPT,
+        REFERENCE_RETRIEVAL_DECISION_PROMPT(data),
+        apiKey,
+        60
+    )
+    if (!raw) return null
+
+    const text = raw.trim()
+    const firstWord = text.split(/\s+/)[0]?.toUpperCase().replace(/[^A-Z]/g, "") ?? ""
+    if (firstWord === "RETRIEVE") {
+        return { retrieve: true, reason: text.split("\n").slice(1).join(" ").trim() || "Kimi: reference material relevant" }
+    }
+    if (firstWord === "SKIP") {
+        return { retrieve: false, reason: text.split("\n").slice(1).join(" ").trim() || "Kimi: reference material not needed" }
+    }
+    // Ambiguous response — surface as null so the heuristic decides.
+    return null
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
  * Multi-turn Bedrock chat for the chat-only advisory mode.
  *
  * Unlike `streamBedrockChat` (which takes a single user prompt), this function

@@ -33,6 +33,24 @@ const nextConfig = {
     "react-pdf",
   ],
 
+  // Fix react-pdf / pdfjs-dist v5 (pure ESM) breaking under Webpack's
+  // __webpack_require__.r ("Object.defineProperty called on non-object").
+  // Forcing "javascript/auto" on their .mjs files makes Webpack auto-detect the
+  // module type and use CJS interop instead of sealing the ESM namespace.
+  // Scoped to just these two packages so other ESM deps are unaffected.
+  webpack(config) {
+    config.module.rules.push({
+      test: /\.m?js$/,
+      include: [
+        /node_modules[\\/]pdfjs-dist/,
+        /node_modules[\\/]react-pdf/,
+      ],
+      type: "javascript/auto",
+      resolve: { fullySpecified: false },
+    })
+    return config
+  },
+
   // ── Brand name redirects (helps Google associate brand with domain) ──
   async redirects() {
     return [

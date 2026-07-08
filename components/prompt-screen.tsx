@@ -311,7 +311,7 @@ export function PromptScreen({
             </div>
 
             <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col">
-              {mobileTab === "edit" && <EditorPanel data={data} onChange={handleChange} />}
+              {mobileTab === "edit" && <EditorPanel data={data} onChange={handleChange} sessionId={selectedSessionId} />}
             </div>
 
             <div style={{ width: "33.3334%", height: "100%" }} className="flex flex-col">
@@ -362,7 +362,7 @@ export function PromptScreen({
               "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
               showEditor ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 pointer-events-none"
             )}>
-              {showEditor && <EditorPanel data={data} onChange={handleChange} />}
+              {showEditor && <EditorPanel data={data} onChange={handleChange} sessionId={selectedSessionId} />}
             </div>
           </div>
         </div>
