@@ -133,6 +133,7 @@ export function ChatSendCard({
     }
   }, [hasAnyGateway, gatewayLoading])
 
+  const isOnboardingForm = documentType.toLowerCase().replace(/\s+/g, "_") === "client_onboarding_form"
   const isInvoice = documentType.toLowerCase() === "invoice"
   // Use the registry to determine if this document type supports signatures
   // AND check if the user has kept the signature section enabled (showSignatureFields !== false).
@@ -152,8 +153,10 @@ export function ChatSendCard({
   // Auto-invoice on sign is a Pro+ feature
   const canUseAutoInvoice = userTier === "pro" || userTier === "agency"
   const docLabel = docTypeConfig?.label || (documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase())
-  // Action label: if user CAN sign → "Send & Sign", else just "Send"
-  const actionLabel = canUseSignatures ? `Send & Sign ${docLabel}` : `Send ${docLabel}`
+  // Action label: onboarding forms send a fillable link, not a signable PDF.
+  const actionLabel = isOnboardingForm
+    ? "Send Onboarding Form"
+    : canUseSignatures ? `Send & Sign ${docLabel}` : `Send ${docLabel}`
   const ref = invoiceData.invoiceNumber || invoiceData.referenceNumber || ""
   const total = calcTotal(invoiceData)
 
@@ -233,6 +236,31 @@ export function ChatSendCard({
     setIsSending(true)
     setError(null)
     try {
+      // Client Onboarding Forms are client-fillable: create a tokenized fill
+      // link and email it, instead of the static-PDF "attached" email.
+      if (isOnboardingForm) {
+        const res = await authFetch("/api/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            clientEmail: email.trim(),
+            clientName: invoiceData.toName || undefined,
+            personalMessage: message.trim() || undefined,
+          }),
+        })
+        if (res.ok) {
+          setSlideDir("right")
+          setStep("sent")
+          onLockDocument?.()
+          onSent()
+        } else {
+          const data = await res.json().catch(() => ({}))
+          setError(data.error || "Failed to send the form. Please try again.")
+        }
+        return
+      }
+
       const supportsSignatures = typeSupportsSignatures
       // Only create a signature request when the document type supports it AND
       // the user hasn't turned off the signature section via the editor toggle
@@ -313,7 +341,7 @@ export function ChatSendCard({
     } finally {
       setIsSending(false)
     }
-  }, [isSending, sessionId, email, message, isInvoice, isContract, includePayment, scheduleFollowUps, makeRecurring, recurringFrequency, autoInvoiceOnSign, onSent])
+  }, [isSending, sessionId, email, message, isInvoice, isContract, isOnboardingForm, invoiceData.toName, includePayment, scheduleFollowUps, makeRecurring, recurringFrequency, autoInvoiceOnSign, onSent, onLockDocument, typeSupportsSignatures, signatureFieldsOn, canUseSignatures])
 
   const slideIn = slideDir === "right"
     ? "animate-in fade-in slide-in-from-right-3 duration-300"
@@ -338,7 +366,7 @@ export function ChatSendCard({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-foreground">
-                {isSignable ? "Signing request sent" : `${docLabel} sent`}
+                {isOnboardingForm ? "Onboarding form sent" : isSignable ? "Signing request sent" : `${docLabel} sent`}
               </p>
               <p className="text-xs text-muted-foreground truncate mt-0.5">{email.trim()}</p>
             </div>
@@ -707,9 +735,13 @@ export function ChatSendCard({
                         <Lock className="w-4 h-4 text-foreground/70" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-foreground leading-tight">Lock &amp; Send</p>
+                        <p className="text-sm font-semibold text-foreground leading-tight">
+                          {isOnboardingForm ? "Send Onboarding Form" : "Lock & Send"}
+                        </p>
                         <p className="text-[11.5px] text-muted-foreground mt-1 leading-relaxed">
-                          Once sent, this document will be locked. You can unlock it from the chat at any time to make edits.
+                          {isOnboardingForm
+                            ? "Your client gets a link to fill out this form online. Once they submit, their answers can never be edited."
+                            : "Once sent, this document will be locked. You can unlock it from the chat at any time to make edits."}
                         </p>
                       </div>
                     </div>

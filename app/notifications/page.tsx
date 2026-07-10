@@ -47,6 +47,7 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
   payment_reminder:                { icon: Clock,         color: "text-foreground",  bg: "bg-muted" },
   auto_invoice_sent:               { icon: FileText,      color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
   support_resolved:                { icon: CheckCircle2,  color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
+  onboarding_submitted:            { icon: CheckCircle2,  color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
 }
 
 export default function NotificationsPage() {
@@ -180,7 +181,11 @@ export default function NotificationsPage() {
                 onClick={() => {
                   if (!n.read) markAsRead(n.id)
                   const sid = n.metadata?.session_id
-                  if (sid) {
+                  if (sid && n.type === "onboarding_submitted") {
+                    // Onboarding submissions → Documents page, where the owner
+                    // can expand "Client uploads" to see/download everything.
+                    router.push("/documents")
+                  } else if (sid) {
                     // Signature/payment/document notifications → view the document
                     router.push(`/view/${sid}`)
                   } else if (n.type.startsWith("subscription")) {

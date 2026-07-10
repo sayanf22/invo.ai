@@ -1117,7 +1117,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
                 // Onboarding forms: before the send/share card, show a step to attach
                 // a client asset-upload link (owner's Drive/Dropbox folder). Skippable.
-                if (docType === "client_onboarding_form" && hasSendIntent) {
+                // Also triggers on "resend" (fixes already-sent forms that used the
+                // old static-PDF path — resending now always goes through the
+                // fillable-link flow).
+                if (docType === "client_onboarding_form" && (hasSendIntent || isResend)) {
                     setInputValue("")
                     const method: "email" | "general" = (sendMethod === "email" || isResend) ? "email" : "general"
                     const introMsg = "Before you send — add a link where your client can upload their assets (logo, brand files). This is optional; you can skip it."
@@ -1769,7 +1772,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         await saveMessage("assistant", shareMsg, { card: "share" })
                     } else {
                         const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
-                        if (hasSendIntent && sendMethod === "email") {
+                        if (hasSendIntent && docType === "client_onboarding_form") {
+                            const cardEmail = detectedEmail || docData.toEmail || ""
+                            const introMsg = "Before you send — add a link where your client can upload their assets (logo, brand files). This is optional; you can skip it."
+                            setMessages(prev => [...prev,
+                                { role: "assistant", content: introMsg },
+                                { role: "assistant", content: "", assetLinkCard: { method: sendMethod === "email" ? "email" : "general", email: cardEmail } },
+                            ])
+                            await saveMessage("assistant", introMsg, { card: "asset_link", method: sendMethod === "email" ? "email" : "general", email: cardEmail })
+                        } else if (hasSendIntent && sendMethod === "email") {
                             const cardEmail = detectedEmail || docData.toEmail || ""
                             setMessages(prev => [...prev, {
                                 role: "assistant",
@@ -1903,6 +1914,16 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
                     const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
                     const knownEmailPost = detectedEmail || data.toEmail || ""
+                    if (hasSendIntent && docType === "client_onboarding_form") {
+                        const introMsg = "Before you send — add a link where your client can upload their assets (logo, brand files). This is optional; you can skip it."
+                        setMessages(prev => [...prev,
+                            { role: "assistant", content: introMsg },
+                            { role: "assistant", content: "", assetLinkCard: { method: sendMethod === "email" ? "email" : "general", email: knownEmailPost } },
+                        ])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", introMsg, { card: "asset_link", method: sendMethod === "email" ? "email" : "general", email: knownEmailPost })
+                        return
+                    }
                     if (hasSendIntent && sendMethod === "email") {
                         // Show a minimal message + email send card (compose step always shown, email editable)
                         const minimalMsg = `Sure! Fill in the details below to send your ${docType}.`

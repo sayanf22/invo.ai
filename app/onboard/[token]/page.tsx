@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
   Loader2, CheckCircle2, AlertTriangle, Upload, FileText, ImageIcon, X, Clock, CloudUpload, ExternalLink,
+  ArrowLeft, ArrowRight, List, Rows,
 } from "lucide-react"
 import { compressImage } from "@/lib/compress-image"
 
@@ -62,6 +63,10 @@ export default function OnboardFillPage() {
   const [submitting, setSubmitting] = useState(false)
   const [uploadingField, setUploadingField] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
+
+  // Fill mode: "all" = single scroll form, "step" = one question at a time.
+  const [fillMode, setFillMode] = useState<"all" | "step">("all")
+  const [stepIndex, setStepIndex] = useState(0)
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didInit = useRef(false)
@@ -234,22 +239,228 @@ export default function OnboardFillPage() {
   }
 
   // Active form
+  return (
+    <ActiveForm
+      form={form}
+      business={business}
+      answers={answers}
+      clientName={clientName}
+      clientEmail={clientEmail}
+      setClientName={setClientName}
+      setClientEmail={setClientEmail}
+      setText={setText}
+      handleFileUpload={handleFileUpload}
+      removeFile={removeFile}
+      uploadingField={uploadingField}
+      saving={saving}
+      submitting={submitting}
+      validationError={validationError}
+      setValidationError={setValidationError}
+      handleSubmit={handleSubmit}
+      fillMode={fillMode}
+      setFillMode={setFillMode}
+      stepIndex={stepIndex}
+      setStepIndex={setStepIndex}
+    />
+  )
+}
+
+// ── Active form (all-at-once + step-by-step modes) ─────────────────────────────
+
+interface ActiveFormProps {
+  form: OnboardFormData | null
+  business: Business | null
+  answers: Record<string, AnswerValue>
+  clientName: string
+  clientEmail: string
+  setClientName: (v: string) => void
+  setClientEmail: (v: string) => void
+  setText: (id: string, v: string) => void
+  handleFileUpload: (field: Field, files: FileList | null) => void
+  removeFile: (fieldId: string, fileId: string) => void
+  uploadingField: string | null
+  saving: boolean
+  submitting: boolean
+  validationError: string | null
+  setValidationError: (v: string | null) => void
+  handleSubmit: () => void
+  fillMode: "all" | "step"
+  setFillMode: (m: "all" | "step") => void
+  stepIndex: number
+  setStepIndex: (updater: number | ((prev: number) => number)) => void
+}
+
+/** A step is either the client's own details or a single form field. */
+type Step = { kind: "details" } | { kind: "field"; field: Field }
+
+function ActiveForm(props: ActiveFormProps) {
+  const {
+    form, business, answers, clientName, clientEmail, setClientName, setClientEmail,
+    setText, handleFileUpload, removeFile, uploadingField, saving, submitting,
+    validationError, setValidationError, handleSubmit, fillMode, setFillMode,
+    stepIndex, setStepIndex,
+  } = props
+
   const fields = form?.fields ?? []
   const sections = groupBySection(fields)
 
+  // Flat ordered step list for the one-by-one wizard.
+  const steps: Step[] = [{ kind: "details" }, ...fields.map((field) => ({ kind: "field", field } as Step))]
+  const totalSteps = steps.length
+  const safeIndex = Math.min(stepIndex, totalSteps - 1)
+  const current = steps[safeIndex]
+  const isLastStep = safeIndex === totalSteps - 1
+  const progressPct = Math.round(((safeIndex + 1) / totalSteps) * 100)
+
+  const goNext = () => {
+    // Validate the current step before advancing.
+    if (current?.kind === "field" && current.field.required) {
+      const v = answers[current.field.id]
+      const empty = current.field.type === "file"
+        ? !Array.isArray(v) || v.length === 0
+        : typeof v !== "string" || v.trim().length === 0
+      if (empty) { setValidationError(`Please answer: ${current.field.label}`); return }
+    }
+    setValidationError(null)
+    if (isLastStep) { handleSubmit(); return }
+    setStepIndex((i) => Math.min(i + 1, totalSteps - 1))
+  }
+
+  const goBack = () => {
+    setValidationError(null)
+    setStepIndex((i) => Math.max(i - 1, 0))
+  }
+
+  const Header = (
+    <div className="flex items-center gap-3 mb-6">
+      {business?.logoUrl
+        ? <img src={business.logoUrl} alt="" className="w-11 h-11 rounded-xl object-cover border border-border" />
+        : <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold">{(business?.name || "?").charAt(0)}</div>}
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">{business?.name || "Onboarding"}</p>
+        <h1 className="text-lg font-semibold text-foreground truncate">{form?.title || "Client Onboarding"}</h1>
+      </div>
+    </div>
+  )
+
+  // Mode toggle — segmented control.
+  const ModeToggle = (
+    <div className="inline-flex items-center rounded-xl border border-border bg-card p-1 mb-6">
+      <button
+        type="button"
+        onClick={() => setFillMode("all")}
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${fillMode === "all" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+      >
+        <Rows className="w-3.5 h-3.5" /> All at once
+      </button>
+      <button
+        type="button"
+        onClick={() => { setValidationError(null); setStepIndex(0); setFillMode("step") }}
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${fillMode === "step" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+      >
+        <List className="w-3.5 h-3.5" /> One by one
+      </button>
+    </div>
+  )
+
+  const ErrorBanner = validationError ? (
+    <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/20 mb-4">
+      <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+      <p className="text-sm text-destructive">{validationError}</p>
+    </div>
+  ) : null
+
+  const SavedIndicator = (
+    <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
+      {saving ? (<><Loader2 className="w-3 h-3 animate-spin" /> Saving…</>) : "Saved"}
+    </span>
+  )
+
+  // ── Step-by-step mode ────────────────────────────────────────────────────────
+  if (fillMode === "step") {
+    return (
+      <div className="min-h-dvh bg-muted/30">
+        <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
+          {Header}
+          {ModeToggle}
+
+          {/* Progress */}
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Step {safeIndex + 1} of {totalSteps}</span>
+              <span className="text-xs font-medium text-muted-foreground">{progressPct}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-full bg-foreground transition-all duration-300" style={{ width: `${progressPct}%` }} />
+            </div>
+          </div>
+
+          {/* Current step card */}
+          <div className="rounded-2xl border border-border bg-card shadow-sm p-5 sm:p-6 mb-4 min-h-[180px]">
+            {current?.kind === "details" ? (
+              <div className="flex flex-col gap-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Your details</p>
+                <TextField label="Full name" value={clientName} onChange={setClientName} placeholder="Your name" />
+                <TextField label="Email" value={clientEmail} onChange={setClientEmail} placeholder="you@company.com" type="email" />
+              </div>
+            ) : current?.kind === "field" ? (
+              <div>
+                {current.field.section && (
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-4">{current.field.section}</p>
+                )}
+                <FieldRenderer
+                  field={current.field}
+                  value={answers[current.field.id]}
+                  onText={(v) => setText(current.field.id, v)}
+                  onUpload={(files) => handleFileUpload(current.field, files)}
+                  onRemoveFile={(fileId) => removeFile(current.field.id, fileId)}
+                  uploading={uploadingField === current.field.id}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          {ErrorBanner}
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between gap-3 mt-2">
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={safeIndex === 0}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-background text-sm font-medium text-foreground hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+            <div className="flex items-center gap-3">
+              {SavedIndicator}
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={submitting}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-foreground text-background text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {isLastStep ? (submitting ? "Submitting…" : "Submit form") : "Next"}
+                {!isLastStep && !submitting ? <ArrowRight className="w-4 h-4" /> : null}
+              </button>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground/70 text-center mt-8">
+            Powered by <a href="https://clorefy.com" className="hover:underline">Clorefy</a>. Your information is kept confidential.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── All-at-once mode ─────────────────────────────────────────────────────────
   return (
     <div className="min-h-dvh bg-muted/30">
       <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          {business?.logoUrl
-            ? <img src={business.logoUrl} alt="" className="w-11 h-11 rounded-xl object-cover border border-border" />
-            : <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold">{(business?.name || "?").charAt(0)}</div>}
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">{business?.name || "Onboarding"}</p>
-            <h1 className="text-lg font-semibold text-foreground truncate">{form?.title || "Client Onboarding"}</h1>
-          </div>
-        </div>
+        {Header}
+        {ModeToggle}
 
         <p className="text-sm text-muted-foreground mb-6">
           Please complete the form below. Your progress saves automatically.
@@ -278,18 +489,11 @@ export default function OnboardFillPage() {
           </SectionCard>
         ))}
 
-        {validationError && (
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/20 mb-4">
-            <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
-            <p className="text-sm text-destructive">{validationError}</p>
-          </div>
-        )}
+        {ErrorBanner}
 
         {/* Submit bar */}
         <div className="flex items-center justify-between gap-3 mt-2">
-          <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
-            {saving ? (<><Loader2 className="w-3 h-3 animate-spin" /> Saving…</>) : "Saved"}
-          </span>
+          {SavedIndicator}
           <button
             type="button"
             onClick={handleSubmit}
