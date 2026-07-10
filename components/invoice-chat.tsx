@@ -629,6 +629,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     if (meta?.card === "send") {
                         const cardEmail = (meta?.email as string) || ""
                         const cleanContent = sanitizeRestoredContent(msg.content)
+                        // Onboarding forms: once sent (finalized), the compose card is
+                        // stale — the send already happened and a { card: "link" }
+                        // message carries the durable link. Don't re-show it.
+                        if (docType === "client_onboarding_form" &&
+                            (session.status === "finalized" || session.status === "signed")) {
+                            continue
+                        }
                         if (cleanContent) restoredMessages.push({ role: "assistant" as const, content: cleanContent })
                         restoredMessages.push({ role: "assistant" as const, content: "", sendCard: { email: cardEmail } })
                         continue
@@ -1143,6 +1150,54 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             const hasModification = MODIFICATION_VERBS.test(userMessage)
 
             if (!hasModification) {
+                // ── Onboarding link request (deterministic, no AI needed) ──────
+                // For an ALREADY-SENT onboarding form, any ask that mentions the
+                // "link"/"url" ("show me the link", "send me the link", "share the
+                // same link", "copy the link") returns the real fillable
+                // /onboard/<token> link — NOT the generic share card. Persisted as
+                // a { card: "link" } message so it survives a refresh. If the form
+                // isn't sent yet, we fall through to the normal send flow (a link
+                // only exists once the form has been sent, since email is atomic).
+                if (docType === "client_onboarding_form") {
+                    const isSent = ["finalized", "signed"].includes(session.status || "")
+                    const wantsLink = /\blink\b|\burl\b/i.test(userMessage)
+                    if (isSent && wantsLink) {
+                        setInputValue("")
+                        try {
+                            const res = await authFetch(`/api/onboarding?sessionId=${session.id}`)
+                            const d = await res.json().catch(() => ({}))
+                            if (res.ok && d.onboardUrl) {
+                                const msg = "Here's your client's onboarding form link — share it any time:"
+                                setMessages(prev => [...prev,
+                                    { role: "user" as const, content: userMessage },
+                                    { role: "assistant" as const, content: msg },
+                                    { role: "assistant" as const, content: "", linkCard: d.onboardUrl },
+                                ])
+                                await saveMessage("user", userMessage)
+                                await saveMessage("assistant", msg)
+                                await saveMessage("assistant", "View form link", { card: "link" })
+                            } else {
+                                const msg = "This form link is no longer active. Cancel the form and resend it to generate a fresh link."
+                                setMessages(prev => [...prev,
+                                    { role: "user" as const, content: userMessage },
+                                    { role: "assistant" as const, content: msg },
+                                ])
+                                await saveMessage("user", userMessage)
+                                await saveMessage("assistant", msg)
+                            }
+                        } catch {
+                            const msg = "Couldn't look up the form link just now. Please try again."
+                            setMessages(prev => [...prev,
+                                { role: "user" as const, content: userMessage },
+                                { role: "assistant" as const, content: msg },
+                            ])
+                            await saveMessage("user", userMessage)
+                            await saveMessage("assistant", msg)
+                        }
+                        return
+                    }
+                }
+
                 // Check share intent first (share, whatsapp, link)
                 const shareIntent = detectShareIntent(userMessage)
                 if (shareIntent.hasShareIntent) {
@@ -2382,8 +2437,16 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                         onDocumentStatusChange?.("finalized")
                                         updateSessionStatus("finalized")
                                     }}
-                                    onSent={() => {
-                                        // Card handles its own sent state
+                                    onSent={(info) => {
+                                        // Onboarding forms: persist the fresh fillable link as a
+                                        // { card: "link" } message so it survives a refresh and can
+                                        // be re-shared any time. The send card keeps its own transient
+                                        // "sent" confirmation; this adds the durable record.
+                                        if (docType === "client_onboarding_form" && info?.onboardUrl) {
+                                            const link = info.onboardUrl
+                                            setMessages(prev => [...prev, { role: "assistant" as const, content: "", linkCard: link }])
+                                            saveMessage("assistant", "View form link", { card: "link" }).catch(() => {})
+                                        }
                                     }}
                                 />
                             ) : msg.shareCard ? (

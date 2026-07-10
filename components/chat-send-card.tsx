@@ -29,7 +29,9 @@ interface ChatSendCardProps {
   documentType: string
   detectedEmail: string
   onDismiss: () => void
-  onSent: () => void
+  /** Called after a successful send. For onboarding forms, `info.onboardUrl`
+   *  carries the fresh fillable link so the parent can persist it in chat. */
+  onSent: (info?: { onboardUrl?: string | null }) => void
   onLockDocument?: () => void
   userTier?: "free" | "starter" | "pro" | "agency"
 }
@@ -264,11 +266,12 @@ export function ChatSendCard({
           // server always generates a brand-new onboarding_forms row). This
           // must be shown, not the generic /d/<shortId> preview link.
           const data = await res.json().catch(() => ({}))
-          setOnboardFillUrl(typeof data.onboardUrl === "string" ? data.onboardUrl : null)
+          const fillUrl = typeof data.onboardUrl === "string" ? data.onboardUrl : null
+          setOnboardFillUrl(fillUrl)
           setSlideDir("right")
           setStep("sent")
           onLockDocument?.()
-          onSent()
+          onSent({ onboardUrl: fillUrl })
         } else {
           const data = await res.json().catch(() => ({}))
           setError(data.error || "Failed to send the form. Please try again.")
