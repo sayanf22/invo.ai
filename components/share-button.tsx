@@ -17,6 +17,7 @@ import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { authFetch } from "@/lib/auth-fetch"
 import { cn } from "@/lib/utils"
 import { resolvePdfComponent, resolveDocumentReference } from "@/lib/pdf-export-helpers"
+import { ChatAssetLinkCard } from "@/components/chat-asset-link-card"
 
 interface ShareButtonProps {
   data: InvoiceData
@@ -37,6 +38,13 @@ interface ShareButtonProps {
    *    and Adobe Sign use after first send.)
    */
   documentStatus?: string
+  /**
+   * Persists an asset-upload link into the session context. Used only for
+   * onboarding forms: before sending, the owner is offered an optional link
+   * where the client uploads assets. Passing the full-context save keeps the
+   * behavior identical to the chat pre-send step.
+   */
+  onSaveAssetLink?: (link: string) => void | Promise<void>
 }
 
 /** Statuses where the document is "locked" — share is safe to fire immediately. */
@@ -84,11 +92,15 @@ function getFileName(data: InvoiceData): string {
   return `${type}-${safe}.pdf`
 }
 
-export function ShareButton({ data, className, sessionId, onOpenSendDialog, signingUrl, documentStatus = "" }: ShareButtonProps) {
+export function ShareButton({ data, className, sessionId, onOpenSendDialog, signingUrl, documentStatus = "", onSaveAssetLink }: ShareButtonProps) {
   const [isSharing, setIsSharing] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [canNativeShare, setCanNativeShare] = useState(false)
   const [showSchedulePanel, setShowSchedulePanel] = useState(false)
+  // Onboarding pre-send asset-link step — shown before any share action for
+  // client onboarding forms (which are always sent as a fillable link).
+  const [showAssetLinkStep, setShowAssetLinkStep] = useState(false)
+  const [savingAssetLink, setSavingAssetLink] = useState(false)
   // Lock-on-share confirm state — null when no confirm is pending.
   const [pendingShareAction, setPendingShareAction] = useState<PendingShareAction | null>(null)
   const [isLocking, setIsLocking] = useState(false)
@@ -132,6 +144,14 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
 
   const hasContent = data.documentType || data.fromName || data.toName
   const hasPaymentLink = !!data.paymentLink && data.paymentLinkStatus !== "paid" && data.paymentLinkStatus !== "expired" && data.paymentLinkStatus !== "cancelled"
+
+  // Client onboarding forms are always sent as a tokenized fillable link via the
+  // send dialog (never a static PDF/WhatsApp share). For these, every share
+  // option first collects an optional asset-upload link, then routes to the
+  // real send screen. Only active when a send dialog is wired up.
+  const isOnboardingForm =
+    (data.documentType || "").toLowerCase().replace(/\s+/g, "_") === "client_onboarding_form"
+  const useOnboardingShareFlow = isOnboardingForm && !!onOpenSendDialog
 
   useEffect(() => {
     setCanNativeShare(typeof navigator !== "undefined" && !!navigator.share)
@@ -339,14 +359,31 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
   // confirm dialog. If already locked, fire immediately.
   const requestShare = useCallback(
     async (action: PendingShareAction) => {
+      // Onboarding forms: any share option funnels through the asset-link step,
+      // then the real send screen. The payment-link copy (which never applies
+      // to onboarding) is left untouched for safety.
+      if (useOnboardingShareFlow && action !== "copy-payment-link") {
+        setShowAssetLinkStep(true)
+        return
+      }
       if (requiresLockConfirm) {
         setPendingShareAction(action)
         return
       }
       await executeShareAction(action)
     },
-    [requiresLockConfirm, executeShareAction]
+    [useOnboardingShareFlow, requiresLockConfirm, executeShareAction]
   )
+
+  // Continue/skip from the onboarding asset-link step → open the send screen.
+  const proceedToOnboardingSend = useCallback(async (link: string | null) => {
+    if (link) {
+      setSavingAssetLink(true)
+      try { await onSaveAssetLink?.(link) } catch { /* non-fatal */ } finally { setSavingAssetLink(false) }
+    }
+    setShowAssetLinkStep(false)
+    onOpenSendDialog?.()
+  }, [onSaveAssetLink, onOpenSendDialog])
 
   // Confirm handler — locks then runs the action.
   const confirmShareAction = useCallback(async () => {
@@ -535,6 +572,26 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
         </div>
       </div>
     )}
+    {/* ── Onboarding asset-link step ──────────────────────────────────
+        For client onboarding forms, every share option first offers an
+        optional link where the client uploads assets, then routes to the
+        real send screen. Mirrors the chat pre-send card. */}
+    {showAssetLinkStep && (
+      <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={() => !savingAssetLink && setShowAssetLinkStep(false)}
+        />
+        <div className="relative w-full sm:w-auto flex justify-center pb-4 sm:pb-0">
+          <ChatAssetLinkCard
+            initialLink={data.assetUploadLink || ""}
+            onDismiss={() => setShowAssetLinkStep(false)}
+            onSkip={() => proceedToOnboardingSend(null)}
+            onContinue={(link) => proceedToOnboardingSend(link)}
+          />
+        </div>
+      </div>
+    )}
     {/* ── Lock & Share confirmation modal ─────────────────────────────
         Shown for any share menu click while the doc is unlocked. Calling
         /api/sessions/finalize stamps sent_at and flips status → finalized
@@ -570,7 +627,7 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
                     {pendingShareAction === "copy-message" && "the clipboard"}
                     {pendingShareAction === "copy-payment-link" && "the clipboard"}
                   </span>
-                  . You won't be able to edit it after sharing.
+                  . You won&apos;t be able to edit it after sharing.
                 </p>
               </div>
             </div>

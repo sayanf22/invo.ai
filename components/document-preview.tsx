@@ -418,6 +418,26 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [userTier, setUserTier] = useState<"free" | "starter" | "pro" | "agency">("free")
+
+  // Persist an asset-upload link into the session context (onboarding forms).
+  // updateSessionContext-style semantics: the context column is REPLACED, so we
+  // always write the full current `data` plus the new link — never a partial —
+  // otherwise the rest of the document would be wiped.
+  const handleSaveAssetLink = useCallback(async (link: string) => {
+    onChange?.({ assetUploadLink: link } as Partial<InvoiceData>)
+    if (!sessionId || !user) return
+    try {
+      await supabase
+        .from("document_sessions")
+        .update({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          context: { ...data, assetUploadLink: link } as any,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", sessionId)
+        .eq("user_id", user.id)
+    } catch { /* non-fatal — the send dialog can still proceed without the link */ }
+  }, [onChange, sessionId, user, data, supabase])
   const [exportingDocx, setExportingDocx] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
   const [sentAt, setSentAt] = useState<string | null>(null)
@@ -1211,7 +1231,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
               }}
             />
           )}
-          <ShareButton data={data} sessionId={sessionId ?? null} documentStatus={documentStatus} onOpenSendDialog={() => setSendEmailDialogOpen(true)} />
+          <ShareButton data={data} sessionId={sessionId ?? null} documentStatus={documentStatus} onOpenSendDialog={() => setSendEmailDialogOpen(true)} onSaveAssetLink={handleSaveAssetLink} />
           <button
             type="button"
             onClick={handlePrint}

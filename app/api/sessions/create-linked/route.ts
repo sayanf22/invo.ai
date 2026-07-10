@@ -48,6 +48,37 @@ function mapParentContext(parentContext: Record<string, any>, targetType: string
     // Carry over payment terms
     if (parentContext.paymentTerms) mapped.paymentTerms = parentContext.paymentTerms
 
+    // ── Onboarding fill-back ─────────────────────────────────────────────────
+    // When the parent is a completed client onboarding form, carry the client's
+    // FILLED TEXT answers + any additional details forward so the linked
+    // document (proposal, contract, etc.) is informed by what the client
+    // provided. Only text is carried — never uploaded image/file references.
+    // Gated on `customQuestions` presence, which is unique to onboarding forms,
+    // so no other document type's linked-doc behavior changes.
+    if (Array.isArray(parentContext.customQuestions)) {
+        const onboardingLines: string[] = []
+        for (const q of parentContext.customQuestions as Array<{ question?: unknown; answer?: unknown }>) {
+            const question = typeof q?.question === "string" ? q.question.trim() : ""
+            const answer = typeof q?.answer === "string" ? q.answer.trim() : ""
+            if (question && answer) onboardingLines.push(`${question}: ${answer}`)
+        }
+        // Additional free-text details the client provided, minus the line that
+        // lists uploaded file names (those are image/file refs, not text info).
+        if (typeof parentContext.notes === "string" && parentContext.notes.trim()) {
+            const cleaned = (parentContext.notes as string)
+                .split("\n")
+                .map((l: string) => l.trim())
+                .filter((l: string) => l && !/^client-uploaded files:/i.test(l))
+                .join("\n")
+                .trim()
+            if (cleaned) onboardingLines.push(cleaned)
+        }
+        if (onboardingLines.length > 0) {
+            const block = `Client-provided details from onboarding:\n${onboardingLines.join("\n")}`
+            mapped.notes = mapped.notes ? `${mapped.notes}\n\n${block}` : block
+        }
+    }
+
     // Set the target document type (capitalized)
     mapped.documentType = targetType.charAt(0).toUpperCase() + targetType.slice(1)
 
