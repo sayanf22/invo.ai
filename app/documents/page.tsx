@@ -138,6 +138,10 @@ interface DocSession {
   recurring?: RecurringRecord | null
   signatures?: SignatureRecord[]
   chainCount?: number                 // number of linked documents in the chain
+  /** True when any client interaction prevents deletion (signed, submitted
+   *  onboarding, accepted/declined/changes_requested quote/proposal). The
+   *  delete button is hidden and the API rejects the delete regardless. */
+  hasClientInteraction?: boolean
 }
 
 interface RecurringRecord {
@@ -880,8 +884,9 @@ function DocCard({
                 <Repeat2 size={15} />
               </button>
             )}
-            {/* Delete — not shown for paid/signed (legal records) */}
-            {onDelete && localStatus !== "paid" && localStatus !== "signed" && (
+            {/* Delete — not shown for documents with client interaction
+                (paid, signed, submitted onboarding, responded quotes/proposals) */}
+            {onDelete && localStatus !== "paid" && localStatus !== "signed" && !session.hasClientInteraction && (
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
@@ -1574,12 +1579,28 @@ export default function MyDocumentsPage() {
         }
       }
 
-      const mergedFinal: DocSession[] = mergedWithQuotations.map((s) => ({
-        ...s,
-        recurring: recurringMap[s.id] ?? null,
-        signatures: signatureMap[s.id] ?? [],
-        chainCount: s.chain_id ? (chainCountMap[s.chain_id] || 1) : undefined,
-      }))
+      const mergedFinal: DocSession[] = mergedWithQuotations.map((s) => {
+        const sigs = signatureMap[s.id] ?? []
+        // hasClientInteraction: any response that makes deletion inappropriate.
+        const hasClientInteraction =
+          // Signed documents (any non-declined/cancelled signature with signed_at)
+          sigs.some(sig => !!sig.signed_at && sig.signer_action !== "declined" && sig.signer_action !== "cancelled") ||
+          // Accepted/declined/changes_requested quote/proposal
+          !!s.quotationResponse ||
+          // Submitted onboarding form — checked via session status + document type
+          // (when the client submits, the context is updated but status stays
+          // finalized; we detect by checking if context has filled customQuestions)
+          (s.document_type?.toLowerCase().replace(/\s+/g, "_") === "client_onboarding_form" &&
+            Array.isArray((s.context as any)?.customQuestions) &&
+            (s.context as any).customQuestions.some((q: any) => q.answer && q.answer.trim().length > 0))
+        return {
+          ...s,
+          recurring: recurringMap[s.id] ?? null,
+          signatures: sigs,
+          chainCount: s.chain_id ? (chainCountMap[s.chain_id] || 1) : undefined,
+          hasClientInteraction,
+        }
+      })
 
       setSessions(mergedFinal)
     } catch (error: any) {

@@ -100,23 +100,45 @@ export async function POST(request: NextRequest) {
     // cannot revoke the document — the response itself is part of the record and
     // would be orphaned by a cancellation. The owner's correct path is to
     // generate a new revised quotation/proposal that supersedes this one.
+    // Also blocks on "accepted" — an accepted quote/proposal is a binding
+    // agreement that must be preserved.
     if (["quotation", "quote", "proposal"].includes((session.document_type || "").toLowerCase())) {
       const { data: clientResponses } = await (auth.supabase as any)
         .from("quotation_responses")
         .select("response_type")
         .eq("session_id", sessionId)
-        .in("response_type", ["declined", "changes_requested"])
         .limit(1)
 
       if (Array.isArray(clientResponses) && clientResponses.length > 0) {
         const responseType = clientResponses[0].response_type
-        const human = responseType === "declined" ? "declined this document" : "requested changes"
+        const human = responseType === "accepted" ? "accepted this document"
+          : responseType === "declined" ? "declined this document"
+          : "requested changes"
         return NextResponse.json(
           {
-            error: `The recipient has already ${human}. Cancellation is no longer available — create a revised version instead.`,
+            error: `The recipient has already ${human}. This document cannot be cancelled.`,
             status: "responded",
             responseType,
           },
+          { status: 403 }
+        )
+      }
+    }
+
+    // Block if a client has already submitted an onboarding form. The filled
+    // answers are a permanent record — the owner cannot void them.
+    if ((session.document_type || "").toLowerCase().replace(/\s+/g, "_") === "client_onboarding_form") {
+      const { data: submittedForm } = await serviceClient()
+        .from("onboarding_forms")
+        .select("id")
+        .eq("session_id", sessionId)
+        .eq("status", "submitted")
+        .limit(1)
+        .maybeSingle()
+
+      if (submittedForm) {
+        return NextResponse.json(
+          { error: "Your client has already submitted this onboarding form. It cannot be cancelled." },
           { status: 403 }
         )
       }
