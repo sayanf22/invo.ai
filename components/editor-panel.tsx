@@ -42,6 +42,7 @@ import {
 } from "@/lib/document-schemas"
 import { z } from "zod"
 import { EditorContextSection } from "@/components/context-manager"
+import { OnboardingClientUploads } from "@/components/onboarding-client-uploads"
 
 // ─── Field validation per document type ──────────────────────────────────────
 
@@ -2597,6 +2598,7 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus, sessionId 
   const projectDescription = getExt<string>(data, "projectDescription", data.description ?? "")
   const timelinePreference = getExt<string>(data, "timelinePreference", "")
   const budgetRange = getExt<string>(data, "budgetRange", "")
+  const assetUploadLink = getExt<string>(data, "assetUploadLink", "")
 
   const completed = [
     !!data.documentType,
@@ -2615,6 +2617,7 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus, sessionId 
 
   return (
     <TypedEditorShell title="Onboarding Form Builder" totalSteps={5} completedSteps={completed} isPaid={isPaid} sessionId={sessionId} isLocked={isSent}>
+      <OnboardingClientUploads sessionId={sessionId} />
       <Step number={1} title="Document Type" isComplete={!!data.documentType} isOpen={openStep === 1} onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}>
         <div className="flex flex-col gap-3">
           <div className="px-3 py-2.5 rounded-xl bg-muted/40 border border-border">
@@ -2663,6 +2666,21 @@ function ClientOnboardingFormEditor({ data, onChange, documentStatus, sessionId 
           <div className="grid grid-cols-2 gap-2">
             <Field id="cof-timeline" label="Timeline Preference" value={timelinePreference} onChange={(v) => onChange({ timelinePreference: v } as Partial<InvoiceData>)} optional placeholder="e.g. 6 weeks" disabled={isPaid} />
             <Field id="cof-budget" label="Budget Range" value={budgetRange} onChange={(v) => onChange({ budgetRange: v } as Partial<InvoiceData>)} optional placeholder="e.g. $5-10k" disabled={isPaid} />
+          </div>
+          <div className="border-t border-border" />
+          <div>
+            <Field
+              id="cof-asset-link"
+              label="Client Asset Upload Link"
+              value={assetUploadLink}
+              onChange={(v) => onChange({ assetUploadLink: v })}
+              optional
+              placeholder="https://drive.google.com/… or Dropbox link"
+              disabled={isPaid}
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Paste a Google Drive / Dropbox folder link. Your client sees a &ldquo;Drop your assets here&rdquo; button that opens it — no login needed on your side.
+            </p>
           </div>
           <button
             type="button"

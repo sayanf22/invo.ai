@@ -93,7 +93,8 @@ export async function POST(request: NextRequest) {
     const tier = await getUserTier(auth.supabase, auth.user.id)
     const allowUploads = tier === "pro" || tier === "agency"
 
-    const fields = buildOnboardingFields(context, { allowUploads })
+    const assetUploadLink = typeof context.assetUploadLink === "string" ? context.assetUploadLink : null
+    const fields = buildOnboardingFields(context, { allowUploads, assetUploadLink })
     if (fields.length === 0) {
       return NextResponse.json(
         { error: "This form has no questions to fill. Add questions before sending." },

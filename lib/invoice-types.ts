@@ -106,6 +106,11 @@ export interface InvoiceData {
   terms: string
   description: string
 
+  // Client Onboarding Form only — optional external link (Google Drive / Dropbox
+  // / etc.) the owner provides so the client can upload large brand assets there.
+  // Display-only; never fetched server-side. Stored in the document context.
+  assetUploadLink?: string
+
   // Signature
   signatureName: string
   signatureTitle: string

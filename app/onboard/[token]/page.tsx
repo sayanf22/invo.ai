@@ -11,10 +11,11 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  Loader2, CheckCircle2, AlertTriangle, Upload, FileText, ImageIcon, X, Clock,
+  Loader2, CheckCircle2, AlertTriangle, Upload, FileText, ImageIcon, X, Clock, CloudUpload, ExternalLink,
 } from "lucide-react"
+import { compressImage } from "@/lib/compress-image"
 
-type FieldType = "short_text" | "long_text" | "file"
+type FieldType = "short_text" | "long_text" | "file" | "external_link"
 interface Field {
   id: string
   type: FieldType
@@ -24,6 +25,7 @@ interface Field {
   section?: string
   accept?: string
   multiple?: boolean
+  externalUrl?: string
 }
 interface FileRef { fileId: string; fileName: string }
 type AnswerValue = string | FileRef[]
@@ -121,7 +123,10 @@ export default function OnboardFillPage() {
     if (!files || files.length === 0) return
     setUploadingField(field.id)
     try {
-      for (const file of Array.from(files)) {
+      for (const rawFile of Array.from(files)) {
+        // Compress images client-side before upload (the Worker can't run canvas).
+        // Non-images (PDF) and already-small files pass through unchanged.
+        const file = await compressImage(rawFile).catch(() => rawFile)
         const fd = new FormData()
         fd.append("token", token)
         fd.append("fieldId", field.id)
@@ -353,6 +358,30 @@ function FieldRenderer({ field, value, onText, onUpload, onRemoveFile, uploading
       {field.label}{field.required && <span className="text-destructive ml-0.5">*</span>}
     </label>
   )
+
+  if (field.type === "external_link") {
+    if (!field.externalUrl) return null
+    return (
+      <div>
+        {label}
+        <a
+          href={field.externalUrl}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="flex items-center gap-3 rounded-2xl border border-border bg-card hover:border-primary/40 hover:bg-muted/30 transition-colors px-4 py-4"
+        >
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <CloudUpload className="w-5 h-5 text-primary" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">{field.placeholder || "Drop your assets here"}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Opens a secure folder in a new tab</p>
+          </div>
+          <ExternalLink className="w-4 h-4 text-muted-foreground shrink-0" />
+        </a>
+      </div>
+    )
+  }
 
   if (field.type === "file") {
     const files = Array.isArray(value) ? value : []

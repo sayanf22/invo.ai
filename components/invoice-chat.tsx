@@ -126,6 +126,7 @@ import { usePaymentMethods } from "@/hooks/use-payment-methods"
 import { useContextDocuments } from "@/hooks/use-context-documents"
 import { useUserTier, isReferenceContextEnabled } from "@/hooks/use-user-tier"
 import { ContextManagerDialog } from "@/components/context-manager"
+import { ChatAssetLinkCard } from "@/components/chat-asset-link-card"
 
 // ── Send intent detection ─────────────────────────────────────────────────────
 // Detects when user wants to SEND/DELIVER the document.
@@ -400,7 +401,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; linkCard?: string; recurringCard?: "setup" | "cancel"; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; linkCard?: string; recurringCard?: "setup" | "cancel"; assetLinkCard?: { method: "email" | "general"; email: string }; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [thinkingMode, setThinkingMode] = useState<"fast" | "thinking">("fast")
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
@@ -1099,6 +1100,21 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
                 // The email to pre-fill — prioritize: detected in message > already in doc > empty
                 const knownEmail = detectedEmail || data.toEmail || ""
+
+                // Onboarding forms: before the send/share card, show a step to attach
+                // a client asset-upload link (owner's Drive/Dropbox folder). Skippable.
+                if (docType === "client_onboarding_form" && hasSendIntent) {
+                    setInputValue("")
+                    const method: "email" | "general" = (sendMethod === "email" || isResend) ? "email" : "general"
+                    const introMsg = "Before you send — add a link where your client can upload their assets (logo, brand files). This is optional; you can skip it."
+                    setMessages(prev => [...prev,
+                        { role: "user" as const, content: userMessage },
+                        { role: "assistant" as const, content: introMsg },
+                        { role: "assistant" as const, content: "", assetLinkCard: { method, email: knownEmail } },
+                    ])
+                    await saveMessage("user", userMessage)
+                    return
+                }
 
                 if ((hasSendIntent && sendMethod === "email") || isResend) {
                     setInputValue("")
@@ -2175,6 +2191,34 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     />
                                 </div>
                                 ) : null
+                            ) : msg.assetLinkCard ? (
+                                // Onboarding pre-send step: attach a client asset-upload link.
+                                <ChatAssetLinkCard
+                                    initialLink={data.assetUploadLink || ""}
+                                    onDismiss={() => setMessages(prev => prev.filter((_, i) => i !== idx))}
+                                    onSkip={() => {
+                                        const method = msg.assetLinkCard!.method
+                                        const email = msg.assetLinkCard!.email
+                                        setMessages(prev => prev.map((m, i) => i === idx
+                                            ? (method === "email"
+                                                ? { role: "assistant" as const, content: "", sendCard: { email } }
+                                                : { role: "assistant" as const, content: "", shareCard: true })
+                                            : m))
+                                    }}
+                                    onContinue={async (link) => {
+                                        const method = msg.assetLinkCard!.method
+                                        const email = msg.assetLinkCard!.email
+                                        // Persist the full context + link BEFORE showing the send card
+                                        // (updateSessionContext replaces the context column, so pass all of `data`).
+                                        onChange({ assetUploadLink: link })
+                                        await updateSessionContext({ ...data, assetUploadLink: link })
+                                        setMessages(prev => prev.map((m, i) => i === idx
+                                            ? (method === "email"
+                                                ? { role: "assistant" as const, content: "", sendCard: { email } }
+                                                : { role: "assistant" as const, content: "", shareCard: true })
+                                            : m))
+                                    }}
+                                />
                             ) : msg.sendCard ? (
                                 // Inline send card — only shown when send intent detected
                                 <ChatSendCard

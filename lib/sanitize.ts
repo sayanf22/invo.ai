@@ -214,6 +214,26 @@ export function sanitizeFileName(input: string): string {
 }
 
 /**
+ * Validates a user-supplied external URL for safe display as a link.
+ * Accepts only http/https, rejects javascript:/data:/file:/vbscript: and
+ * malformed input. Returns the normalized URL string, or null if unsafe.
+ * NOTE: this is for DISPLAY only — we never fetch these server-side (no SSRF).
+ */
+export function safeExternalUrl(input: unknown): string | null {
+    if (typeof input !== "string") return null
+    const trimmed = input.trim()
+    if (!trimmed || trimmed.length > 2048) return null
+    let parsed: URL
+    try {
+        parsed = new URL(trimmed)
+    } catch {
+        return null
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null
+    return parsed.toString()
+}
+
+/**
  * Strip prompt injection patterns from user input.
  * Removes [SYSTEM: ...] blocks that could override AI instructions.
  * Only the server should inject [SYSTEM:] blocks.

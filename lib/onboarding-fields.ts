@@ -8,9 +8,9 @@
  */
 
 import { randomUUID } from "crypto"
-import { sanitizeText } from "./sanitize"
+import { sanitizeText, safeExternalUrl } from "./sanitize"
 
-export type OnboardingFieldType = "short_text" | "long_text" | "file"
+export type OnboardingFieldType = "short_text" | "long_text" | "file" | "external_link"
 
 export interface OnboardingField {
   id: string
@@ -22,6 +22,8 @@ export interface OnboardingField {
   /** For file fields: accepted MIME types (comma-separated) + multiple flag. */
   accept?: string
   multiple?: boolean
+  /** For external_link fields: the owner-provided URL the client opens to upload. */
+  externalUrl?: string
 }
 
 /** Public token format: `onb_` + 32 lowercase hex chars. */
@@ -37,7 +39,10 @@ export const MAX_ANSWER_CHARS = 10_000
 export const MAX_FILES_PER_FORM = 15
 export const ONBOARD_EXPIRY_DAYS = 14
 
-const FILE_FIELD_ID = "__attachments"
+export const FILE_FIELD_ID = "__attachments"
+export const ASSET_LINK_FIELD_ID = "__asset_link"
+export const CLIENT_LINK_FIELD_ID = "__client_link"
+const ASSETS_SECTION = "Files & Assets"
 
 interface RawQuestion {
   id?: string
@@ -48,12 +53,14 @@ interface RawQuestion {
 /**
  * Build the client-fillable field list from an onboarding document's context.
  * - Each customQuestion becomes a long-text field.
- * - When uploads are allowed, a single multi-file field is appended for
- *   brand assets / references (logos, brand guides, examples).
+ * - Files & Assets section (when relevant):
+ *   • external_link → owner's cloud folder (Drive/Dropbox) if they provided one
+ *   • file          → native compressed upload (Pro+ only)
+ *   • short_text    → the client's own file link (optional)
  */
 export function buildOnboardingFields(
   context: Record<string, unknown>,
-  opts: { allowUploads: boolean },
+  opts: { allowUploads: boolean; assetUploadLink?: string | null },
 ): OnboardingField[] {
   const fields: OnboardingField[] = []
 
@@ -75,6 +82,21 @@ export function buildOnboardingFields(
     if (fields.length >= MAX_FIELDS) break
   }
 
+  const assetLink = safeExternalUrl(opts.assetUploadLink)
+  const hasAssetsSection = !!assetLink || opts.allowUploads
+
+  if (assetLink && fields.length < MAX_FIELDS) {
+    fields.push({
+      id: ASSET_LINK_FIELD_ID,
+      type: "external_link",
+      label: "Upload your assets",
+      required: false,
+      placeholder: "Upload your logo, brand guide, and files to our shared folder",
+      section: ASSETS_SECTION,
+      externalUrl: assetLink,
+    })
+  }
+
   if (opts.allowUploads && fields.length < MAX_FIELDS) {
     fields.push({
       id: FILE_FIELD_ID,
@@ -82,9 +104,20 @@ export function buildOnboardingFields(
       label: "Brand assets & references",
       required: false,
       placeholder: "Upload your logo, brand guide, or example files",
-      section: "Files",
+      section: ASSETS_SECTION,
       accept: "image/png,image/jpeg,image/webp,image/gif,application/pdf",
       multiple: true,
+    })
+  }
+
+  if (hasAssetsSection && fields.length < MAX_FIELDS) {
+    fields.push({
+      id: CLIENT_LINK_FIELD_ID,
+      type: "short_text",
+      label: "Or paste a link to your files (optional)",
+      required: false,
+      placeholder: "e.g. a Google Drive or Dropbox share link",
+      section: ASSETS_SECTION,
     })
   }
 
@@ -153,29 +186,40 @@ export function applyAnswersToContext(
   // buildOnboardingFields (using q.id when present, otherwise q_<random>).
   // The original context's customQuestions[].id may be empty/missing, so we
   // also map by positional index as a fallback.
-  const textFields = fields.filter((f) => f.type !== "file")
+  // Only long_text fields map to customQuestions (asset/link fields are appended
+  // after and must NOT interfere with the positional fallback).
+  const questionFields = fields.filter((f) => f.type === "long_text")
   const answerByFieldId = new Map<string, string>()
-  for (const f of textFields) {
+  for (const f of questionFields) {
     const v = answers[f.id]
     if (typeof v === "string") answerByFieldId.set(f.id, v)
   }
 
   next.customQuestions = questions.map((q, idx) => {
     const qId = typeof q.id === "string" ? q.id : ""
-    // Try direct id match first, then positional fallback.
+    // Try direct id match first, then positional fallback (by question order).
     let answer: string | undefined
     if (qId && answerByFieldId.has(qId)) {
       answer = answerByFieldId.get(qId)
-    } else if (idx < textFields.length) {
-      answer = answerByFieldId.get(textFields[idx].id)
+    } else if (idx < questionFields.length) {
+      answer = answerByFieldId.get(questionFields[idx].id)
     }
     return { ...q, answer: answer ?? q.answer ?? "" }
   })
 
+  // Capture the client's own file link into notes so the owner sees it.
+  const clientLink = typeof answers[CLIENT_LINK_FIELD_ID] === "string" ? (answers[CLIENT_LINK_FIELD_ID] as string).trim() : ""
+  const extraNotes: string[] = []
+  if (clientLink) extraNotes.push(`Client file link: ${clientLink}`)
+
   if (uploadedFileNames.length > 0) {
+    extraNotes.push(`Client-uploaded files: ${uploadedFileNames.join(", ")}`)
+  }
+
+  if (extraNotes.length > 0) {
     const existingNotes = typeof next.notes === "string" ? next.notes : ""
-    const filesLine = `Client-uploaded files: ${uploadedFileNames.join(", ")}`
-    next.notes = existingNotes ? `${existingNotes}\n\n${filesLine}` : filesLine
+    const block = extraNotes.join("\n")
+    next.notes = existingNotes ? `${existingNotes}\n\n${block}` : block
   }
 
   return next

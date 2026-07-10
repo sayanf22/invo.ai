@@ -828,6 +828,7 @@ Required fields:
   - Leave answers as "" (empty) — the client fills these in
 - fromName, fromEmail, fromAddress: from business profile
 - notes: instructions for completing the form, submission deadline
+- assetUploadLink: optional external URL (Google Drive/Dropbox folder) where the client uploads brand assets. If the user asks to "add an asset link", "add an upload link", or pastes a Drive/Dropbox URL for client uploads, set this field to that URL. PRESERVE it unchanged on all edits unless the user explicitly changes or removes it.
 - design: template object
 
 NOTE: Client Onboarding Forms do NOT have items arrays, tax fields, or payment terms. They are information-gathering documents. The AI should generate thoughtful, contextually relevant questions based on the business type.
