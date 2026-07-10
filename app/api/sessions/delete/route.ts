@@ -21,7 +21,7 @@ import { authenticateRequest, sanitizeError } from "@/lib/api-auth"
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // Statuses that are permanently protected — legal/financial records
-const PROTECTED_STATUSES = new Set(["paid", "signed"])
+const PROTECTED_STATUSES = new Set(["paid", "signed", "finalized"])
 
 function serviceClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -40,7 +40,7 @@ export async function DELETE(request: NextRequest) {
 
     const { data: session, error: fetchError } = await auth.supabase
         .from("document_sessions")
-        .select("id, user_id, status, document_type")
+        .select("id, user_id, status, document_type, sent_at")
         .eq("id", sessionId)
         .eq("user_id", auth.user.id)
         .single()
@@ -52,7 +52,18 @@ export async function DELETE(request: NextRequest) {
     // ── Protection Layer: status-based ─────────────────────────────────────
     if (PROTECTED_STATUSES.has(session.status)) {
         return NextResponse.json(
-            { error: `Cannot delete a ${session.status} document. This is a legal/financial record.` },
+            { error: `Cannot delete a ${session.status} document. Documents sent to clients are permanent records.` },
+            { status: 403 }
+        )
+    }
+
+    // ── Protection Layer: ever sent to a client ───────────────────────────
+    // Even if the document was later cancelled/unlocked, the fact that it was
+    // shared with a client means it's a business record that must be preserved.
+    // Only pure unsent drafts are deletable.
+    if (session.sent_at) {
+        return NextResponse.json(
+            { error: "This document was sent to a client and cannot be deleted. Only unsent drafts can be removed." },
             { status: 403 }
         )
     }

@@ -884,9 +884,10 @@ function DocCard({
                 <Repeat2 size={15} />
               </button>
             )}
-            {/* Delete — not shown for documents with client interaction
-                (paid, signed, submitted onboarding, responded quotes/proposals) */}
-            {onDelete && localStatus !== "paid" && localStatus !== "signed" && !session.hasClientInteraction && (
+            {/* Delete — only for unsent drafts. Documents sent to clients are
+                permanent records (the client received a link, so deleting would
+                break it). Chat history can always be cleared separately. */}
+            {onDelete && !session.sent_at && localStatus !== "paid" && localStatus !== "signed" && localStatus !== "finalized" && (
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
