@@ -59,6 +59,12 @@ export function PromptScreen({
   // `externallyUnlocked` and overrides its internal lock calculation
   // (which is based on stale sentAt etc).
   const [chatUnlockNonce, setChatUnlockNonce] = useState(0)
+  // ── Document-cancelled signal ────────────────────────────────────
+  // Bumped when the document is cancelled from the top bar (not via chat).
+  // InvoiceChat reads it and syncs its local session status to "cancelled"
+  // so the chat, its banner, and the send/resend gating all reflect the
+  // cancellation immediately — for every document type.
+  const [documentCancelledNonce, setDocumentCancelledNonce] = useState(0)
 
   // ── Single InvoiceChat: render only for mobile OR desktop, never both ──
   const isDesktop = useMediaQuery("(min-width: 768px)")
@@ -152,6 +158,16 @@ export function PromptScreen({
   // When the user unlocks via the chat card, bump the nonce. The
   // DocumentPreview reads it as `externallyUnlocked` and overrides its
   // internal lock calculation (which is based on stale sentAt etc).
+  // Document cancelled from the top bar. Update local lock/status state AND
+  // bump the signal so the chat (a sibling that owns its own session copy)
+  // syncs to "cancelled" instead of staying on a stale "finalized".
+  const handleDocumentCancelled = useCallback(() => {
+    setDocumentSessionStatus("cancelled")
+    setInvoiceLocked(false)
+    setChatUnlockNonce(0)
+    setDocumentCancelledNonce(n => n + 1)
+  }, [])
+
   const handleChatUnlock = useCallback(() => {
     setInvoiceLocked(false)
     setChatUnlockNonce(n => n + 1)
@@ -194,6 +210,7 @@ export function PromptScreen({
     onUnlockDocument: handleChatUnlock,
     onPaymentLinkCancelled: paymentLinkCancelledAt > 0 ? cancelledSignal : undefined,
     onDocumentStatusChange: setDocumentSessionStatus,
+    documentCancelledSignal: documentCancelledNonce,
     onSaveContext: handleSaveContextReady,
     initialPrompt,
   } as const
@@ -325,11 +342,7 @@ export function PromptScreen({
                 onLockChange={handleLockChange}
                 externallyUnlocked={chatUnlockNonce > 0}
                 documentStatus={documentSessionStatus}
-                onDocumentCancelled={() => {
-                  setDocumentSessionStatus("cancelled")
-                  setInvoiceLocked(false)
-                  setChatUnlockNonce(0)
-                }}
+                onDocumentCancelled={handleDocumentCancelled}
               />
             </div>
           </div>
@@ -388,11 +401,7 @@ export function PromptScreen({
             onLockChange={handleLockChange}
             externallyUnlocked={chatUnlockNonce > 0}
             documentStatus={documentSessionStatus}
-            onDocumentCancelled={() => {
-              setDocumentSessionStatus("cancelled")
-              setInvoiceLocked(false)
-              setChatUnlockNonce(0)
-            }}
+            onDocumentCancelled={handleDocumentCancelled}
           />
         </div>
       </div>

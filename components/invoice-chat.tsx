@@ -374,12 +374,16 @@ interface InvoiceChatProps {
     onPaymentLinkCancelled?: () => void
     /** Called whenever the session status changes — allows parent to pass documentStatus to DocumentPreview */
     onDocumentStatusChange?: (status: string) => void
+    /** Bumped by the parent when the document is cancelled from the top bar (not
+     *  via chat). The chat syncs its local session status to "cancelled" so its
+     *  banner and send/resend gating reflect the cancellation immediately. */
+    documentCancelledSignal?: number
     initialPrompt?: string
     /** Called once the session is ready with a function to persist context to DB */
     onSaveContext?: (saveFn: (data: InvoiceData) => Promise<void>) => void
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, initialPrompt, onSaveContext }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, documentCancelledSignal, initialPrompt, onSaveContext }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
 
     // Hook handles session init + switching when selectedSessionId changes
@@ -395,6 +399,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         saveGeneration,
         startNewSession,
         updateSessionStatus,
+        refreshSession,
     } = useDocumentSession(docType, selectedSessionId)
 
     const [inputValue, setInputValue] = useState("")
@@ -507,6 +512,22 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             }]
         })
     }, [onPaymentLinkCancelled]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Sync document cancellation from the top bar ──────────────────────
+    // When the owner cancels the document from the preview's top bar (not via
+    // chat), the parent bumps `documentCancelledSignal`. The chat owns its own
+    // copy of the session, so without this it would stay on a stale "finalized"
+    // status — still showing the locked banner and blocking resend. We flip the
+    // local status to "cancelled" immediately, then refetch from the DB to
+    // reconcile the full row. Applies to every document type.
+    const lastCancelSignalRef = useRef(0)
+    useEffect(() => {
+        const signal = documentCancelledSignal || 0
+        if (signal === 0 || signal === lastCancelSignalRef.current) return
+        lastCancelSignalRef.current = signal
+        updateSessionStatus("cancelled")
+        refreshSession?.().catch(() => {})
+    }, [documentCancelledSignal]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Eager cleanup when selectedSessionId changes ─────────────────────
     // Clear all chat state SYNCHRONOUSLY when the user navigates to a different
@@ -2193,6 +2214,18 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         {session.status === "signed"
                             ? "This document has been signed and is permanently locked."
                             : "This document has been sent and is locked. Use the chat to unlock and edit."}
+                    </p>
+                </div>
+            )}
+
+            {/* Cancelled banner — shown when the document has been cancelled
+                (from the top bar or chat). Its links/reminders are voided; the
+                document can be edited or sent again. */}
+            {session && session.status === "cancelled" && (
+                <div className="shrink-0 px-4 py-2.5 bg-muted/40 border-b border-border/60 flex items-center gap-2">
+                    <span className="text-foreground/60 text-sm shrink-0">🚫</span>
+                    <p className="text-xs text-muted-foreground leading-snug">
+                        This document has been cancelled. Its links and reminders are no longer active — you can edit it or send it again.
                     </p>
                 </div>
             )}
