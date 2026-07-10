@@ -1215,13 +1215,17 @@ const DATE_RANGE_OPTIONS = [
   { value: "this_month", label: "This month" },
   { value: "last_month", label: "Last month" },
   { value: "this_year", label: "This year" },
+  { value: "custom", label: "Custom range" },
 ] as const
 
 type DateRangeValue = typeof DATE_RANGE_OPTIONS[number]["value"]
 
-function DateRangePicker({ value, onChange }: {
+function DateRangePicker({ value, onChange, customFrom, customTo, onCustomChange }: {
   value: DateRangeValue
   onChange: (v: DateRangeValue) => void
+  customFrom: string
+  customTo: string
+  onCustomChange: (from: string, to: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -1242,6 +1246,9 @@ function DateRangePicker({ value, onChange }: {
 
   const selected = DATE_RANGE_OPTIONS.find(o => o.value === value) ?? DATE_RANGE_OPTIONS[0]
   const isFiltered = value !== "all"
+  const displayLabel = value === "custom" && customFrom && customTo
+    ? `${customFrom} – ${customTo}`
+    : value === "custom" ? "Custom range" : selected.label
 
   return (
     <div ref={ref} className="relative shrink-0">
@@ -1258,7 +1265,7 @@ function DateRangePicker({ value, onChange }: {
         aria-haspopup="listbox"
       >
         <CalendarDays className="w-3.5 h-3.5" />
-        <span className="tabular-nums">{selected.label}</span>
+        <span className="tabular-nums">{displayLabel}</span>
         <ChevronDown className={cn(
           "w-3 h-3 transition-transform duration-200",
           open && "rotate-180"
@@ -1278,7 +1285,7 @@ function DateRangePicker({ value, onChange }: {
                 type="button"
                 role="option"
                 aria-selected={isActive}
-                onClick={() => { onChange(opt.value); setOpen(false) }}
+                onClick={() => { onChange(opt.value); if (opt.value !== "custom") setOpen(false) }}
                 className={cn(
                   "w-full flex items-center justify-between gap-3 px-3 py-2 text-xs font-medium text-left transition-colors duration-100",
                   isActive
@@ -1291,6 +1298,35 @@ function DateRangePicker({ value, onChange }: {
               </button>
             )
           })}
+          {/* Custom date inputs */}
+          {value === "custom" && (
+            <div className="px-3 py-2.5 border-t border-border/40 space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => onCustomChange(e.target.value, customTo)}
+                  className="flex-1 h-7 px-2 rounded-lg border border-border bg-background text-xs text-foreground outline-none focus:border-primary/40"
+                />
+                <span className="text-[10px] text-muted-foreground">to</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => onCustomChange(customFrom, e.target.value)}
+                  className="flex-1 h-7 px-2 rounded-lg border border-border bg-background text-xs text-foreground outline-none focus:border-primary/40"
+                />
+              </div>
+              {customFrom && customTo && (
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="w-full h-7 rounded-lg bg-foreground text-background text-[11px] font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Apply
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1308,6 +1344,8 @@ export default function MyDocumentsPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>("all")
   const [dateRange, setDateRange] = useState<DateRangeValue>("all")
+  const [customDateFrom, setCustomDateFrom] = useState("")
+  const [customDateTo, setCustomDateTo] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
 
   // Tier + usage (for limit-reached banner)
@@ -1760,14 +1798,20 @@ export default function MyDocumentsPage() {
     if (dateRange === "this_year") {
       return date.getFullYear() === now.getFullYear()
     }
+    if (dateRange === "custom" && customDateFrom && customDateTo) {
+      const from = new Date(customDateFrom + "T00:00:00")
+      const to = new Date(customDateTo + "T23:59:59")
+      return date >= from && date <= to
+    }
     return true
-  }, [dateRange])
+  }, [dateRange, customDateFrom, customDateTo])
 
   const dateRangeLabels: Record<DateRangeValue, string> = {
     all: "All time",
     this_month: "This month",
     last_month: "Last month",
     this_year: "This year",
+    custom: customDateFrom && customDateTo ? `${customDateFrom} – ${customDateTo}` : "Custom range",
   }
 
   const filtered = sessions.filter(s => {
@@ -2046,7 +2090,7 @@ export default function MyDocumentsPage() {
             </div>
 
             {/* Date range — custom dropdown (no native select for better UX) */}
-            <DateRangePicker value={dateRange} onChange={setDateRange} />
+            <DateRangePicker value={dateRange} onChange={setDateRange} customFrom={customDateFrom} customTo={customDateTo} onCustomChange={(from, to) => { setCustomDateFrom(from); setCustomDateTo(to) }} />
           </motion.div>
         )}
 
