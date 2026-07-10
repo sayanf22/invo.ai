@@ -423,6 +423,39 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
         className="w-56 rounded-2xl p-1.5 shadow-xl border border-border/60"
         style={{ boxShadow: "0 8px 32px -4px rgba(0,0,0,0.14), 0 2px 8px -2px rgba(0,0,0,0.08)" }}
       >
+        {/* Onboarding forms that are already sent: show only the fillable link
+            — all send options are disabled. The owner must cancel to resend. */}
+        {useOnboardingShareFlow && isLocked ? (
+          <>
+            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-3 py-1">
+              Onboarding Form Sent
+            </DropdownMenuLabel>
+            <div className="px-3 py-2">
+              <p className="text-[11px] text-muted-foreground mb-2">This form has been sent. Cancel to resend.</p>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const { authFetch } = await import("@/lib/auth-fetch")
+                    const res = await authFetch(`/api/onboarding?sessionId=${sessionId}`)
+                    const d = await res.json().catch(() => ({}))
+                    if (res.ok && d.onboardUrl) {
+                      await navigator.clipboard.writeText(d.onboardUrl)
+                      toast.success("Form link copied!")
+                    } else {
+                      toast.error("No active link found")
+                    }
+                  } catch { toast.error("Failed to copy link") }
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-muted/40 border border-border/30 hover:bg-muted/60 transition-colors"
+              >
+                <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-xs text-foreground font-medium truncate flex-1 text-left">Copy form link</span>
+              </button>
+            </div>
+          </>
+        ) : (
+        <>
         {/* PDF sharing */}
         <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-3 py-1">
           Share Document
@@ -476,7 +509,6 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
           <span>{copied === "msg" ? "Copied!" : "Copy Message"}</span>
         </DropdownMenuItem>
 
-        {/* Manage Reminders — only when sessionId exists */}
         {sessionId && (
           <>
             <DropdownMenuSeparator className="my-1 bg-border/50" />
@@ -488,6 +520,8 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
               <span>Manage Reminders</span>
             </DropdownMenuItem>
           </>
+        )}
+        </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

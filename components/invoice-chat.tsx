@@ -382,9 +382,15 @@ interface InvoiceChatProps {
     initialPrompt?: string
     /** Called once the session is ready with a function to persist context to DB */
     onSaveContext?: (saveFn: (data: InvoiceData) => Promise<void>) => void
+    /** When non-null, the parent is notifying the chat that a fillable onboarding
+     *  link was created outside the chat (e.g. via the toolbar Send dialog).
+     *  The chat persists it as a { card: "link" } message so "show me the link"
+     *  works on refresh and the link is always visible in the conversation.
+     *  Use a fresh string each time (or null to skip). */
+    injectedOnboardLink?: string | null
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, documentStatus: externalStatus, initialPrompt, onSaveContext }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, documentStatus: externalStatus, initialPrompt, onSaveContext, injectedOnboardLink }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
 
     // Hook handles session init + switching when selectedSessionId changes
@@ -541,6 +547,20 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         // change the DB status row (e.g. payment-link locks).
         updateSessionStatus(externalStatus)
     }, [externalStatus]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Inject onboard link from parent (manual Send dialog) ─────────────
+    // When the owner sends an onboarding form via the toolbar's Send dialog (not
+    // via chat), the parent passes the fresh fillable link here. We persist it as
+    // a { card: "link" } message so it's visible in the conversation and survives
+    // a refresh — identical outcome to a chat-originated send.
+    const lastInjectedLinkRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (!injectedOnboardLink) return
+        if (injectedOnboardLink === lastInjectedLinkRef.current) return
+        lastInjectedLinkRef.current = injectedOnboardLink
+        setMessages(prev => [...prev, { role: "assistant" as const, content: "", linkCard: injectedOnboardLink }])
+        saveMessage("assistant", "View form link", { card: "link" }).catch(() => {})
+    }, [injectedOnboardLink]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Eager cleanup when selectedSessionId changes ─────────────────────
     // Clear all chat state SYNCHRONOUSLY when the user navigates to a different

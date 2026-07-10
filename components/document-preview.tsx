@@ -65,6 +65,12 @@ interface DocumentPreviewProps {
    * The parent should update its local session status and notify chat.
    */
   onDocumentCancelled?: () => void
+  /**
+   * Called when a manual send (via SendEmailDialog) of an onboarding form
+   * produces a fillable link. The parent bubbles it into the chat so it
+   * persists and "show me the link" works after a refresh.
+   */
+  onOnboardLinkCreated?: (url: string) => void
 }
 
 function EmptyState() {
@@ -401,7 +407,7 @@ function ToolbarSep() {
 }
 
 /* ─── Main DocumentPreview ─── */
-export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onLockChange, externallyUnlocked = false, documentStatus = "", onDocumentCancelled }: DocumentPreviewProps) {
+export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onLockChange, externallyUnlocked = false, documentStatus = "", onDocumentCancelled, onOnboardLinkCreated }: DocumentPreviewProps) {
   const supabase = useSupabase()
   const user = useUser()
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
@@ -1356,10 +1362,12 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           invoiceData={data}
           documentType={data.documentType || "invoice"}
           userTier={userTier}
-          onEmailSent={() => {
+          onEmailSent={(info) => {
             setSentAt(new Date().toISOString())
             // Lock the document after sending from toolbar
             onLockChange?.(true)
+            // Bubble the onboarding fillable link into chat so it persists
+            if (info?.onboardUrl) onOnboardLinkCreated?.(info.onboardUrl)
           }}
         />
       )}

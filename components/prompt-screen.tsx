@@ -59,6 +59,9 @@ export function PromptScreen({
   // `externallyUnlocked` and overrides its internal lock calculation
   // (which is based on stale sentAt etc).
   const [chatUnlockNonce, setChatUnlockNonce] = useState(0)
+  // Carries the most recently generated onboarding fill link from a manual Send
+  // (toolbar) into the chat. Null until a link is created; set once per send.
+  const [injectedOnboardLink, setInjectedOnboardLink] = useState<string | null>(null)
 
   // ── Single InvoiceChat: render only for mobile OR desktop, never both ──
   const isDesktop = useMediaQuery("(min-width: 768px)")
@@ -208,6 +211,7 @@ export function PromptScreen({
     // copy to this so EXTERNAL changes (toolbar send/lock, toolbar cancel) are
     // reflected live. Chat-originated changes are no-ops (values already match).
     documentStatus: documentSessionStatus,
+    injectedOnboardLink,
     onSaveContext: handleSaveContextReady,
     initialPrompt,
   } as const
@@ -340,6 +344,7 @@ export function PromptScreen({
                 externallyUnlocked={chatUnlockNonce > 0}
                 documentStatus={documentSessionStatus}
                 onDocumentCancelled={handleDocumentCancelled}
+                onOnboardLinkCreated={setInjectedOnboardLink}
               />
             </div>
           </div>
@@ -399,6 +404,7 @@ export function PromptScreen({
             externallyUnlocked={chatUnlockNonce > 0}
             documentStatus={documentSessionStatus}
             onDocumentCancelled={handleDocumentCancelled}
+            onOnboardLinkCreated={setInjectedOnboardLink}
           />
         </div>
       </div>

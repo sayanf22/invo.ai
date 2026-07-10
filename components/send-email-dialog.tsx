@@ -14,7 +14,7 @@ interface SendEmailDialogProps {
   invoiceData: InvoiceData
   documentType: string
   defaultEmail?: string
-  onEmailSent?: () => void
+  onEmailSent?: (info?: { onboardUrl?: string | null }) => void
   isRecurring?: boolean
   onRecurringChange?: (active: boolean, frequency: string) => void
   userTier?: "free" | "starter" | "pro" | "agency"
@@ -270,9 +270,10 @@ export function SendEmailDialog({
           }),
         })
         if (res.ok) {
+          const resData = await res.json().catch(() => ({}))
           onClose()
           toast.success(`Onboarding form sent to ${email.trim()}`)
-          onEmailSent?.()
+          onEmailSent?.({ onboardUrl: typeof resData.onboardUrl === "string" ? resData.onboardUrl : null })
         } else {
           let errorMessage = "Failed to send the form"
           try { const d = await res.json(); errorMessage = d.error || errorMessage } catch { /* ignore */ }
