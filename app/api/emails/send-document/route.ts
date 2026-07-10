@@ -5,6 +5,7 @@ import { checkRateLimit } from "@/lib/rate-limiter"
 import { sanitizeEmail, sanitizeText } from "@/lib/sanitize"
 import { sendEmail } from "@/lib/mailtrap"
 import { generateEmailSubject, renderEmailTemplate } from "@/lib/email-template"
+import { getPublicLogoUrl } from "@/lib/public-logo"
 import { logAudit } from "@/lib/audit-log"
 import { checkEmailLimit, incrementEmailCount, getFollowUpSchedule, getUserTier } from "@/lib/cost-protection"
 import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
@@ -131,7 +132,10 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     const businessName = business?.name || "Your Business"
-    const businessLogoUrl = business?.logo_url || null
+    // Emails can't load an authenticated/private R2 key directly (Gmail/Outlook
+    // block data: URIs and there's no session here) — resolve through the
+    // public logo endpoint instead. See lib/public-logo.ts.
+    const businessLogoUrl = getPublicLogoUrl(userId, business?.logo_url || null)
 
     // 9. For invoices: fetch active payment link — auto-create if none exists
     let payNowUrl: string | null = null

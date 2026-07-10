@@ -25,6 +25,7 @@ import { recordAuditEvent } from "@/lib/signature-audit"
 import { computeDocumentFingerprint } from "@/lib/document-fingerprint"
 import { generateAndStoreCertificate } from "@/lib/certificate-generator"
 import { sendEmail } from "@/lib/mailtrap"
+import { getPublicLogoUrl } from "@/lib/public-logo"
 
 const MAX_BODY_SIZE = 500 * 1024
 
@@ -157,7 +158,9 @@ async function triggerAutoInvoice({
     .single()
 
   const bName = business?.name || businessName
-  const bLogo = business?.logo_url || null
+  // Emails can't load a private R2 key — resolve through the public logo
+  // endpoint so the logo renders in Gmail/Outlook/Apple Mail.
+  const bLogo = getPublicLogoUrl(contractSession.user_id, business?.logo_url || null)
 
   const html = renderEmailTemplate({
     businessName: bName,

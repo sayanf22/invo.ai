@@ -23,9 +23,15 @@ interface SendEmailDialogProps {
 const MAX_MESSAGE_LENGTH = 500
 
 function generateSubject(invoiceData: InvoiceData, documentType: string): string {
+  const sender = invoiceData.fromName?.trim() || ""
+  // Onboarding forms are a fillable link, not an attached document — use the
+  // same phrasing as the invitation email rather than "Client_onboarding_form
+  // INV-XXXX" (raw type name + an invoice-style ref that doesn't apply here).
+  if (documentType.toLowerCase().replace(/\s+/g, "_") === "client_onboarding_form") {
+    return sender ? `Please complete this form for ${sender}` : "Please complete this onboarding form"
+  }
   const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
   const ref = invoiceData.invoiceNumber || invoiceData.referenceNumber || ""
-  const sender = invoiceData.fromName?.trim() || ""
   return [docLabel, ref, sender ? `from ${sender}` : ""].filter(Boolean).join(" ")
 }
 
@@ -70,6 +76,7 @@ export function SendEmailDialog({
 }: SendEmailDialogProps) {
   const isContract = documentType.toLowerCase() === "contract"
   const isInvoice = documentType.toLowerCase() === "invoice"
+  const isOnboardingForm = documentType.toLowerCase().replace(/\s+/g, "_") === "client_onboarding_form"
   const isPaidTier = userTier !== "free"
 
   const [email, setEmail] = useState("")
@@ -442,15 +449,21 @@ export function SendEmailDialog({
                 Personal message
               </label>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={generateMessage}
-                  disabled={isGenerating || isSending}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
-                >
-                  {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                  {isGenerating ? "Writing..." : "Generate with AI"}
-                </button>
+                {/* Onboarding forms are a fillable link, not an attached
+                    document — the AI/local fallback message always assumes
+                    a static "please find X attached" body, which is wrong
+                    here and duplicated the invitation's own default greeting. */}
+                {!isOnboardingForm && (
+                  <button
+                    type="button"
+                    onClick={generateMessage}
+                    disabled={isGenerating || isSending}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                  >
+                    {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    {isGenerating ? "Writing..." : "Generate with AI"}
+                  </button>
+                )}
                 <span className={cn("text-[11px] tabular-nums", message.length > MAX_MESSAGE_LENGTH ? "text-red-500" : "text-muted-foreground")}>
                   {message.length}/{MAX_MESSAGE_LENGTH}
                 </span>
@@ -464,7 +477,7 @@ export function SendEmailDialog({
               maxLength={MAX_MESSAGE_LENGTH}
               rows={5}
               disabled={isSending}
-              placeholder="Add an optional note for your client..."
+              placeholder={isOnboardingForm ? "Add a personal note for your client (optional)..." : "Add an optional note for your client..."}
               className="w-full px-3.5 py-2.5 rounded-xl text-sm resize-none leading-relaxed bg-background border border-border placeholder:text-muted-foreground text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors disabled:opacity-60"
             />
           </div>

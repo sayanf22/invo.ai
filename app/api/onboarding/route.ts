@@ -26,6 +26,7 @@ import {
   ONBOARD_EXPIRY_DAYS,
 } from "@/lib/onboarding-fields"
 import { buildOnboardingInvitationEmail } from "@/lib/onboarding-email"
+import { getPublicLogoUrl } from "@/lib/public-logo"
 
 export const dynamic = "force-dynamic"
 
@@ -126,7 +127,9 @@ export async function POST(request: NextRequest) {
       .single()
 
     const businessName = (business as any)?.name || "Your Business"
-    const businessLogoUrl = (business as any)?.logo_url || null
+    // Emails can't load a private R2 key — resolve through the public logo
+    // endpoint so the logo actually renders in Gmail/Outlook/Apple Mail.
+    const businessLogoUrl = getPublicLogoUrl(auth.user.id, (business as any)?.logo_url || null)
     const formTitle =
       (typeof context.projectName === "string" && context.projectName) ||
       (typeof context.title === "string" && (context.title as string)) ||
@@ -277,7 +280,11 @@ export async function GET(request: NextRequest) {
         answers: form.answers ?? null,
         submittedAt: form.submitted_at,
       },
-      business: business ? { name: (business as any).name, logoUrl: (business as any).logo_url } : null,
+      business: (business as any) ? {
+        name: (business as any).name,
+        // Public fill page has no auth — resolve to the public logo endpoint.
+        logoUrl: getPublicLogoUrl(form.user_id, (business as any).logo_url),
+      } : null,
     })
   } catch (error) {
     console.error("Onboarding lookup error:", error instanceof Error ? error.message : error)

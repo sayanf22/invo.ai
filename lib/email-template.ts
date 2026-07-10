@@ -77,6 +77,27 @@ export function generateEmailSubject(
   }
 }
 
+// ── Brand tokens ─────────────────────────────────────────────────────────────
+// Mirrors app/globals.css so outbound email reads as the same product, not a
+// generic template with the logo swapped in.
+//   --background #FBF7F0 (warm off-white)   --foreground #1a1714 (near-black)
+//   --muted #F3EADC   --muted-foreground #6b6156   --border #e8dfd0
+//   --accent #b8622e (warm terracotta)
+const BRAND = {
+  pageBg: "#FBF7F0",
+  cardBg: "#ffffff",
+  text: "#1a1714",
+  textMuted: "#6b6156",
+  textFaint: "#a39b8d",
+  border: "#e8dfd0",
+  chip: "#F3EADC",
+  accent: "#b8622e",
+  ink: "#1a1714", // primary CTA background — matches app's near-black primary
+  inkText: "#FBF7F0", // primary CTA text — matches app's primary-foreground
+} as const
+
+const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+
 /**
  * Renders a branded HTML email using inline CSS + table layout.
  * Mobile-first: uses 100% width with max-width constraint.
@@ -118,7 +139,9 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
     ? rawDescription.length > 200 ? rawDescription.slice(0, 197) + "…" : rawDescription
     : null
 
-  // Body copy — short, type-appropriate.
+  // Body copy — short, type-appropriate. Only used when there's no personal
+  // message (the personal message, when present, IS the body — never both,
+  // which is what caused the duplicated-looking email).
   const bodyText =
     isInvoice          ? `Please find your invoice attached.`
   : isContract         ? `Please review the contract and sign when ready.`
@@ -134,14 +157,13 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
   const showPersonalMessage = personalMessage != null && personalMessage !== ""
   const showPayNow = payNowUrl != null && payNowUrl !== ""
 
-  const isValidLogoUrl = businessLogoUrl &&
+  const isValidLogoUrl = !!businessLogoUrl &&
     (businessLogoUrl.startsWith("https://") || businessLogoUrl.startsWith("http://"))
 
   const logoHtml = isValidLogoUrl
-    ? `<img src="${esc(businessLogoUrl!)}" alt="" width="40" height="40" style="display:block;border-radius:8px;object-fit:cover;" />`
+    ? `<img src="${esc(businessLogoUrl!)}" width="36" height="36" alt="${h(businessName)}" style="display:block;border-radius:9px;object-fit:cover;width:36px;height:36px;" />`
     : ""
 
-  // Build the full-width, mobile-optimized email
   return `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -153,115 +175,119 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
 <title>${h(docLabel)} ${h(referenceNumber)} from ${h(businessName)}</title>
 <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
 <style>
-  /* Reset for all clients */
   body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
   table,td{mso-table-lspace:0;mso-table-rspace:0}
   img{-ms-interpolation-mode:bicubic;border:0;height:auto;line-height:100%;outline:none;text-decoration:none}
   body{margin:0;padding:0;width:100%!important;min-width:100%!important}
-  /* Mobile-first responsive */
-  @media only screen and (max-width:620px){
-    .email-container{width:100%!important;max-width:100%!important}
-    .mobile-pad{padding-left:16px!important;padding-right:16px!important}
-    .mobile-pad-sm{padding-left:12px!important;padding-right:12px!important}
+  @media only screen and (max-width:600px){
+    .email-container{width:100%!important;max-width:100%!important;border-radius:0!important}
+    .mobile-pad{padding-left:20px!important;padding-right:20px!important}
+    .mobile-pad-sm{padding-left:16px!important;padding-right:16px!important}
     .mobile-stack{display:block!important;width:100%!important}
-    .mobile-center{text-align:center!important}
-    .mobile-btn{display:block!important;width:100%!important;text-align:center!important;padding:14px 20px!important}
-    .mobile-btn-wrap{display:block!important;width:100%!important;padding:0!important;padding-top:8px!important}
+    .mobile-btn{display:block!important;width:100%!important;text-align:center!important;box-sizing:border-box;padding:15px 20px!important}
+    .mobile-btn-wrap{display:block!important;width:100%!important;padding:0!important;padding-top:10px!important}
+    .mobile-ref{font-size:26px!important}
+    .mobile-outer-pad{padding:0!important}
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background-color:${BRAND.pageBg};font-family:${FONT};">
 
 <!-- Outer wrapper — full width background -->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND.pageBg};">
   <tr>
-    <td align="center" style="padding:24px 8px;">
+    <td align="center" class="mobile-outer-pad" style="padding:32px 16px;">
 
-      <!-- Email container — 600px max, 100% on mobile -->
-      <table role="presentation" class="email-container" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+      <!-- Email container — 560px max, 100% on mobile -->
+      <table role="presentation" class="email-container" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background-color:${BRAND.cardBg};border-radius:20px;overflow:hidden;border:1px solid ${BRAND.border};">
 
-        <!-- Header -->
+        <!-- Header — logo + business name, single row, no duplication -->
         <tr>
-          <td class="mobile-pad" style="padding:24px 28px 20px 28px;border-bottom:1px solid #f0f0f0;">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <td class="mobile-pad" style="padding:26px 32px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
               <tr>
-                ${isValidLogoUrl ? `<td style="vertical-align:middle;padding-right:14px;">${logoHtml}</td>` : ""}
                 <td style="vertical-align:middle;">
-                  <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;color:#18181b;letter-spacing:-0.01em;">${h(businessName)}</span>
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      ${isValidLogoUrl ? `<td style="vertical-align:middle;padding-right:12px;">${logoHtml}</td>` : ""}
+                      <td style="vertical-align:middle;">
+                        <span style="font-family:${FONT};font-size:16px;font-weight:700;color:${BRAND.text};letter-spacing:-0.01em;">${h(businessName)}</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                <td align="right" style="vertical-align:middle;">
+                  <span style="font-family:${FONT};font-size:11px;font-weight:600;color:${BRAND.textFaint};text-transform:uppercase;letter-spacing:0.08em;">${h(docLabel)}</span>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
 
-        <!-- Body -->
-        <tr>
-          <td class="mobile-pad" style="padding:28px 28px 8px 28px;">
+        <tr><td style="padding:0 32px;"><div style="height:1px;background-color:${BRAND.border};line-height:1px;font-size:1px;">&nbsp;</div></td></tr>
 
-            ${showPersonalMessage ? `
-            <!-- Personal message as the main body (replaces generic greeting to avoid duplication) -->
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+        <!-- Reference + amount hero -->
+        <tr>
+          <td class="mobile-pad" style="padding:28px 32px 8px 32px;">
+            <p class="mobile-ref" style="margin:0 0 4px 0;font-family:${FONT};font-size:30px;font-weight:800;color:${BRAND.text};letter-spacing:-0.02em;line-height:1.15;">${h(referenceNumber)}</p>
+            ${showAmount ? `
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:14px;">
               <tr>
-                <td style="font-size:15px;color:#3f3f46;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-                  ${h(personalMessage ?? "").replace(/\n/g, "<br/>")}
+                <td style="vertical-align:bottom;padding-right:20px;">
+                  <p style="margin:0 0 2px 0;font-family:${FONT};font-size:11px;font-weight:600;color:${BRAND.textMuted};text-transform:uppercase;letter-spacing:0.06em;">Amount due</p>
+                  <p style="margin:0;font-family:${FONT};font-size:22px;font-weight:800;color:${BRAND.accent};letter-spacing:-0.01em;">${h(totalAmount ?? "")}</p>
                 </td>
+                ${dueDate ? `
+                <td style="vertical-align:bottom;">
+                  <p style="margin:0 0 2px 0;font-family:${FONT};font-size:11px;font-weight:600;color:${BRAND.textMuted};text-transform:uppercase;letter-spacing:0.06em;">Due date</p>
+                  <p style="margin:0;font-family:${FONT};font-size:16px;font-weight:700;color:${BRAND.text};">${h(dueDate)}</p>
+                </td>` : ""}
               </tr>
-            </table>
+            </table>` : ""}
+          </td>
+        </tr>
+
+        <!-- Body copy — EITHER the owner's personal message OR the default
+             greeting + one-line body, never both, to avoid the duplicated
+             "Hi X ... Please find your ... attached" look. -->
+        <tr>
+          <td class="mobile-pad" style="padding:16px 32px 4px 32px;">
+            ${showPersonalMessage ? `
+            <p style="margin:0;font-family:${FONT};font-size:15px;color:${BRAND.text};line-height:1.65;">
+              ${h(personalMessage ?? "").replace(/\n/g, "<br/>")}
+            </p>
             ` : `
-            <!-- Generic greeting (only when no personal message) -->
-            <p style="margin:0 0 6px 0;font-size:16px;font-weight:600;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Hi ${h(recipientName)},</p>
-            <p style="margin:0 0 24px 0;font-size:15px;color:#52525b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;">
-              ${h(businessName)} has sent you a ${h(docLabel.toLowerCase())}. ${h(bodyText)}
+            <p style="margin:0 0 6px 0;font-family:${FONT};font-size:15px;font-weight:600;color:${BRAND.text};">Hi ${h(recipientName)},</p>
+            <p style="margin:0;font-family:${FONT};font-size:14.5px;color:${BRAND.textMuted};line-height:1.65;">
+              ${h(bodyText)}
             </p>
             `}
-
-            <!-- Document summary card -->
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fafafa;border-radius:10px;border:1px solid #e4e4e7;margin-bottom:24px;">
-              <tr>
-                <td class="mobile-pad-sm" style="padding:20px 24px;">
-                  <p style="margin:0 0 4px 0;font-size:11px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.1em;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${h(docLabel)}</p>
-                  <p style="margin:0 0 16px 0;font-size:22px;font-weight:800;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;letter-spacing:-0.02em;">${h(referenceNumber)}</p>
-                  ${showAmount ? `
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td style="font-size:13px;color:#71717a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding-bottom:4px;">Amount due</td>
-                      ${dueDate ? `<td align="right" style="font-size:13px;color:#71717a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding-bottom:4px;">Due date</td>` : ""}
-                    </tr>
-                    <tr>
-                      <td style="font-size:20px;font-weight:700;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${h(totalAmount ?? "")}</td>
-                      ${dueDate ? `<td align="right" style="font-size:15px;font-weight:600;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${h(dueDate)}</td>` : ""}
-                    </tr>
-                  </table>` : ""}
-                  ${showDescription ? `<p style="margin:12px 0 0 0;font-size:14px;color:#52525b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;">${h(truncatedDescription ?? "")}</p>` : ""}
-                </td>
-              </tr>
-            </table>
-
+            ${showDescription ? `<p style="margin:14px 0 0 0;font-family:${FONT};font-size:14px;color:${BRAND.textMuted};line-height:1.65;">${h(truncatedDescription ?? "")}</p>` : ""}
           </td>
         </tr>
 
         <!-- CTA buttons — stacked on mobile for full-width tappability -->
         <tr>
-          <td class="mobile-pad" style="padding:0 28px 28px 28px;">
+          <td class="mobile-pad" style="padding:24px 32px 30px 32px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
               <tr>
                 <td class="mobile-stack" style="vertical-align:top;">
                   <a href="${esc(viewDocumentUrl)}" target="_blank" class="mobile-btn"
-                    style="display:inline-block;padding:13px 28px;background-color:#18181b;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;text-align:center;min-width:140px;">
+                    style="display:inline-block;padding:14px 30px;background-color:${BRAND.ink};color:${BRAND.inkText};font-family:${FONT};font-size:15px;font-weight:700;text-decoration:none;border-radius:12px;text-align:center;min-width:150px;">
                     View ${h(docLabel)}
                   </a>
                 </td>
                 ${signingUrl ? `
                 <td class="mobile-btn-wrap" style="padding-left:10px;vertical-align:top;">
                   <a href="${esc(signingUrl)}" target="_blank" class="mobile-btn"
-                    style="display:inline-block;padding:13px 28px;background-color:#7c3aed;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;text-align:center;min-width:140px;">
-                    ✍ Sign Document
+                    style="display:inline-block;padding:14px 30px;background-color:${BRAND.accent};color:#ffffff;font-family:${FONT};font-size:15px;font-weight:700;text-decoration:none;border-radius:12px;text-align:center;min-width:150px;">
+                    Sign Document
                   </a>
                 </td>` : ""}
                 ${showPayNow ? `
                 <td class="mobile-btn-wrap" style="padding-left:10px;vertical-align:top;">
                   <a href="${esc(payNowUrl ?? "")}" target="_blank" class="mobile-btn"
-                    style="display:inline-block;padding:13px 28px;background-color:#16a34a;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;text-align:center;min-width:120px;">
+                    style="display:inline-block;padding:14px 30px;background-color:#ffffff;color:${BRAND.text};border:1px solid ${BRAND.border};font-family:${FONT};font-size:15px;font-weight:700;text-decoration:none;border-radius:12px;text-align:center;min-width:130px;">
                     Pay Now
                   </a>
                 </td>` : ""}
@@ -272,9 +298,9 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
 
         <!-- Footer -->
         <tr>
-          <td class="mobile-pad" style="padding:16px 28px;border-top:1px solid #f0f0f0;background-color:#fafafa;">
-            <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.5;">
-              Sent via <a href="https://clorefy.com" target="_blank" style="color:#6366f1;text-decoration:none;font-weight:600;">Clorefy</a>
+          <td class="mobile-pad" style="padding:18px 32px;background-color:${BRAND.chip};border-top:1px solid ${BRAND.border};">
+            <p style="margin:0;font-family:${FONT};font-size:12px;color:${BRAND.textFaint};text-align:center;line-height:1.6;">
+              Sent via <a href="https://clorefy.com" target="_blank" style="color:${BRAND.accent};text-decoration:none;font-weight:600;">Clorefy</a>
               &nbsp;&middot;&nbsp;
               You received this because ${h(businessName)} sent you a document.
             </p>

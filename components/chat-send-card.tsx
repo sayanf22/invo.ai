@@ -223,8 +223,13 @@ export function ChatSendCard({
     setError(null)
     setSlideDir("right")
     setStep("preview")
-    if (!message) generateMessage()
-  }, [email, message, generateMessage])
+    // Onboarding forms never have a static "attached" document — they send a
+    // fillable link — so the generic AI/fallback message ("Please find your
+    // ... attached") is factually wrong for this type and duplicates the
+    // invitation email's own built-in greeting. Leave the field blank/optional;
+    // the invitation already has proper default copy when no message is set.
+    if (!message && !isOnboardingForm) generateMessage()
+  }, [email, message, generateMessage, isOnboardingForm])
 
   const goBackToCompose = useCallback(() => {
     setSlideDir("left")
@@ -559,7 +564,9 @@ export function ChatSendCard({
                 </div>
               ) : (
                 <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3}
-                  placeholder="Add a personal message (optional)…"
+                  placeholder={isOnboardingForm
+                    ? "Add a personal note for your client (optional)…"
+                    : "Add a personal message (optional)…"}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-border/50 bg-background text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/60 transition-all duration-200 leading-relaxed" />
               )}
             </div>
