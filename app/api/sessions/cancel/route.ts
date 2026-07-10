@@ -17,9 +17,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 import { authenticateRequest } from "@/lib/api-auth"
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Service-role client for onboarding_forms, which has no UPDATE RLS policy
+ *  (owner policies cover SELECT/DELETE only). Ownership is still enforced in
+ *  the query via an explicit user_id filter. */
+function serviceClient() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -156,12 +164,21 @@ export async function POST(request: NextRequest) {
     //    Cancelling a sent form must void its public link (the client can no
     //    longer fill it) so a fresh resend issues a new token. Submitted forms
     //    are preserved — their answers are already recorded.
-    await (auth.supabase as any)
-      .from("onboarding_forms")
-      .update({ status: "expired" })
-      .eq("session_id", sessionId)
-      .eq("user_id", auth.user.id)
-      .in("status", ["pending", "in_progress"])
+    //    Uses the service client: onboarding_forms has no UPDATE RLS policy, so
+    //    the authenticated client would silently affect 0 rows. Ownership is
+    //    still enforced via the explicit user_id filter below.
+    try {
+      await serviceClient()
+        .from("onboarding_forms")
+        .update({ status: "expired" })
+        .eq("session_id", sessionId)
+        .eq("user_id", auth.user.id)
+        .in("status", ["pending", "in_progress"])
+    } catch (e) {
+      // Non-fatal: the session is already cancelled; a stale fill link is a
+      // minor concern and shouldn't fail the whole cancel operation.
+      console.error("[sessions/cancel] onboarding link invalidation failed:", e)
+    }
 
     return NextResponse.json({
       success: true,

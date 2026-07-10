@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
     if (error || !form) return NextResponse.json({ error: "Invalid form link." }, { status: 404 })
     if (!form.allow_uploads) return NextResponse.json({ error: "File uploads are not enabled for this form." }, { status: 403 })
     if (form.status === "submitted") return NextResponse.json({ error: "This form has already been submitted." }, { status: 409 })
+    if (form.status === "expired") return NextResponse.json({ error: "This form link is no longer active." }, { status: 410 })
     if (form.expires_at && new Date(form.expires_at) < new Date()) {
       return NextResponse.json({ error: "This form link has expired." }, { status: 410 })
     }

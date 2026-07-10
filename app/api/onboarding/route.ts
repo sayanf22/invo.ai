@@ -236,6 +236,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid or expired form link." }, { status: 404 })
     }
 
+    // Explicitly voided (e.g. the owner cancelled the document, which expires
+    // its outstanding links). Submitted forms are never voided this way.
+    if (form.status === "expired") {
+      return NextResponse.json({ error: "This form link is no longer active." }, { status: 410 })
+    }
+
     // Expiry (only when not yet submitted).
     if (form.status !== "submitted" && form.expires_at && new Date(form.expires_at) < new Date()) {
       if (form.status !== "expired") {

@@ -374,16 +374,17 @@ interface InvoiceChatProps {
     onPaymentLinkCancelled?: () => void
     /** Called whenever the session status changes — allows parent to pass documentStatus to DocumentPreview */
     onDocumentStatusChange?: (status: string) => void
-    /** Bumped by the parent when the document is cancelled from the top bar (not
-     *  via chat). The chat syncs its local session status to "cancelled" so its
-     *  banner and send/resend gating reflect the cancellation immediately. */
-    documentCancelledSignal?: number
+    /** Authoritative session status from the parent. The chat reconciles its own
+     *  session copy to this so EXTERNAL changes made outside the chat (toolbar
+     *  send/lock, toolbar cancel) reflect live — banner + send/resend gating.
+     *  Chat-originated changes are no-ops (the value already matches). */
+    documentStatus?: string
     initialPrompt?: string
     /** Called once the session is ready with a function to persist context to DB */
     onSaveContext?: (saveFn: (data: InvoiceData) => Promise<void>) => void
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, documentCancelledSignal, initialPrompt, onSaveContext }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, documentStatus: externalStatus, initialPrompt, onSaveContext }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
 
     // Hook handles session init + switching when selectedSessionId changes
@@ -399,7 +400,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         saveGeneration,
         startNewSession,
         updateSessionStatus,
-        refreshSession,
     } = useDocumentSession(docType, selectedSessionId)
 
     const [inputValue, setInputValue] = useState("")
@@ -513,21 +513,34 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         })
     }, [onPaymentLinkCancelled]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── Sync document cancellation from the top bar ──────────────────────
-    // When the owner cancels the document from the preview's top bar (not via
-    // chat), the parent bumps `documentCancelledSignal`. The chat owns its own
-    // copy of the session, so without this it would stay on a stale "finalized"
-    // status — still showing the locked banner and blocking resend. We flip the
-    // local status to "cancelled" immediately, then refetch from the DB to
-    // reconcile the full row. Applies to every document type.
-    const lastCancelSignalRef = useRef(0)
+    // ── Reconcile external status changes into the chat's session copy ───
+    // The chat owns its own copy of the session. When the document's status is
+    // changed OUTSIDE the chat (e.g. cancelled or sent/locked from the preview
+    // top bar), the parent updates `externalStatus`. Without this, the chat
+    // would keep a stale status — showing the wrong banner and mis-gating
+    // send/resend.
+    //
+    // This effect reacts ONLY to changes in `externalStatus` (tracked via a
+    // ref), never to `session.status` — so a chat-originated status change can
+    // never be reverted here, and there is no feedback loop. A live ref holds
+    // the current session status so we can compare without adding it to deps.
+    // A DB refetch follows to pull the full row. Applies to every doc type.
+    const sessionStatusRef = useRef<string | undefined>(undefined)
+    useEffect(() => { sessionStatusRef.current = session?.status }, [session?.status])
+
+    const lastExternalStatusRef = useRef<string | undefined>(undefined)
     useEffect(() => {
-        const signal = documentCancelledSignal || 0
-        if (signal === 0 || signal === lastCancelSignalRef.current) return
-        lastCancelSignalRef.current = signal
-        updateSessionStatus("cancelled")
-        refreshSession?.().catch(() => {})
-    }, [documentCancelledSignal]) // eslint-disable-line react-hooks/exhaustive-deps
+        if (externalStatus === lastExternalStatusRef.current) return
+        lastExternalStatusRef.current = externalStatus
+        if (!externalStatus) return                          // empty reset on session switch — ignore
+        if (sessionStatusRef.current === externalStatus) return // already in sync (chat-originated)
+        // Apply the parent's authoritative status directly (no DB refetch): it
+        // is the same value driving the preview's lock UI, so chat + preview
+        // stay consistent, and the AI reads the real DB status server-side on
+        // each message regardless. Avoids a flicker/revert for locks that don't
+        // change the DB status row (e.g. payment-link locks).
+        updateSessionStatus(externalStatus)
+    }, [externalStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Eager cleanup when selectedSessionId changes ─────────────────────
     // Clear all chat state SYNCHRONOUSLY when the user navigates to a different
