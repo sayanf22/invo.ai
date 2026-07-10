@@ -1,4 +1,4 @@
-﻿﻿﻿import {
+﻿﻿import {
     Document,
     Page,
     Text,
@@ -3623,6 +3623,22 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                         })}
                     </View>
                 )}
+
+                {/* CLIENT UPLOADS - read-only, structured. Deliberately NOT
+                    mixed into the owner-editable Notes textarea below (that
+                    field is bound to onChange({ notes }) in editor-panel.tsx),
+                    so editing Notes can never delete or garble this. */}
+                {(((data as any).clientUploadedFileNames?.length ?? 0) > 0 || (data as any).clientFileLink) ? (
+                    <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 12, backgroundColor: bg, ...r(8), ...bNone() }} wrap={false}>
+                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>Client Uploads</Text>
+                        {((data as any).clientUploadedFileNames as string[] | undefined)?.map((name, i) => (
+                            <Text key={i} style={{ fontSize: 9.5, color: txt, lineHeight: 1.6 }}>{"\u2022"} {name}</Text>
+                        ))}
+                        {(data as any).clientFileLink ? (
+                            <Text style={{ fontSize: 9.5, color: txt, lineHeight: 1.6, marginTop: 4 }}>Link: {(data as any).clientFileLink}</Text>
+                        ) : null}
+                    </View>
+                ) : null}
 
                 {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? (

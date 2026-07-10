@@ -87,6 +87,11 @@ export function ChatSendCard({
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  // Onboarding forms send a real fillable link (from POST /api/onboarding),
+  // which is a completely different URL from the generic /d/<shortId> preview
+  // link used by every other document type. Captured from the API response
+  // so the "sent" confirmation shows the link the client can actually fill.
+  const [onboardFillUrl, setOnboardFillUrl] = useState<string | null>(null)
   const emailRef = useRef<HTMLInputElement>(null)
   // Sign-first modal — shown before sending a contract
   const [showSignFirst, setShowSignFirst] = useState(false)
@@ -255,6 +260,11 @@ export function ChatSendCard({
           }),
         })
         if (res.ok) {
+          // Capture the real fillable link (a fresh token every send — the
+          // server always generates a brand-new onboarding_forms row). This
+          // must be shown, not the generic /d/<shortId> preview link.
+          const data = await res.json().catch(() => ({}))
+          setOnboardFillUrl(typeof data.onboardUrl === "string" ? data.onboardUrl : null)
           setSlideDir("right")
           setStep("sent")
           onLockDocument?.()
@@ -354,8 +364,13 @@ export function ChatSendCard({
 
   // ── Step 3: Sent — compact confirmation with document link ──
   if (step === "sent") {
+    // Onboarding forms: the client-fillable link (captured from the API
+    // response, a fresh token every send). Every other type: the generic
+    // /d/<shortId> preview/pay link.
     const shortId = sessionId.split("-")[0] // First 8 chars of UUID
-    const docLink = `${typeof window !== "undefined" ? window.location.origin : ""}/d/${shortId}`
+    const docLink = isOnboardingForm
+      ? (onboardFillUrl || "")
+      : `${typeof window !== "undefined" ? window.location.origin : ""}/d/${shortId}`
     return (
       <div className={cn(
         "flex justify-start w-full",
@@ -386,7 +401,8 @@ export function ChatSendCard({
               </span>
             )}
           </div>
-          {/* Document link */}
+          {/* Document / fill link */}
+          {docLink && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/40 border border-border/30">
             <LinkIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{docLink}</span>
@@ -405,6 +421,7 @@ export function ChatSendCard({
               Copy
             </button>
           </div>
+          )}
         </div>
       </div>
     )

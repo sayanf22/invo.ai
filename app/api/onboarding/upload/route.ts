@@ -5,13 +5,23 @@
  * auth — validated by the form token. Files go to Cloudflare R2 under a
  * form-scoped key; metadata is recorded in onboarding_files. Gated by the
  * form's `allow_uploads` snapshot. OWASP: magic-byte + size + type validation.
+ *
+ * GET /api/onboarding/upload?token=...&fileId=...  (public, token-keyed)
+ *
+ * Lets the CLIENT re-download a file they previously uploaded (e.g. after
+ * closing and reopening the tab, or from the post-submit preview screen).
+ * Mirrors the owner-side download in /api/onboarding/files but is gated by
+ * the form token instead of authenticated ownership — a file can only be
+ * downloaded if it belongs to the SAME form the token resolves to.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { uploadToR2 } from "@/lib/r2"
+import { uploadToR2, getObject } from "@/lib/r2"
 import { sanitizeFileName } from "@/lib/sanitize"
 import { ONBOARD_TOKEN_REGEX, MAX_FILES_PER_FORM } from "@/lib/onboarding-fields"
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -113,5 +123,54 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Onboarding upload error:", error instanceof Error ? error.message : error)
     return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 })
+  }
+}
+
+// ── GET: client re-downloads a file they uploaded, gated by form token ──────
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const token = searchParams.get("token")
+    const fileId = searchParams.get("fileId")
+
+    if (!token || !ONBOARD_TOKEN_REGEX.test(token)) {
+      return NextResponse.json({ error: "Invalid form link." }, { status: 404 })
+    }
+    if (!fileId || !UUID_RE.test(fileId)) {
+      return NextResponse.json({ error: "Invalid file id." }, { status: 400 })
+    }
+
+    const admin = serviceClient()
+    const { data: form } = await admin
+      .from("onboarding_forms")
+      .select("id")
+      .eq("token", token)
+      .single()
+    if (!form) return NextResponse.json({ error: "Invalid form link." }, { status: 404 })
+
+    // Ownership scoped to THIS form — a token can only ever fetch files that
+    // belong to the same form it resolves to.
+    const { data: file } = await admin
+      .from("onboarding_files")
+      .select("file_key, file_name, mime_type")
+      .eq("id", fileId)
+      .eq("form_id", form.id)
+      .single()
+    if (!file) return NextResponse.json({ error: "File not found." }, { status: 404 })
+
+    const obj = await getObject(file.file_key)
+    if (!obj) return NextResponse.json({ error: "File is no longer available." }, { status: 404 })
+
+    const safeName = String(file.file_name || "download").replace(/[^\w.\- ]/g, "_").slice(0, 200)
+    return new Response(obj.body, {
+      headers: {
+        "Content-Type": file.mime_type || obj.contentType || "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${safeName}"`,
+        "Cache-Control": "private, no-store",
+      },
+    })
+  } catch (error) {
+    console.error("Onboarding client file download error:", error instanceof Error ? error.message : error)
+    return NextResponse.json({ error: "Download failed." }, { status: 500 })
   }
 }

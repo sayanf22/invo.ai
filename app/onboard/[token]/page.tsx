@@ -14,6 +14,7 @@ import {
   Loader2, CheckCircle2, AlertTriangle, Upload, FileText, ImageIcon, X, Clock, CloudUpload, ExternalLink,
   ArrowLeft, ArrowRight, List, Rows,
 } from "lucide-react"
+import { pdf } from "@react-pdf/renderer"
 import { compressImage } from "@/lib/compress-image"
 
 type FieldType = "short_text" | "long_text" | "file" | "external_link"
@@ -31,6 +32,8 @@ interface Field {
 interface FileRef { fileId: string; fileName: string }
 type AnswerValue = string | FileRef[]
 
+interface ClientFile { id: string; fileName: string; mimeType: string; fileSize: number }
+
 interface OnboardFormData {
   token: string
   title: string | null
@@ -39,6 +42,9 @@ interface OnboardFormData {
   fields: Field[]
   clientName: string | null
   clientEmail: string | null
+  clientFiles: ClientFile[]
+  /** Client-safe document preview data, present only once status === "submitted". */
+  preview: Record<string, unknown> | null
   draftAnswers: Record<string, AnswerValue>
   answers: Record<string, AnswerValue> | null
   submittedAt: string | null
@@ -226,15 +232,11 @@ export default function OnboardFillPage() {
 
   if (screen === "submitted") {
     return (
-      <Centered>
-        <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
-          <CheckCircle2 className="w-7 h-7 text-emerald-600 dark:text-emerald-400" />
-        </div>
-        <h1 className="text-xl font-semibold text-foreground">Thank you!</h1>
-        <p className="text-sm text-muted-foreground max-w-sm">
-          Your responses have been sent to {business?.name || "the sender"}. You can close this page.
-        </p>
-      </Centered>
+      <SubmittedScreen
+        business={business}
+        form={form}
+        token={token}
+      />
     )
   }
 
@@ -519,6 +521,133 @@ function Centered({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-muted/30 flex items-center justify-center p-6">
       <div className="flex flex-col items-center gap-3 text-center">{children}</div>
+    </div>
+  )
+}
+
+// ── Post-submission screen: thank-you + document preview + downloads ───────────
+
+function SubmittedScreen({ business, form, token }: {
+  business: Business | null
+  form: OnboardFormData | null
+  token: string
+}) {
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!form?.preview || downloading) return
+    setDownloading(true)
+    setDownloadError(null)
+    try {
+      const { ClientOnboardingFormPDF } = await import("@/lib/pdf-templates")
+      const logoUrl = business?.logoUrl || null
+      const blob = await pdf(
+        <ClientOnboardingFormPDF data={form.preview as any} logoUrl={logoUrl} />
+      ).toBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `onboarding-${(form.preview as any).referenceNumber || "form"}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch {
+      setDownloadError("Could not generate the PDF. Please try again.")
+    } finally {
+      setDownloading(false)
+    }
+  }, [form, business, downloading])
+
+  const handleDownloadFile = useCallback((fileId: string, fileName: string) => {
+    const a = document.createElement("a")
+    a.href = `/api/onboarding/upload?token=${encodeURIComponent(token)}&fileId=${encodeURIComponent(fileId)}`
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }, [token])
+
+  const preview = form?.preview as any
+  const clientFiles = form?.clientFiles ?? []
+
+  return (
+    <div className="min-h-dvh bg-muted/30">
+      <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
+        <div className="flex flex-col items-center gap-3 text-center mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
+            <CheckCircle2 className="w-7 h-7 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <h1 className="text-xl font-semibold text-foreground">Thank you!</h1>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Your responses have been sent to {business?.name || "the sender"}.
+          </p>
+        </div>
+
+        {/* Document preview */}
+        {preview && (
+          <div className="rounded-2xl border border-border bg-card shadow-sm p-5 sm:p-6 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Your submitted form</p>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={downloading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                {downloading ? "Preparing…" : "Download PDF"}
+              </button>
+            </div>
+            {downloadError && <p className="text-xs text-destructive mb-3">{downloadError}</p>}
+
+            <div className="space-y-3">
+              {preview.projectName && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">Project</p>
+                  <p className="text-sm text-foreground font-medium">{preview.projectName}</p>
+                </div>
+              )}
+              {Array.isArray(preview.customQuestions) && preview.customQuestions.length > 0 && (
+                <div className="space-y-2.5 pt-1">
+                  {preview.customQuestions.map((qa: { question: string; answer: string }, i: number) => (
+                    <div key={i} className="border-t border-border/60 pt-2.5 first:border-t-0 first:pt-0">
+                      <p className="text-xs font-medium text-foreground">{qa.question}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">{qa.answer || "—"}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Client's own uploaded files */}
+        {clientFiles.length > 0 && (
+          <div className="rounded-2xl border border-border bg-card shadow-sm p-5 sm:p-6 mb-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Your uploaded files</p>
+            <div className="space-y-1.5">
+              {clientFiles.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => handleDownloadFile(f.id, f.fileName)}
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-border bg-muted/30 hover:bg-muted/60 transition-colors text-left"
+                >
+                  {/\.(png|jpe?g|webp|gif)$/i.test(f.fileName)
+                    ? <ImageIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    : <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                  <span className="text-xs text-foreground truncate flex-1">{f.fileName}</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">Download</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <p className="text-sm text-muted-foreground text-center mt-2">You can close this page.</p>
+      </div>
     </div>
   )
 }

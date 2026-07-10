@@ -220,10 +220,44 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ── GET: public token lookup for the fill page ───────────────────────────────
+// ── GET: public token lookup (fill page) OR owner sessionId lookup (chat link card) ──
 export async function GET(request: NextRequest) {
   try {
-    const token = new URL(request.url).searchParams.get("token")
+    const { searchParams } = new URL(request.url)
+    const token = searchParams.get("token")
+    const sessionId = searchParams.get("sessionId")
+
+    // Owner-authenticated lookup: "what's the current fillable link for this
+    // onboarding session?" Used by the chat's "show me the link" card, which
+    // otherwise has no way to know the token (it's never stored client-side).
+    // Returns the most recent NON-expired form for the session — after a
+    // cancel+resend, the old form is expired and this always surfaces the
+    // fresh one.
+    if (sessionId) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)) {
+        return NextResponse.json({ error: "Invalid sessionId." }, { status: 400 })
+      }
+      const auth = await authenticateRequest(request)
+      if (auth.error) return auth.error
+
+      const admin = serviceClient()
+      const { data: form } = await admin
+        .from("onboarding_forms")
+        .select("token, status")
+        .eq("session_id", sessionId)
+        .eq("user_id", auth.user.id)
+        .neq("status", "expired")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (!form) {
+        return NextResponse.json({ error: "No active onboarding link found for this document." }, { status: 404 })
+      }
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"
+      return NextResponse.json({ onboardUrl: `${appUrl}/onboard/${form.token}`, status: form.status })
+    }
+
     if (!token || !ONBOARD_TOKEN_REGEX.test(token)) {
       return NextResponse.json({ error: "Invalid or expired form link." }, { status: 404 })
     }
@@ -231,7 +265,7 @@ export async function GET(request: NextRequest) {
     const admin = serviceClient()
     const { data: form, error } = await admin
       .from("onboarding_forms")
-      .select("id, user_id, token, status, allow_uploads, fields, title, client_name, client_email, draft_answers, answers, submitted_at, expires_at")
+      .select("id, user_id, session_id, token, status, allow_uploads, fields, title, client_name, client_email, draft_answers, answers, submitted_at, expires_at")
       .eq("token", token)
       .single()
 
@@ -267,6 +301,50 @@ export async function GET(request: NextRequest) {
         .then(() => {}, () => {})
     }
 
+    // Post-submit only: build a client-safe preview payload so the "Thank
+    // you" screen can show/download the completed document. Only exposed
+    // once the form is submitted — never mid-fill, since the underlying
+    // document_sessions.context may carry owner-side fields (design/theme,
+    // fromAddress, etc.) that shouldn't be surfaced before the client is done.
+    // Explicitly allowlisted (never a raw context spread) so no unrelated
+    // owner data can leak through this public endpoint.
+    let preview: Record<string, unknown> | null = null
+    if (form.status === "submitted") {
+      const { data: session } = await admin
+        .from("document_sessions")
+        .select("context")
+        .eq("id", form.session_id)
+        .single()
+      const ctx = (session?.context ?? {}) as Record<string, unknown>
+      preview = {
+        documentType: "client_onboarding_form",
+        referenceNumber: typeof ctx.referenceNumber === "string" ? ctx.referenceNumber : "",
+        clientName: form.client_name || (typeof ctx.clientName === "string" ? ctx.clientName : ""),
+        clientEmail: form.client_email || (typeof ctx.clientEmail === "string" ? ctx.clientEmail : ""),
+        clientPhone: typeof ctx.clientPhone === "string" ? ctx.clientPhone : "",
+        clientAddress: typeof ctx.clientAddress === "string" ? ctx.clientAddress : "",
+        projectName: typeof ctx.projectName === "string" ? ctx.projectName : (form.title || ""),
+        projectDescription: typeof ctx.projectDescription === "string" ? ctx.projectDescription : "",
+        requirements: Array.isArray(ctx.requirements) ? ctx.requirements : [],
+        timelinePreference: typeof ctx.timelinePreference === "string" ? ctx.timelinePreference : "",
+        budgetRange: typeof ctx.budgetRange === "string" ? ctx.budgetRange : "",
+        customQuestions: Array.isArray(ctx.customQuestions) ? ctx.customQuestions : [],
+        fromName: typeof ctx.fromName === "string" ? ctx.fromName : ((business as any)?.name || ""),
+        notes: "", // owner's free-text notes are never shown to the client
+        clientFileLink: typeof ctx.clientFileLink === "string" ? ctx.clientFileLink : null,
+        clientUploadedFileNames: Array.isArray(ctx.clientUploadedFileNames) ? ctx.clientUploadedFileNames : [],
+        design: (ctx.design && typeof ctx.design === "object") ? ctx.design : undefined,
+      }
+    }
+
+    // Client's own uploaded files (id + name only — actual bytes are fetched
+    // on demand via GET /api/onboarding/upload, token-gated per file).
+    const { data: clientFiles } = await admin
+      .from("onboarding_files")
+      .select("id, file_name, mime_type, file_size")
+      .eq("form_id", form.id)
+      .order("created_at", { ascending: true })
+
     return NextResponse.json({
       form: {
         token: form.token,
@@ -276,6 +354,8 @@ export async function GET(request: NextRequest) {
         fields: form.fields,
         clientName: form.client_name,
         clientEmail: form.client_email,
+        clientFiles: (clientFiles ?? []).map((f: any) => ({ id: f.id, fileName: f.file_name, mimeType: f.mime_type, fileSize: f.file_size })),
+        preview,
         draftAnswers: form.draft_answers ?? {},
         answers: form.answers ?? null,
         submittedAt: form.submitted_at,

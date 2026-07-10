@@ -207,20 +207,16 @@ export function applyAnswersToContext(
     return { ...q, answer: answer ?? q.answer ?? "" }
   })
 
-  // Capture the client's own file link into notes so the owner sees it.
+  // Capture the client's own file link + uploaded file names into DEDICATED
+  // context fields — never into `notes`. `notes` is a plain free-text field
+  // the owner edits directly in the editor panel (editor-panel.tsx), so
+  // mixing file-tracking text into it meant an owner editing their notes
+  // could garble or delete it, and the raw tracking text ("Client-uploaded
+  // files: ...") showed up inside an editable textarea, which looked broken.
+  // These fields have no editor UI binding, so they never surface there.
   const clientLink = typeof answers[CLIENT_LINK_FIELD_ID] === "string" ? (answers[CLIENT_LINK_FIELD_ID] as string).trim() : ""
-  const extraNotes: string[] = []
-  if (clientLink) extraNotes.push(`Client file link: ${clientLink}`)
-
-  if (uploadedFileNames.length > 0) {
-    extraNotes.push(`Client-uploaded files: ${uploadedFileNames.join(", ")}`)
-  }
-
-  if (extraNotes.length > 0) {
-    const existingNotes = typeof next.notes === "string" ? next.notes : ""
-    const block = extraNotes.join("\n")
-    next.notes = existingNotes ? `${existingNotes}\n\n${block}` : block
-  }
+  if (clientLink) next.clientFileLink = clientLink
+  if (uploadedFileNames.length > 0) next.clientUploadedFileNames = uploadedFileNames
 
   return next
 }

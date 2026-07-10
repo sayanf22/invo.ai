@@ -646,9 +646,16 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         continue
                     }
                     if (meta?.card === "link") {
-                        const shortId = session.id.split("-")[0]
-                        const docLink = `${typeof window !== "undefined" ? window.location.origin : "https://clorefy.com"}/d/${shortId}`
-                        restoredMessages.push({ role: "assistant" as const, content: "", linkCard: docLink })
+                        // Onboarding forms use a real fillable /onboard/<token> link
+                        // that isn't stored client-side — resolved asynchronously
+                        // below (this effect isn't async) via a loading sentinel.
+                        if (docType === "client_onboarding_form") {
+                            restoredMessages.push({ role: "assistant" as const, content: "", linkCard: "__resolving_onboard_link__" })
+                        } else {
+                            const shortId = session.id.split("-")[0]
+                            const docLink = `${typeof window !== "undefined" ? window.location.origin : "https://clorefy.com"}/d/${shortId}`
+                            restoredMessages.push({ role: "assistant" as const, content: "", linkCard: docLink })
+                        }
                         continue
                     }
                     if (meta?.card === "recurring_setup") {
@@ -687,6 +694,24 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             }
             setMessages(restoredMessages)
             setWelcomeLoaded(true)
+
+            // Resolve the real onboarding fill link for any restored link card
+            // (sentinel set above — this effect can't be async directly).
+            if (docType === "client_onboarding_form" && restoredMessages.some(m => m.linkCard === "__resolving_onboard_link__")) {
+                const sid = session.id
+                authFetch(`/api/onboarding?sessionId=${sid}`)
+                    .then(res => res.json().catch(() => ({})).then(d => ({ ok: res.ok, d })))
+                    .then(({ ok, d }) => {
+                        setMessages(prev => prev.map(m => m.linkCard === "__resolving_onboard_link__"
+                            ? { ...m, linkCard: ok && d.onboardUrl ? d.onboardUrl : undefined, content: ok && d.onboardUrl ? "" : "This form hasn't been sent yet, so there's no fillable link." }
+                            : m))
+                    })
+                    .catch(() => {
+                        setMessages(prev => prev.map(m => m.linkCard === "__resolving_onboard_link__"
+                            ? { ...m, linkCard: undefined, content: "Couldn't look up the form link." }
+                            : m))
+                    })
+            }
 
             // Restore document preview from session context
             const ctx = session.context
@@ -1892,6 +1917,31 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
                 // [ACTION:SHOW_LINK] — AI wants to show the document link
                 if (cleaned.startsWith("[ACTION:SHOW_LINK]") && session) {
+                    // Onboarding forms have a real client-fillable link (a token
+                    // that isn't stored client-side), not the generic /d/<shortId>
+                    // preview link every other document type uses. Look it up.
+                    if (docType === "client_onboarding_form") {
+                        try {
+                            const res = await authFetch(`/api/onboarding?sessionId=${session.id}`)
+                            const d = await res.json().catch(() => ({}))
+                            if (res.ok && d.onboardUrl) {
+                                setMessages(prev => [...prev, { role: "assistant", content: "", linkCard: d.onboardUrl }])
+                                await saveMessage("user", displayText)
+                                await saveMessage("assistant", "View document link", { card: "link" })
+                            } else {
+                                const msg = "This form hasn't been sent yet, so there's no fillable link. Ask me to send it first."
+                                setMessages(prev => [...prev, { role: "assistant", content: msg }])
+                                await saveMessage("user", displayText)
+                                await saveMessage("assistant", msg)
+                            }
+                        } catch {
+                            const msg = "Couldn't look up the form link. Please try again."
+                            setMessages(prev => [...prev, { role: "assistant", content: msg }])
+                            await saveMessage("user", displayText)
+                            await saveMessage("assistant", msg)
+                        }
+                        return
+                    }
                     const shortId = session.id.split("-")[0]
                     const docLink = `${window.location.origin}/d/${shortId}`
                     setMessages(prev => [...prev, { role: "assistant", content: "", linkCard: docLink }])
