@@ -87,6 +87,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "This document is not an onboarding form." }, { status: 400 })
     }
 
+    // Lock policy: once a form has been sent (finalized) or is otherwise locked,
+    // it cannot be re-sent. The owner must cancel it first — which invalidates
+    // the previous fill link — and then send again. Defense-in-depth for the
+    // same rule enforced in the chat + Share UI.
+    const lockedStatuses = ["finalized", "signed", "paid"]
+    if (lockedStatuses.includes((session.status || "").toLowerCase())) {
+      return NextResponse.json(
+        { error: "This form has already been sent. Cancel it first to send again." },
+        { status: 409 },
+      )
+    }
+
     const context = (session.context ?? {}) as Record<string, unknown>
 
     // Uploads gated to Pro/Agency (entitlement snapshotted at send time).

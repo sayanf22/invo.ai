@@ -363,6 +363,12 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
       // then the real send screen. The payment-link copy (which never applies
       // to onboarding) is left untouched for safety.
       if (useOnboardingShareFlow && action !== "copy-payment-link") {
+        // Once sent, an onboarding form is locked. To send it again the owner
+        // must cancel it first (invalidating the old fill link), then resend.
+        if (isLocked) {
+          toast.info("This form has already been sent. Cancel it first to send again.")
+          return
+        }
         setShowAssetLinkStep(true)
         return
       }
@@ -372,7 +378,7 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
       }
       await executeShareAction(action)
     },
-    [useOnboardingShareFlow, requiresLockConfirm, executeShareAction]
+    [useOnboardingShareFlow, isLocked, requiresLockConfirm, executeShareAction]
   )
 
   // Continue/skip from the onboarding asset-link step → open the send screen.

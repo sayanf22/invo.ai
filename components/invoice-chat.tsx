@@ -1122,6 +1122,20 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                 // fillable-link flow).
                 if (docType === "client_onboarding_form" && (hasSendIntent || isResend)) {
                     setInputValue("")
+                    // Once sent, the form is locked. To send again the owner must
+                    // cancel it first (which invalidates the old fill link), then
+                    // resend. This mirrors the manual (Share) lock behavior.
+                    const isLockedStatus = ["finalized", "signed", "paid"].includes(session.status || "")
+                    if (isLockedStatus) {
+                        const lockedMsg = "This onboarding form has already been sent, so it's locked. To send it again, cancel it from the preview panel first — that invalidates the old link — then ask me to resend."
+                        setMessages(prev => [...prev,
+                            { role: "user" as const, content: userMessage },
+                            { role: "assistant" as const, content: lockedMsg },
+                        ])
+                        await saveMessage("user", userMessage)
+                        await saveMessage("assistant", lockedMsg)
+                        return
+                    }
                     const method: "email" | "general" = (sendMethod === "email" || isResend) ? "email" : "general"
                     const introMsg = "Before you send — add a link where your client can upload their assets (logo, brand files). This is optional; you can skip it."
                     setMessages(prev => [...prev,

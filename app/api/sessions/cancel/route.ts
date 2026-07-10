@@ -152,6 +152,17 @@ export async function POST(request: NextRequest) {
       .eq("user_id", auth.user.id)
       .eq("status", "pending")
 
+    // 4. Invalidate any outstanding onboarding fill links for this session.
+    //    Cancelling a sent form must void its public link (the client can no
+    //    longer fill it) so a fresh resend issues a new token. Submitted forms
+    //    are preserved — their answers are already recorded.
+    await (auth.supabase as any)
+      .from("onboarding_forms")
+      .update({ status: "expired" })
+      .eq("session_id", sessionId)
+      .eq("user_id", auth.user.id)
+      .in("status", ["pending", "in_progress"])
+
     return NextResponse.json({
       success: true,
       message: "Document cancelled. All signing links and reminders have been invalidated.",
