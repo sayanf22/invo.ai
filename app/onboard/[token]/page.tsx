@@ -400,7 +400,7 @@ function FieldRenderer({ field, value, onText, onUpload, onRemoveFile, uploading
             {uploading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Upload className="w-4 h-4 text-muted-foreground" />}
           </div>
           <span className="text-sm text-foreground">{uploading ? "Uploading…" : (field.placeholder || "Click to upload")}</span>
-          <span className="text-[11px] text-muted-foreground">PDF or image · max 10MB</span>
+          <span className="text-[11px] text-muted-foreground">Images or PDF only · max 10MB · no videos</span>
         </label>
         {files.length > 0 && (
           <div className="mt-2 space-y-1.5">

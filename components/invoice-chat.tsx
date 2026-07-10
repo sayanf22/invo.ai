@@ -625,6 +625,20 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         restoredMessages.push({ role: "assistant" as const, content: "", recurringCard: "cancel" as const })
                         continue
                     }
+                    if (meta?.card === "asset_link") {
+                        const cleanContent = sanitizeRestoredContent(msg.content)
+                        // Only restore the actionable card if the document hasn't been
+                        // sent yet — otherwise the flow has already moved on.
+                        const sessionStatus = session.status
+                        const stillActionable = sessionStatus === "active" || sessionStatus === "draft"
+                        if (cleanContent) restoredMessages.push({ role: "assistant" as const, content: cleanContent })
+                        if (stillActionable) {
+                            const method = ((meta?.method as string) === "email" ? "email" : "general") as "email" | "general"
+                            const cardEmail = (meta?.email as string) || ""
+                            restoredMessages.push({ role: "assistant" as const, content: "", assetLinkCard: { method, email: cardEmail } })
+                        }
+                        continue
+                    }
                 }
                 // For regular messages (user or assistant without card), sanitize content
                 const cleanContent = msg.role === "assistant"
@@ -1113,6 +1127,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         { role: "assistant" as const, content: "", assetLinkCard: { method, email: knownEmail } },
                     ])
                     await saveMessage("user", userMessage)
+                    // Persist the intro + card so a page reload mid-flow restores it
+                    // (mirrors how { card: "send"|"share" } is restored elsewhere).
+                    await saveMessage("assistant", introMsg, { card: "asset_link", method, email: knownEmail })
                     return
                 }
 

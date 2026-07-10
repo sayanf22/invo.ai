@@ -25,7 +25,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function OnboardingClientUploads({ sessionId }: { sessionId?: string }) {
+export function OnboardingClientUploads({ sessionId, alwaysShow }: { sessionId?: string; alwaysShow?: boolean }) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [loading, setLoading] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
@@ -63,7 +63,8 @@ export function OnboardingClientUploads({ sessionId }: { sessionId?: string }) {
     }
   }, [])
 
-  if (!sessionId || (!loading && files.length === 0)) return null
+  if (!sessionId) return null
+  if (!alwaysShow && !loading && files.length === 0) return null
 
   return (
     <div className="border border-border rounded-2xl bg-card shadow-sm p-4">
@@ -74,6 +75,10 @@ export function OnboardingClientUploads({ sessionId }: { sessionId?: string }) {
         <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
           <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…
         </div>
+      ) : files.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-1">
+          No files uploaded yet. Your client can upload images or PDFs directly on the form — they&apos;ll appear here.
+        </p>
       ) : (
         <div className="space-y-2">
           {files.map((f) => {

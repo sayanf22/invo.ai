@@ -24,6 +24,7 @@ import { authFetch } from "@/lib/auth-fetch"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { MarkAsPaidButton } from "@/components/mark-as-paid-button"
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
+import { OnboardingClientUploads } from "@/components/onboarding-client-uploads"
 
 // ── Document Type Icon Map ────────────────────────────────────────────────────
 // Resolves registry icon string names to Lucide React components.
@@ -773,6 +774,7 @@ function DocCard({
   const [emailExpanded, setEmailExpanded] = useState(false)
   const [recurringExpanded, setRecurringExpanded] = useState(false)
   const [signatureExpanded, setSignatureExpanded] = useState(false)
+  const [assetsExpanded, setAssetsExpanded] = useState(false)
   const [localPayment, setLocalPayment] = useState<PaymentRecord | null>(session.payment ?? null)
   const [localStatus, setLocalStatus] = useState(session.status)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -804,6 +806,7 @@ function DocCard({
   const hasEmails = !!emailStats && (emailStats.totalSent > 0 || emailStats.pendingCount > 0)
   const hasRecurring = docType === "invoice" // show recurring option for all invoices
   const hasSignatures = !!(session.signatures && session.signatures.length > 0)
+  const isOnboardingForm = docType === "client_onboarding_form"
 
   // Determine if this invoice is manually paid (no gateway)
   const isManuallyPaid = payment?.is_manual === true || payment?.gateway === "manual"
@@ -1033,6 +1036,20 @@ function DocCard({
             </button>
           )}
 
+          {/* Client uploads pill — onboarding forms only */}
+          {isOnboardingForm && (
+            <button onClick={() => setAssetsExpanded(v => !v)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-200",
+                assetsExpanded
+                  ? "bg-muted text-foreground border-border"
+                  : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
+              )}>
+              <Download size={11} />
+              Client uploads
+            </button>
+          )}
+
           {/* Mark as Paid — for invoices without a connected gateway payment */}
           {showMarkAsPaid && (
             <MarkAsPaidButton
@@ -1161,6 +1178,20 @@ function DocCard({
           <div className="min-h-0 overflow-hidden">
             <div className="px-4 pb-4 pt-1">
               <EmailHistoryPanel stats={emailStats!} sessionId={session.id} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expandable client-uploads panel — onboarding forms only */}
+      {isOnboardingForm && (
+        <div className={cn(
+          "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          assetsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}>
+          <div className="min-h-0 overflow-hidden">
+            <div className="px-4 pb-4 pt-1">
+              <OnboardingClientUploads sessionId={session.id} alwaysShow />
             </div>
           </div>
         </div>

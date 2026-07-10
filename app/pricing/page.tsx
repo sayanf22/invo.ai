@@ -90,6 +90,7 @@ const plans: PlanData[] = [
       { text: "250 email sends / month", tip: null },
       { text: "Digital signatures", tip: null },
       { text: "Custom logo & branding", tip: null },
+      { text: "Reference context (AI style matching)", tip: "Upload past documents so the AI writes new ones in your own style — up to 10 files" },
     ],
     missing: [
       "Team members",
@@ -118,6 +119,7 @@ const plans: PlanData[] = [
       { text: "Unlimited email sends", tip: null },
       { text: "Digital signatures", tip: null },
       { text: "Custom logo & branding", tip: null },
+      { text: "Reference context (AI style matching)", tip: "Upload past documents so the AI writes new ones in your own style — up to 10 files" },
       { text: "3 team members", tip: null },
       { text: "Priority support", tip: null },
     ],
@@ -177,14 +179,14 @@ const pricingPlans: PricingPlan[] = [
     name: "Pro",
     price: 35,
     currency: "USD",
-    description: "150 documents/month, all document types and templates, PDF + DOCX + Image export, digital signatures, custom branding.",
+    description: "150 documents/month, all document types and templates, PDF + DOCX + Image export, digital signatures, custom branding, AI reference context.",
     billingPeriod: "P1M",
   },
   {
     name: "Agency",
     price: 100,
     currency: "USD",
-    description: "Unlimited documents, all features, 3 team members, priority support, forever history.",
+    description: "Unlimited documents, all features including AI reference context, 3 team members, priority support, forever history.",
     billingPeriod: "P1M",
   },
 ]
