@@ -68,24 +68,44 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
             // already has authorized.
             if (data.upgraded) {
                 const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1)
-                if (data.deferredToNextCycle) {
+                if (data.pending) {
+                    toast.info(data.message || "Razorpay confirmed the change. Local billing status is still syncing.")
+                    await authFetch("/api/razorpay/reconcile", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: "{}",
+                    }).catch(() => null)
+                } else if (data.deferredToNextCycle) {
                     const effectiveDate = data.periodEnd
                         ? new Date(data.periodEnd).toLocaleDateString()
                         : "your next billing cycle"
-                    toast.success(`${planLabel} is scheduled for ${effectiveDate}. Your current plan remains active until then.`)
+                    toast.success(`${planLabel} is scheduled for ${effectiveDate}. No charge is made until the new cycle starts.`)
+                } else if (typeof data.chargedAmount === "number") {
+                    const charged = new Intl.NumberFormat(undefined, {
+                        style: "currency",
+                        currency: data.chargedCurrency || data.currency || "INR",
+                    }).format(data.chargedAmount / 100)
+                    toast.success(`🎉 ${planLabel} activated. Razorpay charged ${charged} for the prorated upgrade.`)
                 } else {
-                    toast.success(`🎉 ${planLabel} plan activated!`)
+                    toast.success(`🎉 ${planLabel} activated. Razorpay is finalizing the prorated charge record.`)
                 }
                 setIsProcessing(false)
-                onSuccess?.(data.plan ?? plan, billingCycle)
+                onSuccess?.(data.plan ?? plan, data.billingCycle ?? billingCycle)
                 return
+            }
+
+            if (data.scheduledChange) {
+                const effectiveDate = data.effectiveDate
+                    ? new Date(data.effectiveDate).toLocaleDateString()
+                    : "the next billing cycle"
+                toast.info(`Authorize the new mandate now. The new price starts on ${effectiveDate}; you will not be charged the full new plan price today.`)
             }
 
             // Open Razorpay Checkout with subscription_id
             const options: any = {
                 key: data.keyId,
                 name: "Clorefy",
-                description: `${data.planName} Plan — Monthly`,
+                description: `${data.planName} Plan — ${data.billingCycle === "yearly" ? "Yearly" : "Monthly"}${data.scheduledChange ? " (starts next cycle)" : ""}`,
                 subscription_id: data.subscriptionId,
                 prefill: {
                     email: user.email || "",
@@ -106,14 +126,29 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
                             }),
                         })
 
-                        if (!verifyRes.ok) throw new Error("Payment verification failed")
+                        const verifyData = await verifyRes.json().catch(() => ({}))
+                        if (!verifyRes.ok) throw new Error(verifyData.error || "Payment verification failed")
+
+                        if (verifyData.pending) {
+                            toast.info(verifyData.message || "Payment received. Activation is still syncing.")
+                            return
+                        }
+                        if (verifyData.scheduled) {
+                            const effectiveDate = verifyData.effectiveDate
+                                ? new Date(verifyData.effectiveDate).toLocaleDateString()
+                                : "your next billing cycle"
+                            toast.success(`Change scheduled for ${effectiveDate}. Your current plan remains active until then.`)
+                            onSuccess?.(verifyData.targetPlan ?? plan, verifyData.targetBillingCycle ?? billingCycle)
+                            return
+                        }
 
                         toast.success(`🎉 ${data.planName} plan activated!`)
                         await new Promise(r => setTimeout(r, 800))
-                        onSuccess?.(plan, billingCycle)
-                    } catch {
-                        toast.error("Payment received but activation failed. Contact support.")
-                        onError?.("Verification failed")
+                        onSuccess?.(verifyData.plan ?? plan, verifyData.billingCycle ?? billingCycle)
+                    } catch (error) {
+                        const message = error instanceof Error ? error.message : "Verification failed"
+                        toast.error(message)
+                        onError?.(message)
                     } finally {
                         setIsProcessing(false)
                     }

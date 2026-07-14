@@ -99,7 +99,9 @@ KEY FACTS:
 - Pro plan ($24/mo): 150 docs/month, all 9 types, PDF+DOCX+Image, 250 emails/month, 50 messages/session, auto-reminders
 - Agency plan ($59/mo, coming soon): unlimited everything, all 9 types, all exports, team members, priority support
 - Yearly billing saves ~20% vs monthly
-- 14-day free trial available for Starter and Pro
+- Paid plans are charged at secure checkout; there is no paid-plan free trial
+- Same-cycle card upgrades can activate immediately with a prorated difference charge
+- Billing-cycle changes, non-card mandate changes, downgrades, and cancellations take effect next cycle
 - Agency plan is "Coming Soon" — users can join a waitlist`
 
     // The user's specific current plan context

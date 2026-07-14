@@ -289,6 +289,30 @@ export function planIdToAmount(razorpayPlanId: string): number | null {
  * Used by the reconcile endpoint to verify + activate a payment that the
  * synchronous /verify call missed. Returns the raw subscription entity.
  */
+export async function getPayment(paymentId: string): Promise<{
+    id: string
+    amount: number
+    currency: string
+    status: string
+    order_id?: string | null
+} | null> {
+    const { getSecret } = await import("@/lib/secrets")
+    const keyId = await getSecret("RAZORPAY_KEY_ID")
+    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+    if (!keyId || !keySecret) throw new Error("Razorpay API keys not configured")
+
+    const res = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+        headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+        signal: AbortSignal.timeout(10000),
+    })
+    if (!res.ok) {
+        if (res.status === 404) return null
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error?.error?.description || "Failed to fetch payment")
+    }
+    return res.json()
+}
+
 export async function getSubscription(subscriptionId: string): Promise<{
     id: string
     status: string
@@ -336,7 +360,8 @@ export async function createRazorpaySubscription(
     plan: PlanId,
     billingCycle: "monthly" | "yearly" = "monthly",
     userId?: string,
-    currency: string = "INR"
+    currency: string = "INR",
+    startAt?: number,
 ) {
     const { getSecret } = await import("@/lib/secrets")
     const keyId = await getSecret("RAZORPAY_KEY_ID")
@@ -372,6 +397,7 @@ export async function createRazorpaySubscription(
             plan_id: razorpayPlanId,
             total_count: totalCount,
             quantity: 1,
+            ...(startAt && startAt > Math.floor(Date.now() / 1000) ? { start_at: startAt } : {}),
             notes: {
                 plan,
                 billing_cycle: billingCycle,

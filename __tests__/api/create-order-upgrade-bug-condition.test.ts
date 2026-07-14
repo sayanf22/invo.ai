@@ -40,6 +40,7 @@ const mockGetSubscriptionInvoices = vi.fn()
 const mockUpdateRazorpaySubscriptionPlan = vi.fn()
 const mockGetPlanIdForCurrency = vi.fn()
 const mockPlanIdToPlan = vi.fn().mockReturnValue(null)
+const mockPlanIdToCycle = vi.fn().mockReturnValue(null)
 const mockResolveSubscriptionCurrency = vi.fn().mockReturnValue("INR")
 
 class MockRazorpayApiError extends Error {
@@ -75,6 +76,7 @@ vi.mock("@/lib/razorpay", () => ({
   updateRazorpaySubscriptionPlan: mockUpdateRazorpaySubscriptionPlan,
   getPlanIdForCurrency: mockGetPlanIdForCurrency,
   planIdToPlan: mockPlanIdToPlan,
+  planIdToCycle: mockPlanIdToCycle,
   RazorpayApiError: MockRazorpayApiError,
 }))
 
@@ -265,4 +267,84 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
       expect(body.upgraded).toBeUndefined()
     })
   }
+
+  it("schedules a same-tier monthly-to-yearly card switch at cycle end without an immediate charge", async () => {
+    mockPlanIdToPlan.mockReturnValue("pro")
+    mockPlanIdToCycle.mockReturnValue("monthly")
+    vi.mocked(authenticateRequest).mockResolvedValue({
+      error: null,
+      user: mockUser as any,
+      supabase: buildSupabaseMockWithExistingSubscription("pro") as any,
+    })
+
+    const { POST } = await import("@/app/api/razorpay/create-order/route")
+    const response = await POST(makeRequest({ plan: "pro", billingCycle: "yearly" }))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockUpdateRazorpaySubscriptionPlan).toHaveBeenCalledWith(
+      EXISTING_SUBSCRIPTION_ID,
+      "plan_target_new",
+      "cycle_end",
+    )
+    expect(body.deferredToNextCycle).toBe(true)
+    expect(body.targetBillingCycle).toBe("yearly")
+    expect(mockCreateRazorpaySubscription).not.toHaveBeenCalled()
+  })
+
+  it("rejects only an exact same-tier and same-cycle no-op", async () => {
+    mockPlanIdToPlan.mockReturnValue("pro")
+    mockPlanIdToCycle.mockReturnValue("monthly")
+    vi.mocked(authenticateRequest).mockResolvedValue({
+      error: null,
+      user: mockUser as any,
+      supabase: buildSupabaseMockWithExistingSubscription("pro") as any,
+    })
+
+    const { POST } = await import("@/app/api/razorpay/create-order/route")
+    const response = await POST(makeRequest({ plan: "pro", billingCycle: "monthly" }))
+    const body = await response.json()
+
+    expect(response.status).toBe(409)
+    expect(body.code).toBe("SAME_PLAN")
+    expect(mockUpdateRazorpaySubscriptionPlan).not.toHaveBeenCalled()
+    expect(mockCreateRazorpaySubscription).not.toHaveBeenCalled()
+  })
+
+  it("reports sync-pending instead of false success when Razorpay upgrades but final local persistence fails", async () => {
+    let subscriptionUpdate = 0
+    mockSvcFrom.mockImplementation((table: string) => {
+      if (table === "subscriptions") {
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation(async () => ({
+              error: ++subscriptionUpdate === 2 ? { message: "database unavailable" } : null,
+            })),
+          }),
+        }
+      }
+      if (table === "payment_history") {
+        return {
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null }) }) }),
+          insert: vi.fn().mockResolvedValue({ error: null }),
+        }
+      }
+      return {}
+    })
+    vi.mocked(authenticateRequest).mockResolvedValue({
+      error: null,
+      user: mockUser as any,
+      supabase: buildSupabaseMockWithExistingSubscription("pro") as any,
+    })
+
+    const { POST } = await import("@/app/api/razorpay/create-order/route")
+    const response = await POST(makeRequest({ plan: "agency", billingCycle: "monthly" }))
+    const body = await response.json()
+
+    expect(response.status).toBe(202)
+    expect(body.upgraded).toBe(true)
+    expect(body.pending).toBe(true)
+    expect(body.plan).toBe("pro")
+    expect(body.message).toContain("still syncing")
+  })
 })

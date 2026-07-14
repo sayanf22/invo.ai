@@ -1,161 +1,128 @@
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
-import { getSubscription, planIdToPlan, planIdToCurrency, planIdToCycle, planIdToAmount, isValidPlanId, PLANS, PLAN_PRICES_BY_CURRENCY, type PlanId } from "@/lib/razorpay"
+import { cancelRazorpaySubscription, getSubscription } from "@/lib/razorpay"
+import { applyRazorpaySubscriptionSnapshot } from "@/lib/razorpay-subscription-state"
 import { logAudit } from "@/lib/audit-log"
 import { createClient } from "@supabase/supabase-js"
-import type { NextRequest } from "next/server"
 
-/**
- * POST /api/razorpay/reconcile
- *
- * Self-healing subscription activation. If a payment was charged but the
- * synchronous /verify call failed (e.g. the historical signature-order bug,
- * a closed tab, or a dropped network), this endpoint recovers it:
- *
- *   1. Find a Razorpay subscription_id that THIS authenticated user previously
- *      attempted (read from their own audit_logs — never trust client input).
- *   2. Fetch that subscription LIVE from Razorpay (source of truth).
- *   3. Only activate if Razorpay reports it authenticated/active/charged AND
- *      it was created by this platform (notes.platform === 'clorefy').
- *   4. Upsert the subscription as active → the trg_sync_profile_tier trigger
- *      syncs profiles.tier automatically.
- *
- * SECURITY:
- *   - Authenticated + origin-validated.
- *   - The subscription_id is resolved from the user's OWN audit trail, so a
- *     user can never reconcile someone else's subscription.
- *   - Activation is gated on the live Razorpay status — cannot be spoofed.
- *   - Idempotent: re-running on an already-active sub is a no-op.
- */
+const ACTIVE_PROVIDER_STATUSES = new Set(["authenticated", "active", "charged"])
+
+/** Recover provider-confirmed transitions after closed tabs or partial local failures. */
 export async function POST(request: NextRequest) {
     const originError = validateOrigin(request)
     if (originError) return originError
-
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
     try {
-        // ── 1. Resolve candidate subscription_id(s) from THIS user's audit trail ──
-        // We look at recent payment_failure / payment.verify events for this user.
-        const { data: auditRows } = await auth.supabase
-            .from("audit_logs")
-            .select("action, metadata, created_at")
-            .eq("user_id", auth.user.id)
-            .in("action", ["security.payment_failure", "payment.verify"])
-            .order("created_at", { ascending: false })
-            .limit(10)
+        const svc = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { persistSession: false, autoRefreshToken: false } },
+        )
+        const { data: current } = await svc.from("subscriptions" as any)
+            .select("*").eq("user_id", auth.user.id).maybeSingle()
+        const { data: auditRows } = await auth.supabase.from("audit_logs")
+            .select("action,metadata,created_at").eq("user_id", auth.user.id)
+            .in("action", ["payment.subscription_created", "payment.verify_pending", "payment.verify", "security.payment_failure"])
+            .order("created_at", { ascending: false }).limit(20)
 
-        const candidateSubIds: string[] = []
+        const candidates: string[] = []
+        const add = (value: unknown) => {
+            if (typeof value === "string" && value.startsWith("sub_") && !candidates.includes(value)) candidates.push(value)
+        }
+        add((current as any)?.pending_razorpay_subscription_id)
+        add((current as any)?.razorpay_subscription_id)
         for (const row of auditRows ?? []) {
             const meta = (row as any).metadata as Record<string, unknown> | null
-            const verifyId = typeof meta?.verifyId === "string" ? meta.verifyId : null
-            if (verifyId && verifyId.startsWith("sub_") && !candidateSubIds.includes(verifyId)) {
-                candidateSubIds.push(verifyId)
-            }
+            add(meta?.razorpay_subscription_id)
+            add(meta?.subscription_id)
+            add(meta?.verifyId)
         }
+        if (!candidates.length) return NextResponse.json({ activated: false, reason: "no_pending_payment" })
 
-        if (candidateSubIds.length === 0) {
-            return NextResponse.json({ activated: false, reason: "no_pending_payment" })
-        }
+        for (const subscriptionId of candidates) {
+            const provider = await getSubscription(subscriptionId).catch(() => null)
+            if (!provider || provider.notes?.platform !== "clorefy") continue
 
-        // ── 2-4. Try each candidate against Razorpay (source of truth) ──────────
-        const ACTIVE_STATUSES = ["authenticated", "active", "charged"]
-        for (const subId of candidateSubIds) {
-            let sub: Awaited<ReturnType<typeof getSubscription>>
-            try {
-                sub = await getSubscription(subId)
-            } catch {
-                continue // network/API issue — try next candidate
-            }
-            if (!sub) continue
+            if (ACTIVE_PROVIDER_STATUSES.has(provider.status)) {
+                const result = await applyRazorpaySubscriptionSnapshot(svc, provider, {
+                    userId: auth.user.id,
+                    eventType: "provider.reconcile",
+                    eventCreatedAt: new Date(),
+                })
+                if (result.stale) continue
 
-            // Must be a clorefy-created subscription in a paid/active state
-            if (sub.notes?.platform !== "clorefy") continue
-            if (!ACTIVE_STATUSES.includes(sub.status)) continue
+                let cleanupPending = result.cleanupPending
+                if (result.scheduled) {
+                    const { data: row } = await svc.from("subscriptions" as any)
+                        .select("razorpay_subscription_id,pending_previous_subscription_id")
+                        .eq("user_id", auth.user.id).maybeSingle()
+                    const previousId = (row as any)?.pending_previous_subscription_id || (row as any)?.razorpay_subscription_id
+                    if (previousId && previousId !== subscriptionId) {
+                        try {
+                            await cancelRazorpaySubscription(previousId, true)
+                            const { error } = await svc.from("subscriptions" as any)
+                                .update({ pending_previous_subscription_id: null, updated_at: new Date().toISOString() })
+                                .eq("user_id", auth.user.id)
+                            cleanupPending = Boolean(error)
+                        } catch {
+                            cleanupPending = true
+                        }
+                    }
+                }
 
-            // The provider plan_id is authoritative. Notes are immutable creation
-            // metadata and may describe an older plan after an upgrade/downgrade.
-            let plan: PlanId | null = sub.plan_id ? planIdToPlan(sub.plan_id) : null
-            if (!plan && typeof sub.notes?.plan === "string" && isValidPlanId(sub.notes.plan) && sub.notes.plan !== "free") {
-                plan = sub.notes.plan as PlanId
-            }
-            if (!plan || plan === "free") continue
-
-            const cycleFromPlan = sub.plan_id ? planIdToCycle(sub.plan_id) : null
-            const billingCycle = (cycleFromPlan || (sub.notes?.billing_cycle === "yearly" ? "yearly" : "monthly")) as "monthly" | "yearly"
-            const currency = (sub.plan_id ? planIdToCurrency(sub.plan_id) : null) || "INR"
-            const paidTier = plan as "starter" | "pro" | "agency"
-            // planIdToAmount records the subscriber's ACTUAL (possibly
-            // grandfathered) price rather than today's current price.
-            const amount = (sub.plan_id ? planIdToAmount(sub.plan_id) : null)
-                ?? PLAN_PRICES_BY_CURRENCY[currency]?.[paidTier]?.[billingCycle]
-                ?? PLAN_PRICES_BY_CURRENCY.INR[paidTier][billingCycle]
-                ?? PLANS[plan].monthlyPrice
-
-            // Period: use Razorpay's current_start/current_end when present
-            const now = new Date()
-            const periodStart = sub.current_start ? new Date(sub.current_start * 1000) : now
-            const periodEnd = sub.current_end
-                ? new Date(sub.current_end * 1000)
-                : (() => {
-                    const d = new Date(now)
-                    if (billingCycle === "yearly") d.setFullYear(d.getFullYear() + 1)
-                    else d.setMonth(d.getMonth() + 1)
-                    return d
-                })()
-
-            // Service-role client. Paid activation MUST bypass RLS — the
-            // subscriptions RLS policies only permit plan='free' for the
-            // authenticated (RLS-bound) client, so a paid upsert via auth.supabase
-            // silently fails. Matches the webhook's service_role activation path.
-            const svc = createClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.SUPABASE_SERVICE_ROLE_KEY!,
-                { auth: { persistSession: false, autoRefreshToken: false } }
-            )
-
-            // ── Activate (upsert) — trigger syncs profiles.tier ──
-            const { error: subError } = await svc
-                .from("subscriptions" as any)
-                .upsert({
+                await logAudit(auth.supabase, {
                     user_id: auth.user.id,
-                    plan: plan as string,
-                    billing_cycle: billingCycle,
-                    status: "active",
-                    razorpay_subscription_id: sub.id,
-                    amount_paid: amount,
-                    currency,
-                    current_period_start: periodStart.toISOString(),
-                    current_period_end: periodEnd.toISOString(),
-                    updated_at: now.toISOString(),
-                }, { onConflict: "user_id" })
+                    action: "payment.verify",
+                    metadata: {
+                        reconciled: true,
+                        razorpay_subscription_id: subscriptionId,
+                        plan: result.plan,
+                        billing_cycle: result.billingCycle,
+                        scheduled: result.scheduled,
+                        cleanup_pending: cleanupPending,
+                    } as any,
+                }, request).catch(() => {})
 
-            if (subError) {
-                console.error("[reconcile] subscription upsert failed:", subError.message)
-                return NextResponse.json({ activated: false, reason: "db_error" }, { status: 500 })
+                return NextResponse.json({
+                    activated: result.applied,
+                    scheduled: result.scheduled,
+                    cleanupPending,
+                    plan: result.plan,
+                    billingCycle: result.billingCycle,
+                    effectiveDate: result.periodEnd,
+                })
             }
 
-            // Mark plan_selected on profile (protected column → service role)
-            await svc.from("profiles").update({ plan_selected: true } as any).eq("id", auth.user.id)
-
-            // Audit + notify (best-effort)
-            await logAudit(auth.supabase, {
-                user_id: auth.user.id,
-                action: "payment.verify",
-                metadata: { reconciled: true, subscription_id: sub.id, plan, billing_cycle: billingCycle, amount } as any,
-            }, request).catch(() => {})
-
-            const { createNotification, PLAN_NAMES } = await import("@/lib/notifications")
-            const planLabel = PLAN_NAMES[plan] || plan
-            await createNotification(auth.supabase, {
-                user_id: auth.user.id,
-                type: "subscription_activated",
-                title: `${planLabel} Plan Activated 🎉`,
-                message: `Your ${planLabel} plan is now active.`,
-                metadata: { plan, billingCycle, reconciled: true },
-            }).catch(() => {})
-
-            return NextResponse.json({ activated: true, plan, billingCycle })
+            if (provider.status === "cancelled" && (current as any)?.razorpay_subscription_id === subscriptionId) {
+                const periodEnd = provider.current_end ? new Date(provider.current_end * 1000) : null
+                const expired = Boolean(periodEnd && periodEnd.getTime() <= Date.now())
+                const cancellingToFree = (current as any)?.scheduled_downgrade === "free"
+                const patch: Record<string, unknown> = {
+                    status: "cancelled",
+                    cancelled_at: new Date().toISOString(),
+                    provider_sync_required: false,
+                    updated_at: new Date().toISOString(),
+                }
+                if (periodEnd) patch.current_period_end = periodEnd.toISOString()
+                if (expired && cancellingToFree) {
+                    Object.assign(patch, {
+                        plan: "free",
+                        billing_cycle: null,
+                        scheduled_downgrade: null,
+                        pending_plan: null,
+                        pending_billing_cycle: null,
+                        pending_razorpay_subscription_id: null,
+                        pending_change_type: null,
+                        pending_effective_at: null,
+                    })
+                }
+                const { error } = await svc.from("subscriptions" as any)
+                    .update(patch).eq("user_id", auth.user.id)
+                if (error) return NextResponse.json({ activated: false, reason: "db_error" }, { status: 500 })
+                return NextResponse.json({ activated: false, cancelled: true, normalizedToFree: expired && cancellingToFree })
+            }
         }
 
         return NextResponse.json({ activated: false, reason: "no_active_subscription" })

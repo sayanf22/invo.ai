@@ -350,7 +350,7 @@ export function BillingToggle({ plans, children }: BillingToggleProps) {
           <span className="w-1 h-1 rounded-full bg-stone-300" />
           <span className="flex items-center gap-1.5"><Zap size={11} strokeWidth={2.5} /> Cancel anytime</span>
           <span className="w-1 h-1 rounded-full bg-stone-300" />
-          <span className="flex items-center gap-1.5"><Clock size={11} strokeWidth={2.5} /> 14-day free trial</span>
+          <span className="flex items-center gap-1.5"><Clock size={11} strokeWidth={2.5} /> Free plan available</span>
         </motion.div>
       </section>
 

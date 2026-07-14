@@ -168,9 +168,10 @@ export default function BillingPage() {
     useEffect(() => {
         if (!user) { router.push("/auth/login"); return }
         fetchUsage().then((usage) => {
-            // If still on free after loading, a payment may have been charged but
-            // not activated — attempt a silent reconcile against Razorpay.
-            if (!usage || usage.plan === "free") {
+            // Reconcile missed activations and any provider-confirmed transition
+            // whose local persistence/old-mandate cleanup is still pending.
+            const subscription = usage?.subscription as any
+            if (!usage || usage.plan === "free" || subscription?.provider_sync_required || subscription?.pending_previous_subscription_id) {
                 autoReconcile()
             }
         })
@@ -361,7 +362,11 @@ export default function BillingPage() {
             {/* Plans Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {plans.map((plan) => {
-                    const isCurrent = plan.id === currentPlan
+                    const isCurrentPlan = plan.id === currentPlan
+                    const currentBillingCycle = (data?.subscription as any)?.billing_cycle || "monthly"
+                    const isExactCurrent = isCurrentPlan && (plan.id === "free" || currentBillingCycle === billingCycle)
+                    const isCycleSwitch = isCurrentPlan && plan.id !== "free" && currentBillingCycle !== billingCycle
+                    const hasPendingChange = Boolean((data?.subscription as any)?.pending_change_type)
                     const paidPlan = plan.id as "starter" | "pro" | "agency"
                     const price = plan.id === "free" ? 0 : countryPricing[paidPlan]?.[billingCycle] || 0
                     const priceDisplay = plan.id === "free" ? "Free" : formatPrice(price, countryPricing)
@@ -393,15 +398,17 @@ export default function BillingPage() {
                                 </ul>
                             </div>
                             <div className="p-6 pt-4 border-t border-border/40 mt-auto bg-muted/10">
-                                <Button className={cn("w-full rounded-xl py-5 font-semibold", plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90" : "")} variant={isCurrent ? "outline" : isDowngrade ? "ghost" : "default"} size="default"
-                                    disabled={isCurrent || plan.comingSoon || isProcessing || isDowngrading || (plan.id === "free" && currentPlan === "free")}
+                                <Button className={cn("w-full rounded-xl py-5 font-semibold", plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90" : "")} variant={isExactCurrent ? "outline" : isDowngrade ? "ghost" : "default"} size="default"
+                                    disabled={isExactCurrent || hasPendingChange || plan.comingSoon || isProcessing || isDowngrading || (plan.id === "free" && currentPlan === "free")}
                                     onClick={() => {
                                         if (isDowngrade) setDowngradeTarget(plan.id)
                                         else if (plan.id !== "free" && !plan.comingSoon) subscribe(plan.id, billingCycle, countryPricing.countryCode)
                                     }}>
                                     {(isProcessing || isDowngrading) ? <Loader2 className="w-5 h-5 animate-spin" />
-                                        : isCurrent ? "Current Plan"
+                                        : hasPendingChange ? "Change Pending"
+                                        : isExactCurrent ? "Current Plan"
                                         : plan.comingSoon ? "Coming Soon"
+                                        : isCycleSwitch ? `Switch to ${billingCycle === "yearly" ? "Yearly" : "Monthly"}`
                                         : isUpgrade ? "Upgrade"
                                         : isDowngrade ? "Downgrade"
                                         : "Subscribe"}
@@ -417,11 +424,15 @@ export default function BillingPage() {
                 <a href="/refund-policy" className="underline">Refund Policy</a> · <a href="/terms" className="underline">Terms</a>
             </p>
 
-            {(data?.subscription as any)?.scheduled_downgrade && (
+            {(data?.subscription as any)?.pending_change_type && (
                 <div className="mt-4 p-4 rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 text-center">
                     <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                        Your plan will downgrade to <span className="font-bold">{plans.find(p => p.id === (data?.subscription as any)?.scheduled_downgrade)?.name}</span> on{" "}
-                        {data?.subscription?.current_period_end ? new Date(data.subscription.current_period_end).toLocaleDateString() : "end of billing period"}.
+                        Your billing change to <span className="font-bold">{plans.find(p => p.id === (data?.subscription as any)?.pending_plan)?.name || (data?.subscription as any)?.pending_plan}</span>
+                        {(data?.subscription as any)?.pending_billing_cycle ? ` (${(data?.subscription as any).pending_billing_cycle})` : ""} is scheduled for{" "}
+                        {(data?.subscription as any)?.pending_effective_at
+                            ? new Date((data?.subscription as any).pending_effective_at).toLocaleDateString()
+                            : "the end of the current billing period"}.
+                        {" "}Your current plan and price remain active until then.
                     </p>
                 </div>
             )}

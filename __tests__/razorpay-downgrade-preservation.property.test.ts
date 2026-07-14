@@ -56,6 +56,7 @@ interface TestState {
   scheduledDowngradeUpdates: Array<{ patch: any; userId: string }>
   cancelledAtUpdates: Array<{ patch: any; userId: string }>
   automationUpdates: Array<{ table: string; patch: any }>
+  failConfirmationUpdate: boolean
 }
 
 let state: TestState
@@ -66,6 +67,7 @@ function freshState(): TestState {
     scheduledDowngradeUpdates: [],
     cancelledAtUpdates: [],
     automationUpdates: [],
+    failConfirmationUpdate: false,
   }
 }
 
@@ -104,6 +106,9 @@ const mockFrom = vi.fn((table: string) => {
           }
           if ("cancelled_at" in patch) {
             state.cancelledAtUpdates.push({ patch, userId })
+          }
+          if (state.failConfirmationUpdate && patch.provider_sync_required === false && !("scheduled_downgrade" in patch)) {
+            return { error: { message: "database unavailable" } }
           }
           return { error: null }
         }),
@@ -227,7 +232,7 @@ describe("Preservation Property Tests: /api/razorpay/downgrade (unfixed baseline
 
   // ── Example-based observations (from task description) ─────────────────
 
-  it("observation: downgrade-to-free cancels Razorpay subscription, disables automations, and makes no plan-update call", async () => {
+  it("downgrade-to-free cancels at cycle end and preserves paid automations until entitlement ends", async () => {
     const { POST } = await import("@/app/api/razorpay/downgrade/route")
 
     setupSubscription("pro")
@@ -245,10 +250,10 @@ describe("Preservation Property Tests: /api/razorpay/downgrade (unfixed baseline
     expect(state.scheduledDowngradeUpdates[0].patch.scheduled_downgrade).toBe("free")
     expect(state.cancelledAtUpdates).toHaveLength(1)
 
-    expect(state.automationUpdates.some((u) => u.table === "recurring_invoices" && u.patch.is_active === false)).toBe(true)
-    expect(state.automationUpdates.some((u) => u.table === "email_schedules" && u.patch.status === "cancelled")).toBe(true)
+    // Paid features and automations remain available for the period already paid.
+    // The terminal cancellation webhook disables them when access actually ends.
+    expect(state.automationUpdates).toHaveLength(0)
 
-    // No Razorpay plan-update call is ever made on unfixed code.
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
@@ -299,6 +304,22 @@ describe("Preservation Property Tests: /api/razorpay/downgrade (unfixed baseline
     expect(state.scheduledDowngradeUpdates).toHaveLength(2)
     expect(state.scheduledDowngradeUpdates[0].patch.scheduled_downgrade).toBe("starter")
     expect(state.scheduledDowngradeUpdates[1].patch.scheduled_downgrade).toBeNull()
+  })
+
+  it("returns truthful sync-pending success when provider cancellation succeeds but local confirmation fails", async () => {
+    setupSubscription("pro")
+    state.failConfirmationUpdate = true
+
+    const { POST } = await import("@/app/api/razorpay/downgrade/route")
+    const res = await POST(createMockRequest({ targetPlan: "free" }))
+    const body = await res.json()
+
+    expect(res.status).toBe(202)
+    expect(body.success).toBe(true)
+    expect(body.syncPending).toBe(true)
+    expect(body.message).toContain("Provider confirmation succeeded")
+    expect(mockCancelRazorpaySubscription).toHaveBeenCalledWith("sub_ABC123", true)
+    expect(state.scheduledDowngradeUpdates).toHaveLength(1)
   })
 
   // ── Property 2: Preservation (generative) ───────────────────────────────

@@ -51,6 +51,7 @@ const mockGetSubscriptionInvoices = vi.fn()
 const mockUpdateRazorpaySubscriptionPlan = vi.fn()
 const mockGetPlanIdForCurrency = vi.fn()
 const mockPlanIdToPlan = vi.fn().mockReturnValue(null)
+const mockPlanIdToCycle = vi.fn().mockReturnValue(null)
 const mockResolveSubscriptionCurrency = vi.fn().mockReturnValue("INR")
 
 class MockRazorpayApiError extends Error {
@@ -86,6 +87,7 @@ vi.mock("@/lib/razorpay", () => ({
   updateRazorpaySubscriptionPlan: mockUpdateRazorpaySubscriptionPlan,
   getPlanIdForCurrency: mockGetPlanIdForCurrency,
   planIdToPlan: mockPlanIdToPlan,
+  planIdToCycle: mockPlanIdToCycle,
   RazorpayApiError: MockRazorpayApiError,
 }))
 

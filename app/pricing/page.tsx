@@ -47,8 +47,8 @@ const plans: PlanData[] = [
     monthly: 15,
     yearly: 12,
     desc: "For freelancers & solo pros",
-    cta: "Start Free Trial",
-    ctaNote: "14-day free trial",
+    cta: "Choose Starter",
+    ctaNote: "Billed after secure checkout",
     href: "/auth/signup",
     featured: false,
     comingSoon: false,
@@ -75,8 +75,8 @@ const plans: PlanData[] = [
     monthly: 35,
     yearly: 28,
     desc: "For growing businesses",
-    cta: "Start Free Trial",
-    ctaNote: "14-day free trial",
+    cta: "Choose Pro",
+    ctaNote: "Billed after secure checkout",
     href: "/auth/signup",
     featured: true,
     comingSoon: false,
@@ -130,7 +130,7 @@ const plans: PlanData[] = [
 const faqs: FaqItem[] = [
   {
     question: "Is there a free trial?",
-    answer: "Yes — the Free plan is free forever, no card needed. Starter and Pro include a 14-day free trial so you can explore everything before committing.",
+    answer: "The Free plan is free forever and needs no card. Paid plans are charged through secure Razorpay checkout; there is currently no paid-plan trial.",
   },
   {
     question: "What counts as one document?",
@@ -138,7 +138,7 @@ const faqs: FaqItem[] = [
   },
   {
     question: "Can I switch plans anytime?",
-    answer: "Absolutely. Upgrade, downgrade, or cancel at any time. No lock-in, no cancellation fees. Unused quota doesn't roll over.",
+    answer: "Yes. Same-cycle card upgrades can activate immediately with Razorpay charging only the prorated difference. Billing-cycle changes, non-card mandate changes, downgrades, and cancellations take effect at the next billing boundary; downgrades do not create an immediate charge or refund.",
   },
   {
     question: "What's the difference between monthly and yearly?",

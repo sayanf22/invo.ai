@@ -1277,7 +1277,16 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           id: string
+          pending_billing_cycle: string | null
+          pending_change_type: string | null
+          pending_effective_at: string | null
+          pending_plan: string | null
+          pending_previous_subscription_id: string | null
+          pending_razorpay_subscription_id: string | null
           plan: string
+          provider_event_created_at: string | null
+          provider_event_type: string | null
+          provider_sync_required: boolean
           razorpay_customer_id: string | null
           razorpay_order_id: string | null
           razorpay_payment_id: string | null
@@ -1297,7 +1306,16 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          pending_billing_cycle?: string | null
+          pending_change_type?: string | null
+          pending_effective_at?: string | null
+          pending_plan?: string | null
+          pending_previous_subscription_id?: string | null
+          pending_razorpay_subscription_id?: string | null
           plan?: string
+          provider_event_created_at?: string | null
+          provider_event_type?: string | null
+          provider_sync_required?: boolean
           razorpay_customer_id?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
@@ -1317,7 +1335,16 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          pending_billing_cycle?: string | null
+          pending_change_type?: string | null
+          pending_effective_at?: string | null
+          pending_plan?: string | null
+          pending_previous_subscription_id?: string | null
+          pending_razorpay_subscription_id?: string | null
           plan?: string
+          provider_event_created_at?: string | null
+          provider_event_type?: string | null
+          provider_sync_required?: boolean
           razorpay_customer_id?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
