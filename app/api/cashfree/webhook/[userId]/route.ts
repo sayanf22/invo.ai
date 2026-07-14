@@ -1,221 +1,111 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { verifyCashfreeWebhookSignature } from "@/lib/cashfree-payments"
+import { verifyCashfreeWebhookSignature } from "@/lib/cashfree-payment-links"
 import { decrypt } from "@/lib/encrypt"
-import { markWebhookProcessed, isWebhookTimestampValid } from "@/lib/webhook-dedup"
+import { isWebhookTimestampValid } from "@/lib/webhook-dedup"
+import { claimWebhookEvent, finishWebhookEvent, hashWebhookPayload } from "@/lib/webhook-events"
+import { applyInvoicePaymentEvent, notifyInvoicePayment, type InvoicePaymentEventStatus } from "@/lib/invoice-payment-events"
 
-/**
- * POST /api/cashfree/webhook/[userId]
- * Per-user Cashfree webhook. URL is embedded in payment link notify_url.
- *
- * Security:
- * - UUID path validation prevents path traversal
- * - HMAC-SHA256 signature verification
- * - Timestamp validation rejects stale webhooks
- * - Deduplication prevents replay attacks
- * - Race condition guard: only update if not already paid
- */
-export async function POST(
-    request: NextRequest,
-    { params }: { params: Promise<{ userId: string }> }
-) {
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function adminClient() {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) throw new Error("Webhook service credentials are not configured")
+    return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+}
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
     const { userId } = await params
-    if (!userId || userId.length < 10) return NextResponse.json({ received: true })
+    if (!UUID_PATTERN.test(userId || "")) return NextResponse.json({ received: true })
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(userId)) {
-        return NextResponse.json({ received: true })
-    }
-
-    const body = await request.text()
-    const signature = request.headers.get("x-webhook-signature") || ""
-
-    // Validate timestamp from header (Cashfree sends x-webhook-timestamp in ms)
-    const tsHeader = request.headers.get("x-webhook-timestamp")
-    if (tsHeader) {
-        const tsMs = parseInt(tsHeader, 10)
-        if (!isNaN(tsMs)) {
-            const tsSeconds = Math.floor(tsMs / 1000)
-            if (!isWebhookTimestampValid(tsSeconds)) {
-                console.warn(`[cashfree-webhook/${userId}] Stale webhook rejected`)
-                return NextResponse.json({ error: "Webhook timestamp too old" }, { status: 400 })
-            }
-        }
-    }
-
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-
-    const { data: settings } = await supabaseAdmin
-        .from("user_payment_settings")
-        .select("cashfree_client_secret_encrypted, cashfree_enabled")
-        .eq("user_id", userId)
-        .maybeSingle()
-
-    if (!settings?.cashfree_client_secret_encrypted || !settings?.cashfree_enabled) {
-        return NextResponse.json({ received: true })
-    }
-
-    const clientSecret = await decrypt(settings.cashfree_client_secret_encrypted)
-    if (!clientSecret) return NextResponse.json({ received: true })
-
-    const isValid = await verifyCashfreeWebhookSignature(body, signature, clientSecret)
-    if (!isValid) {
-        return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
-    }
-
-    let event: Record<string, any>
+    let db: ReturnType<typeof adminClient> | null = null
+    let eventId = ""
     try {
-        event = JSON.parse(body)
-    } catch {
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
-    }
-
-    const eventType = event.type || ""
-    const data = event.data || {}
-
-    // Deduplication using cf_link_id + event_time as event ID
-    const cfLinkId = String(data.cf_link_id || "")
-    const eventTime = event.event_time || ""
-    const dedupId = cfLinkId ? `${cfLinkId}_${eventTime}` : ""
-
-    if (dedupId) {
-        const isNew = await markWebhookProcessed(supabaseAdmin as any, "cashfree", dedupId, userId)
-        if (!isNew) {
-            return NextResponse.json({ received: true }) // Already processed
+        const body = await request.text()
+        const signature = request.headers.get("x-webhook-signature") || ""
+        const timestampHeader = request.headers.get("x-webhook-timestamp") || ""
+        const rawTimestamp = Number(timestampHeader)
+        const timestampSeconds = rawTimestamp > 10_000_000_000 ? Math.floor(rawTimestamp / 1000) : rawTimestamp
+        if (!Number.isInteger(timestampSeconds) || !isWebhookTimestampValid(timestampSeconds)) {
+            return NextResponse.json({ error: "Invalid webhook timestamp" }, { status: 400 })
         }
-    }
 
-    if (eventType === "PAYMENT_LINK_EVENT") {
-        const linkStatus = data.link_status || ""
-        const amountPaid = parseFloat(data.link_amount_paid || "0")
-        const currency = data.link_currency || "INR"
-        const sessionId = data.link_notes?.session_id || ""
+        db = adminClient()
+        const { data: settings, error: settingsError } = await db.from("user_payment_settings")
+            .select("cashfree_client_secret_encrypted,cashfree_enabled,cashfree_test_mode")
+            .eq("user_id", userId).maybeSingle()
+        if (settingsError) throw settingsError
+        if (!settings?.cashfree_client_secret_encrypted || !settings.cashfree_enabled) {
+            return NextResponse.json({ received: true })
+        }
+        const clientSecret = await decrypt(settings.cashfree_client_secret_encrypted)
+        if (!clientSecret) throw new Error("Cashfree webhook credential cannot be decrypted")
+        if (!await verifyCashfreeWebhookSignature(body, signature, timestampHeader, clientSecret)) {
+            return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
+        }
 
-        if (linkStatus === "PAID") {
-            // Look up by cf_link_id (stored in razorpay_payment_link_id column)
-            // Race condition guard: only update if not already paid
-            if (cfLinkId) {
-                await supabaseAdmin.from("invoice_payments").update({
-                    status: "paid",
-                    amount_paid: Math.round(amountPaid * 100),
-                    paid_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("razorpay_payment_link_id", cfLinkId)
-                .eq("user_id", userId)
-                .neq("status", "paid")
-            } else if (sessionId) {
-                await supabaseAdmin.from("invoice_payments").update({
-                    status: "paid",
-                    amount_paid: Math.round(amountPaid * 100),
-                    paid_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("session_id", sessionId)
-                .eq("user_id", userId)
-                .neq("status", "paid")
+        let event: any
+        try { event = JSON.parse(body) } catch {
+            return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+        }
+        const eventType = typeof event?.type === "string" ? event.type : ""
+        const link = event?.data?.link || event?.data || {}
+        const correlationId = String(link.cf_link_id ?? link.link_id ?? "")
+        const linkStatus = String(link.link_status || "").toUpperCase()
+        if (!eventType || !correlationId || !linkStatus) {
+            return NextResponse.json({ error: "Invalid Cashfree event" }, { status: 400 })
+        }
+
+        if (request.headers.get("x-clorefy-test-webhook") === "1") {
+            return NextResponse.json({ received: true, test: true })
+        }
+
+        eventId = `cf_${correlationId}_${timestampHeader}_${linkStatus}`.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 200)
+        const claim = await claimWebhookEvent(db, "cashfree", eventId, eventType, await hashWebhookPayload(body), userId)
+        if (claim === "duplicate") return NextResponse.json({ received: true, duplicate: true })
+        if (claim === "in_progress") return NextResponse.json({ error: "Event is processing" }, { status: 503 })
+
+        if (eventType === "PAYMENT_LINK_EVENT") {
+            const statusMap: Record<string, InvoicePaymentEventStatus> = {
+                PAID: "paid",
+                PARTIALLY_PAID: "partially_paid",
+                EXPIRED: "expired",
+                CANCELLED: "cancelled",
             }
-
-            // Resolve session_id for document update
-            const targetSessionId = sessionId || await (async () => {
-                if (!cfLinkId) return null
-                const { data: inv } = await supabaseAdmin
-                    .from("invoice_payments")
-                    .select("session_id")
-                    .eq("razorpay_payment_link_id", cfLinkId)
-                    .eq("user_id", userId)
-                    .maybeSingle()
-                return inv?.session_id ?? null
-            })()
-
-            if (targetSessionId) {
-                await supabaseAdmin
-                    .from("document_sessions")
-                    .update({ status: "paid" })
-                    .eq("id", targetSessionId)
-                    .eq("user_id", userId)
-                    .neq("status", "paid")
-
-                // Cancel all pending email reminders — payment received
-                await (supabaseAdmin as any)
-                    .from("email_schedules")
-                    .update({
-                        status: "cancelled",
-                        cancelled_reason: "payment_received",
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq("session_id", targetSessionId)
-                    .eq("status", "pending")
-            }
-
-            // Notification (fire-and-forget)
-            void (async () => {
-              try {
-                await supabaseAdmin.from("notifications").insert({
-                  user_id: userId,
-                  type: "payment_received",
-                  title: "Invoice Paid! 🎉",
-                  message: `Payment of ${currency} ${amountPaid.toFixed(2)} received.`,
-                  metadata: { cf_link_id: cfLinkId, amount: amountPaid, currency, session_id: sessionId },
+            const status = statusMap[linkStatus]
+            if (status) {
+                const amountMajor = Number(link.link_amount_paid ?? 0)
+                const amountPaid = ["paid", "partially_paid"].includes(status)
+                    ? Math.round(amountMajor * 100)
+                    : null
+                if (amountPaid !== null && (!Number.isSafeInteger(amountPaid) || amountPaid <= 0)) {
+                    throw new Error("Cashfree payment amount is invalid")
+                }
+                const result = await applyInvoicePaymentEvent(db, {
+                    userId,
+                    gateway: "cashfree",
+                    providerLinkId: correlationId,
+                    status,
+                    amountPaid,
+                    currency: typeof link.link_currency === "string" ? link.link_currency : null,
+                    providerPaymentId: typeof link.cf_payment_id === "string" ? link.cf_payment_id : null,
+                    isTestMode: settings.cashfree_test_mode === true,
+                    paidAt: ["paid", "partially_paid"].includes(status) ? new Date(timestampSeconds * 1000).toISOString() : null,
                 })
-              } catch { /* non-fatal */ }
-            })()
-
-        } else if (linkStatus === "PARTIALLY_PAID") {
-            if (cfLinkId) {
-                await supabaseAdmin.from("invoice_payments").update({
-                    status: "partially_paid",
-                    amount_paid: Math.round(amountPaid * 100),
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("razorpay_payment_link_id", cfLinkId)
-                .eq("user_id", userId)
-                .neq("status", "paid") // Don't downgrade from paid
-            }
-        } else if (linkStatus === "EXPIRED" || linkStatus === "CANCELLED") {
-            // Cashfree link is dead — update status and cancel pending reminders
-            const newStatus = linkStatus === "EXPIRED" ? "expired" : "cancelled"
-            const reason = linkStatus === "EXPIRED" ? "payment_link_expired" : "payment_link_cancelled"
-
-            if (cfLinkId) {
-                await supabaseAdmin.from("invoice_payments").update({
-                    status: newStatus,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("razorpay_payment_link_id", cfLinkId)
-                .eq("user_id", userId)
-                .neq("status", "paid") // Never downgrade a paid invoice
-            }
-
-            // Resolve session_id and cancel pending reminders
-            const deadSessionId = sessionId || await (async () => {
-                if (!cfLinkId) return null
-                const { data: inv } = await supabaseAdmin
-                    .from("invoice_payments")
-                    .select("session_id")
-                    .eq("razorpay_payment_link_id", cfLinkId)
-                    .eq("user_id", userId)
-                    .maybeSingle()
-                return inv?.session_id ?? null
-            })()
-
-            if (deadSessionId) {
-                await (supabaseAdmin as any)
-                    .from("email_schedules")
-                    .update({
-                        status: "cancelled",
-                        cancelled_reason: reason,
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq("session_id", deadSessionId)
-                    .eq("status", "pending")
+                await notifyInvoicePayment(db, userId, result, eventId)
+                    .catch((error) => console.error("[cashfree/webhook] notification failed:", error))
             }
         }
-    }
 
-    return NextResponse.json({ received: true })
+        await finishWebhookEvent(db, "cashfree", eventId, "processed")
+        return NextResponse.json({ received: true })
+    } catch (error) {
+        console.error("[cashfree/webhook] processing failed:", error)
+        if (db && eventId) {
+            await finishWebhookEvent(db, "cashfree", eventId, "failed", error instanceof Error ? error.message : "Processing failed")
+                .catch((finishError) => console.error("[cashfree/webhook] failure persistence failed:", finishError))
+        }
+        return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 })
+    }
 }

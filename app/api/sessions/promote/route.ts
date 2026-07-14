@@ -23,9 +23,7 @@ import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-
 import {
     checkDocumentLimit,
     checkDocumentTypeAllowed,
-    incrementDocumentCount,
     getUserTier,
-    resolveEffectiveTier,
 } from "@/lib/cost-protection"
 import {
     ALL_DOCUMENT_TYPES,
@@ -158,9 +156,8 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Now that the type change is committed, consume 1 quota slot.
-        // If this fails the session is still promoted — non-fatal, logged.
-        await incrementDocumentCount(auth.supabase, auth.user.id)
+        // The monthly slot is reserved by /api/ai/stream when the promoted
+        // session first generates a document.
 
         return NextResponse.json({
             success: true,

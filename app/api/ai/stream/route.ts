@@ -7,7 +7,7 @@ import { classifyIntent, detectMismatch, type DocumentType as IntentDocumentType
 import { buildChatOnlySystemPrompt } from "@/lib/chat-only-prompts"
 import { formatReferenceNumber } from "@/lib/document-type-registry"
 
-import { checkCostLimit, trackUsage, checkMessageLimit, checkChatMessageLimit, checkDocumentTypeAllowed, incrementDocumentCount, resolveEffectiveTier, getUserTier } from "@/lib/cost-protection"
+import { checkCostLimit, trackUsage, checkMessageLimit, checkChatMessageLimit, checkDocumentTypeAllowed, reserveDocumentQuota, releaseDocumentQuota, resolveEffectiveTier, getUserTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText, stripPromptInjection } from "@/lib/sanitize"
 
@@ -63,29 +63,7 @@ export async function POST(request: NextRequest) {
             if (typeError) return typeError
         }
 
-        // Check per-session message limit (if sessionId provided)
-        // Chat-only sessions use a separate (more generous) message limit.
-        // Document sessions use the standard per-session cap.
         const sessionId = (body as any).sessionId
-        if (sessionId && isChatOnlyMode) {
-            // Chat-only sessions: separate limit (20/60/120/∞ per tier)
-            const chatLimitError = await checkChatMessageLimit(auth.supabase, auth.user.id, sessionId, userTier)
-            if (chatLimitError) return chatLimitError
-        } else if (sessionId && !isChatOnlyMode) {
-            const limitError = await checkMessageLimit(auth.supabase, auth.user.id, sessionId, userTier)
-            if (limitError) return limitError
-
-            // Fetch session status so the AI knows if the document is locked/sent/signed
-            const { data: sessionData } = await auth.supabase
-                .from("document_sessions")
-                .select("status")
-                .eq("id", sessionId)
-                .eq("user_id", auth.user.id)
-                .single()
-            if (sessionData?.status) {
-                body.sessionStatus = sessionData.status as any
-            }
-        }
 
         // SECURITY: Input size limit (100KB)
         const sizeError = validateBodySize(body, 100 * 1024)
@@ -142,6 +120,45 @@ export async function POST(request: NextRequest) {
             body.documentType = "quote"
         }
 
+        // Every AI request must be bound to an owned session. This prevents
+        // calling the stream endpoint directly to bypass promotion or quota.
+        if (typeof sessionId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
+            return new Response(JSON.stringify({ success: false, error: "A valid sessionId is required" }), {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+            })
+        }
+        const { data: sessionData, error: sessionError } = await auth.supabase
+            .from("document_sessions")
+            .select("id,status,document_type")
+            .eq("id", sessionId)
+            .eq("user_id", auth.user.id)
+            .maybeSingle()
+        if (sessionError || !sessionData) {
+            return new Response(JSON.stringify({ success: false, error: "Session not found" }), {
+                status: 404,
+                headers: { "Content-Type": "application/json" },
+            })
+        }
+        const requestedType = (body.documentType || "invoice").toLowerCase()
+        const storedType = (sessionData.document_type || "").toLowerCase()
+        const sessionMatchesRequest = requestedType === storedType
+            || (requestedType === "quote" && storedType === "quotation")
+        if (!sessionMatchesRequest) {
+            return new Response(JSON.stringify({ success: false, error: "Session document type mismatch" }), {
+                status: 409,
+                headers: { "Content-Type": "application/json" },
+            })
+        }
+        body.sessionStatus = sessionData.status as any
+
+        const messageLimitError = isChatOnlyMode
+            ? await checkChatMessageLimit(auth.supabase, auth.user.id, sessionId, userTier)
+            : await checkMessageLimit(auth.supabase, auth.user.id, sessionId, userTier)
+        if (messageLimitError) return messageLimitError
+
+        let quotaReserved = false
+
         // SECURITY: Clear any client-sent businessContext (fetched server-side inside stream)
         body.businessContext = undefined
 
@@ -152,6 +169,12 @@ export async function POST(request: NextRequest) {
         // Fetch DeepSeek API key from Vault (before stream — fast, no activity needed)
         const { getSecret } = await import("@/lib/secrets")
         const deepseekKey = await getSecret("DEEPSEEK_API_KEY")
+        if (!isChatOnlyMode) {
+            const reservation = await reserveDocumentQuota(auth.supabase, auth.user.id, sessionId)
+            if (reservation.response) return reservation.response
+            quotaReserved = reservation.reserved
+        }
+        let modelCompletedSuccessfully = false
 
         // Create a readable stream — data operations happen INSIDE so we can send activity events
         const stream = new ReadableStream({
@@ -644,7 +667,6 @@ export async function POST(request: NextRequest) {
                     const docTypeLower = (body.documentType || "invoice").toLowerCase()
 
                     // Track whether any model completed successfully (for usage tracking)
-                    let modelCompletedSuccessfully = false
                     let completeResponseData: string | null = null
 
                     // ── 3b. Kimi pre-generation brief (Thinking Mode orchestration) ──
@@ -1095,14 +1117,8 @@ export async function POST(request: NextRequest) {
                         // Track usage for cost protection
                         await trackUsage(auth.supabase, auth.user.id, "generation", 0)
 
-                        // Increment document count ONLY on the first generation in this session.
-                        // Follow-up edits ("change the rate", "add an item") should NOT count
-                        // as new documents. We check if the session already has messages —
-                        // if conversationHistory is empty, this is the first generation.
-                        const isFirstGeneration = !body.conversationHistory || body.conversationHistory.length === 0
-                        if (isFirstGeneration) {
-                            await incrementDocumentCount(auth.supabase, auth.user.id)
-                        }
+                        // The monthly document slot was reserved atomically before
+                        // generation. Follow-up edits reuse the session reservation.
 
                         // Audit log
                         await logAIGeneration(
@@ -1121,6 +1137,11 @@ export async function POST(request: NextRequest) {
                     })}\n\n`
                     controller.enqueue(encoder.encode(errorData))
                 } finally {
+                    if (quotaReserved && !modelCompletedSuccessfully) {
+                        await releaseDocumentQuota(auth.user.id, sessionId).catch((releaseError) => {
+                            console.error("Failed to release document quota reservation:", releaseError)
+                        })
+                    }
                     controller.close()
                 }
             },

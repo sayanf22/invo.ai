@@ -57,6 +57,15 @@ vi.mock("@/lib/api-auth", () => ({
     error: null,
   })),
   validateOrigin: vi.fn(() => null),
+  validateBodySize: vi.fn(() => null),
+}))
+
+vi.mock("@/lib/csrf", () => ({
+  validateCSRFToken: vi.fn(() => null),
+}))
+
+vi.mock("@/lib/rate-limiter", () => ({
+  checkRateLimit: vi.fn(() => null),
 }))
 
 // Mock the service-role Supabase client (createClient from @supabase/supabase-js)
@@ -65,7 +74,10 @@ vi.mock("@/lib/api-auth", () => ({
 function makeUpdateChain() {
   const chain: any = {}
   chain.update = vi.fn(() => chain)
-  chain.eq = vi.fn(async () => ({ error: null }))
+  chain.eq = vi.fn(() => chain)
+  chain.is = vi.fn(() => chain)
+  chain.select = vi.fn(() => chain)
+  chain.maybeSingle = vi.fn(async () => ({ data: { user_id: mockAuthUser.id }, error: null }))
   return chain
 }
 

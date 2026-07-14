@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
+import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
+import { validateCSRFToken } from "@/lib/csrf"
+import { checkRateLimit } from "@/lib/rate-limiter"
 import {
     verifyPaymentSignature,
     getPayment,
@@ -17,17 +19,36 @@ export async function POST(request: NextRequest) {
     if (originError) return originError
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
+    const csrfError = await validateCSRFToken(request, auth.user.id, auth.supabase)
+    if (csrfError) return csrfError
+    const rateError = await checkRateLimit(auth.user.id, "payment", auth.supabase as any)
+    if (rateError) return rateError
+
+    let body: Record<string, unknown>
+    try { body = await request.json() } catch {
+        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    }
+    const sizeError = validateBodySize(body, 2 * 1024)
+    if (sizeError) return sizeError
 
     try {
-        const body = await request.json()
         const {
             razorpay_payment_id,
             razorpay_subscription_id,
             razorpay_signature,
             plan,
         } = body
-        if (!razorpay_payment_id || !razorpay_subscription_id || !razorpay_signature) {
-            return NextResponse.json({ error: "Missing subscription payment details" }, { status: 400 })
+        const providerIdPattern = /^(pay|sub)_[A-Za-z0-9]{6,100}$/
+        if (
+            typeof razorpay_payment_id !== "string"
+            || typeof razorpay_subscription_id !== "string"
+            || typeof razorpay_signature !== "string"
+            || !providerIdPattern.test(razorpay_payment_id)
+            || !providerIdPattern.test(razorpay_subscription_id)
+            || razorpay_signature.length < 32
+            || razorpay_signature.length > 256
+        ) {
+            return NextResponse.json({ error: "Invalid subscription payment details" }, { status: 400 })
         }
         if (!isValidPlanId(plan) || plan === "free") {
             return NextResponse.json({ error: "Invalid plan ID" }, { status: 400 })
@@ -56,6 +77,17 @@ export async function POST(request: NextRequest) {
         const providerPlan = providerSubscription?.plan_id
             ? planIdToPlan(providerSubscription.plan_id)
             : null
+        const providerOwnedByUser = providerSubscription?.id === razorpay_subscription_id
+            && providerSubscription.notes?.platform === "clorefy"
+            && providerSubscription.notes?.user_id === auth.user.id
+        if (providerSubscription && !providerOwnedByUser) {
+            await logAudit(auth.supabase, {
+                user_id: auth.user.id,
+                action: "security.payment_failure",
+                metadata: { reason: "subscription_owner_mismatch", razorpay_subscription_id, razorpay_payment_id } as any,
+            }, request).catch(() => {})
+            return NextResponse.json({ error: "Payment verification failed" }, { status: 403 })
+        }
         if (!providerSubscription || !providerPlan || providerPlan === "free") {
             await logAudit(auth.supabase, {
                 user_id: auth.user.id,
@@ -77,26 +109,45 @@ export async function POST(request: NextRequest) {
             }, request).catch(() => {})
         }
 
-        const svc = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            { auth: { persistSession: false, autoRefreshToken: false } },
-        )
         const payment = await getPayment(razorpay_payment_id).catch((error) => {
             console.error("[verify] exact payment fetch deferred to webhook:", error)
             return null
+        })
+        const validPaymentState = payment?.id === razorpay_payment_id
+            && ["authorized", "captured"].includes(payment.status)
+            && Number.isSafeInteger(payment.amount)
+            && payment.amount >= 0
+            && typeof payment.currency === "string"
+        if (!validPaymentState) {
+            await logAudit(auth.supabase, {
+                user_id: auth.user.id,
+                action: "payment.verify_pending",
+                metadata: {
+                    razorpay_subscription_id,
+                    razorpay_payment_id,
+                    reason: payment ? "payment_not_authorized" : "payment_not_available",
+                } as any,
+            }, request).catch(() => {})
+            return NextResponse.json({
+                success: true,
+                pending: true,
+                message: "Payment verification is still syncing; access has not been changed yet.",
+            }, { status: 202 })
+        }
+
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (!supabaseUrl || !serviceRoleKey) throw new Error("Billing service credentials are not configured")
+        const svc = createClient(supabaseUrl, serviceRoleKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
         })
         const result = await applyRazorpaySubscriptionSnapshot(svc, providerSubscription, {
             userId: auth.user.id,
             eventType: "provider.verify",
             eventCreatedAt: new Date(),
-            charge: payment ? {
-                id: payment.id,
-                amount: payment.amount,
-                currency: payment.currency,
-                order_id: payment.order_id,
-                signature: razorpay_signature,
-            } : null,
+            // Checkout's authorization payment can be nominal and auto-refunded.
+            // Revenue is recorded only from subscription.charged webhooks.
+            charge: null,
         })
 
         let cleanupPending = result.cleanupPending

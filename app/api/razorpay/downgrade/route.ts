@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
-import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
+import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
+import { validateCSRFToken } from "@/lib/csrf"
+import { checkRateLimit } from "@/lib/rate-limiter"
 import {
     PLANS,
     type PlanId,
@@ -17,9 +19,20 @@ export async function POST(request: Request) {
     if (originError) return originError
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
+    const csrfError = await validateCSRFToken(request as any, auth.user.id, auth.supabase)
+    if (csrfError) return csrfError
+    const rateError = await checkRateLimit(auth.user.id, "payment", auth.supabase as any)
+    if (rateError) return rateError
+
+    let body: Record<string, unknown>
+    try { body = await request.json() } catch {
+        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    }
+    const sizeError = validateBodySize(body, 1024)
+    if (sizeError) return sizeError
 
     try {
-        const { targetPlan } = await request.json() as { targetPlan: string }
+        const { targetPlan } = body as { targetPlan?: string }
         if (!targetPlan || !["free", "starter", "pro"].includes(targetPlan)) {
             return NextResponse.json({ error: "Invalid target plan" }, { status: 400 })
         }
@@ -64,11 +77,18 @@ export async function POST(request: Request) {
             provider_sync_required: true,
             updated_at: new Date().toISOString(),
         }
-        const { error: pendingError } = await svc.from("subscriptions" as any)
-            .update(pendingPatch).eq("user_id", auth.user.id)
+        const { data: claimed, error: pendingError } = await svc.from("subscriptions" as any)
+            .update(pendingPatch)
+            .eq("user_id", auth.user.id)
+            .is("pending_change_type", null)
+            .select("user_id")
+            .maybeSingle()
         if (pendingError) {
             console.error("[downgrade] failed to persist intent:", pendingError)
             return NextResponse.json({ error: "Failed to schedule downgrade" }, { status: 500 })
+        }
+        if (!claimed) {
+            return NextResponse.json({ error: "A billing change is already pending", code: "CHANGE_PENDING" }, { status: 409 })
         }
 
         try {

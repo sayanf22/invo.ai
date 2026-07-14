@@ -129,6 +129,16 @@ async function triggerAutoInvoice({
     throw new Error(`Failed to create auto-invoice session: ${createError?.message}`)
   }
 
+  const { data: quota, error: quotaError } = await (supabase as any).rpc("reserve_document_quota", {
+    p_user_id: contractSession.user_id,
+    p_session_id: invoiceSession.id,
+    p_month: now.toISOString().slice(0, 7),
+  })
+  if (quotaError || !quota?.allowed) {
+    await supabase.from("document_sessions").delete().eq("id", invoiceSession.id)
+    throw new Error(quotaError?.message || "Monthly document limit reached")
+  }
+
   // Create document link
   await supabase
     .from("document_links")
@@ -138,12 +148,7 @@ async function triggerAutoInvoice({
       relationship: "auto_invoice",
     })
 
-  // Increment document count
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-  await (supabase as any).rpc("increment_document_count", {
-    p_user_id: contractSession.user_id,
-    p_month: monthKey,
-  }).catch(() => {})
+  // Quota was reserved atomically before linking and sending.
 
   // Send the invoice email via the send-document endpoint (internal call)
   // We call the Mailtrap API directly to avoid auth complexity in server-to-server
@@ -305,7 +310,7 @@ export async function POST(request: NextRequest) {
     const { data: signatureRow, error: fetchError } = await supabase
       .from("signatures")
       .select(
-        "id, attempt_count, signed_at, expires_at, document_hash, session_id, verification_url, document_id"
+        "id, attempt_count, signed_at, signer_action, expires_at, document_hash, session_id, verification_url, document_id"
       )
       .eq("token", token)
       .single()
@@ -341,11 +346,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if already signed
+    // Check if already signed or invalidated by the sender/recipient.
     if (signature.signed_at) {
       return NextResponse.json(
         { error: "This document has already been signed" },
         { status: 409 }
+      )
+    }
+    if (signature.signer_action) {
+      return NextResponse.json(
+        { error: "This signing link is no longer active" },
+        { status: 410 }
       )
     }
 
@@ -434,8 +445,9 @@ export async function POST(request: NextRequest) {
 
     const signedAt = new Date().toISOString()
 
-    // Update the signature record
-    const { error: updateError } = await supabase
+    // Commit only if the token is still pending. Unlock/cancel can invalidate it
+    // while image upload is in progress, so this compare-and-set closes that race.
+    const { data: signedRecord, error: updateError } = await supabase
       .from("signatures")
       .update({
         signature_image_url: signatureImageKey,
@@ -444,10 +456,20 @@ export async function POST(request: NextRequest) {
         user_agent: userAgent,
       } as any)
       .eq("id", signature.id)
+      .is("signed_at", null)
+      .is("signer_action", null)
+      .select("id")
+      .maybeSingle()
 
     if (updateError) {
       console.error("[sign] signature update error:", updateError)
       return NextResponse.json({ error: "Failed to record signature" }, { status: 500 })
+    }
+    if (!signedRecord) {
+      if (signatureImageKey.startsWith("sb:")) {
+        await supabase.storage.from("signatures").remove([signatureImageKey.slice(3)]).catch(() => {})
+      }
+      return NextResponse.json({ error: "This signing link is no longer active" }, { status: 409 })
     }
 
     // Sub-task 7.4: Record signature.signed audit event

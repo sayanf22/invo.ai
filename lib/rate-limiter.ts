@@ -139,8 +139,9 @@ export async function checkRateLimit(
 
         if (error) {
             console.error("Rate limit RPC error:", error)
-            // FAIL OPEN: if the rate limiter DB is down, allow the request
-            return null
+            return category === "payment"
+                ? NextResponse.json({ error: "Payment request verification temporarily unavailable" }, { status: 503 })
+                : null
         }
 
         // CRITICAL: check_rate_limit is defined as `RETURNS TABLE(...)`, so
@@ -154,15 +155,17 @@ export async function checkRateLimit(
             | undefined
 
         if (!row) {
-            // No row returned — unexpected. Fail open rather than block legit users.
-            console.warn("Rate limit: empty RPC response, failing open for", category)
-            return null
+            console.warn("Rate limit: empty RPC response for", category)
+            return category === "payment"
+                ? NextResponse.json({ error: "Payment request verification temporarily unavailable" }, { status: 503 })
+                : null
         }
 
         if (row.error === 'Unauthorized') {
-            // JWT context mismatch — fail open rather than block legitimate users
-            console.warn("Rate limit: JWT context mismatch, failing open for", category)
-            return null
+            console.warn("Rate limit: JWT context mismatch for", category)
+            return category === "payment"
+                ? NextResponse.json({ error: "Payment request verification temporarily unavailable" }, { status: 503 })
+                : null
         }
 
         // `allowed === false` is the authoritative block signal. The RPC only
@@ -193,8 +196,9 @@ export async function checkRateLimit(
         return null
     } catch (err) {
         console.error("Rate limit check failed:", err)
-        // FAIL OPEN with logging
-        return null
+        return category === "payment"
+            ? NextResponse.json({ error: "Payment request verification temporarily unavailable" }, { status: 503 })
+            : null
     }
 }
 

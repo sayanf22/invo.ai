@@ -33,6 +33,13 @@ vi.mock("@/lib/audit-log", () => ({
   logAudit: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock("@/lib/cost-protection", () => ({
+  checkEmailLimit: vi.fn().mockResolvedValue(null),
+  getUserTier: vi.fn().mockResolvedValue("free"),
+  incrementEmailCount: vi.fn().mockResolvedValue(undefined),
+  getFollowUpSchedule: vi.fn().mockReturnValue([]),
+}))
+
 // The route uses a service-role admin client (createClient from @supabase/supabase-js)
 // for invoice_payments lookups (outside RLS scope). Mock it to report "no active
 // payment link" so the invoice branch stays a no-op in tests.

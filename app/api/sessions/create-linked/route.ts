@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-auth"
-import { incrementDocumentCount, checkDocumentLimit, checkDocumentTypeAllowed, getUserTier } from "@/lib/cost-protection"
+import { checkDocumentLimit, checkDocumentTypeAllowed, getUserTier } from "@/lib/cost-protection"
 import { resolveEffectiveTier } from "@/lib/cost-protection"
 import { normalizeDocumentType, getDocumentTypeConfig, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 
@@ -378,8 +378,8 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Increment document count for usage tracking
-        await incrementDocumentCount(auth.supabase, auth.user.id)
+        // Quota is reserved atomically by /api/ai/stream when this session
+        // first produces a document; creating an empty linked draft is free.
 
         // Also update parent's client_name if not set
         if (clientName && !parent.client_name) {

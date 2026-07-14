@@ -32,6 +32,15 @@ import { NextRequest } from "next/server"
 vi.mock("@/lib/api-auth", () => ({
   authenticateRequest: vi.fn(),
   validateOrigin: vi.fn().mockReturnValue(null),
+  validateBodySize: vi.fn().mockReturnValue(null),
+}))
+
+vi.mock("@/lib/csrf", () => ({
+  validateCSRFToken: vi.fn().mockReturnValue(null),
+}))
+
+vi.mock("@/lib/rate-limiter", () => ({
+  checkRateLimit: vi.fn().mockReturnValue(null),
 }))
 
 const mockCreateRazorpaySubscription = vi.fn()
@@ -85,6 +94,19 @@ vi.mock("@/lib/secrets", () => ({
 }))
 
 const mockSvcFrom = vi.fn()
+
+function mutationQuery(result: { data?: any; error?: any } = { data: { user_id: "user-abc" }, error: null }) {
+  const query: any = {
+    eq: vi.fn(() => query),
+    is: vi.fn(() => query),
+    select: vi.fn(() => query),
+    maybeSingle: vi.fn(async () => result),
+    single: vi.fn(async () => result),
+    then: (resolve: (value: any) => unknown) => Promise.resolve(resolve(result)),
+  }
+  return query
+}
+
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({ from: mockSvcFrom })),
 }))
@@ -183,7 +205,10 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
     // payment_history.select()/insert().
     mockSvcFrom.mockImplementation((table: string) => {
       if (table === "subscriptions") {
-        return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
+        return {
+          update: vi.fn(() => mutationQuery()),
+          insert: vi.fn(() => mutationQuery()),
+        }
       }
       if (table === "payment_history") {
         return {
@@ -316,10 +341,11 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
     mockSvcFrom.mockImplementation((table: string) => {
       if (table === "subscriptions") {
         return {
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockImplementation(async () => ({
-              error: ++subscriptionUpdate === 2 ? { message: "database unavailable" } : null,
-            })),
+          update: vi.fn(() => {
+            subscriptionUpdate += 1
+            return mutationQuery(subscriptionUpdate === 2
+              ? { data: null, error: { message: "database unavailable" } }
+              : { data: { user_id: "user-abc" }, error: null })
           }),
         }
       }

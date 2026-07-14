@@ -50,6 +50,14 @@ vi.mock("next/headers", () => ({
   }),
 }))
 
+vi.mock("@/lib/csrf", () => ({
+  validateCSRFToken: vi.fn(() => null),
+}))
+
+vi.mock("@/lib/rate-limiter", () => ({
+  checkRateLimit: vi.fn(() => null),
+}))
+
 // Shared mutable test state, reconfigured per test/property-run via setupState().
 interface TestState {
   subscriptionRow: Record<string, any> | null
@@ -99,20 +107,32 @@ const mockFrom = vi.fn((table: string) => {
           })),
         })),
       })),
-      update: vi.fn((patch: any) => ({
-        eq: vi.fn(async (_col: string, userId: string) => {
-          if ("scheduled_downgrade" in patch) {
-            state.scheduledDowngradeUpdates.push({ patch, userId })
-          }
-          if ("cancelled_at" in patch) {
-            state.cancelledAtUpdates.push({ patch, userId })
-          }
+      update: vi.fn((patch: any) => {
+        let userId = ""
+        let recorded = false
+        const result = () => {
           if (state.failConfirmationUpdate && patch.provider_sync_required === false && !("scheduled_downgrade" in patch)) {
-            return { error: { message: "database unavailable" } }
+            return { data: null, error: { message: "database unavailable" } }
           }
-          return { error: null }
-        }),
-      })),
+          return { data: { user_id: userId }, error: null }
+        }
+        const query: any = {
+          eq: vi.fn((_col: string, value: string) => {
+            userId = value
+            if (!recorded) {
+              if ("scheduled_downgrade" in patch) state.scheduledDowngradeUpdates.push({ patch, userId })
+              if ("cancelled_at" in patch) state.cancelledAtUpdates.push({ patch, userId })
+              recorded = true
+            }
+            return query
+          }),
+          is: vi.fn(() => query),
+          select: vi.fn(() => query),
+          maybeSingle: vi.fn(async () => result()),
+          then: (resolve: (value: any) => unknown) => Promise.resolve(resolve(result())),
+        }
+        return query
+      }),
     }
   }
 

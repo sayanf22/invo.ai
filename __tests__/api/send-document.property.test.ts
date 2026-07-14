@@ -40,8 +40,9 @@ describe("Feature: email-sending, Property 3: Email input validation and sanitiz
           // HTML tag should be stripped
           expect(result).not.toContain(`<${tagName}>`)
 
-          // Meaningful text content should be preserved
-          expect(result).toContain(textContent.trim())
+          // Wrapping safe text in an HTML tag must sanitize identically to
+          // sanitizing the text alone (including intentional whitespace normalization).
+          expect(result).toBe(sanitizeText(textContent))
         }
       ),
       { numRuns: 100 }

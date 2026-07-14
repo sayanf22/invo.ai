@@ -43,6 +43,15 @@ import fc from "fast-check"
 vi.mock("@/lib/api-auth", () => ({
   authenticateRequest: vi.fn(),
   validateOrigin: vi.fn().mockReturnValue(null),
+  validateBodySize: vi.fn().mockReturnValue(null),
+}))
+
+vi.mock("@/lib/csrf", () => ({
+  validateCSRFToken: vi.fn().mockReturnValue(null),
+}))
+
+vi.mock("@/lib/rate-limiter", () => ({
+  checkRateLimit: vi.fn().mockReturnValue(null),
 }))
 
 const mockCreateRazorpaySubscription = vi.fn()
@@ -96,6 +105,19 @@ vi.mock("@/lib/secrets", () => ({
 }))
 
 const mockSvcFrom = vi.fn()
+
+function mutationQuery(result: { data?: any; error?: any } = { data: { user_id: "user-abc" }, error: null }) {
+  const query: any = {
+    eq: vi.fn(() => query),
+    is: vi.fn(() => query),
+    select: vi.fn(() => query),
+    maybeSingle: vi.fn(async () => result),
+    single: vi.fn(async () => result),
+    then: (resolve: (value: any) => unknown) => Promise.resolve(resolve(result)),
+  }
+  return query
+}
+
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({ from: mockSvcFrom })),
 }))
@@ -179,7 +201,10 @@ describe("Preservation Property Tests: create-order upgrade path (unfixed baseli
     mockGetSubscriptionInvoices.mockResolvedValue([])
     mockSvcFrom.mockImplementation((table: string) => {
       if (table === "subscriptions") {
-        return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
+        return {
+          update: vi.fn(() => mutationQuery()),
+          insert: vi.fn(() => mutationQuery()),
+        }
       }
       if (table === "payment_history") {
         return {
@@ -307,7 +332,10 @@ describe("Preservation Property Tests: create-order upgrade path (unfixed baseli
           mockGetSubscriptionInvoices.mockResolvedValue([])
           mockSvcFrom.mockImplementation((table: string) => {
             if (table === "subscriptions") {
-              return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
+              return {
+                update: vi.fn(() => mutationQuery()),
+                insert: vi.fn(() => mutationQuery()),
+              }
             }
             if (table === "payment_history") {
               return {

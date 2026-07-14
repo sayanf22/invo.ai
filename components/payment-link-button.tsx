@@ -307,41 +307,12 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
             return
         }
 
-        const referenceId = invoiceRef || `INV-${sessionId.slice(0, 8).toUpperCase()}`
-        const description = ["Invoice", referenceId, clientName ? `for ${clientName}` : ""].filter(Boolean).join(" ")
-
         setIsLoading(true)
         try {
             const res = await authFetch("/api/payments/create-link", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    sessionId,
-                    amount: amountInSmallestUnit,
-                    currency,
-                    description,
-                    referenceId,
-                    customerName: clientName || undefined,
-                    customerEmail: invoiceData.toEmail || undefined,
-                    customerPhone: invoiceData.toPhone || undefined,
-                    dueDate: invoiceData.dueDate || undefined,
-                    // Minimal snapshot — only fields needed for the /pay page
-                    contextSnapshot: {
-                        documentType: invoiceData.documentType,
-                        invoiceNumber: invoiceData.invoiceNumber,
-                        fromName: invoiceData.fromName,
-                        toName: invoiceData.toName,
-                        currency: invoiceData.currency,
-                        items: invoiceData.items,
-                        taxRate: invoiceData.taxRate,
-                        taxLabel: invoiceData.taxLabel,
-                        discountType: invoiceData.discountType,
-                        discountValue: invoiceData.discountValue,
-                        shippingFee: invoiceData.shippingFee,
-                        dueDate: invoiceData.dueDate,
-                        notes: invoiceData.notes,
-                    },
-                }),
+                body: JSON.stringify({ sessionId }),
             })
 
             const data = await res.json()
@@ -362,8 +333,8 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
 
             const link: PaymentLinkState = {
                 ...data.paymentLink,
-                amount: amountInSmallestUnit,
-                currency,
+                amount: data.paymentLink.amount ?? amountInSmallestUnit,
+                currency: data.paymentLink.currency ?? currency,
             }
             setPaymentLink(link)
             onPaymentLinkChange?.(`${window.location.origin}/pay/${sessionId}`, data.paymentLink.status)

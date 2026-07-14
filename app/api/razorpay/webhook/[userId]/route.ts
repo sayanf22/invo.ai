@@ -1,311 +1,114 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { decrypt } from "@/lib/encrypt"
+import { claimWebhookEvent, finishWebhookEvent, hashWebhookPayload } from "@/lib/webhook-events"
+import { applyInvoicePaymentEvent, notifyInvoicePayment, type InvoicePaymentEventStatus } from "@/lib/invoice-payment-events"
 
-/**
- * POST /api/razorpay/webhook/[userId]
- *
- * Per-user Razorpay webhook endpoint.
- * Each user who connects their Razorpay keys gets their own webhook URL.
- * Razorpay fires events here when THEIR clients pay invoices.
- *
- * SECURITY:
- * - Signature verified using the user's own webhook secret (not the platform secret)
- * - Replay protection via x-razorpay-event-id
- * - userId in URL is validated against DB — no spoofing
- */
-export async function POST(
-    request: NextRequest,
-    { params }: { params: Promise<{ userId: string }> }
-) {
-    const { userId } = await params
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const EVENT_ID_PATTERN = /^[A-Za-z0-9_-]{6,200}$/
 
-    if (!userId || typeof userId !== "string" || userId.length < 10) {
-        return NextResponse.json({ received: true }) // Silent — don't reveal validation
-    }
-
-    // Validate userId is a UUID to prevent path traversal / enumeration
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(userId)) {
-        return NextResponse.json({ received: true }) // Silent — don't reveal validation
-    }
-
-    const body = await request.text()
-    const signature = request.headers.get("x-razorpay-signature") || ""
-    const eventId = request.headers.get("x-razorpay-event-id") || ""
-
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-
-    // Fetch user's webhook secret
-    const { data: settings } = await supabaseAdmin
-        .from("user_payment_settings")
-        .select("razorpay_webhook_secret, razorpay_enabled")
-        .eq("user_id", userId)
-        .maybeSingle()
-
-    if (!settings?.razorpay_webhook_secret || !settings?.razorpay_enabled) {
-        // Return 200 to prevent Razorpay from retrying — user may have disconnected
-        return NextResponse.json({ received: true })
-    }
-
-    // Decrypt the webhook secret (stored encrypted since security hardening)
-    // Falls back to raw value for legacy plaintext secrets (migration compatibility)
-    const webhookSecretPlain = await decrypt(settings.razorpay_webhook_secret)
-        ?? settings.razorpay_webhook_secret
-
-    // Verify signature using user's webhook secret
-    const isValid = await verifySignature(body, signature, webhookSecretPlain)
-    if (!isValid) {
-        console.error(`[webhook/${userId}] Signature verification failed`)
-        return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
-    }
-
-    const event = JSON.parse(body)
-    const eventType = event.event
-
-    // Replay protection
-    if (eventId) {
-        const { data: existing } = await supabaseAdmin
-            .from("webhook_events")
-            .select("id")
-            .eq("event_id", eventId)
-            .maybeSingle()
-
-        if (existing) {
-            return NextResponse.json({ received: true, duplicate: true })
-        }
-
-        await supabaseAdmin.from("webhook_events").insert({
-            event_id: eventId,
-            event_type: eventType,
-        })
-    }
-
-    // Handle payment link events
-    switch (eventType) {
-        case "payment_link.paid": {
-            const paymentLink = event.payload.payment_link.entity
-            const payment = event.payload.payment?.entity
-            console.log(`[webhook/${userId}] Payment link paid:`, paymentLink.id)
-
-            await supabaseAdmin
-                .from("invoice_payments")
-                .update({
-                    status: "paid",
-                    razorpay_payment_id: payment?.id ?? null,
-                    amount_paid: paymentLink.amount_paid ?? paymentLink.amount,
-                    paid_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("razorpay_payment_link_id", paymentLink.id)
-                .eq("user_id", userId)
-
-            // Send notification to the user
-            const amountDisplay = ((paymentLink.amount_paid ?? paymentLink.amount) / 100).toFixed(2)
-            const currency = paymentLink.currency ?? "INR"
-
-            // Look up session_id for the notification link
-            let notifSessionId: string | null = null
-            try {
-                const { data: invPayment } = await supabaseAdmin
-                    .from("invoice_payments")
-                    .select("session_id")
-                    .eq("razorpay_payment_link_id", paymentLink.id)
-                    .eq("user_id", userId)
-                    .maybeSingle()
-                notifSessionId = invPayment?.session_id ?? null
-            } catch {}
-
-            await supabaseAdmin.from("notifications").insert({
-                user_id: userId,
-                type: "payment_received",
-                title: "Invoice Paid! 🎉",
-                message: `Payment of ${currency} ${amountDisplay} received for ${paymentLink.reference_id ?? "your invoice"}.`,
-                metadata: {
-                    session_id: notifSessionId,
-                    payment_link_id: paymentLink.id,
-                    razorpay_payment_id: payment?.id,
-                    amount: paymentLink.amount_paid ?? paymentLink.amount,
-                    currency,
-                    reference_id: paymentLink.reference_id,
-                },
-            })
-
-            // Also update document_sessions.status to "paid"
-            try {
-                if (notifSessionId) {
-                    await supabaseAdmin
-                        .from("document_sessions")
-                        .update({ status: "paid" })
-                        .eq("id", notifSessionId)
-                        .eq("user_id", userId)
-                } else {
-                    const { data: invoicePayment } = await supabaseAdmin
-                        .from("invoice_payments")
-                        .select("session_id")
-                        .eq("razorpay_payment_link_id", paymentLink.id)
-                        .eq("user_id", userId)
-                        .maybeSingle()
-
-                    if (invoicePayment?.session_id) {
-                        await supabaseAdmin
-                            .from("document_sessions")
-                            .update({ status: "paid" })
-                            .eq("id", invoicePayment.session_id)
-                            .eq("user_id", userId)
-                    }
-                }
-            } catch (err) {
-                console.error(`[webhook/${userId}] Failed to update document_sessions:`, err)
-            }
-            break
-        }
-
-        case "payment_link.partially_paid": {
-            const paymentLink = event.payload.payment_link.entity
-            const payment = event.payload.payment?.entity
-            console.log(`[webhook/${userId}] Partially paid:`, paymentLink.id)
-
-            await supabaseAdmin
-                .from("invoice_payments")
-                .update({
-                    status: "partially_paid",
-                    razorpay_payment_id: payment?.id ?? null,
-                    amount_paid: paymentLink.amount_paid ?? 0,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("razorpay_payment_link_id", paymentLink.id)
-                .eq("user_id", userId)
-
-            const paidDisplay = ((paymentLink.amount_paid ?? 0) / 100).toFixed(2)
-            const totalDisplay = (paymentLink.amount / 100).toFixed(2)
-            const currency = paymentLink.currency ?? "INR"
-
-            // Look up session_id for the notification link
-            let partialSessionId: string | null = null
-            try {
-                const { data: invPayment } = await supabaseAdmin
-                    .from("invoice_payments")
-                    .select("session_id")
-                    .eq("razorpay_payment_link_id", paymentLink.id)
-                    .eq("user_id", userId)
-                    .maybeSingle()
-                partialSessionId = invPayment?.session_id ?? null
-            } catch {}
-
-            await supabaseAdmin.from("notifications").insert({
-                user_id: userId,
-                type: "general",
-                title: "Partial Payment Received",
-                message: `${currency} ${paidDisplay} of ${totalDisplay} received for ${paymentLink.reference_id ?? "your invoice"}.`,
-                metadata: {
-                    session_id: partialSessionId,
-                    payment_link_id: paymentLink.id,
-                    amount_paid: paymentLink.amount_paid,
-                    amount_total: paymentLink.amount,
-                    currency,
-                    reference_id: paymentLink.reference_id,
-                },
-            })
-            break
-        }
-
-        case "payment_link.expired": {
-            const paymentLink = event.payload.payment_link.entity
-
-            // Resolve session_id to cancel pending reminders
-            const { data: expiredPayment } = await supabaseAdmin
-                .from("invoice_payments")
-                .select("session_id")
-                .eq("razorpay_payment_link_id", paymentLink.id)
-                .eq("user_id", userId)
-                .maybeSingle()
-
-            await supabaseAdmin
-                .from("invoice_payments")
-                .update({ status: "expired", updated_at: new Date().toISOString() })
-                .eq("razorpay_payment_link_id", paymentLink.id)
-                .eq("user_id", userId)
-
-            const expiredSessionId = (expiredPayment as any)?.session_id
-            if (expiredSessionId) {
-                await (supabaseAdmin as any)
-                    .from("email_schedules")
-                    .update({
-                        status: "cancelled",
-                        cancelled_reason: "payment_link_expired",
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq("session_id", expiredSessionId)
-                    .eq("status", "pending")
-            }
-            break
-        }
-
-        case "payment_link.cancelled": {
-            const paymentLink = event.payload.payment_link.entity
-
-            const { data: cancelledPayment } = await supabaseAdmin
-                .from("invoice_payments")
-                .select("session_id")
-                .eq("razorpay_payment_link_id", paymentLink.id)
-                .eq("user_id", userId)
-                .maybeSingle()
-
-            await supabaseAdmin
-                .from("invoice_payments")
-                .update({ status: "cancelled", updated_at: new Date().toISOString() })
-                .eq("razorpay_payment_link_id", paymentLink.id)
-                .eq("user_id", userId)
-
-            const cancelledSessionId = (cancelledPayment as any)?.session_id
-            if (cancelledSessionId) {
-                await (supabaseAdmin as any)
-                    .from("email_schedules")
-                    .update({
-                        status: "cancelled",
-                        cancelled_reason: "payment_link_cancelled",
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq("session_id", cancelledSessionId)
-                    .eq("status", "pending")
-            }
-            break
-        }
-
-        default:
-            console.log(`[webhook/${userId}] Unhandled event:`, eventType)
-    }
-
-    return NextResponse.json({ received: true })
+function adminClient() {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) throw new Error("Webhook service credentials are not configured")
+    return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }
 
 async function verifySignature(body: string, signature: string, secret: string): Promise<boolean> {
     try {
         const encoder = new TextEncoder()
-        const key = await crypto.subtle.importKey(
-            "raw",
-            encoder.encode(secret),
-            { name: "HMAC", hash: "SHA-256" },
-            false,
-            ["sign"]
-        )
-        const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(body))
-        const expected = Array.from(new Uint8Array(sigBuffer))
-            .map(b => b.toString(16).padStart(2, "0"))
-            .join("")
-        // Constant-time comparison to prevent timing attacks on signature verification
+        const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"])
+        const signed = await crypto.subtle.sign("HMAC", key, encoder.encode(body))
+        const expected = Array.from(new Uint8Array(signed), (byte) => byte.toString(16).padStart(2, "0")).join("")
         if (expected.length !== signature.length) return false
-        let diff = 0
-        for (let i = 0; i < expected.length; i++) {
-            diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i)
-        }
-        return diff === 0
+        let difference = 0
+        for (let index = 0; index < expected.length; index++) difference |= expected.charCodeAt(index) ^ signature.charCodeAt(index)
+        return difference === 0
     } catch {
         return false
+    }
+}
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+    const { userId } = await params
+    if (!UUID_PATTERN.test(userId || "")) return NextResponse.json({ received: true })
+
+    let db: ReturnType<typeof adminClient> | null = null
+    let eventId = ""
+    try {
+        const body = await request.text()
+        const signature = request.headers.get("x-razorpay-signature") || ""
+        eventId = request.headers.get("x-razorpay-event-id") || ""
+        if (!EVENT_ID_PATTERN.test(eventId)) {
+            return NextResponse.json({ error: "Missing or invalid event id" }, { status: 400 })
+        }
+
+        db = adminClient()
+        const { data: settings, error: settingsError } = await db.from("user_payment_settings")
+            .select("razorpay_webhook_secret,razorpay_enabled,razorpay_test_mode")
+            .eq("user_id", userId).maybeSingle()
+        if (settingsError) throw settingsError
+        if (!settings?.razorpay_webhook_secret || !settings.razorpay_enabled) {
+            return NextResponse.json({ received: true })
+        }
+        const secret = await decrypt(settings.razorpay_webhook_secret).catch(() => null)
+            || settings.razorpay_webhook_secret
+        if (!await verifySignature(body, signature, secret)) {
+            return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
+        }
+
+        let event: any
+        try { event = JSON.parse(body) } catch {
+            return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+        }
+        const eventType = typeof event?.event === "string" ? event.event : ""
+        if (!eventType) return NextResponse.json({ error: "Invalid event" }, { status: 400 })
+
+        if (request.headers.get("x-clorefy-test-webhook") === "1") {
+            return NextResponse.json({ received: true, test: true })
+        }
+
+        const claim = await claimWebhookEvent(db, "razorpay_invoice", eventId, eventType, await hashWebhookPayload(body), userId)
+        if (claim === "duplicate") return NextResponse.json({ received: true, duplicate: true })
+        if (claim === "in_progress") return NextResponse.json({ error: "Event is processing" }, { status: 503 })
+
+        const statusMap: Record<string, InvoicePaymentEventStatus> = {
+            "payment_link.paid": "paid",
+            "payment_link.partially_paid": "partially_paid",
+            "payment_link.expired": "expired",
+            "payment_link.cancelled": "cancelled",
+        }
+        const status = statusMap[eventType]
+        if (status) {
+            const link = event?.payload?.payment_link?.entity
+            const payment = event?.payload?.payment?.entity
+            if (!link || typeof link.id !== "string") throw new Error("Payment link payload is missing")
+            const amountPaid = status === "paid"
+                ? Number(link.amount_paid ?? link.amount)
+                : status === "partially_paid" ? Number(link.amount_paid) : null
+            const result = await applyInvoicePaymentEvent(db, {
+                userId,
+                gateway: "razorpay",
+                providerLinkId: link.id,
+                status,
+                amountPaid: Number.isSafeInteger(amountPaid) ? amountPaid : null,
+                currency: typeof link.currency === "string" ? link.currency : null,
+                providerPaymentId: typeof payment?.id === "string" ? payment.id : null,
+                isTestMode: settings.razorpay_test_mode === true,
+                paidAt: ["paid", "partially_paid"].includes(status) ? new Date().toISOString() : null,
+            })
+            await notifyInvoicePayment(db, userId, result, eventId)
+                .catch((error) => console.error("[razorpay/invoice-webhook] notification failed:", error))
+        }
+
+        await finishWebhookEvent(db, "razorpay_invoice", eventId, "processed")
+        return NextResponse.json({ received: true })
+    } catch (error) {
+        console.error("[razorpay/invoice-webhook] processing failed:", error)
+        if (db && eventId) {
+            await finishWebhookEvent(db, "razorpay_invoice", eventId, "failed", error instanceof Error ? error.message : "Processing failed")
+                .catch((finishError) => console.error("[razorpay/invoice-webhook] failure persistence failed:", finishError))
+        }
+        return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 })
     }
 }

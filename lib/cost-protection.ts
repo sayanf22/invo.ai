@@ -120,6 +120,13 @@ function getCurrentMonth(): string {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 }
 
+function protectionUnavailableResponse(): NextResponse {
+    return NextResponse.json(
+        { error: "Usage verification temporarily unavailable. Please try again." },
+        { status: 503 },
+    )
+}
+
 export function getTierLimits(tier: UserTier): TierLimits {
     return TIER_LIMITS[tier]
 }
@@ -184,7 +191,7 @@ async function getUserUsage(
 
     if (error && error.code !== "PGRST116") {
         console.error("Error fetching user usage:", error)
-        return null
+        throw new Error("Usage lookup failed")
     }
 
     return data as UsageRecord | null
@@ -230,7 +237,7 @@ export async function checkDocumentLimit(
         return null
     } catch (error) {
         console.error("Document limit check failed:", error)
-        return null // fail open
+        return protectionUnavailableResponse()
     }
 }
 
@@ -261,7 +268,7 @@ export async function checkChatMessageLimit(
 
         if (error) {
             console.error("Error counting chat messages:", error)
-            return null // fail open
+            return protectionUnavailableResponse()
         }
 
         // +1 for the in-flight message not yet saved
@@ -287,7 +294,7 @@ export async function checkChatMessageLimit(
         return null
     } catch (error) {
         console.error("Chat message limit check failed:", error)
-        return null // fail open
+        return protectionUnavailableResponse()
     }
 }
 
@@ -343,7 +350,7 @@ export async function checkMessageLimit(
 
         if (error) {
             console.error("Error counting session messages:", error)
-            return null // fail open
+            return protectionUnavailableResponse()
         }
 
         // +1 because the current message hasn't been saved to DB yet
@@ -366,7 +373,7 @@ export async function checkMessageLimit(
         return null
     } catch (error) {
         console.error("Message limit check failed:", error)
-        return null // fail open
+        return protectionUnavailableResponse()
     }
 }
 
@@ -403,7 +410,7 @@ export async function checkEmailLimit(
 
         if (error) {
             console.error("Email limit check DB error:", error)
-            return null // fail open
+            return protectionUnavailableResponse()
         }
 
         const currentEmails = (usage as any)?.emails_count ?? 0
@@ -428,7 +435,7 @@ export async function checkEmailLimit(
         return null
     } catch (error) {
         console.error("Email limit check failed:", error)
-        return null // fail open
+        return protectionUnavailableResponse()
     }
 }
 
@@ -646,6 +653,56 @@ export async function trackUsage(
     } catch (error) {
         console.error("Usage tracking failed:", error)
     }
+}
+
+export interface DocumentQuotaReservation {
+    response: NextResponse | null
+    reserved: boolean
+}
+
+/** Atomically reserve one monthly document slot for an owned session. */
+export async function reserveDocumentQuota(
+    supabase: SupabaseClient<Database>,
+    userId: string,
+    sessionId: string,
+): Promise<DocumentQuotaReservation> {
+    const { data, error } = await (supabase.rpc as any)("reserve_document_quota", {
+        p_user_id: userId,
+        p_session_id: sessionId,
+        p_month: getCurrentMonth(),
+    })
+    if (error || !data || typeof data.allowed !== "boolean") {
+        console.error("Atomic document quota reservation failed:", error)
+        return { response: protectionUnavailableResponse(), reserved: false }
+    }
+    if (!data.allowed) {
+        return {
+            response: NextResponse.json({
+                error: "Monthly document limit reached",
+                currentUsage: data.current_count ?? 0,
+                limit: data.limit,
+                tier: data.tier,
+            }, { status: 429 }),
+            reserved: false,
+        }
+    }
+    return { response: null, reserved: data.reserved === true }
+}
+
+/** Release only this request's reservation after a failed generation. */
+export async function releaseDocumentQuota(userId: string, sessionId: string): Promise<void> {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) throw new Error("Quota service credentials are not configured")
+    const { createClient } = await import("@supabase/supabase-js")
+    const service = createClient<Database>(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false },
+    })
+    const { error } = await (service.rpc as any)("release_document_quota", {
+        p_user_id: userId,
+        p_session_id: sessionId,
+    })
+    if (error) throw error
 }
 
 /**

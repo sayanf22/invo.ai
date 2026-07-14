@@ -82,6 +82,27 @@ export async function createStripePaymentLink(params: StripePaymentLinkParams): 
     }
 }
 
+export async function expireStripeCheckoutSession(
+    sessionId: string,
+    userSecretKey: string,
+): Promise<void> {
+    if (!sessionId.startsWith("cs_") || !userSecretKey) {
+        throw new Error("Invalid Stripe Checkout Session")
+    }
+    const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}/expire`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${userSecretKey}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        signal: AbortSignal.timeout(15000),
+    })
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error?.message || "Failed to expire Stripe Checkout Session")
+    }
+}
+
 /**
  * Register a webhook on the user's Stripe account programmatically.
  * Stripe DOES support this via API — unlike Razorpay.
@@ -97,6 +118,7 @@ export async function registerStripeWebhook(
         const params = new URLSearchParams()
         params.append("url", webhookUrl)
         params.append("enabled_events[]", "checkout.session.completed")
+        params.append("enabled_events[]", "checkout.session.async_payment_succeeded")
         params.append("enabled_events[]", "checkout.session.expired")
         params.append("description", "Clorefy payment notifications")
 
@@ -106,6 +128,7 @@ export async function registerStripeWebhook(
                 Authorization: `Bearer ${userSecretKey}`,
                 "Content-Type": "application/x-www-form-urlencoded",
             },
+            signal: AbortSignal.timeout(15000),
             body: params,
         })
 

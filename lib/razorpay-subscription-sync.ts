@@ -158,13 +158,6 @@ async function syncTerminal(
     }
 }
 
-async function removeFailedDedup(db: SupabaseClient, eventId: string) {
-    if (!eventId) return
-    const { error } = await (db as any).from("webhook_events")
-        .delete().eq("gateway", "razorpay").eq("event_id", eventId)
-    if (error) console.error("[razorpay/webhook] Failed to release event for retry:", error.message)
-}
-
 export async function handleRazorpaySubscriptionEvent(
     event: SubscriptionWebhookEvent,
     eventType: string,
@@ -172,9 +165,8 @@ export async function handleRazorpaySubscriptionEvent(
 ): Promise<NextResponse | null> {
     if (!eventId) return NextResponse.json({ error: "Missing Razorpay event id" }, { status: 400 })
 
-    let db: SupabaseClient | null = null
     try {
-        db = adminClient()
+        const db = adminClient()
         const entity = event.payload?.subscription?.entity
         if (!entity) throw new Error("Subscription webhook payload is missing")
         if (isActiveSubscriptionEvent(eventType)) await syncActive(db, event, entity, eventType)
@@ -183,7 +175,6 @@ export async function handleRazorpaySubscriptionEvent(
         return null
     } catch (error) {
         console.error("[razorpay/webhook] Subscription sync failed:", error)
-        if (db) await removeFailedDedup(db, eventId)
         return NextResponse.json({ error: "Subscription webhook processing failed" }, { status: 500 })
     }
 }

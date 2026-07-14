@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
+import { validateCSRFToken } from "@/lib/csrf"
+import { checkRateLimit } from "@/lib/rate-limiter"
 import { cancelRazorpaySubscription, getSubscription } from "@/lib/razorpay"
 import { applyRazorpaySubscriptionSnapshot } from "@/lib/razorpay-subscription-state"
 import { logAudit } from "@/lib/audit-log"
@@ -13,6 +15,10 @@ export async function POST(request: NextRequest) {
     if (originError) return originError
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
+    const csrfError = await validateCSRFToken(request, auth.user.id, auth.supabase)
+    if (csrfError) return csrfError
+    const rateError = await checkRateLimit(auth.user.id, "payment", auth.supabase as any)
+    if (rateError) return rateError
 
     try {
         const svc = createClient(
@@ -20,32 +26,32 @@ export async function POST(request: NextRequest) {
             process.env.SUPABASE_SERVICE_ROLE_KEY!,
             { auth: { persistSession: false, autoRefreshToken: false } },
         )
-        const { data: current } = await svc.from("subscriptions" as any)
+        const { data: current, error: currentError } = await svc.from("subscriptions" as any)
             .select("*").eq("user_id", auth.user.id).maybeSingle()
-        const { data: auditRows } = await auth.supabase.from("audit_logs")
-            .select("action,metadata,created_at").eq("user_id", auth.user.id)
-            .in("action", ["payment.subscription_created", "payment.verify_pending", "payment.verify", "security.payment_failure"])
-            .order("created_at", { ascending: false }).limit(20)
+        if (currentError) throw currentError
 
+        // Reconcile only provider IDs durably bound to this user's row. Audit-log
+        // metadata is user-writable and must never be an entitlement source.
         const candidates: string[] = []
         const add = (value: unknown) => {
             if (typeof value === "string" && value.startsWith("sub_") && !candidates.includes(value)) candidates.push(value)
         }
         add((current as any)?.pending_razorpay_subscription_id)
         add((current as any)?.razorpay_subscription_id)
-        for (const row of auditRows ?? []) {
-            const meta = (row as any).metadata as Record<string, unknown> | null
-            add(meta?.razorpay_subscription_id)
-            add(meta?.subscription_id)
-            add(meta?.verifyId)
-        }
         if (!candidates.length) return NextResponse.json({ activated: false, reason: "no_pending_payment" })
 
         for (const subscriptionId of candidates) {
             const provider = await getSubscription(subscriptionId).catch(() => null)
-            if (!provider || provider.notes?.platform !== "clorefy") continue
+            if (
+                !provider
+                || provider.id !== subscriptionId
+                || provider.notes?.platform !== "clorefy"
+                || provider.notes?.user_id !== auth.user.id
+            ) continue
 
-            if (ACTIVE_PROVIDER_STATUSES.has(provider.status)) {
+            const isExpectedFutureReplacement = (current as any)?.pending_razorpay_subscription_id === subscriptionId
+                && Boolean(provider.current_start && provider.current_start * 1000 > Date.now() + 60_000)
+            if (ACTIVE_PROVIDER_STATUSES.has(provider.status) && (provider.status !== "authenticated" || isExpectedFutureReplacement)) {
                 const result = await applyRazorpaySubscriptionSnapshot(svc, provider, {
                     userId: auth.user.id,
                     eventType: "provider.reconcile",

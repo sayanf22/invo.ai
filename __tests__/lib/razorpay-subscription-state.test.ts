@@ -24,6 +24,16 @@ function createDb(initial: Record<string, any> | null) {
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: row, error: null })) })),
+            or: vi.fn(() => ({
+              limit: vi.fn(() => ({
+                maybeSingle: vi.fn(async () => ({
+                  data: row && (row.razorpay_subscription_id === "sub_new" || row.pending_razorpay_subscription_id === "sub_new")
+                    ? { user_id: row.user_id }
+                    : null,
+                  error: null,
+                })),
+              })),
+            })),
           })),
           update: vi.fn((patch: Record<string, any>) => ({
             eq: vi.fn(async () => {
@@ -67,6 +77,7 @@ function providerEntity(start: number, end: number) {
     id: "sub_new",
     status: "authenticated",
     plan_id: "plan_pro_monthly",
+    notes: { platform: "clorefy", user_id: userId },
     current_start: start,
     current_end: end,
   }
@@ -182,5 +193,27 @@ describe("applyRazorpaySubscriptionSnapshot", () => {
     expect(result.chargedAmount).toBe(4321)
     expect(state.getRow()?.amount_paid).toBe(4321)
     expect(state.payments[0]).toMatchObject({ razorpay_payment_id: "pay_exact", amount: 4321 })
+  })
+})
+
+
+describe("provider identifier ownership", () => {
+  it("rejects a subscription identifier already bound to another user", async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const state = createDb({
+      user_id: "11111111-1111-4111-8111-111111111111",
+      plan: "pro",
+      razorpay_subscription_id: "sub_new",
+      current_period_start: new Date((now - 60) * 1000).toISOString(),
+      current_period_end: new Date((now + 3600) * 1000).toISOString(),
+    })
+
+    await expect(applyRazorpaySubscriptionSnapshot(
+      state.db as any,
+      providerEntity(now - 60, now + 3600),
+      { userId, eventType: "provider.verify", eventCreatedAt: new Date() },
+    )).rejects.toThrow("already bound to another user")
+
+    expect(state.operations).not.toContain("upsert")
   })
 })

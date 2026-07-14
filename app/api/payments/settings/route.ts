@@ -1,326 +1,263 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
-import { authenticateRequest, validateBodySize } from "@/lib/api-auth"
-import { encrypt, decrypt } from "@/lib/encrypt"
+import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
+import { validateCSRFToken } from "@/lib/csrf"
+import { checkRateLimit } from "@/lib/rate-limiter"
+import { encrypt, decrypt } from "@/lib/encrypt"
 import { logAudit } from "@/lib/audit-log"
 import { sanitizeSQLInput as sanitizeInput } from "@/lib/sanitize"
 import { generateWebhookSecret } from "@/lib/razorpay"
 import { registerStripeWebhook, deleteStripeWebhook } from "@/lib/stripe-payments"
 
 function adminClient() {
-    return createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) throw new Error("Payment service credentials are not configured")
+    return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }
 
-/**
- * GET /api/payments/settings
- * Returns all gateway settings (keys masked, secrets never returned).
- */
+async function mutationAuth(request: NextRequest) {
+    const originError = validateOrigin(request)
+    if (originError) return { response: originError } as const
+    const auth = await authenticateRequest(request)
+    if (auth.error) return { response: auth.error } as const
+    const csrfError = await validateCSRFToken(request, auth.user.id, auth.supabase)
+    if (csrfError) return { response: csrfError } as const
+    const rateError = await checkRateLimit(auth.user.id, "payment", auth.supabase as any)
+    if (rateError) return { response: rateError } as const
+    return { auth, response: null } as const
+}
+
 export async function GET(request: NextRequest) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
-
-    const { data } = await adminClient()
-        .from("user_payment_settings")
-        .select(`
+    try {
+        const { data, error } = await adminClient().from("user_payment_settings").select(`
             razorpay_key_id, razorpay_account_name, razorpay_enabled, razorpay_test_mode,
             razorpay_webhook_id, razorpay_webhook_secret,
             stripe_enabled, stripe_test_mode, stripe_webhook_id, stripe_webhook_secret,
-            cashfree_client_id, cashfree_enabled, cashfree_test_mode, cashfree_webhook_secret,
+            cashfree_client_id, cashfree_enabled, cashfree_test_mode,
             updated_at
-        `)
-        .eq("user_id", auth.user.id)
-        .maybeSingle()
-
-    return NextResponse.json({
-        settings: data ? {
-            razorpay: data.razorpay_enabled ? {
-                // SECURITY: Never return the full key ID — only a masked hint
-                keyIdHint: data.razorpay_key_id
-                    ? `${data.razorpay_key_id.slice(0, 8)}••••${data.razorpay_key_id.slice(-4)}`
-                    : null,
-                accountName: data.razorpay_account_name,
-                testMode: data.razorpay_test_mode,
-                // SECURITY: NEVER return webhookSecret to the client — only boolean status
-                webhookConfigured: !!(data.razorpay_webhook_secret),
-                webhookRegistered: !!data.razorpay_webhook_id,
+        `).eq("user_id", auth.user.id).maybeSingle()
+        if (error) throw error
+        return NextResponse.json({
+            settings: data ? {
+                razorpay: data.razorpay_enabled ? {
+                    keyIdHint: data.razorpay_key_id ? `${data.razorpay_key_id.slice(0, 8)}••••${data.razorpay_key_id.slice(-4)}` : null,
+                    accountName: data.razorpay_account_name,
+                    testMode: data.razorpay_test_mode,
+                    webhookConfigured: Boolean(data.razorpay_webhook_secret),
+                    webhookRegistered: Boolean(data.razorpay_webhook_id),
+                } : null,
+                stripe: data.stripe_enabled ? {
+                    testMode: data.stripe_test_mode,
+                    webhookConfigured: Boolean(data.stripe_webhook_secret),
+                    webhookRegistered: Boolean(data.stripe_webhook_id),
+                } : null,
+                cashfree: data.cashfree_enabled ? {
+                    clientIdHint: data.cashfree_client_id ? `${data.cashfree_client_id.slice(0, 4)}••••${data.cashfree_client_id.slice(-4)}` : null,
+                    testMode: data.cashfree_test_mode,
+                    webhookConfigured: true,
+                } : null,
+                updatedAt: data.updated_at,
             } : null,
-            stripe: data.stripe_enabled ? {
-                testMode: data.stripe_test_mode,
-                // SECURITY: NEVER return stripe webhook secret — only boolean status
-                webhookConfigured: !!(data.stripe_webhook_secret),
-                webhookRegistered: !!data.stripe_webhook_id,
-            } : null,
-            cashfree: data.cashfree_enabled ? {
-                // SECURITY: Only return masked client ID hint
-                clientIdHint: data.cashfree_client_id
-                    ? `${data.cashfree_client_id.slice(0, 4)}••••${data.cashfree_client_id.slice(-4)}`
-                    : null,
-                testMode: data.cashfree_test_mode,
-                // SECURITY: NEVER return cashfree webhook secret — only boolean status
-                webhookConfigured: !!(data.cashfree_webhook_secret),
-            } : null,
-            updatedAt: data.updated_at,
-        } : null,
-    })
+        })
+    } catch (error) {
+        console.error("[payments/settings] read failed:", error)
+        return NextResponse.json({ error: "Failed to load payment settings" }, { status: 500 })
+    }
 }
 
-/**
- * POST /api/payments/settings
- * Save gateway credentials. Body must include `gateway` field.
- */
 export async function POST(request: NextRequest) {
-    const auth = await authenticateRequest(request)
-    if (auth.error) return auth.error
-
-    let body: unknown
+    const authorization = await mutationAuth(request)
+    if (authorization.response) return authorization.response
+    const { auth } = authorization
+    let body: Record<string, unknown>
     try { body = await request.json() } catch {
         return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
     }
-
     const sizeError = validateBodySize(body, 10 * 1024)
     if (sizeError) return sizeError
-
-    const { gateway } = body as Record<string, unknown>
-
-    if (gateway === "razorpay") return handleRazorpay(auth, body as Record<string, unknown>, request)
-    if (gateway === "stripe") return handleStripe(auth, body as Record<string, unknown>, request)
-    if (gateway === "cashfree") return handleCashfree(auth, body as Record<string, unknown>, request)
-
-    return NextResponse.json({ error: "Invalid gateway. Must be: razorpay, stripe, or cashfree" }, { status: 400 })
+    try {
+        if (body.gateway === "razorpay") return await saveRazorpay(auth, body, request)
+        if (body.gateway === "stripe") return await saveStripe(auth, body, request)
+        if (body.gateway === "cashfree") return await saveCashfree(auth, body, request)
+        return NextResponse.json({ error: "Invalid gateway" }, { status: 400 })
+    } catch (error) {
+        console.error("[payments/settings] save failed:", error)
+        return NextResponse.json({ error: "Failed to save payment settings" }, { status: 500 })
+    }
 }
 
-/**
- * DELETE /api/payments/settings?gateway=razorpay
- */
 export async function DELETE(request: NextRequest) {
-    const auth = await authenticateRequest(request)
-    if (auth.error) return auth.error
-
+    const authorization = await mutationAuth(request)
+    if (authorization.response) return authorization.response
+    const { auth } = authorization
     const gateway = request.nextUrl.searchParams.get("gateway")
-    const supabase = adminClient()
-
-    if (gateway === "stripe") {
-        const { data } = await supabase
-            .from("user_payment_settings")
-            .select("stripe_secret_key_encrypted, stripe_webhook_id")
-            .eq("user_id", auth.user.id)
-            .maybeSingle()
-
-        if (data?.stripe_webhook_id && data?.stripe_secret_key_encrypted) {
-            const secret = await decrypt(data.stripe_secret_key_encrypted)
-            if (secret) await deleteStripeWebhook(secret, data.stripe_webhook_id)
-        }
-
-        await supabase.from("user_payment_settings").update({
-            stripe_secret_key_encrypted: null,
-            stripe_webhook_id: null,
-            stripe_webhook_secret: null,
-            stripe_enabled: false,
-        }).eq("user_id", auth.user.id)
-    } else if (gateway === "razorpay") {
-        await supabase.from("user_payment_settings").update({
-            razorpay_key_id: null,
-            razorpay_key_secret_encrypted: null,
-            razorpay_webhook_id: null,
-            razorpay_webhook_secret: null,
-            razorpay_enabled: false,
-        }).eq("user_id", auth.user.id)
-    } else if (gateway === "cashfree") {
-        await supabase.from("user_payment_settings").update({
-            cashfree_client_id: null,
-            cashfree_client_secret_encrypted: null,
-            cashfree_webhook_secret: null,
-            cashfree_enabled: false,
-        }).eq("user_id", auth.user.id)
-    } else {
-        // Remove all
-        await supabase.from("user_payment_settings").delete().eq("user_id", auth.user.id)
+    if (gateway && !["razorpay", "stripe", "cashfree"].includes(gateway)) {
+        return NextResponse.json({ error: "Invalid gateway" }, { status: 400 })
     }
-
-    await logAudit(auth.supabase, {
-        user_id: auth.user.id,
-        action: "payment_settings.removed",
-        metadata: { gateway } as any,
-    }, request)
-
-    return NextResponse.json({ success: true })
+    try {
+        const db = adminClient()
+        if (gateway === "stripe") {
+            const { data, error } = await db.from("user_payment_settings")
+                .select("stripe_secret_key_encrypted,stripe_webhook_id")
+                .eq("user_id", auth.user.id).maybeSingle()
+            if (error) throw error
+            if (data?.stripe_webhook_id && data.stripe_secret_key_encrypted) {
+                const secret = await decrypt(data.stripe_secret_key_encrypted)
+                if (secret) await deleteStripeWebhook(secret, data.stripe_webhook_id)
+            }
+            const { error: updateError } = await db.from("user_payment_settings").update({
+                stripe_secret_key_encrypted: null,
+                stripe_webhook_id: null,
+                stripe_webhook_secret: null,
+                stripe_enabled: false,
+            }).eq("user_id", auth.user.id)
+            if (updateError) throw updateError
+        } else if (gateway === "razorpay") {
+            const { error } = await db.from("user_payment_settings").update({
+                razorpay_key_id: null,
+                razorpay_key_secret_encrypted: null,
+                razorpay_webhook_id: null,
+                razorpay_webhook_secret: null,
+                razorpay_enabled: false,
+            }).eq("user_id", auth.user.id)
+            if (error) throw error
+        } else if (gateway === "cashfree") {
+            const { error } = await db.from("user_payment_settings").update({
+                cashfree_client_id: null,
+                cashfree_client_secret_encrypted: null,
+                cashfree_webhook_secret: null,
+                cashfree_enabled: false,
+            }).eq("user_id", auth.user.id)
+            if (error) throw error
+        } else {
+            const { error } = await db.from("user_payment_settings").delete().eq("user_id", auth.user.id)
+            if (error) throw error
+        }
+        await logAudit(auth.supabase, {
+            user_id: auth.user.id,
+            action: "payment_settings.removed",
+            metadata: { gateway: gateway || "all" } as any,
+        }, request).catch(() => {})
+        return NextResponse.json({ success: true })
+    } catch (error) {
+        console.error("[payments/settings] delete failed:", error)
+        return NextResponse.json({ error: "Failed to remove payment settings" }, { status: 500 })
+    }
 }
 
-// ── Gateway Handlers ───────────────────────────────────────────────────
-
-async function handleRazorpay(auth: any, body: Record<string, unknown>, request: NextRequest) {
-    const { keyId, keySecret, accountName } = body
-
-    if (!keyId || typeof keyId !== "string") return NextResponse.json({ error: "Key ID required" }, { status: 400 })
-    if (!keySecret || typeof keySecret !== "string") return NextResponse.json({ error: "Key Secret required" }, { status: 400 })
-
-    const safeKeyId = sanitizeInput(String(keyId)).trim()
-    if (!safeKeyId.startsWith("rzp_live_") && !safeKeyId.startsWith("rzp_test_")) {
-        return NextResponse.json({ error: "Invalid Razorpay Key ID. Must start with rzp_live_ or rzp_test_" }, { status: 400 })
+async function saveRazorpay(auth: any, body: Record<string, unknown>, request: NextRequest) {
+    if (typeof body.keyId !== "string" || typeof body.keySecret !== "string") {
+        return NextResponse.json({ error: "Key ID and Key Secret are required" }, { status: 400 })
     }
-
-    // Verify keys
-    const testRes = await fetch("https://api.razorpay.com/v1/payment_links?count=1", {
-        headers: { Authorization: `Basic ${btoa(`${safeKeyId}:${String(keySecret).trim()}`)}` },
+    const keyId = sanitizeInput(body.keyId).trim()
+    const keySecret = body.keySecret.trim()
+    if (!/^(rzp_live|rzp_test)_[A-Za-z0-9]{8,100}$/.test(keyId) || keySecret.length < 8 || keySecret.length > 256) {
+        return NextResponse.json({ error: "Invalid Razorpay credentials" }, { status: 400 })
+    }
+    const verification = await fetch("https://api.razorpay.com/v1/payment_links?count=1", {
+        headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+        signal: AbortSignal.timeout(15000),
     })
-    if (testRes.status === 401) {
-        return NextResponse.json({ error: "Invalid Razorpay credentials. Check your Key ID and Secret." }, { status: 400 })
-    }
+    if (!verification.ok) return NextResponse.json({ error: "Razorpay rejected these credentials" }, { status: 400 })
 
-    const encryptedSecret = await encrypt(String(keySecret).trim())
-    const isTestMode = safeKeyId.startsWith("rzp_test_")
-    const supabase = adminClient()
-
-    // Preserve existing webhook secret (or generate new one), always store encrypted
-    const { data: existing } = await supabase
-        .from("user_payment_settings")
-        .select("razorpay_webhook_secret")
-        .eq("user_id", auth.user.id)
-        .maybeSingle()
-
-    // Decrypt existing to check if it's already encrypted, or generate new plaintext secret
-    let webhookSecretPlain: string
-    if (existing?.razorpay_webhook_secret) {
-        // Try to decrypt — if it fails it was stored plaintext (legacy), keep as-is and re-encrypt
-        const decrypted = await decrypt(existing.razorpay_webhook_secret)
-        webhookSecretPlain = decrypted || existing.razorpay_webhook_secret
-    } else {
-        webhookSecretPlain = generateWebhookSecret()
-    }
-    const encryptedWebhookSecret = await encrypt(webhookSecretPlain)
-
-    await supabase.from("user_payment_settings").upsert({
+    const db = adminClient()
+    const { data: existing, error: existingError } = await db.from("user_payment_settings")
+        .select("razorpay_webhook_secret").eq("user_id", auth.user.id).maybeSingle()
+    if (existingError) throw existingError
+    const priorSecret = existing?.razorpay_webhook_secret
+        ? await decrypt(existing.razorpay_webhook_secret).catch(() => null) || existing.razorpay_webhook_secret
+        : generateWebhookSecret()
+    const { error } = await db.from("user_payment_settings").upsert({
         user_id: auth.user.id,
-        razorpay_key_id: safeKeyId,
-        razorpay_key_secret_encrypted: encryptedSecret,
-        razorpay_account_name: accountName ? sanitizeInput(String(accountName)).slice(0, 100) : null,
+        razorpay_key_id: keyId,
+        razorpay_key_secret_encrypted: await encrypt(keySecret),
+        razorpay_account_name: body.accountName ? sanitizeInput(String(body.accountName)).slice(0, 100) : null,
         razorpay_enabled: true,
-        razorpay_test_mode: isTestMode,
-        razorpay_webhook_secret: encryptedWebhookSecret,
+        razorpay_test_mode: keyId.startsWith("rzp_test_"),
+        razorpay_webhook_secret: await encrypt(priorSecret),
         updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" })
-
-    await logAudit(auth.supabase, {
-        user_id: auth.user.id,
-        action: "payment_settings.razorpay_connected",
-        metadata: { test_mode: isTestMode } as any,
-    }, request)
-
-    return NextResponse.json({ success: true, gateway: "razorpay", testMode: isTestMode })
+    if (error) throw error
+    await auditConnection(auth, "razorpay", keyId.startsWith("rzp_test_"), request)
+    return NextResponse.json({ success: true, gateway: "razorpay", testMode: keyId.startsWith("rzp_test_") })
 }
 
-async function handleStripe(auth: any, body: Record<string, unknown>, request: NextRequest) {
-    const { secretKey } = body
-
-    if (!secretKey || typeof secretKey !== "string") return NextResponse.json({ error: "Secret Key required" }, { status: 400 })
-
-    const safeKey = String(secretKey).trim()
-    if (!safeKey.startsWith("sk_live_") && !safeKey.startsWith("sk_test_")) {
-        return NextResponse.json({ error: "Invalid Stripe Secret Key. Must start with sk_live_ or sk_test_" }, { status: 400 })
+async function saveStripe(auth: any, body: Record<string, unknown>, request: NextRequest) {
+    if (typeof body.secretKey !== "string") return NextResponse.json({ error: "Secret Key is required" }, { status: 400 })
+    const secretKey = body.secretKey.trim()
+    if (!/^(sk_live|sk_test)_[A-Za-z0-9_]{8,200}$/.test(secretKey)) {
+        return NextResponse.json({ error: "Invalid Stripe Secret Key" }, { status: 400 })
     }
-
-    // Verify key
-    const testRes = await fetch("https://api.stripe.com/v1/account", {
-        headers: { Authorization: `Bearer ${safeKey}` },
+    const verification = await fetch("https://api.stripe.com/v1/account", {
+        headers: { Authorization: `Bearer ${secretKey}` },
+        signal: AbortSignal.timeout(15000),
     })
-    if (testRes.status === 401) {
-        return NextResponse.json({ error: "Invalid Stripe Secret Key." }, { status: 400 })
+    if (!verification.ok) return NextResponse.json({ error: "Stripe rejected this Secret Key" }, { status: 400 })
+
+    const webhook = await registerStripeWebhook(secretKey, auth.user.id)
+    if (!webhook) return NextResponse.json({ error: "Stripe credentials are valid, but webhook registration failed. Try again." }, { status: 502 })
+    const db = adminClient()
+    const { data: existing, error: existingError } = await db.from("user_payment_settings")
+        .select("stripe_secret_key_encrypted,stripe_webhook_id").eq("user_id", auth.user.id).maybeSingle()
+    if (existingError) throw existingError
+    const { error } = await db.from("user_payment_settings").upsert({
+        user_id: auth.user.id,
+        stripe_secret_key_encrypted: await encrypt(secretKey),
+        stripe_enabled: true,
+        stripe_test_mode: secretKey.startsWith("sk_test_"),
+        stripe_webhook_id: webhook.webhookId,
+        stripe_webhook_secret: await encrypt(webhook.webhookSecret),
+        updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" })
+    if (error) {
+        await deleteStripeWebhook(secretKey, webhook.webhookId)
+        throw error
     }
-
-    const encryptedSecret = await encrypt(safeKey)
-    const isTestMode = safeKey.startsWith("sk_test_")
-    const supabase = adminClient()
-
-    // Delete old webhook if exists
-    const { data: existing } = await supabase
-        .from("user_payment_settings")
-        .select("stripe_secret_key_encrypted, stripe_webhook_id")
-        .eq("user_id", auth.user.id)
-        .maybeSingle()
-
-    if (existing?.stripe_webhook_id && existing?.stripe_secret_key_encrypted) {
+    if (existing?.stripe_webhook_id && existing.stripe_secret_key_encrypted) {
         const oldSecret = await decrypt(existing.stripe_secret_key_encrypted)
         if (oldSecret) await deleteStripeWebhook(oldSecret, existing.stripe_webhook_id)
     }
-
-    // Register new webhook programmatically (Stripe supports this!)
-    const webhookResult = await registerStripeWebhook(safeKey, auth.user.id)
-
-    // Encrypt the webhook secret before storing (it's sensitive — used to verify webhook signatures)
-    const encryptedWebhookSecret = webhookResult?.webhookSecret
-        ? await encrypt(webhookResult.webhookSecret)
-        : null
-
-    await supabase.from("user_payment_settings").upsert({
-        user_id: auth.user.id,
-        stripe_secret_key_encrypted: encryptedSecret,
-        stripe_enabled: true,
-        stripe_test_mode: isTestMode,
-        stripe_webhook_id: webhookResult?.webhookId ?? null,
-        stripe_webhook_secret: encryptedWebhookSecret,
-        updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id" })
-
-    await logAudit(auth.supabase, {
-        user_id: auth.user.id,
-        action: "payment_settings.stripe_connected",
-        metadata: { test_mode: isTestMode, webhook_registered: !!webhookResult } as any,
-    }, request)
-
-    return NextResponse.json({
-        success: true,
-        gateway: "stripe",
-        testMode: isTestMode,
-        webhookRegistered: !!webhookResult,
-    })
+    await auditConnection(auth, "stripe", secretKey.startsWith("sk_test_"), request, { webhook_registered: true })
+    return NextResponse.json({ success: true, gateway: "stripe", testMode: secretKey.startsWith("sk_test_"), webhookRegistered: true })
 }
 
-async function handleCashfree(auth: any, body: Record<string, unknown>, request: NextRequest) {
-    const { clientId, clientSecret, testMode } = body
-
-    if (!clientId || typeof clientId !== "string") return NextResponse.json({ error: "Client ID required" }, { status: 400 })
-    if (!clientSecret || typeof clientSecret !== "string") return NextResponse.json({ error: "Client Secret required" }, { status: 400 })
-
-    const safeClientId = sanitizeInput(String(clientId)).trim()
-    const isTestMode = Boolean(testMode)
-
-    // Verify credentials
-    const baseUrl = isTestMode ? "https://sandbox.cashfree.com" : "https://api.cashfree.com"
-    const testRes = await fetch(`${baseUrl}/pg/links?count=1`, {
-        headers: {
-            "x-api-version": "2025-01-01",
-            "x-client-id": safeClientId,
-            "x-client-secret": String(clientSecret).trim(),
-        },
-    })
-    if (testRes.status === 401 || testRes.status === 403) {
-        return NextResponse.json({ error: "Invalid Cashfree credentials. Check your Client ID and Secret." }, { status: 400 })
+async function saveCashfree(auth: any, body: Record<string, unknown>, request: NextRequest) {
+    if (typeof body.clientId !== "string" || typeof body.clientSecret !== "string") {
+        return NextResponse.json({ error: "Client ID and Client Secret are required" }, { status: 400 })
     }
-
-    const encryptedSecret = await encrypt(String(clientSecret).trim())
-    // SECURITY: Encrypt webhook secret before storing — same as Razorpay and Stripe
-    const webhookSecretPlain = generateWebhookSecret()
-    const encryptedWebhookSecret = await encrypt(webhookSecretPlain)
-
-    await adminClient().from("user_payment_settings").upsert({
+    const clientId = sanitizeInput(body.clientId).trim()
+    const clientSecret = body.clientSecret.trim()
+    const testMode = body.testMode === true
+    if (clientId.length < 6 || clientId.length > 200 || clientSecret.length < 8 || clientSecret.length > 256) {
+        return NextResponse.json({ error: "Invalid Cashfree credentials" }, { status: 400 })
+    }
+    const baseUrl = testMode ? "https://sandbox.cashfree.com" : "https://api.cashfree.com"
+    const verification = await fetch(`${baseUrl}/pg/links?count=1`, {
+        headers: { "x-api-version": "2025-01-01", "x-client-id": clientId, "x-client-secret": clientSecret },
+        signal: AbortSignal.timeout(15000),
+    })
+    if (!verification.ok) return NextResponse.json({ error: "Cashfree rejected these credentials" }, { status: 400 })
+    const { error } = await adminClient().from("user_payment_settings").upsert({
         user_id: auth.user.id,
-        cashfree_client_id: safeClientId,
-        cashfree_client_secret_encrypted: encryptedSecret,
+        cashfree_client_id: clientId,
+        cashfree_client_secret_encrypted: await encrypt(clientSecret),
         cashfree_enabled: true,
-        cashfree_test_mode: isTestMode,
-        cashfree_webhook_secret: encryptedWebhookSecret,
+        cashfree_test_mode: testMode,
+        cashfree_webhook_secret: null,
         updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" })
+    if (error) throw error
+    await auditConnection(auth, "cashfree", testMode, request)
+    return NextResponse.json({ success: true, gateway: "cashfree", testMode })
+}
 
+async function auditConnection(auth: any, gateway: string, testMode: boolean, request: NextRequest, metadata: Record<string, unknown> = {}) {
     await logAudit(auth.supabase, {
         user_id: auth.user.id,
-        action: "payment_settings.cashfree_connected",
-        metadata: { test_mode: isTestMode } as any,
-    }, request)
-
-    return NextResponse.json({ success: true, gateway: "cashfree", testMode: isTestMode })
+        action: `payment_settings.${gateway}_connected` as any,
+        metadata: { test_mode: testMode, ...metadata } as any,
+    }, request).catch(() => {})
 }

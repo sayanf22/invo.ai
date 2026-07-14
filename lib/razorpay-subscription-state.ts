@@ -91,9 +91,12 @@ async function recordCharge(
 ) {
     if (!charge.id || charge.amount == null) return
     const { data: prior, error: priorError } = await (db as any).from("payment_history")
-        .select("id").eq("razorpay_payment_id", charge.id).maybeSingle()
+        .select("id,user_id").eq("razorpay_payment_id", charge.id).maybeSingle()
     if (priorError) throw priorError
-    if (prior) return
+    if (prior) {
+        if (prior.user_id !== userId) throw new Error("Razorpay payment is already bound to another user")
+        return
+    }
     const { error } = await (db as any).from("payment_history").insert({
         user_id: userId,
         razorpay_payment_id: charge.id,
@@ -118,6 +121,28 @@ export async function applyRazorpaySubscriptionSnapshot(
     const eventType = options.eventType || "provider.reconcile"
     const eventAt = options.eventCreatedAt || new Date()
     const now = new Date()
+
+    const { data: binding, error: bindingError } = await (db as any).from("subscriptions")
+        .select("user_id")
+        .or(`razorpay_subscription_id.eq.${authoritative.id},pending_razorpay_subscription_id.eq.${authoritative.id}`)
+        .limit(1)
+        .maybeSingle()
+    if (bindingError) throw bindingError
+    if (binding && binding.user_id !== options.userId) {
+        throw new Error("Razorpay subscription is already bound to another user")
+    }
+    if (authoritative.notes?.platform && authoritative.notes.platform !== "clorefy") {
+        throw new Error("Razorpay subscription belongs to another platform")
+    }
+    if (authoritative.notes?.user_id && authoritative.notes.user_id !== options.userId) {
+        throw new Error("Razorpay subscription owner does not match")
+    }
+    if (!binding && (
+        authoritative.notes?.platform !== "clorefy"
+        || authoritative.notes?.user_id !== options.userId
+    )) {
+        throw new Error("Unbound Razorpay subscription is missing ownership metadata")
+    }
 
     const { data: existing, error: readError } = await (db as any).from("subscriptions")
         .select("*").eq("user_id", options.userId).maybeSingle()

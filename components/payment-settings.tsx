@@ -121,9 +121,8 @@ function CopyField({ label, value }: { label: string; value: string }) {
   return <div><label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">{label}</label><div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/30"><code className="flex-1 text-xs font-mono text-foreground/80 truncate">{value}</code><button type="button" onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className="shrink-0 p-1 rounded-lg text-foreground/40 hover:text-foreground hover:bg-muted transition-colors">{copied ? <Check size={13} className="text-primary" /> : <Copy size={13} />}</button></div></div>
 }
 
-// ── Secret Reveal + Custom Secret for Razorpay/Cashfree ───────────────────────
-// Full guide is at /integrations/payments/{gateway}
-// This component handles: reveal our generated secret OR save a custom one.
+// ── Secret Reveal + Custom Secret for Razorpay ───────────────────────────────
+// Full guide is at /integrations/payments/razorpay.
 function RazorpaySecretReveal({ gateway }: { gateway: string }) {
   const [secret, setSecret] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -161,8 +160,8 @@ function RazorpaySecretReveal({ gateway }: { gateway: string }) {
   }
 
   const saveCustomSecret = async () => {
-    if (!customSecret.trim() || customSecret.trim().length < 8) {
-      setError("Secret must be at least 8 characters")
+    if (!customSecret.trim() || customSecret.trim().length < 16) {
+      setError("Secret must be at least 16 characters")
       return
     }
     setSaving(true)
@@ -205,7 +204,7 @@ function RazorpaySecretReveal({ gateway }: { gateway: string }) {
                 <EyeOff size={13} />
               </button>
             </div>
-            <p className="text-[10px] text-amber-600 dark:text-amber-400">Auto-hides in 60s · Copy and paste into Razorpay's Secret field</p>
+            <p className="text-[10px] text-amber-600 dark:text-amber-400">Auto-hides in 60s · Copy and paste into Razorpay&apos;s Secret field</p>
           </div>
         ) : (
           <button type="button" onClick={fetchSecret} disabled={loading}
@@ -225,7 +224,7 @@ function RazorpaySecretReveal({ gateway }: { gateway: string }) {
         {showCustom && (
           <div className="space-y-1.5 p-3 rounded-xl border border-border bg-muted/20">
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Type any password (min 8 chars). Use the same string in Razorpay's Secret field AND save it here so we can verify signatures.
+              Type any strong secret (minimum 16 characters). Use the same string in Razorpay&apos;s Secret field AND save it here so we can verify signatures.
             </p>
             <div className="flex gap-2">
               <input type="text" value={customSecret} onChange={e => setCustomSecret(e.target.value)}
@@ -294,8 +293,8 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
                 <CopyBtn value={webhookUrl} />
               </div>
             </div>
-            {/* Secret reveal for Razorpay/Cashfree */}
-            {!isStripe && webhookConfigured && (
+            {/* Razorpay lets the merchant choose the webhook signing secret. */}
+            {gateway === "razorpay" && webhookConfigured && (
               <RazorpaySecretReveal gateway={gateway} />
             )}
             {/* Link to full guide */}

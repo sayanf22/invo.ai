@@ -1,221 +1,117 @@
 import { NextRequest, NextResponse } from "next/server"
-import { authenticateRequest } from "@/lib/api-auth"
 import { createClient } from "@supabase/supabase-js"
+import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
+import { validateCSRFToken } from "@/lib/csrf"
+import { checkRateLimit } from "@/lib/rate-limiter"
+import { decrypt } from "@/lib/encrypt"
 
-/**
- * POST /api/payments/test-webhook
- * 
- * Sends a test webhook ping to the user's configured webhook endpoint
- * for the specified gateway. This verifies the webhook is reachable and
- * the signature verification works.
- * 
- * Body: { gateway: "razorpay" | "stripe" | "cashfree" }
- */
+async function hmac(value: string, secret: string, format: "hex" | "base64"): Promise<string> {
+    const encoder = new TextEncoder()
+    const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"])
+    const signed = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value)))
+    if (format === "base64") return btoa(String.fromCharCode(...signed))
+    return Array.from(signed, (byte) => byte.toString(16).padStart(2, "0")).join("")
+}
+
 export async function POST(request: NextRequest) {
-  const auth = await authenticateRequest(request)
-  if (auth.error) return auth.error
+    const originError = validateOrigin(request)
+    if (originError) return originError
+    const auth = await authenticateRequest(request)
+    if (auth.error) return auth.error
+    const csrfError = await validateCSRFToken(request, auth.user.id, auth.supabase)
+    if (csrfError) return csrfError
+    const rateError = await checkRateLimit(auth.user.id, "payment", auth.supabase as any)
+    if (rateError) return rateError
 
-  const userId = auth.user.id
-  let body: { gateway: string }
-  try { body = await request.json() } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
-  }
-
-  const { gateway } = body
-  if (!gateway || !["razorpay", "stripe", "cashfree"].includes(gateway)) {
-    return NextResponse.json({ error: "Invalid gateway" }, { status: 400 })
-  }
-
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  // Fetch user's payment settings
-  const { data: settings } = await supabaseAdmin
-    .from("user_payment_settings")
-    .select("*")
-    .eq("user_id", userId)
-    .maybeSingle()
-
-  if (!settings) {
-    return NextResponse.json({ error: "No payment settings found" }, { status: 404 })
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"
-  let webhookUrl: string
-  let testPayload: string
-  let headers: Record<string, string> = { "Content-Type": "application/json" }
-
-  try {
-    if (gateway === "razorpay") {
-      // Razorpay webhook uses platform-level endpoint
-      webhookUrl = `${appUrl}/api/razorpay/webhook`
-
-      // Build a test payload that mimics a Razorpay payment_link.paid event
-      const testEvent = {
-        entity: "event",
-        event: "payment_link.paid",
-        contains: ["payment_link", "payment"],
-        payload: {
-          payment_link: {
-            entity: {
-              id: "plink_test_" + Date.now(),
-              amount: 100,
-              amount_paid: 100,
-              currency: "INR",
-              status: "paid",
-              reference_id: "TEST-WEBHOOK-PING",
-              notes: { session_id: "test", user_id: userId, platform: "clorefy" },
-            },
-          },
-          payment: {
-            entity: { id: "pay_test_" + Date.now() },
-          },
-        },
-      }
-      testPayload = JSON.stringify(testEvent)
-
-      // Sign with the platform webhook secret
-      const { getSecret } = await import("@/lib/secrets")
-      const webhookSecret = await getSecret("RAZORPAY_WEBHOOK_SECRET")
-
-      if (webhookSecret) {
-        const encoder = new TextEncoder()
-        const key = await crypto.subtle.importKey(
-          "raw", encoder.encode(webhookSecret),
-          { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-        )
-        const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(testPayload))
-        const signature = Array.from(new Uint8Array(sigBuffer))
-          .map(b => b.toString(16).padStart(2, "0")).join("")
-        headers["x-razorpay-signature"] = signature
-        headers["x-razorpay-event-id"] = `test_${Date.now()}`
-      } else {
-        return NextResponse.json({
-          success: false,
-          error: "No Razorpay webhook secret configured on the platform. Set RAZORPAY_WEBHOOK_SECRET in environment variables.",
-        }, { status: 422 })
-      }
-
-    } else if (gateway === "stripe") {
-      webhookUrl = `${appUrl}/api/stripe/webhook/${userId}`
-
-      if (!settings.stripe_webhook_secret || !settings.stripe_enabled) {
-        return NextResponse.json({
-          success: false,
-          error: "Stripe is not connected or webhook is not registered. Connect Stripe first in Settings → Payments.",
-        }, { status: 422 })
-      }
-
-      // Decrypt the webhook secret (stored encrypted)
-      let stripeWebhookSecret = settings.stripe_webhook_secret
-      try {
-        const { decrypt } = await import("@/lib/encrypt")
-        const decrypted = await decrypt(settings.stripe_webhook_secret)
-        if (decrypted) stripeWebhookSecret = decrypted
-      } catch { /* old plaintext record */ }
-
-      // Build a test Stripe event
-      const testEvent = {
-        id: "evt_test_" + Date.now(),
-        type: "checkout.session.completed",
-        data: {
-          object: {
-            id: "cs_test_" + Date.now(),
-            amount_total: 100,
-            currency: "usd",
-            metadata: { reference_id: "TEST-WEBHOOK-PING", session_id: "test" },
-            client_reference_id: "TEST-WEBHOOK-PING",
-          },
-        },
-      }
-      testPayload = JSON.stringify(testEvent)
-
-      // Sign with the user's Stripe webhook secret
-      const timestamp = Math.floor(Date.now() / 1000)
-      const signedPayload = `${timestamp}.${testPayload}`
-      const encoder = new TextEncoder()
-      const key = await crypto.subtle.importKey(
-        "raw", encoder.encode(stripeWebhookSecret),
-        { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-      )
-      const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(signedPayload))
-      const sig = Array.from(new Uint8Array(sigBuffer))
-        .map(b => b.toString(16).padStart(2, "0")).join("")
-      headers["stripe-signature"] = `t=${timestamp},v1=${sig}`
-
-    } else if (gateway === "cashfree") {
-      webhookUrl = `${appUrl}/api/cashfree/webhook/${userId}`
-
-      if (!settings.cashfree_client_secret_encrypted || !settings.cashfree_enabled) {
-        return NextResponse.json({
-          success: false,
-          error: "Cashfree is not connected. Connect Cashfree first in Settings → Payments.",
-        }, { status: 422 })
-      }
-
-      const testEvent = {
-        type: "PAYMENT_LINK_EVENT",
-        data: {
-          link: {
-            link_id: "TEST-WEBHOOK-PING",
-            link_status: "PAID",
-            link_amount_paid: 1.00,
-            link_currency: "INR",
-          },
-        },
-      }
-      testPayload = JSON.stringify(testEvent)
-
-      // Sign with the user's Cashfree client secret
-      const { decrypt } = await import("@/lib/encrypt")
-      const clientSecret = await decrypt(settings.cashfree_client_secret_encrypted)
-      if (clientSecret) {
-        const encoder = new TextEncoder()
-        const key = await crypto.subtle.importKey(
-          "raw", encoder.encode(clientSecret),
-          { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-        )
-        const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(testPayload))
-        const sig = btoa(String.fromCharCode(...new Uint8Array(sigBuffer)))
-        headers["x-webhook-signature"] = sig
-      }
-    } else {
-      return NextResponse.json({ error: "Unsupported gateway" }, { status: 400 })
+    let body: Record<string, unknown>
+    try { body = await request.json() } catch {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+    }
+    const sizeError = validateBodySize(body, 1024)
+    if (sizeError) return sizeError
+    const gateway = body.gateway
+    if (!["razorpay", "stripe", "cashfree"].includes(String(gateway))) {
+        return NextResponse.json({ error: "Invalid gateway" }, { status: 400 })
     }
 
-    // Send the test webhook
-    const res = await fetch(webhookUrl, {
-      method: "POST",
-      headers,
-      body: testPayload,
-    })
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !serviceKey) return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
+    const db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+    const { data: settings, error: settingsError } = await db.from("user_payment_settings")
+        .select("razorpay_webhook_secret,razorpay_enabled,stripe_webhook_secret,stripe_enabled,stripe_test_mode,cashfree_client_secret_encrypted,cashfree_enabled,cashfree_test_mode")
+        .eq("user_id", auth.user.id).maybeSingle()
+    if (settingsError) return NextResponse.json({ error: "Failed to load payment settings" }, { status: 500 })
+    if (!settings) return NextResponse.json({ error: "No payment settings found" }, { status: 404 })
 
-    const responseText = await res.text()
-    let responseJson: any = null
-    try { responseJson = JSON.parse(responseText) } catch {}
-
-    if (res.ok) {
-      return NextResponse.json({
-        success: true,
-        status: res.status,
-        message: `Webhook endpoint responded with ${res.status}. ${gateway.charAt(0).toUpperCase() + gateway.slice(1)} webhook is working.`,
-        response: responseJson,
-      })
-    } else {
-      return NextResponse.json({
-        success: false,
-        status: res.status,
-        message: `Webhook endpoint responded with ${res.status}. Check your configuration.`,
-        response: responseJson || responseText.slice(0, 500),
-      })
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"
+    const now = Date.now()
+    let endpoint = ""
+    let payload = ""
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-clorefy-test-webhook": "1",
     }
-  } catch (err: any) {
-    console.error("Test webhook error:", err?.message || err)
-    return NextResponse.json({
-      success: false,
-      error: "Failed to reach webhook endpoint. Check your configuration.",
-    }, { status: 500 })
-  }
+
+    try {
+        if (gateway === "razorpay") {
+            if (!settings.razorpay_enabled || !settings.razorpay_webhook_secret) {
+                return NextResponse.json({ error: "Razorpay webhook is not configured" }, { status: 422 })
+            }
+            const secret = await decrypt(settings.razorpay_webhook_secret).catch(() => null)
+                || settings.razorpay_webhook_secret
+            endpoint = `${appUrl}/api/razorpay/webhook/${auth.user.id}`
+            payload = JSON.stringify({ entity: "event", event: "payment_link.paid", payload: {} })
+            headers["x-razorpay-signature"] = await hmac(payload, secret, "hex")
+            headers["x-razorpay-event-id"] = `test_${now}`
+        } else if (gateway === "stripe") {
+            if (!settings.stripe_enabled || !settings.stripe_webhook_secret) {
+                return NextResponse.json({ error: "Stripe webhook is not configured" }, { status: 422 })
+            }
+            const secret = await decrypt(settings.stripe_webhook_secret).catch(() => null)
+                || settings.stripe_webhook_secret
+            const timestamp = Math.floor(now / 1000)
+            endpoint = `${appUrl}/api/stripe/webhook/${auth.user.id}`
+            payload = JSON.stringify({
+                id: `evt_test_${now}`,
+                type: "checkout.session.completed",
+                livemode: settings.stripe_test_mode !== true,
+                data: { object: {} },
+            })
+            headers["stripe-signature"] = `t=${timestamp},v1=${await hmac(`${timestamp}.${payload}`, secret, "hex")}`
+        } else {
+            if (!settings.cashfree_enabled || !settings.cashfree_client_secret_encrypted) {
+                return NextResponse.json({ error: "Cashfree webhook is not configured" }, { status: 422 })
+            }
+            const secret = await decrypt(settings.cashfree_client_secret_encrypted)
+            if (!secret) return NextResponse.json({ error: "Cashfree credentials are unavailable" }, { status: 422 })
+            const timestamp = String(now)
+            endpoint = `${appUrl}/api/cashfree/webhook/${auth.user.id}`
+            payload = JSON.stringify({
+                type: "PAYMENT_LINK_EVENT",
+                data: { link: { cf_link_id: `test_${now}`, link_status: "PAID" } },
+            })
+            headers["x-webhook-timestamp"] = timestamp
+            headers["x-webhook-signature"] = await hmac(`${timestamp}${payload}`, secret, "base64")
+        }
+
+        const response = await fetch(endpoint, {
+            method: "POST",
+            headers,
+            body: payload,
+            signal: AbortSignal.timeout(15000),
+        })
+        const responseBody = await response.json().catch(() => null)
+        if (!response.ok || responseBody?.test !== true) {
+            return NextResponse.json({
+                success: false,
+                status: response.status,
+                message: "The signed webhook test was not acknowledged.",
+            }, { status: 502 })
+        }
+        return NextResponse.json({ success: true, status: response.status, message: "Webhook signature and endpoint verified without changing payment state." })
+    } catch (error) {
+        console.error("[payments/test-webhook] failed:", error)
+        return NextResponse.json({ success: false, error: "Failed to verify webhook endpoint." }, { status: 500 })
+    }
 }

@@ -145,91 +145,72 @@ export async function POST(request: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       )
 
-      const { data: payment } = await (supabaseAdmin as any)
+      const { data: payment, error: paymentLookupError } = await (supabaseAdmin as any)
         .from("invoice_payments")
         .select("id, status")
         .eq("session_id", sessionId)
+        .eq("user_id", userId)
         .in("status", ["created", "partially_paid"])
         .maybeSingle()
+      if (paymentLookupError) throw paymentLookupError
 
       if (payment) {
-        // Active payment link exists
-        payNowUrl = `https://clorefy.com/pay/${sessionId}`
+        payNowUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/pay/${sessionId}`
       } else {
-        // No active payment link — try to auto-create one if user has Razorpay configured
         try {
           const { getUserRazorpayCredentials } = await import("@/lib/payment-credentials")
+          const { deriveInvoicePaymentDetails } = await import("@/lib/invoice-payment-context")
           const userCreds = await getUserRazorpayCredentials(userId)
 
           if (userCreds) {
-            // Calculate invoice total from context
-            const items = (context.items as any[]) || []
-            const subtotal = items.reduce((sum: number, item: any) => {
-              const qty = Number(item.quantity) || 0
-              const rate = Number(item.rate) || 0
-              const disc = Number(item.discount) || 0
-              return sum + (qty * rate * (1 - disc / 100))
-            }, 0)
-            const taxRate = Number(context.taxRate) || 0
-            const discountValue = Number(context.discountValue) || 0
-            const shippingFee = Number(context.shippingFee) || 0
-            const discountAmount = (context.discountType as string) === "percent"
-              ? subtotal * (discountValue / 100)
-              : discountValue
-            const taxAmount = (subtotal - discountAmount) * (taxRate / 100)
-            const total = subtotal - discountAmount + taxAmount + shippingFee
+            const details = deriveInvoicePaymentDetails(context, sessionId)
+            const { createPaymentLink, cancelPaymentLink } = await import("@/lib/razorpay")
+            const requestedExpiry = Number(body.paymentLinkExpiryDays)
+            const expiryDays = Number.isInteger(requestedExpiry) && requestedExpiry >= 1 && requestedExpiry <= 365
+              ? requestedExpiry
+              : undefined
+            const razorpayLink = await createPaymentLink({
+              amount: details.amount,
+              currency: details.currency,
+              description: details.description,
+              referenceId: details.referenceId,
+              customerName: details.customerName,
+              customerEmail: recipientEmail,
+              customerPhone: details.customerPhone,
+              sessionId,
+              userId,
+              expireInDays: expiryDays,
+              dueDateIso: details.dueDate,
+              userKeyId: userCreds.keyId,
+              userKeySecret: userCreds.keySecret,
+            })
 
-            const invoiceCurrency = (context.currency as string) || "INR"
-            const CURRENCY_MULTIPLIERS: Record<string, number> = {
-              INR: 100, USD: 100, EUR: 100, GBP: 100, SGD: 100,
-              AED: 100, CAD: 100, AUD: 100, PHP: 100, MYR: 100, JPY: 1,
+            const { error: insertError } = await supabaseAdmin.from("invoice_payments").insert({
+              session_id: sessionId,
+              user_id: userId,
+              razorpay_payment_link_id: razorpayLink.id,
+              provider_link_id: razorpayLink.id,
+              short_url: razorpayLink.short_url,
+              amount: details.amount,
+              currency: details.currency,
+              status: "created",
+              reference_id: details.referenceId,
+              description: details.description,
+              customer_name: details.customerName ?? null,
+              customer_email: recipientEmail,
+              customer_phone: details.customerPhone ?? null,
+              expires_at: new Date(razorpayLink.expire_by * 1000).toISOString(),
+              gateway: "razorpay",
+              is_test_mode: userCreds.testMode,
+            } as any)
+            if (insertError) {
+              await cancelPaymentLink(razorpayLink.id, userCreds.keyId, userCreds.keySecret).catch(() => {})
+              throw insertError
             }
-            const amountInSmallestUnit = Math.round(total * (CURRENCY_MULTIPLIERS[invoiceCurrency.toUpperCase()] ?? 100))
-
-            if (amountInSmallestUnit > 0) {
-              const { createPaymentLink } = await import("@/lib/razorpay")
-              const invoiceRef = referenceNumber || `INV-${sessionId.slice(0, 8).toUpperCase()}`
-              const description = `Invoice ${invoiceRef}${recipientName !== "Valued Client" ? ` for ${recipientName}` : ""}`
-              const expiryDays = body.paymentLinkExpiryDays || undefined
-
-              const razorpayLink = await createPaymentLink({
-                amount: amountInSmallestUnit,
-                currency: invoiceCurrency.toUpperCase(),
-                description,
-                referenceId: invoiceRef,
-                customerName: recipientName !== "Valued Client" ? recipientName : undefined,
-                customerEmail: recipientEmail,
-                sessionId,
-                userId,
-                expireInDays: expiryDays,
-                dueDateIso: (context.dueDate as string) || undefined,
-                userKeyId: userCreds.keyId,
-                userKeySecret: userCreds.keySecret,
-              })
-
-              // Save to DB
-              await supabaseAdmin
-                .from("invoice_payments")
-                .insert({
-                  session_id: sessionId,
-                  user_id: userId,
-                  razorpay_payment_link_id: razorpayLink.id,
-                  short_url: razorpayLink.short_url,
-                  amount: amountInSmallestUnit,
-                  currency: invoiceCurrency.toUpperCase(),
-                  status: "created",
-                  reference_id: invoiceRef,
-                  description,
-                  customer_name: recipientName !== "Valued Client" ? recipientName : null,
-                  customer_email: recipientEmail,
-                  expires_at: new Date(razorpayLink.expire_by * 1000).toISOString(),
-                })
-
-              payNowUrl = `https://clorefy.com/pay/${sessionId}`
-            }
+            payNowUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/pay/${sessionId}`
           }
         } catch (err) {
-          // Non-fatal — email will still be sent without Pay Now button
+          // Email delivery remains available, but never advertises an unpersisted link.
           console.error("Auto-create payment link failed (non-fatal):", err)
         }
       }

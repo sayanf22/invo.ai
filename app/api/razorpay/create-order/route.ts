@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
+import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
+import { validateCSRFToken } from "@/lib/csrf"
+import { checkRateLimit } from "@/lib/rate-limiter"
 import {
     createRazorpaySubscription,
     getSubscription,
@@ -38,9 +40,20 @@ export async function POST(request: NextRequest) {
     if (originError) return originError
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
+    const csrfError = await validateCSRFToken(request, auth.user.id, auth.supabase)
+    if (csrfError) return csrfError
+    const rateError = await checkRateLimit(auth.user.id, "payment", auth.supabase as any)
+    if (rateError) return rateError
+
+    let body: Record<string, unknown>
+    try { body = await request.json() } catch {
+        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    }
+    const sizeError = validateBodySize(body, 2 * 1024)
+    if (sizeError) return sizeError
 
     try {
-        const { plan, billingCycle } = await request.json() as { plan: string; billingCycle: string }
+        const { plan, billingCycle } = body as { plan?: string; billingCycle?: string }
         if (!plan || !["starter", "pro", "agency"].includes(plan)) {
             return NextResponse.json({ error: "Invalid plan" }, { status: 400 })
         }
@@ -109,7 +122,7 @@ export async function POST(request: NextRequest) {
                     }
                     const startAt = Math.max(Math.floor(periodEnd.getTime() / 1000), Math.floor(Date.now() / 1000) + 300)
                     const replacement = await createRazorpaySubscription(plan as PlanId, cycle, auth.user.id, targetCurrency, startAt)
-                    const { error: pendingError } = await svc.from("subscriptions" as any).update({
+                    const { data: claimed, error: pendingError } = await svc.from("subscriptions" as any).update({
                         pending_plan: plan,
                         pending_billing_cycle: cycle,
                         pending_razorpay_subscription_id: replacement.id,
@@ -119,10 +132,16 @@ export async function POST(request: NextRequest) {
                         provider_sync_required: false,
                         updated_at: new Date().toISOString(),
                     }).eq("user_id", auth.user.id)
-                    if (pendingError) {
+                        .is("pending_change_type", null)
+                        .select("user_id")
+                        .maybeSingle()
+                    if (pendingError || !claimed) {
                         const { cancelRazorpaySubscription } = await import("@/lib/razorpay")
                         await cancelRazorpaySubscription(replacement.id, false).catch(() => {})
-                        return NextResponse.json({ error: "Failed to save the scheduled billing change" }, { status: 500 })
+                        return NextResponse.json({
+                            error: pendingError ? "Failed to save the scheduled billing change" : "A billing change is already pending",
+                            ...(!pendingError ? { code: "CHANGE_PENDING" } : {}),
+                        }, { status: pendingError ? 500 : 409 })
                     }
                     await logAudit(auth.supabase, {
                         user_id: auth.user.id,
@@ -154,9 +173,16 @@ export async function POST(request: NextRequest) {
                     provider_sync_required: true,
                     updated_at: new Date().toISOString(),
                 }
-                const { error: pendingError } = await svc.from("subscriptions" as any)
-                    .update(pendingPatch).eq("user_id", auth.user.id)
+                const { data: claimed, error: pendingError } = await svc.from("subscriptions" as any)
+                    .update(pendingPatch)
+                    .eq("user_id", auth.user.id)
+                    .is("pending_change_type", null)
+                    .select("user_id")
+                    .maybeSingle()
                 if (pendingError) return NextResponse.json({ error: "Failed to prepare the billing change" }, { status: 500 })
+                if (!claimed) {
+                    return NextResponse.json({ error: "A billing change is already pending", code: "CHANGE_PENDING" }, { status: 409 })
+                }
 
                 const updateStartedAt = Math.floor(Date.now() / 1000)
                 let deferred = deferredByPolicy
@@ -272,6 +298,36 @@ export async function POST(request: NextRequest) {
         }
 
         const subscription = await createRazorpaySubscription(plan as PlanId, cycle, auth.user.id, currency)
+        const pendingState = {
+            user_id: auth.user.id,
+            plan: currentSub?.plan || "free",
+            status: currentSub?.status || "active",
+            pending_plan: plan,
+            pending_billing_cycle: cycle,
+            pending_razorpay_subscription_id: subscription.id,
+            pending_change_type: "upgrade",
+            pending_effective_at: null,
+            pending_previous_subscription_id: existingId || null,
+            provider_sync_required: false,
+            updated_at: new Date().toISOString(),
+        }
+        const pendingResult = currentSub
+            ? await svc.from("subscriptions" as any).update(pendingState)
+                .eq("user_id", auth.user.id)
+                .is("pending_change_type", null)
+                .select("user_id")
+                .maybeSingle()
+            : await svc.from("subscriptions" as any).insert(pendingState)
+                .select("user_id")
+                .single()
+        if (pendingResult.error || !pendingResult.data) {
+            const { cancelRazorpaySubscription } = await import("@/lib/razorpay")
+            await cancelRazorpaySubscription(subscription.id, false).catch(() => {})
+            if (!pendingResult.error) {
+                return NextResponse.json({ error: "A billing change is already pending", code: "CHANGE_PENDING" }, { status: 409 })
+            }
+            throw new Error("Failed to persist pending subscription ownership")
+        }
         await logAudit(auth.supabase, {
             user_id: auth.user.id,
             action: "payment.subscription_created",

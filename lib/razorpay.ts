@@ -930,20 +930,29 @@ export async function getSubscriptionInvoices(
 /**
  * Cancel a payment link.
  */
-export async function cancelPaymentLink(paymentLinkId: string): Promise<void> {
-    const { getSecret } = await import("@/lib/secrets")
-    const keyId = await getSecret("RAZORPAY_KEY_ID")
-    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+export async function cancelPaymentLink(
+    paymentLinkId: string,
+    userKeyId?: string,
+    userKeySecret?: string,
+): Promise<void> {
+    let keyId = userKeyId
+    let keySecret = userKeySecret
+    if (!keyId || !keySecret) {
+        const { getSecret } = await import("@/lib/secrets")
+        keyId = await getSecret("RAZORPAY_KEY_ID")
+        keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+    }
 
     if (!keyId || !keySecret) throw new Error("Razorpay API keys not configured")
 
     const response = await fetch(`https://api.razorpay.com/v1/payment_links/${paymentLinkId}/cancel`, {
         method: "POST",
         headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+        signal: AbortSignal.timeout(15000),
     })
 
     if (!response.ok) {
-        const error = await response.json()
+        const error = await response.json().catch(() => ({}))
         throw new Error(error.error?.description || "Failed to cancel payment link")
     }
 }

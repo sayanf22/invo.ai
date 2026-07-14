@@ -132,14 +132,19 @@ export async function cancelCashfreePaymentLink(
   testMode = false
 ): Promise<void> {
   const baseUrl = testMode ? "https://sandbox.cashfree.com" : "https://api.cashfree.com"
-  await fetch(`${baseUrl}/pg/links/${linkId}/cancel`, {
+  const res = await fetch(`${baseUrl}/pg/links/${encodeURIComponent(linkId)}/cancel`, {
     method: "POST",
     headers: {
       "x-api-version": "2025-01-01",
       "x-client-id": clientId,
       "x-client-secret": clientSecret,
     },
+    signal: AbortSignal.timeout(15000),
   })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}))
+    throw new Error((error as any)?.message || (error as any)?.error || "Failed to cancel Cashfree payment link")
+  }
 }
 
 /**
@@ -150,15 +155,18 @@ export async function cancelCashfreePaymentLink(
 export async function verifyCashfreeWebhookSignature(
   rawBody: string,
   signature: string,
+  timestamp: string,
   clientSecret: string
 ): Promise<boolean> {
   try {
+    if (!/^\d{10,16}$/.test(timestamp)) return false
+    const signedPayload = `${timestamp}${rawBody}`
     const encoder = new TextEncoder()
     const key = await crypto.subtle.importKey(
       "raw", encoder.encode(clientSecret),
       { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
     )
-    const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody))
+    const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(signedPayload))
     const computed = btoa(String.fromCharCode(...new Uint8Array(sigBuffer)))
 
     // Constant-time comparison to prevent timing attacks

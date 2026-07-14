@@ -433,6 +433,8 @@ export type Database = {
           id: string
           invoice_recipient_email: string | null
           last_message_at: string | null
+          quota_counted_at: string | null
+          quota_counted_month: string | null
           sent_at: string | null
           status: string
           title: string | null
@@ -453,6 +455,8 @@ export type Database = {
           id?: string
           invoice_recipient_email?: string | null
           last_message_at?: string | null
+          quota_counted_at?: string | null
+          quota_counted_month?: string | null
           sent_at?: string | null
           status?: string
           title?: string | null
@@ -473,6 +477,8 @@ export type Database = {
           id?: string
           invoice_recipient_email?: string | null
           last_message_at?: string | null
+          quota_counted_at?: string | null
+          quota_counted_month?: string | null
           sent_at?: string | null
           status?: string
           title?: string | null
@@ -761,11 +767,13 @@ export type Database = {
           gateway: string
           id: string
           is_manual: boolean
+          is_test_mode: boolean
           link_viewed_at: string | null
           manual_payment_method: string | null
           manual_payment_note: string | null
           manually_marked_at: string | null
           paid_at: string | null
+          provider_link_id: string
           razorpay_payment_id: string | null
           razorpay_payment_link_id: string
           reference_id: string | null
@@ -790,11 +798,13 @@ export type Database = {
           gateway?: string
           id?: string
           is_manual?: boolean
+          is_test_mode?: boolean
           link_viewed_at?: string | null
           manual_payment_method?: string | null
           manual_payment_note?: string | null
           manually_marked_at?: string | null
           paid_at?: string | null
+          provider_link_id: string
           razorpay_payment_id?: string | null
           razorpay_payment_link_id: string
           reference_id?: string | null
@@ -819,11 +829,13 @@ export type Database = {
           gateway?: string
           id?: string
           is_manual?: boolean
+          is_test_mode?: boolean
           link_viewed_at?: string | null
           manual_payment_method?: string | null
           manual_payment_note?: string | null
           manually_marked_at?: string | null
           paid_at?: string | null
+          provider_link_id?: string
           razorpay_payment_id?: string | null
           razorpay_payment_link_id?: string
           reference_id?: string | null
@@ -1566,7 +1578,7 @@ export type Database = {
           ai_requests_count: number
           ai_tokens_used: number
           created_at: string
-          documents_count: number | null
+          documents_count: number
           emails_count: number
           estimated_cost_usd: number
           month: string
@@ -1577,7 +1589,7 @@ export type Database = {
           ai_requests_count?: number
           ai_tokens_used?: number
           created_at?: string
-          documents_count?: number | null
+          documents_count?: number
           emails_count?: number
           estimated_cost_usd?: number
           month: string
@@ -1588,7 +1600,7 @@ export type Database = {
           ai_requests_count?: number
           ai_tokens_used?: number
           created_at?: string
-          documents_count?: number | null
+          documents_count?: number
           emails_count?: number
           estimated_cost_usd?: number
           month?: string
@@ -1597,32 +1609,71 @@ export type Database = {
         }
         Relationships: []
       }
+      public_rate_limits: {
+        Row: {
+          category: string
+          identifier_hash: string
+          request_count: number
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          category: string
+          identifier_hash: string
+          request_count?: number
+          updated_at?: string
+          window_start?: string
+        }
+        Update: {
+          category?: string
+          identifier_hash?: string
+          request_count?: number
+          updated_at?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       webhook_events: {
         Row: {
+          attempts: number
           created_at: string
           event_id: string
           event_type: string
           gateway: string
           id: string
-          processed_at: string
+          last_error: string | null
+          payload_hash: string | null
+          processed_at: string | null
+          status: string
+          updated_at: string
           user_id: string | null
         }
         Insert: {
+          attempts?: number
           created_at?: string
           event_id: string
           event_type: string
           gateway?: string
           id?: string
-          processed_at?: string
+          last_error?: string | null
+          payload_hash?: string | null
+          processed_at?: string | null
+          status?: string
+          updated_at?: string
           user_id?: string | null
         }
         Update: {
+          attempts?: number
           created_at?: string
           event_id?: string
           event_type?: string
           gateway?: string
           id?: string
-          processed_at?: string
+          last_error?: string | null
+          payload_hash?: string | null
+          processed_at?: string | null
+          status?: string
+          updated_at?: string
           user_id?: string | null
         }
         Relationships: []
@@ -1685,6 +1736,67 @@ export type Database = {
       cancel_email_schedules: {
         Args: { p_reason?: string; p_session_id: string }
         Returns: number
+      }
+      apply_invoice_payment_event: {
+        Args: {
+          p_amount_paid?: number | null
+          p_currency?: string | null
+          p_gateway: string
+          p_is_test_mode?: boolean
+          p_paid_at?: string | null
+          p_provider_link_id: string
+          p_provider_payment_id?: string | null
+          p_status: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      check_public_rate_limit: {
+        Args: {
+          p_category: string
+          p_identifier_hash: string
+          p_max_requests: number
+          p_window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          retry_after: number
+        }[]
+      }
+      claim_webhook_event: {
+        Args: {
+          p_event_id: string
+          p_event_type: string
+          p_gateway: string
+          p_payload_hash: string
+          p_user_id?: string | null
+        }
+        Returns: string
+      }
+      mark_invoice_manually_paid: {
+        Args: {
+          p_amount: number
+          p_currency: string
+          p_note: string | null
+          p_paid_at: string
+          p_payment_method: string
+          p_session_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      release_document_quota: {
+        Args: { p_session_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      reserve_document_quota: {
+        Args: { p_month: string; p_session_id: string; p_user_id: string }
+        Returns: Json
+      }
+      revert_manual_invoice_payment: {
+        Args: { p_session_id: string; p_user_id: string }
+        Returns: Json
       }
       check_rate_limit: {
         Args: {

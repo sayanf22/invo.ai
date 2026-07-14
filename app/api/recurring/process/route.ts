@@ -276,6 +276,17 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      const { data: quota, error: quotaError } = await (supabase as any).rpc("reserve_document_quota", {
+        p_user_id: sourceSession.user_id,
+        p_session_id: newSession.id,
+        p_month: now.toISOString().slice(0, 7),
+      })
+      if (quotaError || !quota?.allowed) {
+        await supabase.from("document_sessions").delete().eq("id", newSession.id)
+        results.push({ recurringId: rec.id, error: quotaError?.message ?? "Monthly document limit reached" })
+        continue
+      }
+
       // Create document link
       await supabase
         .from("document_links")
@@ -300,11 +311,7 @@ export async function POST(request: NextRequest) {
           .eq("status", "pending")
       }
 
-      // Increment document count
-      await (supabase as any).rpc("increment_document_count", {
-        p_user_id: sourceSession.user_id,
-        p_month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
-      })
+      // Quota was reserved atomically for the new session above.
 
       // Update recurring record: next_run_at, last_run_at, run_count
       const nextRunAt = computeNextRunAt(rec.frequency, now)
