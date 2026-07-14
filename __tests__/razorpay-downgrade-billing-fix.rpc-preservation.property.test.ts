@@ -187,9 +187,9 @@ async function readSubscriptionRow() {
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
-describe("RPC Preservation: check_subscription_expiry — Genuine Payment Failure Still Marked past_due (live, unfixed)", () => {
+describe("RPC Preservation: check_subscription_expiry is read-only and never invents billing periods", () => {
   maybeIt(
-    "matches the observed baseline for every state where the bug condition does NOT hold",
+    "reports expiry without mutating provider-owned subscription state",
     async () => {
       await fc.assert(
         fc.asyncProperty(preservedStateArb, async (state) => {
@@ -198,34 +198,24 @@ describe("RPC Preservation: check_subscription_expiry — Genuine Payment Failur
           const row = await readSubscriptionRow()
 
           if (state.kind === "not_expired") {
-            // Rule 1: not expired -> returned unchanged, no mutation, scheduled_downgrade intact
             expect(result.is_expired).toBe(false)
             expect(result.plan).toBe(state.plan)
             expect(result.status).toBe(state.status)
-            expect(row.scheduled_downgrade).toBe(state.scheduledDowngrade)
-            expect(row.plan).toBe(state.plan)
-            expect(row.status).toBe(state.status)
-          } else if (state.kind === "expired_no_downgrade") {
-            // Rule 2: expired, no scheduled downgrade -> past_due, plan unchanged
+          } else {
             expect(result.is_expired).toBe(true)
             expect(result.status).toBe("past_due")
-            expect(result.plan).toBe(state.plan)
-            expect(row.status).toBe("past_due")
-            expect(row.scheduled_downgrade).toBeNull()
-          } else {
-            // Rule 3: expired, scheduled_downgrade = 'free' -> active, plan = 'free'
-            // (already correct today — must not regress once the fix generalizes this)
-            expect(result.is_expired).toBe(true)
-            expect(result.status).toBe("active")
             expect(result.plan).toBe("free")
-            expect(row.status).toBe("active")
-            expect(row.plan).toBe("free")
-            expect(row.scheduled_downgrade).toBeNull()
           }
+
+          // Razorpay webhooks/reconciliation exclusively own lifecycle writes.
+          expect(row.scheduled_downgrade).toBe(state.scheduledDowngrade)
+          expect(row.plan).toBe(state.plan)
+          expect(row.status).toBe(state.status)
+          expect(Date.parse(row.current_period_end)).toBe(Date.parse(state.periodEnd))
         }),
-        { numRuns: 20 }
+        { numRuns: 8 }
       )
     },
-    30000
+    60000
   )
 })

@@ -50,6 +50,7 @@ const mockGetSubscription = vi.fn()
 const mockGetSubscriptionInvoices = vi.fn()
 const mockUpdateRazorpaySubscriptionPlan = vi.fn()
 const mockGetPlanIdForCurrency = vi.fn()
+const mockPlanIdToPlan = vi.fn().mockReturnValue(null)
 const mockResolveSubscriptionCurrency = vi.fn().mockReturnValue("INR")
 
 class MockRazorpayApiError extends Error {
@@ -84,6 +85,7 @@ vi.mock("@/lib/razorpay", () => ({
   getSubscriptionInvoices: mockGetSubscriptionInvoices,
   updateRazorpaySubscriptionPlan: mockUpdateRazorpaySubscriptionPlan,
   getPlanIdForCurrency: mockGetPlanIdForCurrency,
+  planIdToPlan: mockPlanIdToPlan,
   RazorpayApiError: MockRazorpayApiError,
 }))
 
@@ -130,6 +132,8 @@ function buildSupabaseMock(hasExistingSubscription: boolean, currentPlan: string
         razorpay_subscription_id: EXISTING_SUBSCRIPTION_ID,
         currency: "INR",
         billing_cycle: "monthly",
+        status: "active",
+        current_period_end: new Date(Date.now() + 30 * 86400 * 1000).toISOString(),
       }
     : null
   return {
@@ -230,14 +234,7 @@ describe("Preservation Property Tests: create-order upgrade path (unfixed baseli
     }
   })
 
-  it("observation: a DOWNGRADE routed through create-order (existing updatable-state subscription, target LOWER than current) does NOT call the immediate-update path", async () => {
-    // This guards a bug found during review: the update-branch condition
-    // originally checked only `plan !== currentSub.plan`, not directionality.
-    // A downgrade sent to this endpoint (rather than /downgrade) would have
-    // wrongly triggered schedule_change_at: "now" (an immediate refund/credit
-    // note) instead of falling through to the create-new-subscription path
-    // (which itself isn't the "right" behavior for a downgrade either, but at
-    // minimum must not silently issue an unexpected immediate refund).
+  it("rejects a downgrade routed through create-order without creating a second mandate", async () => {
     vi.mocked(authenticateRequest).mockResolvedValue({
       error: null,
       user: mockUser as any,
@@ -251,10 +248,12 @@ describe("Preservation Property Tests: create-order upgrade path (unfixed baseli
 
     const { POST } = await import("@/app/api/razorpay/create-order/route")
     const response = await POST(makeRequest({ plan: "starter", billingCycle: "monthly" }))
-    await response.json().catch(() => undefined)
+    const body = await response.json()
 
+    expect(response.status).toBe(409)
+    expect(body.code).toBe("DOWNGRADE_REQUIRED")
     expect(mockUpdateRazorpaySubscriptionPlan).not.toHaveBeenCalled()
-    expect(mockCreateRazorpaySubscription).toHaveBeenCalledTimes(1)
+    expect(mockCreateRazorpaySubscription).not.toHaveBeenCalled()
   })
 
   // ── Property 6: Preservation (generative) ────────────────────────────
@@ -327,13 +326,21 @@ describe("Preservation Property Tests: create-order upgrade path (unfixed baseli
           const response = await POST(makeRequest({ plan: targetPlan, billingCycle: "monthly" }))
           const body = await response.json()
 
-          expect(response.status).toBe(200)
-          expect(mockCreateRazorpaySubscription).toHaveBeenCalledTimes(1)
-          expect(mockUpdateRazorpaySubscriptionPlan).not.toHaveBeenCalled()
-          for (const key of CHECKOUT_RESPONSE_KEYS) {
-            expect(body).toHaveProperty(key)
+          const currentIdx = ["free", "starter", "pro", "agency"].indexOf(currentPlan)
+          const targetIdx = ["free", "starter", "pro", "agency"].indexOf(targetPlan)
+          const mustRejectDirection = hasExistingSubscription && currentPlan !== "free" && targetIdx <= currentIdx
+
+          if (mustRejectDirection) {
+            expect(response.status).toBe(409)
+            expect(body.code).toBe(targetIdx === currentIdx ? "SAME_PLAN" : "DOWNGRADE_REQUIRED")
+            expect(mockCreateRazorpaySubscription).not.toHaveBeenCalled()
+          } else {
+            expect(response.status).toBe(200)
+            expect(mockCreateRazorpaySubscription).toHaveBeenCalledTimes(1)
+            for (const key of CHECKOUT_RESPONSE_KEYS) expect(body).toHaveProperty(key)
+            expect(body.plan).toBe(targetPlan)
           }
-          expect(body.plan).toBe(targetPlan)
+          expect(mockUpdateRazorpaySubscriptionPlan).not.toHaveBeenCalled()
         }
       ),
       { numRuns: 50 }

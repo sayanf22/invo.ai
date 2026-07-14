@@ -53,8 +53,14 @@ export async function POST(request: Request) {
         }
 
         const currentSub = sub as any
+        const { resolveEffectiveTier } = await import("@/lib/cost-protection")
+        const effectivePlan = resolveEffectiveTier(currentSub)
+        if (effectivePlan === "free") {
+            return NextResponse.json({ error: "No active paid subscription" }, { status: 400 })
+        }
+
         const planOrder = ["free", "starter", "pro", "agency"]
-        const currentIdx = planOrder.indexOf(currentSub.plan)
+        const currentIdx = planOrder.indexOf(effectivePlan)
         const targetIdx = planOrder.indexOf(targetPlan)
 
         // Validate it's actually a downgrade
@@ -62,81 +68,67 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "This is not a downgrade" }, { status: 400 })
         }
 
-        // Schedule the downgrade — takes effect at end of current period.
-        // Service role: the row still has a paid plan, which the free-only RLS
-        // UPDATE policy would otherwise reject.
+        // Persist intent first, then require provider confirmation. If the
+        // provider call fails, roll back the local schedule so UI, entitlement,
+        // and future billing cannot diverge.
+        const previousDowngrade = currentSub.scheduled_downgrade ?? null
         const { error } = await svc
             .from("subscriptions" as any)
-            .update({
-                scheduled_downgrade: targetPlan,
-                updated_at: new Date().toISOString(),
-            })
+            .update({ scheduled_downgrade: targetPlan, updated_at: new Date().toISOString() })
             .eq("user_id", auth.user.id)
-
         if (error) {
             console.error("Downgrade schedule error:", error)
             return NextResponse.json({ error: "Failed to schedule downgrade" }, { status: 500 })
         }
 
-        // ── Cancellation path (downgrade to Free) ────────────────────────────
-        // Cancelling means: stop future Razorpay charges AND turn off paid-only
-        // automations. The user keeps access until current_period_end (cancel at
-        // cycle end), after which the expiry RPC flips them to Free.
-        if (targetPlan === "free") {
-            // 1. Cancel the recurring Razorpay subscription at cycle end (non-fatal —
-            //    if Razorpay rejects, the scheduled_downgrade still applies locally).
-            try {
-                await cancelRazorpaySubscription(currentSub.razorpay_subscription_id, true)
-            } catch (cancelErr) {
-                console.error("[downgrade] Razorpay cancel failed (non-fatal):", cancelErr)
-            }
-
-            // 2. Mark the subscription cancelled locally (keeps access until period end).
-            //    Service role — same free-only RLS reason as above.
-            await svc
+        const rollbackSchedule = async () => {
+            const { error: rollbackError } = await svc
                 .from("subscriptions" as any)
-                .update({ cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+                .update({ scheduled_downgrade: previousDowngrade, updated_at: new Date().toISOString() })
                 .eq("user_id", auth.user.id)
+            if (rollbackError) console.error("[downgrade] rollback failed:", rollbackError)
+        }
 
-            // 3. Disable paid-only automations immediately: recurring invoices +
-            //    pending scheduled email reminders. Uses the service-role client so
-            //    RLS on these tables can't block the cleanup.
-            try {
-                await (svc as any)
-                    .from("recurring_invoices")
-                    .update({ is_active: false, updated_at: new Date().toISOString() })
+        try {
+            if (targetPlan === "free") {
+                await cancelRazorpaySubscription(currentSub.razorpay_subscription_id, true)
+                const { error: cancelStateError } = await svc
+                    .from("subscriptions" as any)
+                    .update({ cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
                     .eq("user_id", auth.user.id)
-                    .eq("is_active", true)
-                await (svc as any)
-                    .from("email_schedules")
-                    .update({ status: "cancelled", cancelled_reason: "subscription_cancelled", updated_at: new Date().toISOString() })
-                    .eq("user_id", auth.user.id)
-                    .eq("status", "pending")
-            } catch (cleanupErr) {
-                console.error("[downgrade] automation cleanup failed (non-fatal):", cleanupErr)
-            }
-        } else if (currentSub.razorpay_subscription_id) {
-            // ── Paid→paid downgrade path ─────────────────────────────────────
-            // targetPlan is a paid tier lower than the current one (validated by
-            // the currentIdx/targetIdx check above). Tell Razorpay to change the
-            // subscription's plan_id at the end of the current billing cycle so
-            // the customer is charged the NEW (lower) amount starting next cycle,
-            // with no proration. Non-fatal on failure — `scheduled_downgrade` in
-            // Supabase is already the source of truth for the UI and the
-            // check_subscription_expiry RPC.
-            try {
+                if (cancelStateError) throw cancelStateError
+            } else {
                 const targetPlanId = getPlanIdForCurrency(
                     targetPlan as "starter" | "pro" | "agency",
                     currentSub.currency,
-                    currentSub.billing_cycle
+                    currentSub.billing_cycle,
                 )
-                if (targetPlanId) {
-                    await updateRazorpaySubscriptionPlan(currentSub.razorpay_subscription_id, targetPlanId)
-                } else {
-                    console.error("[downgrade] no Razorpay plan_id found for", targetPlan, currentSub.currency, currentSub.billing_cycle)
-                }
-            } catch (updateErr) {
-                console.error("[downgrade] Razorpay plan update failed (non-fatal):", updateErr)
+                if (!targetPlanId) throw new Error("No Razorpay plan exists for the requested currency and cycle")
+                await updateRazorpaySubscriptionPlan(
+                    currentSub.razorpay_subscription_id,
+                    targetPlanId,
+                    "cycle_end",
+                )
+            }
+        } catch (providerError) {
+            await rollbackSchedule()
+            console.error("[downgrade] Provider scheduling failed:", providerError)
+            return NextResponse.json(
+                { error: "The billing provider could not schedule this change. Your current plan is unchanged." },
+                { status: 502 },
+            )
+        }
+
+        if (targetPlan === "free") {
+            try {
+                await (svc as any).from("recurring_invoices")
+                    .update({ is_active: false, updated_at: new Date().toISOString() })
+                    .eq("user_id", auth.user.id).eq("is_active", true)
+                await (svc as any).from("email_schedules")
+                    .update({ status: "cancelled", cancelled_reason: "subscription_cancelled", updated_at: new Date().toISOString() })
+                    .eq("user_id", auth.user.id).eq("status", "pending")
+            } catch (cleanupErr) {
+                console.error("[downgrade] automation cleanup failed (non-fatal):", cleanupErr)
             }
         }
 

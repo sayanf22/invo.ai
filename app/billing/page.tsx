@@ -212,12 +212,15 @@ export default function BillingPage() {
     }
 
     const usage = data?.usage
-    const docsUsed = usage?.documentsUsed || 0
-    const docsLimit = usage?.documentsLimit || 5
-    const docsPercent = usage?.documentsPercent || 0
+    const docsUsed = usage?.documentsUsed ?? 0
+    const docsLimit = usage?.documentsLimit ?? 5
+    const docsPercent = usage?.documentsPercent ?? 0
 
-    return (
-        <div className="min-h-screen bg-background pb-20">
+        const isUnlimited = docsLimit === 0
+        const docsLabel = isUnlimited ? "∞" : docsLimit
+
+        return (
+            <div className="min-h-screen bg-background pb-20">
             {/* Sticky header */}
             <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/50">
                 <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -280,7 +283,7 @@ export default function BillingPage() {
                             </div>
                             <div>
                                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Documents Used</p>
-                                <p className="font-semibold text-lg leading-tight">{docsUsed} <span className="text-muted-foreground text-sm font-medium">/ {docsLimit === -1 ? "∞" : docsLimit}</span></p>
+                                <p className="font-semibold text-lg leading-tight">{docsUsed} <span className="text-muted-foreground text-sm font-medium">/ {docsLabel}</span></p>
                             </div>
                         </div>
                     </div>

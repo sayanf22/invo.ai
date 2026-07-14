@@ -39,6 +39,7 @@ const mockGetSubscription = vi.fn()
 const mockGetSubscriptionInvoices = vi.fn()
 const mockUpdateRazorpaySubscriptionPlan = vi.fn()
 const mockGetPlanIdForCurrency = vi.fn()
+const mockPlanIdToPlan = vi.fn().mockReturnValue(null)
 const mockResolveSubscriptionCurrency = vi.fn().mockReturnValue("INR")
 
 class MockRazorpayApiError extends Error {
@@ -73,6 +74,7 @@ vi.mock("@/lib/razorpay", () => ({
   getSubscriptionInvoices: mockGetSubscriptionInvoices,
   updateRazorpaySubscriptionPlan: mockUpdateRazorpaySubscriptionPlan,
   getPlanIdForCurrency: mockGetPlanIdForCurrency,
+  planIdToPlan: mockPlanIdToPlan,
   RazorpayApiError: MockRazorpayApiError,
 }))
 
@@ -114,6 +116,8 @@ function buildSupabaseMockWithExistingSubscription(currentPlan: string) {
     razorpay_subscription_id: EXISTING_SUBSCRIPTION_ID,
     currency: "INR",
     billing_cycle: "monthly",
+    status: "active",
+    current_period_end: new Date(Date.now() + 30 * 86400 * 1000).toISOString(),
   }
   return {
     from: vi.fn().mockImplementation((table: string) => {

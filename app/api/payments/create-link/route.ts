@@ -8,7 +8,7 @@ import { checkRateLimit } from "@/lib/rate-limiter"
 import { logAudit } from "@/lib/audit-log"
 import { createClient } from "@supabase/supabase-js"
 import { sanitizeSQLInput as sanitizeInput } from "@/lib/sanitize"
-import { getUserRazorpayCredentials, getUserPaymentCredentials } from "@/app/api/payments/settings/route"
+import { getUserPaymentCredentials } from "@/lib/payment-credentials"
 
 /**
  * POST /api/payments/create-link

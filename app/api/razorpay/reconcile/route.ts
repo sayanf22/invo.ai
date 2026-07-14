@@ -73,12 +73,11 @@ export async function POST(request: NextRequest) {
             if (sub.notes?.platform !== "clorefy") continue
             if (!ACTIVE_STATUSES.includes(sub.status)) continue
 
-            // Determine the plan: prefer notes.plan, fall back to plan_id mapping
-            let plan: PlanId | null = null
-            if (typeof sub.notes?.plan === "string" && isValidPlanId(sub.notes.plan) && sub.notes.plan !== "free") {
+            // The provider plan_id is authoritative. Notes are immutable creation
+            // metadata and may describe an older plan after an upgrade/downgrade.
+            let plan: PlanId | null = sub.plan_id ? planIdToPlan(sub.plan_id) : null
+            if (!plan && typeof sub.notes?.plan === "string" && isValidPlanId(sub.notes.plan) && sub.notes.plan !== "free") {
                 plan = sub.notes.plan as PlanId
-            } else if (sub.plan_id) {
-                plan = planIdToPlan(sub.plan_id)
             }
             if (!plan || plan === "free") continue
 

@@ -83,19 +83,20 @@ export async function POST(request: NextRequest) {
         // record the ACTUAL charged amount (incl. grandfathered legacy prices).
         let effectivePlanId: string | null = null
 
+        let authoritativePeriodEnd: Date | null = null
+
         if (isSubscription) {
-            let authoritative: { plan: PlanId | null; cycle: string | null; currency: string; planId: string | null } | null = null
+            let authoritative: { plan: PlanId | null; cycle: string | null; currency: string; planId: string | null; periodEnd: Date | null } | null = null
             try {
                 const sub = await getSubscription(razorpay_subscription_id)
                 if (sub) {
-                    // Cycle is derived from the actual plan_id (authoritative),
-                    // falling back to the server-set note.
                     const cycleFromPlan = planIdToCycle(sub.plan_id)
                     authoritative = {
                         plan: planIdToPlan(sub.plan_id),
                         cycle: cycleFromPlan || (sub.notes?.billing_cycle === "yearly" ? "yearly" : "monthly"),
                         currency: planIdToCurrency(sub.plan_id) || "INR",
                         planId: sub.plan_id || null,
+                        periodEnd: sub.current_end ? new Date(sub.current_end * 1000) : null,
                     }
                 }
             } catch (e) {
@@ -131,6 +132,7 @@ export async function POST(request: NextRequest) {
             effectiveCycle = authoritative.cycle || "monthly"
             effectiveCurrency = authoritative.currency || "INR"
             effectivePlanId = authoritative.planId
+            authoritativePeriodEnd = authoritative.periodEnd
         }
 
         // Amount stored for records = the ACTUAL charged amount for this
@@ -145,11 +147,10 @@ export async function POST(request: NextRequest) {
             ?? PLANS[effectivePlan].monthlyPrice
 
         const now = new Date()
-        const periodEnd = new Date(now)
-        if (effectiveCycle === "yearly") {
-            periodEnd.setFullYear(periodEnd.getFullYear() + 1)
-        } else {
-            periodEnd.setMonth(periodEnd.getMonth() + 1)
+        const periodEnd = authoritativePeriodEnd ?? new Date(now)
+        if (!authoritativePeriodEnd) {
+            if (effectiveCycle === "yearly") periodEnd.setFullYear(periodEnd.getFullYear() + 1)
+            else periodEnd.setMonth(periodEnd.getMonth() + 1)
         }
 
         // Service-role client. Paid subscription activation MUST bypass RLS:
@@ -163,14 +164,10 @@ export async function POST(request: NextRequest) {
             { auth: { persistSession: false, autoRefreshToken: false } }
         )
 
-        // Capture any PRE-EXISTING Razorpay subscription id BEFORE the upsert
-        // overwrites it. When a UPI/eMandate subscriber upgrades, create-order
-        // spins up a NEW subscription (different id) and the user re-authorises
-        // it here. Once this new subscription is confirmed active (below), the
-        // OLD one must be cancelled so it never charges again — but ONLY after
-        // the new activation succeeds, so there's never a double-charge or an
-        // access gap. For normal signups/renewals the id matches (or there is
-        // none), so nothing is cancelled.
+        // Capture any PRE-EXISTING Razorpay subscription id. For a re-authorised
+        // upgrade, stop the old mandate before persisting the new active provider
+        // subscription. If persistence then fails, the signed new payment remains
+        // recoverable by webhook/reconcile without risking double billing.
         let previousSubscriptionId: string | null = null
         if (isSubscription && razorpay_subscription_id) {
             const { data: existingRow } = await svc
@@ -179,12 +176,22 @@ export async function POST(request: NextRequest) {
                 .eq("user_id", auth.user.id)
                 .maybeSingle()
             const existingId = (existingRow as any)?.razorpay_subscription_id
-            if (existingId && existingId !== razorpay_subscription_id) {
-                previousSubscriptionId = existingId
+            if (existingId && existingId !== razorpay_subscription_id) previousSubscriptionId = existingId
+        }
+
+        if (previousSubscriptionId) {
+            try {
+                const { cancelRazorpaySubscription } = await import("@/lib/razorpay")
+                await cancelRazorpaySubscription(previousSubscriptionId, false)
+            } catch (cancelErr) {
+                console.error("[verify] failed to cancel old subscription after re-auth upgrade:", cancelErr)
+                return NextResponse.json(
+                    { error: "Payment succeeded, but the previous billing mandate could not be stopped. Please contact support." },
+                    { status: 502 },
+                )
             }
         }
 
-        // Upsert subscription (service role — bypasses free-only RLS)
         const { error: subError } = await svc
             .from("subscriptions" as any)
             .upsert({
@@ -195,32 +202,19 @@ export async function POST(request: NextRequest) {
                 razorpay_payment_id,
                 razorpay_order_id: razorpay_order_id || null,
                 razorpay_subscription_id: razorpay_subscription_id || null,
+                razorpay_plan_id: effectivePlanId,
                 amount_paid: amount,
                 currency: effectiveCurrency,
                 current_period_start: now.toISOString(),
                 current_period_end: periodEnd.toISOString(),
+                cancelled_at: null,
+                scheduled_downgrade: null,
                 updated_at: now.toISOString(),
             }, { onConflict: "user_id" })
 
         if (subError) {
             console.error("Subscription upsert error:", subError)
             return NextResponse.json({ error: "Failed to activate subscription" }, { status: 500 })
-        }
-
-        // Now that the NEW subscription is confirmed active and persisted,
-        // cancel the OLD one from a UPI/eMandate re-authorise upgrade so it
-        // never debits again. Immediate cancel (not cycle-end): the user is
-        // already on the new plan, so we must stop the old mandate now to
-        // avoid a duplicate charge on its original renewal date.
-        // cancelRazorpaySubscription is idempotent, so a stale/already-cancelled
-        // id is harmless.
-        if (previousSubscriptionId) {
-            try {
-                const { cancelRazorpaySubscription } = await import("@/lib/razorpay")
-                await cancelRazorpaySubscription(previousSubscriptionId, false)
-            } catch (cancelErr) {
-                console.error("[verify] failed to cancel old subscription after re-auth upgrade (non-fatal):", cancelErr)
-            }
         }
 
         // Mark plan as selected in profile (protected column — service role only)

@@ -68,9 +68,16 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
             // already has authorized.
             if (data.upgraded) {
                 const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1)
-                toast.success(`🎉 ${planLabel} plan activated!`)
+                if (data.deferredToNextCycle) {
+                    const effectiveDate = data.periodEnd
+                        ? new Date(data.periodEnd).toLocaleDateString()
+                        : "your next billing cycle"
+                    toast.success(`${planLabel} is scheduled for ${effectiveDate}. Your current plan remains active until then.`)
+                } else {
+                    toast.success(`🎉 ${planLabel} plan activated!`)
+                }
                 setIsProcessing(false)
-                onSuccess?.(plan, billingCycle)
+                onSuccess?.(data.plan ?? plan, billingCycle)
                 return
             }
 

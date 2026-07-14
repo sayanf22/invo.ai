@@ -95,9 +95,41 @@ export async function POST(request: Request) {
             // note instead of the deferred, no-proration cycle-end behavior
             // /downgrade implements. Both cases fall through unchanged to the
             // existing create-new-subscription + Checkout flow below.
-            const currentIdx = PLAN_ORDER.indexOf(currentSub?.plan)
+            const { planIdToPlan } = await import("@/lib/razorpay")
+            const livePlan = liveSubscription?.plan_id ? planIdToPlan(liveSubscription.plan_id) : null
+            const livePeriodEnd = liveSubscription?.current_end ? liveSubscription.current_end * 1000 : 0
+            const providerHasPaidPeriod = Boolean(
+                livePlan && livePlan !== "free" &&
+                razorpayStatus && UPDATABLE_RAZORPAY_STATUSES.has(razorpayStatus) &&
+                livePeriodEnd > Date.now(),
+            )
+            const effectivePlan = providerHasPaidPeriod
+                ? livePlan!
+                : (() => {
+                    if (!currentSub?.plan || !["free", "starter", "pro", "agency"].includes(currentSub.plan)) return "free"
+                    if (!currentSub.current_period_end) {
+                        return ["active", "trialing"].includes(currentSub.status) ? currentSub.plan : "free"
+                    }
+                    const end = Date.parse(currentSub.current_period_end)
+                    return Number.isFinite(end) && end > Date.now() ? currentSub.plan : "free"
+                })()
+            const currentIdx = PLAN_ORDER.indexOf(effectivePlan)
             const targetIdx = PLAN_ORDER.indexOf(plan)
             const isUpgrade = currentIdx >= 0 && targetIdx > currentIdx
+
+            // Existing live subscriptions must use the dedicated direction-safe
+            // flows. Never create a second mandate for a no-op or downgrade.
+            if (effectivePlan !== "free" && targetIdx <= currentIdx) {
+                return NextResponse.json(
+                    {
+                        error: targetIdx === currentIdx
+                            ? "You are already on this plan"
+                            : "Use the downgrade flow to schedule this change at cycle end",
+                        code: targetIdx === currentIdx ? "SAME_PLAN" : "DOWNGRADE_REQUIRED",
+                    },
+                    { status: 409 },
+                )
+            }
 
             // ── UPI/eMandate UPGRADE: re-authorise a new mandate ────────────
             // Razorpay can't update these subscriptions in place, so create a

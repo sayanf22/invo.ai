@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js"
 import { createPaymentLink } from "@/lib/razorpay"
 import { createStripePaymentLink } from "@/lib/stripe-payments"
 import { createCashfreePaymentLink } from "@/lib/cashfree-payment-links"
-import { getUserPaymentCredentials } from "@/app/api/payments/settings/route"
+import { getUserPaymentCredentials } from "@/lib/payment-credentials"
 import { logAudit } from "@/lib/audit-log"
 import { getClientIP } from "@/lib/api-auth"
 

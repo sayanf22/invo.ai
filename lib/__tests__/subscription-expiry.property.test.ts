@@ -37,15 +37,37 @@ describe("Feature: subscription-expiry-enforcement, Property 1: Fix Verification
   it("resolveEffectiveTier() returns 'free' for expired subscriptions", () => {
     fc.assert(
       fc.property(expiredSubscriptionArb, (sub) => {
-        // The subscription has expired (current_period_end is in the past)
         const expiryDate = new Date(sub.current_period_end)
         expect(expiryDate.getTime()).toBeLessThan(Date.now())
-
-        // resolveEffectiveTier checks current_period_end and returns "free" for expired subs
-        const resolvedTier = resolveEffectiveTier(sub)
-        expect(resolvedTier).toBe("free")
+        expect(resolveEffectiveTier(sub)).toBe("free")
       }),
       { numRuns: 100 }
     )
+  })
+
+  it("keeps paid access through a future period end regardless of early cancellation or payment-failure status", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...PAID_PLANS),
+        fc.constantFrom("active", "trialing", "cancelled", "past_due", "paused"),
+        fc.integer({ min: 60_000, max: 365 * 24 * 60 * 60 * 1000 }),
+        (plan, status, millisecondsAhead) => {
+          expect(resolveEffectiveTier({
+            plan,
+            status,
+            current_period_end: new Date(Date.now() + millisecondsAhead).toISOString(),
+          })).toBe(plan)
+        },
+      ),
+      { numRuns: 100 },
+    )
+  })
+
+  it("expires at the exact UTC period boundary", () => {
+    expect(resolveEffectiveTier({
+      plan: "pro",
+      status: "active",
+      current_period_end: new Date(Date.now() - 1).toISOString(),
+    })).toBe("free")
   })
 })

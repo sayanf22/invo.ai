@@ -145,12 +145,18 @@ const mockCancelRazorpaySubscription = vi.fn(async (subscriptionId: string) => (
   id: subscriptionId,
   status: "cancelled",
 }))
+const mockUpdateRazorpaySubscriptionPlan = vi.fn(async (subscriptionId: string, planId: string) => ({
+  id: subscriptionId,
+  status: "active",
+  plan_id: planId,
+}))
 
 vi.mock("@/lib/razorpay", async () => {
   const actual = await vi.importActual<typeof import("@/lib/razorpay")>("@/lib/razorpay")
   return {
     ...actual,
     cancelRazorpaySubscription: mockCancelRazorpaySubscription,
+    updateRazorpaySubscriptionPlan: mockUpdateRazorpaySubscriptionPlan,
   }
 })
 
@@ -189,7 +195,7 @@ function isBugCondition(currentPlan: Plan, targetPlan: Plan, hasExistingRazorpay
   return (
     paidTiers.includes(currentPlan) &&
     paidTiers.includes(targetPlan) &&
-    currentPlan !== targetPlan &&
+    planIdx(targetPlan) < planIdx(currentPlan) &&
     hasExistingRazorpaySubscription
   )
 }
@@ -280,6 +286,21 @@ describe("Preservation Property Tests: /api/razorpay/downgrade (unfixed baseline
     expect(state.scheduledDowngradeUpdates).toHaveLength(0)
   })
 
+  it("rolls back the local schedule and returns a retryable error when provider scheduling fails", async () => {
+    setupSubscription("pro")
+    mockUpdateRazorpaySubscriptionPlan.mockRejectedValueOnce(new Error("provider unavailable"))
+
+    const { POST } = await import("@/app/api/razorpay/downgrade/route")
+    const res = await POST(createMockRequest({ targetPlan: "starter" }))
+    const body = await res.json()
+
+    expect(res.status).toBe(502)
+    expect(body.error).toContain("current plan is unchanged")
+    expect(state.scheduledDowngradeUpdates).toHaveLength(2)
+    expect(state.scheduledDowngradeUpdates[0].patch.scheduled_downgrade).toBe("starter")
+    expect(state.scheduledDowngradeUpdates[1].patch.scheduled_downgrade).toBeNull()
+  })
+
   // ── Property 2: Preservation (generative) ───────────────────────────────
 
   /**
@@ -322,16 +343,19 @@ describe("Preservation Property Tests: /api/razorpay/downgrade (unfixed baseline
           const res = await POST(createMockRequest({ targetPlan }))
           const body = await res.json()
 
-          // A Razorpay plan-update call would show up as a fetch() call —
-          // on unfixed code this must NEVER happen, for any input.
           const bugCondition = isBugCondition(currentPlan, targetPlan, hasSubscription)
-          const planUpdateCallMade = mockFetch.mock.calls.length > 0
-          expect(planUpdateCallMade).toBe(bugCondition ? false : false) // vacuous both sides false on unfixed code
-          expect(mockFetch).not.toHaveBeenCalled()
+          expect(mockUpdateRazorpaySubscriptionPlan.mock.calls.length > 0).toBe(bugCondition)
 
           if (!hasSubscription) {
             expect(res.status).toBe(400)
             expect(body.error).toBe("No active subscription")
+            expect(mockCancelRazorpaySubscription).not.toHaveBeenCalled()
+            return
+          }
+
+          if (currentPlan === "free") {
+            expect(res.status).toBe(400)
+            expect(body.error).toBe("No active paid subscription")
             expect(mockCancelRazorpaySubscription).not.toHaveBeenCalled()
             return
           }
@@ -360,11 +384,13 @@ describe("Preservation Property Tests: /api/razorpay/downgrade (unfixed baseline
             expect(mockCancelRazorpaySubscription).toHaveBeenCalledWith("sub_ABC123", true)
             expect(state.cancelledAtUpdates).toHaveLength(1)
           } else {
-            // Paid→paid downgrade: cancel must NOT be called (that's the
-            // free-only cancellation path), and on unfixed code no
-            // plan-update call is made either — this is the bug, tracked
-            // separately by task 1.
             expect(mockCancelRazorpaySubscription).not.toHaveBeenCalled()
+            expect(mockUpdateRazorpaySubscriptionPlan).toHaveBeenCalledTimes(1)
+            expect(mockUpdateRazorpaySubscriptionPlan).toHaveBeenCalledWith(
+              "sub_ABC123",
+              expect.any(String),
+              "cycle_end",
+            )
             expect(state.cancelledAtUpdates).toHaveLength(0)
             expect(state.automationUpdates).toHaveLength(0)
           }

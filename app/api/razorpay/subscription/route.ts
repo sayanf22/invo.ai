@@ -1,26 +1,20 @@
 import { NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
+import { resolveEffectiveTier } from "@/lib/cost-protection"
 
-/**
- * GET /api/razorpay/subscription
- * Returns the current user's subscription status.
- * Also runs expiry check to apply scheduled downgrades.
- */
+/** GET /api/razorpay/subscription — pure subscription status read. */
 export async function GET(request: Request) {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
     try {
-        // Run expiry check (applies scheduled downgrades, marks past_due)
-        await (auth.supabase.rpc as any)("check_subscription_expiry", { p_user_id: auth.user.id })
-
         const { data, error } = await auth.supabase
             .from("subscriptions" as any)
             .select("*")
             .eq("user_id", auth.user.id)
-            .single()
+            .maybeSingle()
 
-        if (error && error.code !== "PGRST116") {
+        if (error) {
             console.error("Subscription fetch error:", error)
             return NextResponse.json({ error: "Failed to fetch subscription" }, { status: 500 })
         }
@@ -33,7 +27,10 @@ export async function GET(request: Request) {
             scheduled_downgrade: null,
         }
 
-        return NextResponse.json({ subscription })
+        return NextResponse.json({
+            subscription,
+            effectivePlan: resolveEffectiveTier(subscription),
+        })
     } catch (error) {
         console.error("Subscription API error:", error)
         return NextResponse.json({ error: "Internal error" }, { status: 500 })

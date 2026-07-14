@@ -8,7 +8,6 @@ import { generateEmailSubject, renderEmailTemplate } from "@/lib/email-template"
 import { getPublicLogoUrl } from "@/lib/public-logo"
 import { logAudit } from "@/lib/audit-log"
 import { checkEmailLimit, incrementEmailCount, getFollowUpSchedule, getUserTier } from "@/lib/cost-protection"
-import { resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 import { createClient } from "@supabase/supabase-js"
 import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 
@@ -159,7 +158,7 @@ export async function POST(request: NextRequest) {
       } else {
         // No active payment link — try to auto-create one if user has Razorpay configured
         try {
-          const { getUserRazorpayCredentials } = await import("@/app/api/payments/settings/route")
+          const { getUserRazorpayCredentials } = await import("@/lib/payment-credentials")
           const userCreds = await getUserRazorpayCredentials(userId)
 
           if (userCreds) {

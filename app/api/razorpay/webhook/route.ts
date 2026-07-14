@@ -53,9 +53,28 @@ export async function POST(request: Request) {
                 if (dedupError.code === "23505") {
                     return NextResponse.json({ received: true, duplicate: true })
                 }
-                // Other DB errors: log but continue (fail-open for payments)
+                // Payment events must never be processed without durable replay
+                // protection. Returning a retryable error is safer than duplicate
+                // charges/notifications after a transient database failure.
                 console.error("[razorpay/webhook] Dedup insert error:", dedupError.message)
+                if (eventType.startsWith("subscription.")) {
+                    return NextResponse.json({ error: "Webhook replay protection unavailable" }, { status: 503 })
+                }
             }
+        }
+
+        const subscriptionEventTypes = new Set([
+            "subscription.activated",
+            "subscription.charged",
+            "subscription.updated",
+            "subscription.cancelled",
+            "subscription.halted",
+        ])
+        if (subscriptionEventTypes.has(eventType)) {
+            const { handleRazorpaySubscriptionEvent } = await import("@/lib/razorpay-subscription-sync")
+            const failure = await handleRazorpaySubscriptionEvent(event, eventType, eventId)
+            if (failure) return failure
+            return NextResponse.json({ received: true })
         }
 
         switch (eventType) {

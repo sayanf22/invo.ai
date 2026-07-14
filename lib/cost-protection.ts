@@ -46,17 +46,24 @@ export interface SubscriptionRecord {
  */
 export function resolveEffectiveTier(subscription: SubscriptionRecord | null | undefined): UserTier {
     if (!subscription) return "free"
-    // Check subscription status — only active/trialing subscriptions count
-    const validStatuses = ["active", "trialing"]
-    if (subscription.status && !validStatuses.includes(subscription.status)) {
-        return "free"
+
+    const tier = parseTier(subscription.plan)
+    if (tier === "free") return "free"
+
+    // A paid period remains entitled through its exact provider-supplied end,
+    // even if cancellation or renewal-failure status arrives early. This keeps
+    // period-end cancellations and already-paid grace periods from losing access.
+    if (subscription.current_period_end) {
+        const periodEnd = Date.parse(subscription.current_period_end)
+        if (!Number.isFinite(periodEnd) || periodEnd <= Date.now()) return "free"
+        return tier
     }
-    // If current_period_end is set, check it hasn't expired
-    if (subscription.current_period_end && new Date(subscription.current_period_end) < new Date()) {
-        return "free"
-    }
-    // null current_period_end = no expiry (admin grant) — treat as active
-    return parseTier(subscription.plan)
+
+    // A null end is reserved for perpetual/admin grants. Only live statuses may
+    // use that exceptional path; a cancelled grant must not remain perpetual.
+    return !subscription.status || ["active", "trialing"].includes(subscription.status)
+        ? tier
+        : "free"
 }
 
 interface TierLimits {

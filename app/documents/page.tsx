@@ -1358,56 +1358,23 @@ export default function MyDocumentsPage() {
   }
   const [tierUsage, setTierUsage] = useState<TierUsage | null>(null)
 
-  // Load tier + current-month usage whenever the user is available
+  // Load canonical tier + current-month usage whenever the user is available.
+  // The API uses the same resolver as server-side quota enforcement.
   useEffect(() => {
     if (!user?.id) return
     let cancelled = false
     ;(async () => {
       try {
-        const now = new Date()
-        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-
-        const [subRes, usageRes] = await Promise.all([
-          supabase
-            .from("subscriptions")
-            .select("plan, status, current_period_end")
-            .eq("user_id", user.id)
-            .maybeSingle(),
-          (supabase as any)
-            .from("user_usage")
-            .select("documents_count, emails_count")
-            .eq("user_id", user.id)
-            .eq("month", month)
-            .maybeSingle(),
-        ])
-
-        // Resolve effective tier (mirrors lib/cost-protection.ts resolveEffectiveTier)
-        const sub = subRes.data as { plan: string | null; status: string | null; current_period_end: string | null } | null
-        const validStatuses = ["active", "trialing"]
-        let effectiveTier: TierUsage["tier"] = "free"
-        if (sub) {
-          if (sub.status && !validStatuses.includes(sub.status)) effectiveTier = "free"
-          else if (sub.current_period_end && new Date(sub.current_period_end) < new Date()) effectiveTier = "free"
-          else if (sub.plan && ["free", "starter", "pro", "agency"].includes(sub.plan)) effectiveTier = sub.plan as TierUsage["tier"]
-        }
-
-        // Limits must match lib/cost-protection.ts TIER_LIMITS exactly
-        const LIMITS = {
-          free:    { docs: 5,   emails: 5   },
-          starter: { docs: 50,  emails: 100 },
-          pro:     { docs: 150, emails: 250 },
-          agency:  { docs: 0,   emails: 0   },
-        } as const
-        const tierLimits = LIMITS[effectiveTier]
-
-        const usage = usageRes.data as { documents_count: number | null; emails_count: number | null } | null
+        const response = await authFetch("/api/usage")
+        if (!response.ok) throw new Error("Failed to load usage")
+        const data = await response.json()
         if (!cancelled) {
           setTierUsage({
-            tier: effectiveTier,
-            documentsUsed: usage?.documents_count ?? 0,
-            documentsLimit: tierLimits.docs,
-            emailsUsed: usage?.emails_count ?? 0,
-            emailsLimit: tierLimits.emails,
+            tier: data.plan,
+            documentsUsed: data.usage.documentsUsed,
+            documentsLimit: data.usage.documentsLimit,
+            emailsUsed: data.usage.emailsUsed,
+            emailsLimit: data.usage.emailsLimit,
           })
         }
       } catch (err) {
@@ -1415,7 +1382,7 @@ export default function MyDocumentsPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [user, supabase])
+  }, [user?.id])
 
   const loadSessions = useCallback(async (silent = false) => {
     if (!user?.id) { setLoading(false); return }
