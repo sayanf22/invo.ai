@@ -16,7 +16,7 @@ import { GetSignatureModal } from "@/components/get-signature-modal"
 import { SignatureCancelDialog } from "@/components/signature-cancel-dialog"
 import { SignaturePad } from "@/components/signature-pad"
 import { useSupabase, useUser } from "@/components/auth-provider"
-import { parseTier } from "@/lib/cost-protection"
+import { resolveEffectiveTier } from "@/lib/cost-protection"
 import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -550,13 +550,11 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
     if (!user) return
     ;(supabase as any)
       .from("subscriptions")
-      .select("plan")
+      .select("plan,status,current_period_end")
       .eq("user_id", user.id)
-      .single()
-      .then(({ data: sub }: { data: { plan?: string } | null }) => {
-        if (sub?.plan) {
-          setUserTier(parseTier(sub.plan))
-        }
+      .maybeSingle()
+      .then(({ data: sub }: { data: { plan: string | null; status: string | null; current_period_end: string | null } | null }) => {
+        setUserTier(resolveEffectiveTier(sub))
       })
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 

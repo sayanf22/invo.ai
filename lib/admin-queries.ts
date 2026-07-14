@@ -267,12 +267,13 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .gte("last_active_at", thirtyDaysAgoMAU)
     .then(r => ({ count: r.count ?? 0 }))
 
-  // Active paid users (tier != 'free' and not suspended)
+  // Active paid users — canonical effective subscriptions, not stale profile tiers.
+  const nowIso = new Date().toISOString()
   const { count: activePaidUsers } = await supabase
-    .from("profiles")
+    .from("subscriptions")
     .select("*", { count: "exact", head: true })
-    .neq("tier", "free")
-    .is("suspended_at", null)
+    .neq("plan", "free")
+    .gt("current_period_end", nowIso)
     .then(r => ({ count: r.count ?? 0 }))
 
   // Total documents all time
@@ -383,16 +384,19 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .map(([date, count]) => ({ date, count }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
-  // Tier distribution + individual counts
-  const { data: allProfiles } = await supabase
-    .from("profiles")
-    .select("tier")
-
-  const tierCounts: Record<string, number> = {}
-  for (const p of allProfiles ?? []) {
-    const tier = p.tier ?? "free"
-    tierCounts[tier] = (tierCounts[tier] ?? 0) + 1
+  // Tier distribution from canonical effective subscription state. Every user
+  // starts free; an unexpired paid subscription promotes them to its plan.
+  const [{ count: totalProfilesForTiers }, { data: effectivePaidSubs }] = await Promise.all([
+    supabase.from("profiles").select("*", { count: "exact", head: true }).then(r => ({ count: r.count ?? 0 })),
+    supabase.from("subscriptions").select("plan").neq("plan", "free").gt("current_period_end", nowIso),
+  ])
+  const tierCounts: Record<string, number> = { free: 0, starter: 0, pro: 0, agency: 0 }
+  for (const s of effectivePaidSubs ?? []) {
+    const plan = (s as any).plan ?? "free"
+    if (plan !== "free") tierCounts[plan] = (tierCounts[plan] ?? 0) + 1
   }
+  const paidTotal = (effectivePaidSubs ?? []).length
+  tierCounts.free = Math.max((totalProfilesForTiers ?? 0) - paidTotal, 0)
   const tierDistribution = Object.entries(tierCounts).map(([tier, count]) => ({ tier, count }))
 
   const freeUsers = tierCounts["free"] ?? 0

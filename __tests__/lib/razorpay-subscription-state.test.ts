@@ -1,219 +1,149 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { cancelSubscription } = vi.hoisted(() => ({ cancelSubscription: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  cancel: vi.fn(),
+  getSubscription: vi.fn(),
+}))
 
 vi.mock("@/lib/razorpay", () => ({
-  cancelRazorpaySubscription: cancelSubscription,
-  getSubscription: vi.fn(),
-  planIdToPlan: vi.fn(() => "pro"),
+  cancelRazorpaySubscription: mocks.cancel,
+  getSubscription: mocks.getSubscription,
+  planIdToPlan: vi.fn((id: string) => id.includes("starter") ? "starter" : "pro"),
   planIdToCycle: vi.fn(() => "monthly"),
   planIdToCurrency: vi.fn(() => "INR"),
-  planIdToAmount: vi.fn(() => 179900),
 }))
 
 import { applyRazorpaySubscriptionSnapshot } from "@/lib/razorpay-subscription-state"
 
-function createDb(initial: Record<string, any> | null) {
-  let row = initial ? { ...initial } : null
-  const payments: Record<string, any>[] = []
-  const operations: string[] = []
+const userId = "7670887d-0945-4f2e-afc6-86004f4bb35b"
+const now = () => Math.floor(Date.now() / 1000)
 
-  const db = {
-    from: vi.fn((table: string) => {
-      if (table === "subscriptions") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: row, error: null })) })),
-            or: vi.fn(() => ({
-              limit: vi.fn(() => ({
-                maybeSingle: vi.fn(async () => ({
-                  data: row && (row.razorpay_subscription_id === "sub_new" || row.pending_razorpay_subscription_id === "sub_new")
-                    ? { user_id: row.user_id }
-                    : null,
-                  error: null,
-                })),
-              })),
-            })),
-          })),
-          update: vi.fn((patch: Record<string, any>) => ({
-            eq: vi.fn(async () => {
-              operations.push("update")
-              row = { ...(row || {}), ...patch }
-              return { error: null }
-            }),
-          })),
-          upsert: vi.fn(async (patch: Record<string, any>) => {
-            operations.push("upsert")
-            row = { ...(row || {}), ...patch }
-            return { error: null }
-          }),
-        }
-      }
-      if (table === "payment_history") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn((_column: string, id: string) => ({
-              maybeSingle: vi.fn(async () => ({ data: payments.find((payment) => payment.razorpay_payment_id === id) || null, error: null })),
-            })),
-          })),
-          insert: vi.fn(async (payment: Record<string, any>) => {
-            payments.push(payment)
-            operations.push("payment")
-            return { error: null }
-          }),
-        }
-      }
-      if (table === "profiles") {
-        return { update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })) }
-      }
-      throw new Error(`Unexpected table ${table}`)
-    }),
-  }
-  return { db, getRow: () => row, payments, operations }
-}
-
-function providerEntity(start: number, end: number) {
+function live(overrides: Record<string, any> = {}) {
   return {
     id: "sub_new",
-    status: "authenticated",
+    status: "active",
     plan_id: "plan_pro_monthly",
     notes: { platform: "clorefy", user_id: userId },
-    current_start: start,
-    current_end: end,
+    current_start: now() - 60,
+    current_end: now() + 3600,
+    ...overrides,
   }
 }
 
-const userId = "7670887d-0945-4f2e-afc6-86004f4bb35b"
+function charge(overrides: Record<string, any> = {}) {
+  return {
+    id: "pay_exact",
+    amount: 4321,
+    currency: "INR",
+    order_id: "order_exact",
+    invoice_id: "inv_exact",
+    subscription_id: "sub_new",
+    ...overrides,
+  }
+}
+
+function createDb(initial: Record<string, any> | null) {
+  let row = initial ? { ...initial } : null
+  const operations: string[] = []
+  const rpc = vi.fn(async (_name: string, args: Record<string, any>) => {
+    operations.push("payment")
+    operations.push("entitlement")
+    row = {
+      ...row,
+      plan: args.p_plan,
+      razorpay_subscription_id: args.p_subscription_id,
+      amount_paid: args.p_amount,
+      entitlement_source: "razorpay",
+      entitlement_payment_id: args.p_payment_id,
+    }
+    return { data: { applied: true }, error: null }
+  })
+  const db = {
+    rpc,
+    from: vi.fn((table: string) => {
+      if (table !== "subscriptions") throw new Error(`Unexpected table ${table}`)
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: row, error: null })) })),
+        })),
+        update: vi.fn((patch: Record<string, any>) => ({
+          eq: vi.fn(async () => {
+            operations.push("update")
+            row = { ...row, ...patch }
+            return { error: null }
+          }),
+        })),
+      }
+    }),
+  }
+  return { db, rpc, operations, getRow: () => row }
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
-  cancelSubscription.mockResolvedValue({ id: "sub_old", status: "cancelled" })
+  mocks.getSubscription.mockResolvedValue(live())
+  mocks.cancel.mockResolvedValue({ id: "sub_old", status: "cancelled" })
 })
 
-describe("applyRazorpaySubscriptionSnapshot", () => {
-  it("keeps a future-start replacement pending instead of granting the new plan early", async () => {
-    const now = Math.floor(Date.now() / 1000)
-    const state = createDb({
-      user_id: userId,
-      plan: "starter",
-      billing_cycle: "monthly",
-      razorpay_subscription_id: "sub_old",
-      pending_razorpay_subscription_id: "sub_new",
-      pending_plan: "pro",
-      pending_change_type: "upgrade",
-      current_period_start: new Date((now - 1000) * 1000).toISOString(),
-      current_period_end: new Date((now + 3600) * 1000).toISOString(),
+describe("applyRazorpaySubscriptionSnapshot paid-entitlement hardening", () => {
+  it("always uses the live subscription instead of webhook plan or notes", async () => {
+    const { db, rpc } = createDb({
+      user_id: userId, plan: "starter", razorpay_subscription_id: "sub_new",
+      current_period_start: new Date((now() - 3600) * 1000).toISOString(),
+      current_period_end: new Date((now() - 60) * 1000).toISOString(),
     })
 
-    const result = await applyRazorpaySubscriptionSnapshot(
-      state.db as any,
-      providerEntity(now + 3600, now + 7200),
-      { userId, eventType: "provider.verify", eventCreatedAt: new Date() },
-    )
-
-    expect(result.scheduled).toBe(true)
-    expect(result.applied).toBe(false)
-    expect(state.getRow()?.plan).toBe("starter")
-    expect(state.getRow()?.pending_plan).toBe("pro")
-    expect(cancelSubscription).not.toHaveBeenCalled()
-  })
-
-  it("persists a replacement before cancelling the previous mandate", async () => {
-    const now = Math.floor(Date.now() / 1000)
-    const state = createDb({
-      user_id: userId,
-      plan: "starter",
-      billing_cycle: "monthly",
-      razorpay_subscription_id: "sub_old",
-      pending_razorpay_subscription_id: "sub_new",
-      current_period_start: new Date((now - 7200) * 1000).toISOString(),
-      current_period_end: new Date((now - 60) * 1000).toISOString(),
-    })
-    cancelSubscription.mockImplementation(async () => {
-      expect(state.operations).toContain("upsert")
-      return { id: "sub_old", status: "cancelled" }
-    })
-
-    const result = await applyRazorpaySubscriptionSnapshot(
-      state.db as any,
-      providerEntity(now - 10, now + 3600),
-      { userId, eventType: "subscription.activated", eventCreatedAt: new Date() },
-    )
+    const result = await applyRazorpaySubscriptionSnapshot(db as any, {
+      id: "sub_new", plan_id: "plan_starter_monthly",
+      notes: { platform: "attacker", user_id: "other" },
+    }, { userId, eventType: "subscription.charged", charge: charge() })
 
     expect(result.applied).toBe(true)
-    expect(state.getRow()?.razorpay_subscription_id).toBe("sub_new")
-    expect(state.getRow()?.plan).toBe("pro")
-    expect(cancelSubscription).toHaveBeenCalledWith("sub_old", false)
-    expect(state.getRow()?.pending_previous_subscription_id).toBeNull()
+    expect(result.plan).toBe("pro")
+    expect(mocks.getSubscription).toHaveBeenCalledWith("sub_new")
+    expect(rpc).toHaveBeenCalledWith("apply_subscription_charge_event", expect.objectContaining({
+      p_plan: "pro", p_payment_id: "pay_exact", p_invoice_id: "inv_exact",
+    }))
   })
 
+  it("rejects an unbound subscription even when its live notes match", async () => {
+    const { db, rpc } = createDb({ user_id: userId, plan: "free" })
+    await expect(applyRazorpaySubscriptionSnapshot(db as any, live(), {
+      userId, eventType: "subscription.charged", charge: charge(),
+    })).rejects.toThrow("not locally bound")
+    expect(rpc).not.toHaveBeenCalled()
+  })
 
-  it("rejects an equal-time active event after a terminal event", async () => {
-    const now = Math.floor(Date.now() / 1000)
-    const watermark = new Date(now * 1000).toISOString()
-    const state = createDb({
-      user_id: userId,
-      plan: "pro",
-      billing_cycle: "monthly",
-      status: "cancelled",
-      razorpay_subscription_id: "sub_new",
-      provider_event_created_at: watermark,
-      provider_event_type: "subscription.cancelled",
-      current_period_start: new Date((now - 1000) * 1000).toISOString(),
-      current_period_end: new Date((now + 3600) * 1000).toISOString(),
+  it.each(["subscription.activated", "subscription.updated"])("never grants for %s", async (eventType) => {
+    const { db, rpc } = createDb({ user_id: userId, razorpay_subscription_id: "sub_new" })
+    await expect(applyRazorpaySubscriptionSnapshot(db as any, live(), {
+      userId, eventType, charge: charge(),
+    })).rejects.toThrow("cannot grant")
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it("keeps a future replacement scheduled without applying its entitlement", async () => {
+    mocks.getSubscription.mockResolvedValue(live({
+      current_start: now() + 3600, current_end: now() + 7200,
+    }))
+    const { db, rpc, getRow } = createDb({
+      user_id: userId, plan: "starter", razorpay_subscription_id: "sub_old",
+      pending_razorpay_subscription_id: "sub_new", pending_previous_subscription_id: "sub_old",
     })
-
-    const result = await applyRazorpaySubscriptionSnapshot(
-      state.db as any,
-      providerEntity(now - 1000, now + 3600),
-      { userId, eventType: "subscription.activated", eventCreatedAt: new Date(watermark) },
-    )
-
-    expect(result.stale).toBe(true)
-    expect(result.applied).toBe(false)
-    expect(state.getRow()?.status).toBe("cancelled")
-    expect(state.operations).not.toContain("upsert")
-  })
-
-  it("stores the exact provider charge instead of the catalog amount", async () => {
-    const now = Math.floor(Date.now() / 1000)
-    const state = createDb(null)
-
-    const result = await applyRazorpaySubscriptionSnapshot(
-      state.db as any,
-      providerEntity(now - 10, now + 3600),
-      {
-        userId,
-        eventType: "subscription.charged",
-        eventCreatedAt: new Date(),
-        charge: { id: "pay_exact", amount: 4321, currency: "INR", order_id: "order_exact" },
-      },
-    )
-
-    expect(result.chargedAmount).toBe(4321)
-    expect(state.getRow()?.amount_paid).toBe(4321)
-    expect(state.payments[0]).toMatchObject({ razorpay_payment_id: "pay_exact", amount: 4321 })
-  })
-})
-
-
-describe("provider identifier ownership", () => {
-  it("rejects a subscription identifier already bound to another user", async () => {
-    const now = Math.floor(Date.now() / 1000)
-    const state = createDb({
-      user_id: "11111111-1111-4111-8111-111111111111",
-      plan: "pro",
-      razorpay_subscription_id: "sub_new",
-      current_period_start: new Date((now - 60) * 1000).toISOString(),
-      current_period_end: new Date((now + 3600) * 1000).toISOString(),
+    const result = await applyRazorpaySubscriptionSnapshot(db as any, live(), {
+      userId, eventType: "provider.verify", charge: null,
     })
+    expect(result).toMatchObject({ applied: false, scheduled: true, plan: "pro" })
+    expect(getRow()?.plan).toBe("starter")
+    expect(getRow()?.pending_plan).toBe("pro")
+    expect(rpc).not.toHaveBeenCalled()
+  })
 
-    await expect(applyRazorpaySubscriptionSnapshot(
-      state.db as any,
-      providerEntity(now - 60, now + 3600),
-      { userId, eventType: "provider.verify", eventCreatedAt: new Date() },
-    )).rejects.toThrow("already bound to another user")
-
-    expect(state.operations).not.toContain("upsert")
+  it("requires positive charge correlation and matching plan currency", async () => {
+    const { db, rpc } = createDb({ user_id: userId, razorpay_subscription_id: "sub_new" })
+    await expect(applyRazorpaySubscriptionSnapshot(db as any, live(), {
+      userId, eventType: "subscription.charged", charge: charge({ currency: "USD" }),
+    })).rejects.toThrow("verified positive captured")
+    expect(rpc).not.toHaveBeenCalled()
   })
 })

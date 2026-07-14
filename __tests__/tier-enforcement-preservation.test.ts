@@ -86,17 +86,22 @@ function createMockRequest(url: string, body: unknown): NextRequest {
 function setupSupabaseMocks(plan: string, documentsCount: number) {
   mockSupabaseFrom.mockImplementation((table: string) => {
     if (table === "subscriptions") {
+      // A real paid subscription always carries an active status and a finite
+      // future period; free needs neither. Mirror that production invariant so
+      // resolveEffectiveTier() (which now fails closed on missing periods) is
+      // exercised against realistic data.
+      const subscriptionRow = plan === "free"
+        ? { plan: "free", status: "active", current_period_end: null }
+        : {
+            plan,
+            status: "active",
+            current_period_end: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+          }
       return {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
-          data: { plan },
-          error: null,
-        }),
-        maybeSingle: vi.fn().mockResolvedValue({
-          data: { plan },
-          error: null,
-        }),
+        single: vi.fn().mockResolvedValue({ data: subscriptionRow, error: null }),
+        maybeSingle: vi.fn().mockResolvedValue({ data: subscriptionRow, error: null }),
       }
     }
     if (table === "user_usage") {

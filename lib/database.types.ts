@@ -926,9 +926,11 @@ export type Database = {
           id: string
           metadata: Json | null
           plan: string | null
+          razorpay_invoice_id: string | null
           razorpay_order_id: string | null
           razorpay_payment_id: string
           razorpay_signature: string | null
+          razorpay_subscription_id: string | null
           status: string
           user_id: string
         }
@@ -940,9 +942,11 @@ export type Database = {
           id?: string
           metadata?: Json | null
           plan?: string | null
+          razorpay_invoice_id?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id: string
           razorpay_signature?: string | null
+          razorpay_subscription_id?: string | null
           status: string
           user_id: string
         }
@@ -954,9 +958,11 @@ export type Database = {
           id?: string
           metadata?: Json | null
           plan?: string | null
+          razorpay_invoice_id?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string
           razorpay_signature?: string | null
+          razorpay_subscription_id?: string | null
           status?: string
           user_id?: string
         }
@@ -1288,6 +1294,9 @@ export type Database = {
           currency: string | null
           current_period_end: string | null
           current_period_start: string | null
+          entitlement_payment_id: string | null
+          entitlement_source: string
+          entitlement_verified_at: string | null
           id: string
           pending_billing_cycle: string | null
           pending_change_type: string | null
@@ -1317,6 +1326,9 @@ export type Database = {
           currency?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
+          entitlement_payment_id?: string | null
+          entitlement_source?: string
+          entitlement_verified_at?: string | null
           id?: string
           pending_billing_cycle?: string | null
           pending_change_type?: string | null
@@ -1346,6 +1358,9 @@ export type Database = {
           currency?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
+          entitlement_payment_id?: string | null
+          entitlement_source?: string
+          entitlement_verified_at?: string | null
           id?: string
           pending_billing_cycle?: string | null
           pending_change_type?: string | null
@@ -1736,6 +1751,36 @@ export type Database = {
       cancel_email_schedules: {
         Args: { p_reason?: string; p_session_id: string }
         Returns: number
+      }
+      apply_admin_tier_override: {
+        Args: {
+          p_admin_email: string
+          p_expires_at?: string | null
+          p_reason: string
+          p_tier: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      apply_subscription_charge_event: {
+        Args: {
+          p_amount: number
+          p_billing_cycle: string
+          p_currency: string
+          p_event_created_at: string
+          p_event_type: string
+          p_invoice_id: string
+          p_order_id: string
+          p_payment_id: string
+          p_period_end: string
+          p_period_start: string
+          p_plan: string
+          p_plan_id: string
+          p_previous_subscription_id?: string | null
+          p_subscription_id: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       apply_invoice_payment_event: {
         Args: {

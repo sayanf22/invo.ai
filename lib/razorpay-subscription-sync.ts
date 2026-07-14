@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { getSubscription, getVerifiedSubscriptionCharge } from "@/lib/razorpay"
 import {
     applyRazorpaySubscriptionSnapshot,
-    isActiveSubscriptionEvent,
     type RazorpaySubscriptionSnapshot,
 } from "@/lib/razorpay-subscription-state"
 
@@ -13,8 +13,6 @@ interface SubscriptionWebhookEvent {
         payment?: { entity?: Record<string, any> }
     }
 }
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function adminClient(): SupabaseClient {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -32,68 +30,70 @@ function eventDate(value: number | string | undefined): Date {
     return new Date()
 }
 
-async function resolveUserId(db: SupabaseClient, entity: RazorpaySubscriptionSnapshot): Promise<string> {
-    const noted = entity.notes?.user_id
-    if (noted && UUID_PATTERN.test(noted)) return noted
-    const { data, error } = await (db as any).from("subscriptions").select("user_id")
-        .or(`razorpay_subscription_id.eq.${entity.id},pending_razorpay_subscription_id.eq.${entity.id}`)
+async function boundRow(db: SupabaseClient, subscriptionId: string) {
+    if (!/^sub_[A-Za-z0-9]+$/.test(subscriptionId)) {
+        throw new Error("Invalid Razorpay subscription id")
+    }
+    const { data, error } = await (db as any).from("subscriptions").select("*")
+        .or(`razorpay_subscription_id.eq.${subscriptionId},pending_razorpay_subscription_id.eq.${subscriptionId}`)
         .maybeSingle()
     if (error) throw error
-    if (!data?.user_id || !UUID_PATTERN.test(data.user_id)) {
-        throw new Error("Subscription webhook is missing a valid user_id")
-    }
-    return data.user_id
+    return data
 }
-
-async function syncActive(
+async function syncCharged(
     db: SupabaseClient,
     event: SubscriptionWebhookEvent,
     entity: RazorpaySubscriptionSnapshot,
-    eventType: string,
 ) {
-    const userId = await resolveUserId(db, entity)
-    const payment = event.payload?.payment?.entity
-    const result = await applyRazorpaySubscriptionSnapshot(db, entity, {
-        userId,
-        eventType,
+    const row = await boundRow(db, entity.id)
+    if (!row?.user_id) throw new Error("Subscription webhook is not locally bound")
+    const payloadPaymentId = event.payload?.payment?.entity?.id
+    const verified = await getVerifiedSubscriptionCharge(
+        entity.id,
+        typeof payloadPaymentId === "string" ? payloadPaymentId : undefined,
+    )
+    if (!verified) throw new Error("Subscription charge could not be verified")
+
+    const result = await applyRazorpaySubscriptionSnapshot(db, verified.subscription, {
+        userId: row.user_id,
+        eventType: "subscription.charged",
         eventCreatedAt: eventDate(event.created_at),
-        charge: eventType === "subscription.charged" && payment?.id ? {
-            id: payment.id,
-            amount: payment.amount,
-            currency: payment.currency,
-            order_id: payment.order_id,
-        } : null,
+        charge: verified,
     })
     if (!result.applied || result.stale) return
 
-    if (eventType === "subscription.activated") {
-        const label = result.plan.charAt(0).toUpperCase() + result.plan.slice(1)
-        const { error } = await (db as any).from("notifications").insert({
-            user_id: userId,
-            type: "subscription_activated",
-            title: `${label} Plan Activated 🎉`,
-            message: `Your ${label} plan is active with automatic ${result.billingCycle} billing.`,
-            metadata: { plan: result.plan, billingCycle: result.billingCycle, razorpay_subscription_id: entity.id },
-        })
-        if (error) throw error
-    }
+    const label = result.plan.charAt(0).toUpperCase() + result.plan.slice(1)
+    const { error } = await (db as any).from("notifications").insert({
+        user_id: row.user_id,
+        type: "subscription_activated",
+        title: `${label} Plan Activated 🎉`,
+        message: `Your ${label} plan is active with automatic ${result.billingCycle} billing.`,
+        metadata: {
+            plan: result.plan,
+            billingCycle: result.billingCycle,
+            razorpay_subscription_id: entity.id,
+            razorpay_payment_id: verified.id,
+        },
+    })
+    if (error) throw error
 }
 
 async function syncTerminal(
     db: SupabaseClient,
     event: SubscriptionWebhookEvent,
-    entity: RazorpaySubscriptionSnapshot,
+    payloadEntity: RazorpaySubscriptionSnapshot,
     status: "cancelled" | "past_due",
     eventType: string,
 ) {
-    if (!entity.id) throw new Error("Subscription webhook is missing subscription id")
-    const { data: row, error: readError } = await (db as any).from("subscriptions").select("*")
-        .or(`razorpay_subscription_id.eq.${entity.id},pending_razorpay_subscription_id.eq.${entity.id}`)
-        .maybeSingle()
-    if (readError) throw readError
-    if (!row) return
+    if (!payloadEntity.id) throw new Error("Subscription webhook is missing subscription id")
+    const live = await getSubscription(payloadEntity.id)
+    if (!live || live.id !== payloadEntity.id) throw new Error("Unable to refetch terminal subscription")
+    if (eventType === "subscription.cancelled" && live.status !== "cancelled") return
+    if (eventType === "subscription.halted" && live.status !== "halted") return
 
-    if (row.pending_razorpay_subscription_id === entity.id && row.razorpay_subscription_id !== entity.id) {
+    const row = await boundRow(db, live.id)
+    if (!row) return
+    if (row.pending_razorpay_subscription_id === live.id && row.razorpay_subscription_id !== live.id) {
         const { error } = await (db as any).from("subscriptions").update({
             pending_plan: null,
             pending_billing_cycle: null,
@@ -107,21 +107,14 @@ async function syncTerminal(
         if (error) throw error
         return
     }
-
     const incomingAt = eventDate(event.created_at)
     const existingAt = row.provider_event_created_at ? new Date(row.provider_event_created_at) : null
-    const incomingEnd = entity.current_end ? new Date(entity.current_end * 1000) : null
-    const existingEnd = row.current_period_end ? new Date(row.current_period_end) : null
-    const stale = Boolean(
-        (existingAt && incomingAt.getTime() < existingAt.getTime())
-        || (existingAt && incomingAt.getTime() === existingAt.getTime()
-            && row.provider_event_type && ["subscription.cancelled", "subscription.halted"].includes(row.provider_event_type)
-            && !["subscription.cancelled", "subscription.halted"].includes(eventType))
-        || (incomingEnd && existingEnd && incomingEnd.getTime() < existingEnd.getTime()),
-    )
-    if (stale) return
+    if (existingAt && incomingAt.getTime() < existingAt.getTime()) return
 
-    const expired = Boolean(incomingEnd && incomingEnd.getTime() <= Date.now())
+    const liveEnd = live.current_end ? new Date(live.current_end * 1000) : null
+    const existingEnd = row.current_period_end ? new Date(row.current_period_end) : null
+    const nonExtendingEnd = liveEnd && (!existingEnd || liveEnd.getTime() <= existingEnd.getTime()) ? liveEnd : null
+    const expired = Boolean(nonExtendingEnd && nonExtendingEnd.getTime() <= Date.now())
     const normalizeToFree = status === "cancelled" && expired && row.scheduled_downgrade === "free"
     const update: Record<string, unknown> = {
         status,
@@ -129,10 +122,9 @@ async function syncTerminal(
         provider_event_created_at: incomingAt.toISOString(),
         provider_event_type: eventType,
         updated_at: new Date().toISOString(),
+        ...(status === "cancelled" ? { cancelled_at: new Date().toISOString() } : {}),
+        ...(nonExtendingEnd ? { current_period_end: nonExtendingEnd.toISOString() } : {}),
     }
-    if (status === "cancelled") update.cancelled_at = new Date().toISOString()
-    if (entity.current_start) update.current_period_start = new Date(entity.current_start * 1000).toISOString()
-    if (incomingEnd) update.current_period_end = incomingEnd.toISOString()
     if (normalizeToFree) Object.assign(update, {
         plan: "free",
         billing_cycle: null,
@@ -164,14 +156,14 @@ export async function handleRazorpaySubscriptionEvent(
     eventId: string,
 ): Promise<NextResponse | null> {
     if (!eventId) return NextResponse.json({ error: "Missing Razorpay event id" }, { status: 400 })
-
     try {
         const db = adminClient()
         const entity = event.payload?.subscription?.entity
-        if (!entity) throw new Error("Subscription webhook payload is missing")
-        if (isActiveSubscriptionEvent(eventType)) await syncActive(db, event, entity, eventType)
+        if (!entity?.id) throw new Error("Subscription webhook payload is missing")
+        if (eventType === "subscription.charged") await syncCharged(db, event, entity)
         else if (eventType === "subscription.cancelled") await syncTerminal(db, event, entity, "cancelled", eventType)
         else if (eventType === "subscription.halted") await syncTerminal(db, event, entity, "past_due", eventType)
+        // subscription.activated/updated are lifecycle signals only; never grants.
         return null
     } catch (error) {
         console.error("[razorpay/webhook] Subscription sync failed:", error)

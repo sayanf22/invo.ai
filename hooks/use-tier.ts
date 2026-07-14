@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useUser } from "@/components/auth-provider"
 import { useSupabase } from "@/components/auth-provider"
-import { parseTier, getTierLimits, type UserTier } from "@/lib/cost-protection"
+import { getTierLimits, resolveEffectiveTier, type UserTier } from "@/lib/cost-protection"
 
 export interface TierInfo {
   tier: UserTier
@@ -23,23 +23,22 @@ export function useTier(): TierInfo {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user) { setLoading(false); return }
-
     let cancelled = false
-    ;(supabase as any)
-      .from("subscriptions")
-      .select("plan")
-      .eq("user_id", user.id)
-      .single()
-      .then(({ data }: { data: { plan?: string } | null }) => {
-        if (cancelled) return
-        setTier(parseTier(data?.plan))
-        setLoading(false)
-      })
-      .catch(() => {
+    ;(async () => {
+      if (!user) { if (!cancelled) setLoading(false); return }
+      try {
+        const { data } = await (supabase as any)
+          .from("subscriptions")
+          .select("plan,status,current_period_end")
+          .eq("user_id", user.id)
+          .maybeSingle()
+        if (!cancelled) setTier(resolveEffectiveTier(data))
+      } catch {
+        /* keep free on error */
+      } finally {
         if (!cancelled) setLoading(false)
-      })
-
+      }
+    })()
     return () => { cancelled = true }
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 

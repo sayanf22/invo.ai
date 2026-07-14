@@ -57,6 +57,7 @@ vi.mock("@/lib/rate-limiter", () => ({
 const mockCreateRazorpaySubscription = vi.fn()
 const mockGetSubscription = vi.fn()
 const mockGetSubscriptionInvoices = vi.fn()
+const mockGetVerifiedSubscriptionCharge = vi.fn()
 const mockUpdateRazorpaySubscriptionPlan = vi.fn()
 const mockGetPlanIdForCurrency = vi.fn()
 const mockPlanIdToPlan = vi.fn().mockReturnValue(null)
@@ -93,6 +94,7 @@ vi.mock("@/lib/razorpay", () => ({
   // 7.6/7.7) adds the existing-subscription lookup + update-plan call.
   getSubscription: mockGetSubscription,
   getSubscriptionInvoices: mockGetSubscriptionInvoices,
+  getVerifiedSubscriptionCharge: mockGetVerifiedSubscriptionCharge,
   updateRazorpaySubscriptionPlan: mockUpdateRazorpaySubscriptionPlan,
   getPlanIdForCurrency: mockGetPlanIdForCurrency,
   planIdToPlan: mockPlanIdToPlan,
@@ -241,7 +243,7 @@ describe("Preservation Property Tests: create-order upgrade path (unfixed baseli
     vi.mocked(authenticateRequest).mockResolvedValue({
       error: null,
       user: mockUser as any,
-      supabase: buildSupabaseMock(true, "pro") as any,
+      supabase: buildSupabaseMock(true, "starter") as any,
     })
     mockGetSubscription.mockResolvedValue({
       id: EXISTING_SUBSCRIPTION_ID,
@@ -250,7 +252,7 @@ describe("Preservation Property Tests: create-order upgrade path (unfixed baseli
     })
 
     const { POST } = await import("@/app/api/razorpay/create-order/route")
-    const response = await POST(makeRequest({ plan: "agency", billingCycle: "monthly" }))
+    const response = await POST(makeRequest({ plan: "pro", billingCycle: "monthly" }))
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -304,7 +306,7 @@ describe("Preservation Property Tests: create-order upgrade path (unfixed baseli
             hasExistingSubscription: fc.boolean(),
             razorpayStatus: fc.constantFrom("created", "pending", "halted", "authenticated", "active"),
             currentPlan: fc.constantFrom("free", "starter", "pro", "agency"),
-            targetPlan: fc.constantFrom("starter", "pro", "agency"),
+            targetPlan: fc.constantFrom("starter", "pro"),
           })
           // Scope to the PRESERVATION subset per the task description, PLUS
           // the downgrade-direction guard case: free→paid signups (no

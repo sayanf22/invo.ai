@@ -289,13 +289,17 @@ export function planIdToAmount(razorpayPlanId: string): number | null {
  * Used by the reconcile endpoint to verify + activate a payment that the
  * synchronous /verify call missed. Returns the raw subscription entity.
  */
-export async function getPayment(paymentId: string): Promise<{
+export interface RazorpayPayment {
     id: string
     amount: number
     currency: string
     status: string
     order_id?: string | null
-} | null> {
+    invoice_id?: string | null
+    subscription_id?: string | null
+}
+
+export async function getPayment(paymentId: string): Promise<RazorpayPayment | null> {
     const { getSecret } = await import("@/lib/secrets")
     const keyId = await getSecret("RAZORPAY_KEY_ID")
     const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
@@ -371,8 +375,8 @@ export async function createRazorpaySubscription(
         throw new Error("Razorpay API keys not configured")
     }
 
-    if (plan === "free") {
-        throw new Error("Invalid plan for subscription")
+    if (plan === "free" || plan === "agency") {
+        throw new Error(plan === "agency" ? "Agency plan is coming soon" : "Invalid plan for subscription")
     }
 
     // Pick the plan_id for the requested currency + cycle (falls back to INR if
@@ -433,8 +437,8 @@ export async function createRazorpayOrder(plan: PlanId, billingCycle: "monthly" 
     }
 
     const planConfig = PLANS[plan]
-    if (!planConfig || plan === "free") {
-        throw new Error("Invalid plan for payment")
+    if (!planConfig || plan === "free" || plan === "agency") {
+        throw new Error(plan === "agency" ? "Agency plan is coming soon" : "Invalid plan for payment")
     }
 
     // If amount is provided (from country pricing), use it. Otherwise fall back to INR.
@@ -907,24 +911,177 @@ export async function getSubscriptionInvoices(
     count: number = 1
 ): Promise<RazorpaySubscriptionInvoice[]> {
     try {
-        const { getSecret } = await import("@/lib/secrets")
-        const keyId = await getSecret("RAZORPAY_KEY_ID")
-        const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
-        if (!keyId || !keySecret) return []
-
-        const res = await fetch(
-            `https://api.razorpay.com/v1/invoices?subscription_id=${encodeURIComponent(subscriptionId)}&count=${count}`,
-            {
-                headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
-                signal: AbortSignal.timeout(10000),
-            }
-        )
-        if (!res.ok) return []
-        const body = await res.json().catch(() => null)
-        return Array.isArray(body?.items) ? body.items : []
+        return await fetchSubscriptionInvoices(subscriptionId, count)
     } catch {
         return []
     }
+}
+
+async function razorpayCredentials() {
+    const { getSecret } = await import("@/lib/secrets")
+    const keyId = await getSecret("RAZORPAY_KEY_ID")
+    const keySecret = await getSecret("RAZORPAY_KEY_SECRET")
+    if (!keyId || !keySecret) throw new Error("Razorpay API keys not configured")
+    return { keyId, keySecret }
+}
+
+async function fetchSubscriptionInvoices(
+    subscriptionId: string,
+    count: number,
+): Promise<RazorpaySubscriptionInvoice[]> {
+    const { keyId, keySecret } = await razorpayCredentials()
+    const res = await fetch(
+        `https://api.razorpay.com/v1/invoices?subscription_id=${encodeURIComponent(subscriptionId)}&count=${count}`,
+        {
+            headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+            signal: AbortSignal.timeout(10000),
+        },
+    )
+    if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error?.error?.description || "Failed to fetch subscription invoices")
+    }
+    const body = await res.json().catch(() => null)
+    if (!Array.isArray(body?.items)) throw new Error("Invalid Razorpay invoice response")
+    return body.items
+}
+
+async function fetchSubscriptionInvoice(invoiceId: string): Promise<RazorpaySubscriptionInvoice | null> {
+    const { keyId, keySecret } = await razorpayCredentials()
+    const res = await fetch(`https://api.razorpay.com/v1/invoices/${encodeURIComponent(invoiceId)}`, {
+        headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+        signal: AbortSignal.timeout(10000),
+    })
+    if (!res.ok) {
+        if (res.status === 404) return null
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error?.error?.description || "Failed to fetch subscription invoice")
+    }
+    return res.json()
+}
+
+export interface VerifiedSubscriptionCharge extends RazorpayChargeCorrelation {
+    subscription: NonNullable<Awaited<ReturnType<typeof getSubscription>>>
+    invoice: RazorpaySubscriptionInvoice
+    payment: RazorpayPayment
+}
+
+export interface RazorpayChargeCorrelation {
+    id: string
+    amount: number
+    currency: string
+    order_id: string
+    invoice_id: string
+    subscription_id: string
+}
+
+function invoicePaidAt(invoice: RazorpaySubscriptionInvoice): number {
+    return invoice.paid_at || invoice.issued_at || 0
+}
+
+function isExactPaidInvoice(
+    invoice: RazorpaySubscriptionInvoice,
+    subscriptionId: string,
+    paymentId: string,
+    currency: string,
+    notBeforeSeconds: number,
+): boolean {
+    return invoice.id.startsWith("inv_")
+        && invoice.subscription_id === subscriptionId
+        && invoice.payment_id === paymentId
+        && typeof invoice.order_id === "string"
+        && invoice.order_id.startsWith("order_")
+        && invoice.status === "paid"
+        && Number.isSafeInteger(invoice.amount)
+        && invoice.amount > 0
+        && invoice.amount === invoice.amount_paid
+        && invoice.amount_due === 0
+        && invoice.currency?.toUpperCase() === currency
+        && invoicePaidAt(invoice) >= notBeforeSeconds
+}
+
+function isExactCapturedPayment(
+    payment: RazorpayPayment,
+    invoice: RazorpaySubscriptionInvoice,
+    subscriptionId: string,
+): boolean {
+    return payment.id === invoice.payment_id
+        && payment.status === "captured"
+        && Number.isSafeInteger(payment.amount)
+        && payment.amount > 0
+        && payment.amount === invoice.amount_paid
+        && payment.currency?.toUpperCase() === invoice.currency.toUpperCase()
+        && payment.subscription_id === subscriptionId
+        && payment.invoice_id === invoice.id
+        && payment.order_id === invoice.order_id
+}
+
+/**
+ * Resolve entitlement evidence exclusively from freshly fetched Razorpay
+ * objects. The best-effort invoice helper above is intentionally never used:
+ * missing provider evidence and any absent correlation field fail closed.
+ * `notBefore` prevents an immediate plan update from reusing an older invoice.
+ */
+export async function getVerifiedSubscriptionCharge(
+    subscriptionId: string,
+    paymentId?: string,
+    notBefore?: number | Date,
+): Promise<VerifiedSubscriptionCharge | null> {
+    if (!subscriptionId.startsWith("sub_") || (paymentId && !paymentId.startsWith("pay_"))) return null
+
+    const subscription = await getSubscription(subscriptionId)
+    if (!subscription || subscription.id !== subscriptionId || !subscription.plan_id) return null
+    const expectedCurrency = planIdToCurrency(subscription.plan_id)?.toUpperCase()
+    if (!expectedCurrency) return null
+
+    const notBeforeSeconds = notBefore instanceof Date
+        ? Math.floor(notBefore.getTime() / 1000)
+        : typeof notBefore === "number"
+            ? Math.floor(notBefore / (notBefore > 10_000_000_000 ? 1000 : 1))
+            : 0
+
+    let requestedPayment: RazorpayPayment | null = null
+    let invoiceIds: string[] = []
+    if (paymentId) {
+        requestedPayment = await getPayment(paymentId)
+        if (!requestedPayment || requestedPayment.id !== paymentId || typeof requestedPayment.invoice_id !== "string") return null
+        invoiceIds = [requestedPayment.invoice_id]
+    } else {
+        const invoices = await fetchSubscriptionInvoices(subscriptionId, 25)
+        invoiceIds = invoices
+            .filter((item) =>
+                item.subscription_id === subscriptionId
+                && item.status === "paid"
+                && typeof item.payment_id === "string"
+                && item.id.startsWith("inv_")
+                && invoicePaidAt(item) >= notBeforeSeconds,
+            )
+            .map((item) => item.id)
+    }
+
+    for (const invoiceId of invoiceIds) {
+        const invoice = await fetchSubscriptionInvoice(invoiceId)
+        if (!invoice || typeof invoice.payment_id !== "string") continue
+        const payment = requestedPayment?.id === invoice.payment_id
+            ? requestedPayment
+            : await getPayment(invoice.payment_id)
+        if (!payment) continue
+        if (!isExactPaidInvoice(invoice, subscriptionId, payment.id, expectedCurrency, notBeforeSeconds)) continue
+        if (!isExactCapturedPayment(payment, invoice, subscriptionId)) continue
+
+        return {
+            id: payment.id,
+            amount: payment.amount,
+            currency: payment.currency.toUpperCase(),
+            order_id: payment.order_id!,
+            invoice_id: invoice.id,
+            subscription_id: subscriptionId,
+            subscription,
+            invoice,
+            payment,
+        }
+    }
+    return null
 }
 
 /**

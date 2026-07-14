@@ -59,11 +59,9 @@ export function resolveEffectiveTier(subscription: SubscriptionRecord | null | u
         return tier
     }
 
-    // A null end is reserved for perpetual/admin grants. Only live statuses may
-    // use that exceptional path; a cancelled grant must not remain perpetual.
-    return !subscription.status || ["active", "trialing"].includes(subscription.status)
-        ? tier
-        : "free"
+    // Paid access always has a finite period. Permanent admin grants are stored
+    // with an explicit far-future end date, so missing period evidence fails closed.
+    return "free"
 }
 
 interface TierLimits {

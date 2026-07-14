@@ -46,6 +46,7 @@ vi.mock("@/lib/rate-limiter", () => ({
 const mockCreateRazorpaySubscription = vi.fn()
 const mockGetSubscription = vi.fn()
 const mockGetSubscriptionInvoices = vi.fn()
+const mockGetVerifiedSubscriptionCharge = vi.fn()
 const mockUpdateRazorpaySubscriptionPlan = vi.fn()
 const mockGetPlanIdForCurrency = vi.fn()
 const mockPlanIdToPlan = vi.fn().mockReturnValue(null)
@@ -82,11 +83,16 @@ vi.mock("@/lib/razorpay", () => ({
   // 7.6/7.7) adds the existing-subscription lookup + update-plan call.
   getSubscription: mockGetSubscription,
   getSubscriptionInvoices: mockGetSubscriptionInvoices,
+  getVerifiedSubscriptionCharge: mockGetVerifiedSubscriptionCharge,
   updateRazorpaySubscriptionPlan: mockUpdateRazorpaySubscriptionPlan,
   getPlanIdForCurrency: mockGetPlanIdForCurrency,
   planIdToPlan: mockPlanIdToPlan,
   planIdToCycle: mockPlanIdToCycle,
   RazorpayApiError: MockRazorpayApiError,
+}))
+
+vi.mock("@/lib/razorpay-subscription-state", () => ({
+  applyRazorpaySubscriptionSnapshot: vi.fn(),
 }))
 
 vi.mock("@/lib/secrets", () => ({
@@ -186,21 +192,8 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
       current_end: 1702592000,
     })
     mockResolveSubscriptionCurrency.mockReturnValue("INR")
-    mockGetSubscriptionInvoices.mockResolvedValue([
-      {
-        id: "inv_TEST1",
-        payment_id: "pay_TEST1",
-        order_id: "order_TEST1",
-        subscription_id: EXISTING_SUBSCRIPTION_ID,
-        amount: 18270,
-        amount_paid: 18270,
-        amount_due: 0,
-        currency: "INR",
-        status: "paid",
-        issued_at: 1700000000,
-        paid_at: 1700000001,
-      },
-    ])
+    mockGetSubscriptionInvoices.mockResolvedValue([])
+    mockGetVerifiedSubscriptionCharge.mockResolvedValue(null)
     // Service-role client chain used for subscriptions.update() and
     // payment_history.select()/insert().
     mockSvcFrom.mockImplementation((table: string) => {
@@ -223,7 +216,6 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
   })
 
   const scopedUpgradeCases = [
-    { currentPlan: "pro", targetPlan: "agency", label: "Pro→Agency" },
     { currentPlan: "starter", targetPlan: "pro", label: "Starter→Pro" },
   ] as const
 
@@ -261,7 +253,7 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
   // must create a NEW subscription (user re-authorises via Checkout). The old
   // one is cancelled by /verify only after the new is confirmed active.
   for (const method of ["upi", "emandate"] as const) {
-    it(`Pro→Agency (${method.toUpperCase()}): should create a NEW subscription for re-auth and NOT call the in-place update API`, async () => {
+    it(`Starter→Pro (${method.toUpperCase()}): should create a NEW subscription for re-auth and NOT call the in-place update API`, async () => {
       mockGetSubscription.mockResolvedValue({
         id: EXISTING_SUBSCRIPTION_ID,
         status: "active",
@@ -273,11 +265,11 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
       vi.mocked(authenticateRequest).mockResolvedValue({
         error: null,
         user: mockUser as any,
-        supabase: buildSupabaseMockWithExistingSubscription("pro") as any,
+        supabase: buildSupabaseMockWithExistingSubscription("starter") as any,
       })
 
       const { POST } = await import("@/app/api/razorpay/create-order/route")
-      const response = await POST(makeRequest({ plan: "agency", billingCycle: "monthly" }))
+      const response = await POST(makeRequest({ plan: "pro", billingCycle: "monthly" }))
       const body = await response.json()
 
       // In-place update API must NOT be used for non-card methods.
@@ -336,27 +328,7 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
     expect(mockCreateRazorpaySubscription).not.toHaveBeenCalled()
   })
 
-  it("reports sync-pending instead of false success when Razorpay upgrades but final local persistence fails", async () => {
-    let subscriptionUpdate = 0
-    mockSvcFrom.mockImplementation((table: string) => {
-      if (table === "subscriptions") {
-        return {
-          update: vi.fn(() => {
-            subscriptionUpdate += 1
-            return mutationQuery(subscriptionUpdate === 2
-              ? { data: null, error: { message: "database unavailable" } }
-              : { data: { user_id: "user-abc" }, error: null })
-          }),
-        }
-      }
-      if (table === "payment_history") {
-        return {
-          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null }) }) }),
-          insert: vi.fn().mockResolvedValue({ error: null }),
-        }
-      }
-      return {}
-    })
+  it("rejects direct Agency checkout while the plan is coming soon", async () => {
     vi.mocked(authenticateRequest).mockResolvedValue({
       error: null,
       user: mockUser as any,
@@ -367,10 +339,32 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
     const response = await POST(makeRequest({ plan: "agency", billingCycle: "monthly" }))
     const body = await response.json()
 
+    expect(response.status).toBe(403)
+    expect(body.code).toBe("AGENCY_COMING_SOON")
+    expect(mockCreateRazorpaySubscription).not.toHaveBeenCalled()
+    expect(mockUpdateRazorpaySubscriptionPlan).not.toHaveBeenCalled()
+  })
+
+  it("keeps an immediate card upgrade pending when no new paid invoice is verified", async () => {
+    mockPlanIdToPlan.mockReturnValue("starter")
+    mockPlanIdToCycle.mockReturnValue("monthly")
+    vi.mocked(authenticateRequest).mockResolvedValue({
+      error: null,
+      user: mockUser as any,
+      supabase: buildSupabaseMockWithExistingSubscription("starter") as any,
+    })
+
+    const { POST } = await import("@/app/api/razorpay/create-order/route")
+    const response = await POST(makeRequest({ plan: "pro", billingCycle: "monthly" }))
+    const body = await response.json()
+
     expect(response.status).toBe(202)
-    expect(body.upgraded).toBe(true)
-    expect(body.pending).toBe(true)
-    expect(body.plan).toBe("pro")
-    expect(body.message).toContain("still syncing")
+    expect(body).toMatchObject({
+      upgraded: true, pending: true, plan: "starter", targetPlan: "pro", chargePending: true,
+    })
+    expect(mockGetVerifiedSubscriptionCharge).toHaveBeenCalledWith(
+      EXISTING_SUBSCRIPTION_ID, undefined, expect.any(Number),
+    )
+    expect(mockCreateRazorpaySubscription).not.toHaveBeenCalled()
   })
 })

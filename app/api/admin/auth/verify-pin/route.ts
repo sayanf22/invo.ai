@@ -1,13 +1,14 @@
+import { timingSafeEqual } from "crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { createAdminSessionToken } from "@/lib/admin-auth"
+import { createAdminSessionToken, hashAdminSessionToken } from "@/lib/admin-auth"
 import { logAudit } from "@/lib/audit-log"
 
 function getServiceRoleClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error("Supabase service role is required for admin login")
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }
 
 function getIP(request: NextRequest): string {
@@ -70,18 +71,15 @@ const DB_WINDOW_MS = 15 * 60 * 1000
 
 async function dbFailureCount(client: ReturnType<typeof getServiceRoleClient>, ip: string): Promise<number> {
   if (ip === "unknown") return 0
-  try {
-    const since = new Date(Date.now() - DB_WINDOW_MS).toISOString()
-    const { count } = await client
-      .from("audit_logs")
-      .select("id", { count: "exact", head: true })
-      .eq("action", "security.auth_failure")
-      .eq("ip_address", ip)
-      .gte("created_at", since)
-    return count ?? 0
-  } catch {
-    return 0
-  }
+  const since = new Date(Date.now() - DB_WINDOW_MS).toISOString()
+  const { count, error } = await client
+    .from("audit_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("action", "security.auth_failure")
+    .eq("ip_address", ip)
+    .gte("created_at", since)
+  if (error) throw new Error("Admin lockout storage is unavailable")
+  return count ?? 0
 }
 
 async function logFailureToDb(client: ReturnType<typeof getServiceRoleClient>, ip: string): Promise<void> {
@@ -97,7 +95,12 @@ async function logFailureToDb(client: ReturnType<typeof getServiceRoleClient>, i
 
 export async function POST(request: NextRequest) {
   const ip = getIP(request)
-  const serviceClient = getServiceRoleClient()
+  let serviceClient: ReturnType<typeof getServiceRoleClient>
+  try {
+    serviceClient = getServiceRoleClient()
+  } catch {
+    return NextResponse.json({ error: "Admin authentication is unavailable" }, { status: 503 })
+  }
 
   // Brute force check BEFORE parsing body — in-memory (fast) + DB-backed (persistent)
   const bruteCheck = checkBruteForce(ip)
@@ -159,7 +162,7 @@ export async function POST(request: NextRequest) {
       const a = Buffer.from(password, "utf8")
       const b = Buffer.from(adminPassword, "utf8")
       if (a.length !== b.length) return false
-      return require("crypto").timingSafeEqual(a, b)
+      return timingSafeEqual(a, b)
     } catch { return false }
   })()
   if (!passwordMatch) {
@@ -176,7 +179,7 @@ export async function POST(request: NextRequest) {
       const a = Buffer.from(pin, "utf8")
       const b = Buffer.from(adminPin, "utf8")
       if (a.length !== b.length) return false
-      return require("crypto").timingSafeEqual(a, b)
+      return timingSafeEqual(a, b)
     } catch { return false }
   })()
   if (!pinMatch) {
@@ -189,30 +192,25 @@ export async function POST(request: NextRequest) {
   // Issue admin session JWT
   const token = await createAdminSessionToken(email)
 
-  // Store session in DB (best-effort)
-  try {
-    const tokenBytes = new TextEncoder().encode(token)
-    const hashBuffer = await crypto.subtle.digest("SHA-256", tokenBytes)
-    const tokenHash = Array.from(new Uint8Array(hashBuffer))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-
-    await serviceClient.from("admin_sessions").insert({
-      admin_email: email,
-      session_token_hash: tokenHash,
-      expires_at: new Date(Date.now() + 3600000).toISOString(),
-      ip_address: ip,
-    })
-
-    await logAudit(serviceClient as any, {
-      user_id: "admin",
-      action: "admin.login",
-      ip_address: ip,
-      metadata: { email, ip_address: ip },
-    })
-  } catch {
-    // Non-blocking
+  // Persist the revocable session before issuing a browser cookie. If this
+  // fails, login fails closed and no valid-but-untracked JWT escapes.
+  const { error: sessionError } = await serviceClient.from("admin_sessions").insert({
+    admin_email: email.toLowerCase(),
+    session_token_hash: await hashAdminSessionToken(token),
+    expires_at: new Date(Date.now() + 3600000).toISOString(),
+    ip_address: ip === "unknown" ? null : ip,
+  })
+  if (sessionError) {
+    console.error("[admin/login] Failed to persist admin session")
+    return NextResponse.json({ error: "Admin session storage is unavailable" }, { status: 503 })
   }
+
+  await logAudit(serviceClient as any, {
+    user_id: "admin",
+    action: "admin.login",
+    ip_address: ip,
+    metadata: { email: email.toLowerCase(), ip_address: ip },
+  }).catch(() => {})
 
   const response = NextResponse.json({ success: true })
   response.cookies.set("admin_session", token, {

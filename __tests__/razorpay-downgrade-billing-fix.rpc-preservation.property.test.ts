@@ -35,7 +35,7 @@
  *
  * Validates: Requirements 3.5, 3.6
  */
-import { describe, it, expect, beforeAll, afterEach } from "vitest"
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest"
 import * as fc from "fast-check"
 import { readFileSync } from "fs"
 import path from "path"
@@ -78,13 +78,37 @@ const maybeIt = hasLiveCredentials ? it : it.skip
 // This is NOT a real user's subscription; it exists solely to exercise
 // RLS-bypassing / security-testing flows and is safe to write to and clean up.
 const TEST_USER_ID = "6c6dfaa6-d000-4d7d-bb0d-39d0400f164f"
+// Disposable captured-payment fixture that satisfies the paid-entitlement
+// evidence trigger when seeding disposable paid subscription rows.
+const FIXTURE_PAYMENT_ID = "pay_RPCPRESERVEFIXTURE"
 
 let admin: SupabaseClient
 
-beforeAll(() => {
-  if (hasLiveCredentials) {
-    admin = createClient(SUPABASE_URL as string, SERVICE_ROLE_KEY as string)
-  }
+beforeAll(async () => {
+  if (!hasLiveCredentials) return
+  admin = createClient(SUPABASE_URL as string, SERVICE_ROLE_KEY as string)
+  // A captured payment lets the disposable rows carry legitimate provenance
+  // (legacy_payment) so the entitlement-evidence trigger accepts the seed.
+  await admin.from("payment_history").upsert(
+    {
+      user_id: TEST_USER_ID,
+      razorpay_payment_id: FIXTURE_PAYMENT_ID,
+      amount: 100,
+      currency: "INR",
+      status: "captured",
+      plan: "starter",
+      billing_cycle: "monthly",
+    },
+    { onConflict: "razorpay_payment_id" }
+  )
+})
+
+afterAll(async () => {
+  if (!hasLiveCredentials) return
+  await admin.from("subscriptions").delete().eq("user_id", TEST_USER_ID)
+  await admin.from("payment_history").delete().eq("razorpay_payment_id", FIXTURE_PAYMENT_ID)
+  // Never leave the pentest fixture account showing a paid badge.
+  await admin.from("profiles").update({ tier: "free", tier_expires_at: null }).eq("id", TEST_USER_ID)
 })
 
 // Always leave the fixture's subscriptions row deleted between tests so each
@@ -92,6 +116,7 @@ beforeAll(() => {
 afterEach(async () => {
   if (!hasLiveCredentials) return
   await admin.from("subscriptions").delete().eq("user_id", TEST_USER_ID)
+  await admin.from("profiles").update({ tier: "free", tier_expires_at: null }).eq("id", TEST_USER_ID)
 })
 
 // ── Generators ───────────────────────────────────────────────────────────────
@@ -152,20 +177,26 @@ async function seedSubscription(state: {
   periodEnd: string
 }) {
   const periodStart = new Date(new Date(state.periodEnd).getTime() - 30 * 86400 * 1000).toISOString()
-  const { error } = await admin.from("subscriptions").upsert(
-    {
-      user_id: TEST_USER_ID,
-      plan: state.plan,
-      billing_cycle: "monthly",
-      status: state.status,
-      current_period_start: periodStart,
-      current_period_end: state.periodEnd,
-      scheduled_downgrade: state.scheduledDowngrade,
-      currency: "INR",
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" }
-  )
+  // Each property iteration seeds a clean INSERT (fast-check runs many
+  // iterations before afterEach fires); legacy evidence is only accepted on
+  // insert, never as a period-extending update.
+  await admin.from("subscriptions").delete().eq("user_id", TEST_USER_ID)
+  const { error } = await admin.from("subscriptions").insert({
+    user_id: TEST_USER_ID,
+    plan: state.plan,
+    billing_cycle: "monthly",
+    status: state.status,
+    current_period_start: periodStart,
+    current_period_end: state.periodEnd,
+    scheduled_downgrade: state.scheduledDowngrade,
+    currency: "INR",
+    // Disposable but legitimate provenance so the evidence trigger accepts
+    // the seed; the RPC under test remains read-only regardless of source.
+    entitlement_source: "legacy_payment",
+    entitlement_payment_id: FIXTURE_PAYMENT_ID,
+    entitlement_verified_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  })
   if (error) throw new Error(`Failed to seed disposable subscription row: ${error.message}`)
 }
 

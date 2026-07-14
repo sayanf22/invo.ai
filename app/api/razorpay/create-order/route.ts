@@ -5,7 +5,7 @@ import { checkRateLimit } from "@/lib/rate-limiter"
 import {
     createRazorpaySubscription,
     getSubscription,
-    getSubscriptionInvoices,
+    getVerifiedSubscriptionCharge,
     updateRazorpaySubscriptionPlan,
     getPlanIdForCurrency,
     planIdToCycle,
@@ -18,6 +18,7 @@ import {
 } from "@/lib/razorpay"
 import { getSecret } from "@/lib/secrets"
 import { logAudit } from "@/lib/audit-log"
+import { applyRazorpaySubscriptionSnapshot } from "@/lib/razorpay-subscription-state"
 import { createClient } from "@supabase/supabase-js"
 
 const UPDATABLE_RAZORPAY_STATUSES = new Set(["authenticated", "active"])
@@ -54,20 +55,24 @@ export async function POST(request: NextRequest) {
 
     try {
         const { plan, billingCycle } = body as { plan?: string; billingCycle?: string }
-        if (!plan || !["starter", "pro", "agency"].includes(plan)) {
+        if (plan === "agency") {
+            return NextResponse.json({ error: "Agency plan is coming soon", code: "AGENCY_COMING_SOON" }, { status: 403 })
+        }
+        if (!plan || !["starter", "pro"].includes(plan)) {
             return NextResponse.json({ error: "Invalid plan" }, { status: 400 })
         }
 
         const cycle = (billingCycle === "yearly" ? "yearly" : "monthly") as "monthly" | "yearly"
-        const tier = plan as "starter" | "pro" | "agency"
+        const tier = plan as "starter" | "pro"
         const currency = resolveSubscriptionCurrency(request.headers.get("cf-ipcountry") || "")
         const svc = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.SUPABASE_SERVICE_ROLE_KEY!,
             { auth: { persistSession: false, autoRefreshToken: false } },
         )
-        const { data: currentSubRow } = await auth.supabase
+        const { data: currentSubRow, error: currentSubError } = await auth.supabase
             .from("subscriptions" as any).select("*").eq("user_id", auth.user.id).maybeSingle()
+        if (currentSubError) throw currentSubError
         const currentSub = currentSubRow as any
         const existingId = currentSub?.razorpay_subscription_id as string | undefined
 
@@ -167,7 +172,10 @@ export async function POST(request: NextRequest) {
                 const pendingPatch = {
                     pending_plan: plan,
                     pending_billing_cycle: cycle,
-                    pending_razorpay_subscription_id: existingId,
+                    // In-place updates remain bound through the current provider ID.
+                    // Keeping the same ID in both current and pending columns violates
+                    // the ownership invariant and adds no correlation value.
+                    pending_razorpay_subscription_id: null,
                     pending_change_type: changeType,
                     pending_effective_at: deferredByPolicy ? periodEnd?.toISOString() ?? null : new Date().toISOString(),
                     provider_sync_required: true,
@@ -184,9 +192,9 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json({ error: "A billing change is already pending", code: "CHANGE_PENDING" }, { status: 409 })
                 }
 
-                const updateStartedAt = Math.floor(Date.now() / 1000)
                 let deferred = deferredByPolicy
                 let updated: Awaited<ReturnType<typeof updateRazorpaySubscriptionPlan>>
+                const providerUpdateStartedAt = Date.now()
                 try {
                     updated = await updateRazorpaySubscriptionPlan(existingId, targetPlanId, deferred ? "cycle_end" : "now")
                 } catch (error) {
@@ -239,61 +247,47 @@ export async function POST(request: NextRequest) {
                     }, { status: savedError ? 202 : 200 })
                 }
 
-                const invoices = await getSubscriptionInvoices(existingId, 5)
-                const invoice = invoices.find((item) =>
-                    item.subscription_id === existingId && (item.issued_at ?? item.paid_at ?? 0) >= updateStartedAt - 5,
-                ) ?? null
-                const finalPatch: Record<string, unknown> = {
-                    plan,
-                    billing_cycle: cycle,
-                    razorpay_plan_id: targetPlanId,
-                    current_period_start: currentStart ? new Date(currentStart * 1000).toISOString() : currentSub.current_period_start,
-                    current_period_end: currentEnd ? new Date(currentEnd * 1000).toISOString() : currentSub.current_period_end,
-                    pending_plan: null,
-                    pending_billing_cycle: null,
-                    pending_razorpay_subscription_id: null,
-                    pending_change_type: null,
-                    pending_effective_at: null,
-                    provider_sync_required: false,
-                    provider_event_created_at: new Date().toISOString(),
-                    provider_event_type: "provider.immediate_update",
-                    updated_at: new Date().toISOString(),
-                }
-                if (invoice) finalPatch.amount_paid = invoice.amount_paid
-                const { error: syncError } = await svc.from("subscriptions" as any)
-                    .update(finalPatch).eq("user_id", auth.user.id)
-
-                if (invoice?.payment_id) {
-                    const { data: prior } = await svc.from("payment_history" as any)
-                        .select("id").eq("razorpay_payment_id", invoice.payment_id).maybeSingle()
-                    if (!prior) await svc.from("payment_history" as any).insert({
-                        user_id: auth.user.id,
-                        razorpay_payment_id: invoice.payment_id,
-                        razorpay_order_id: invoice.order_id,
-                        amount: invoice.amount_paid,
-                        currency: invoice.currency,
-                        status: "captured",
-                        plan,
-                        billing_cycle: cycle,
-                        metadata: { type: "upgrade_proration", from_plan: currentSub.plan, invoice_id: invoice.id },
-                    })
+                const verified = await getVerifiedSubscriptionCharge(
+                    existingId,
+                    undefined,
+                    providerUpdateStartedAt,
+                ).catch((error) => {
+                    console.error("[create-order] immediate upgrade charge not yet verified:", error)
+                    return null
+                })
+                if (!verified || verified.subscription.plan_id !== targetPlanId) {
+                    return NextResponse.json({
+                        upgraded: true,
+                        pending: true,
+                        plan: currentSub.plan,
+                        targetPlan: plan,
+                        billingCycle: currentCycle,
+                        targetBillingCycle: cycle,
+                        deferredToNextCycle: false,
+                        chargePending: true,
+                        message: "Razorpay accepted the plan update; paid access remains pending captured charge verification.",
+                    }, { status: 202 })
                 }
 
+                const result = await applyRazorpaySubscriptionSnapshot(svc, verified.subscription, {
+                    userId: auth.user.id,
+                    eventType: "provider.immediate_update",
+                    eventCreatedAt: new Date(),
+                    charge: verified,
+                })
                 return NextResponse.json({
                     upgraded: true,
-                    pending: Boolean(syncError),
-                    plan: syncError ? currentSub.plan : plan,
+                    pending: !result.applied,
+                    plan: result.applied ? result.plan : currentSub.plan,
                     targetPlan: plan,
-                    billingCycle: cycle,
-                    periodEnd: finalPatch.current_period_end,
+                    billingCycle: result.applied ? result.billingCycle : currentCycle,
+                    periodEnd: result.periodEnd,
                     deferredToNextCycle: false,
-                    chargedAmount: invoice?.amount_paid ?? null,
-                    chargedCurrency: invoice?.currency ?? targetCurrency,
-                    chargePending: !invoice,
-                    message: syncError
-                        ? "Razorpay upgraded the subscription; local confirmation is still syncing."
-                        : undefined,
-                }, { status: syncError ? 202 : 200 })
+                    chargedAmount: result.chargedAmount,
+                    chargedCurrency: verified.currency,
+                    chargePending: false,
+                    cleanupPending: result.cleanupPending,
+                }, { status: result.applied ? 200 : 202 })
             }
         }
 

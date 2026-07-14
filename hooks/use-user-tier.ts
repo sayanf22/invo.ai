@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
-import { parseTier } from "@/lib/cost-protection"
+import { resolveEffectiveTier } from "@/lib/cost-protection"
 
 export type Tier = "free" | "starter" | "pro" | "agency"
 
@@ -28,10 +28,10 @@ export function useUserTier(): Tier {
         if (!user || cancelled) return
         const { data } = await (supabase as any)
           .from("subscriptions")
-          .select("plan")
+          .select("plan,status,current_period_end")
           .eq("user_id", user.id)
-          .single()
-        if (!cancelled && data?.plan) setTier(parseTier(data.plan) as Tier)
+          .maybeSingle()
+        if (!cancelled) setTier(resolveEffectiveTier(data) as Tier)
       } catch {
         /* default free */
       }

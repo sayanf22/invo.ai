@@ -4,7 +4,7 @@ import { NextRequest } from "next/server"
 const mocks = vi.hoisted(() => ({
   authenticate: vi.fn(),
   getSubscription: vi.fn(),
-  getPayment: vi.fn(),
+  getVerifiedCharge: vi.fn(),
   applySnapshot: vi.fn(),
   createNotification: vi.fn(),
   serviceFrom: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("@/lib/rate-limiter", () => ({
 vi.mock("@/lib/razorpay", () => ({
   verifyPaymentSignature: vi.fn(async () => true),
   getSubscription: mocks.getSubscription,
-  getPayment: mocks.getPayment,
+  getVerifiedSubscriptionCharge: mocks.getVerifiedCharge,
   isValidPlanId: vi.fn(() => true),
   planIdToPlan: vi.fn(() => "pro"),
   cancelRazorpaySubscription: vi.fn(),
@@ -79,11 +79,16 @@ beforeEach(() => {
     supabase: { from: vi.fn() },
   })
   mocks.getSubscription.mockResolvedValue(provider())
-  mocks.getPayment.mockResolvedValue({
+  mocks.getVerifiedCharge.mockResolvedValue({
     id: paymentBody.razorpay_payment_id,
     amount: 500,
     currency: "INR",
-    status: "captured",
+    order_id: "order_EXACT123",
+    invoice_id: "inv_EXACT123",
+    subscription_id: paymentBody.razorpay_subscription_id,
+    subscription: provider(),
+    invoice: { id: "inv_EXACT123" },
+    payment: { id: paymentBody.razorpay_payment_id, status: "captured" },
   })
   mocks.applySnapshot.mockResolvedValue({
     applied: true,
@@ -96,9 +101,36 @@ beforeEach(() => {
     chargedAmount: null,
   })
   mocks.createNotification.mockResolvedValue(undefined)
+  mocks.serviceFrom.mockReturnValue({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({
+        data: {
+          user_id: userId,
+          razorpay_subscription_id: null,
+          pending_razorpay_subscription_id: paymentBody.razorpay_subscription_id,
+        },
+        error: null,
+      })) })),
+    })),
+  })
 })
 
 describe("Razorpay checkout ownership enforcement", () => {
+  it("rejects a subscription that is not locally bound to the authenticated user", async () => {
+    mocks.serviceFrom.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: null, error: null })) })),
+      })),
+    })
+    const { POST } = await import("@/app/api/razorpay/verify/route")
+
+    const response = await POST(request())
+
+    expect(response.status).toBe(403)
+    expect(mocks.getSubscription).not.toHaveBeenCalled()
+    expect(mocks.applySnapshot).not.toHaveBeenCalled()
+  })
+
   it("rejects a valid provider tuple owned by another authenticated user", async () => {
     mocks.getSubscription.mockResolvedValue(provider("11111111-1111-4111-8111-111111111111"))
     const { POST } = await import("@/app/api/razorpay/verify/route")
@@ -110,7 +142,7 @@ describe("Razorpay checkout ownership enforcement", () => {
   })
 
   it("does not grant access while the exact provider payment is unavailable", async () => {
-    mocks.getPayment.mockResolvedValue(null)
+    mocks.getVerifiedCharge.mockResolvedValue(null)
     const { POST } = await import("@/app/api/razorpay/verify/route")
 
     const response = await POST(request())
@@ -122,12 +154,7 @@ describe("Razorpay checkout ownership enforcement", () => {
   })
 
   it("does not grant access for a failed or refunded payment state", async () => {
-    mocks.getPayment.mockResolvedValue({
-      id: paymentBody.razorpay_payment_id,
-      amount: 500,
-      currency: "INR",
-      status: "failed",
-    })
+    mocks.getVerifiedCharge.mockResolvedValue(null)
     const { POST } = await import("@/app/api/razorpay/verify/route")
 
     const response = await POST(request())
@@ -136,7 +163,7 @@ describe("Razorpay checkout ownership enforcement", () => {
     expect(mocks.applySnapshot).not.toHaveBeenCalled()
   })
 
-  it("applies an owned, signature-verified, provider-authorized subscription without treating mandate authorization as revenue", async () => {
+  it("applies only an exact captured invoice-linked subscription charge", async () => {
     const { POST } = await import("@/app/api/razorpay/verify/route")
 
     const response = await POST(request())
@@ -145,7 +172,14 @@ describe("Razorpay checkout ownership enforcement", () => {
     expect(mocks.applySnapshot).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ id: paymentBody.razorpay_subscription_id }),
-      expect.objectContaining({ userId, charge: null }),
+      expect.objectContaining({
+        userId,
+        charge: expect.objectContaining({
+          id: paymentBody.razorpay_payment_id,
+          invoice_id: "inv_EXACT123",
+          subscription_id: paymentBody.razorpay_subscription_id,
+        }),
+      }),
     )
   })
 })
