@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import KpiCard from '@/components/admin/kpi-card'
 import DataTable from '@/components/admin/data-table'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
+import { fromMinorUnits } from '@/lib/invoice-types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,11 @@ interface SubData {
   total: number
   page: number
   pageSize: number
+  summary: {
+    active: number
+    mrrByCurrency: Record<string, number>
+    arrByCurrency: Record<string, number>
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -35,6 +41,12 @@ interface SubData {
 function formatDate(iso: string | null) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function csvCell(value: unknown): string {
+  let text = value == null ? '' : String(value)
+  if (/^[=+\-@]/.test(text)) text = `'${text}`
+  return `"${text.replace(/"/g, '""')}"`
 }
 
 const COUNTRY_FLAGS: Record<string, string> = {
@@ -58,10 +70,6 @@ export default function SubscriptionsClient() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
-  // Computed KPIs
-  const [mrr, setMrr] = useState(0)
-  const [arr, setArr] = useState(0)
-
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(false)
@@ -75,13 +83,6 @@ export default function SubscriptionsClient() {
       if (!res.ok) throw new Error('Failed')
       const json = await res.json()
       setData(json)
-      // Calculate MRR from active subs
-      const subs = (json.subscriptions ?? []) as SubRow[]
-      const activeMrr = subs
-        .filter((s: SubRow) => s.status === 'active' && s.plan !== 'free')
-        .reduce((sum: number, s: SubRow) => sum + ((s.amount_paid ?? 0) / 100), 0)
-      setMrr(activeMrr)
-      setArr(activeMrr * 12)
     } catch {
       setError(true)
     } finally {
@@ -154,7 +155,7 @@ export default function SubscriptionsClient() {
     {
       key: 'amount_paid', header: 'Amount', render: (r: SubRow) => (
         <span className="text-sm" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
-          {r.amount_paid != null ? `₹${(r.amount_paid / 100).toLocaleString()}` : '—'}
+          {r.amount_paid != null ? new Intl.NumberFormat(undefined, { style: 'currency', currency: r.currency || 'INR' }).format(fromMinorUnits(r.amount_paid, r.currency || 'INR')) : '—'}
         </span>
       ),
     },
@@ -179,21 +180,37 @@ export default function SubscriptionsClient() {
 
   async function handleExport() {
     try {
-      const params = new URLSearchParams({ pageSize: '10000' })
-      if (plan) params.set('plan', plan)
-      if (status) params.set('status', status)
-      if (dateFrom) params.set('dateFrom', dateFrom)
-      if (dateTo) params.set('dateTo', dateTo)
-      const res = await fetch(`/api/admin/subscriptions?${params}`)
-      if (!res.ok) throw new Error('Failed')
-      const json = await res.json()
-      const rows = (json.subscriptions ?? []) as SubRow[]
-      const header = 'User Name,Email,Plan,Status,Country,Amount,Billing Cycle,Period Start,Period End,Created'
-      const csv = [header, ...rows.map(r =>
-        [(r.profiles as any)?.full_name ?? '', (r.profiles as any)?.email ?? '', r.plan ?? '', r.status ?? '',
-         (r.businesses as any)?.country ?? '', r.amount_paid != null ? (r.amount_paid / 100) : '',
-         r.billing_cycle ?? '', r.current_period_start ?? '', r.current_period_end ?? '', r.created_at ?? ''].join(',')
-      )].join('\n')
+      const baseParams = new URLSearchParams()
+      if (plan) baseParams.set('plan', plan)
+      if (status) baseParams.set('status', status)
+      if (dateFrom) baseParams.set('dateFrom', dateFrom)
+      if (dateTo) baseParams.set('dateTo', dateTo)
+
+      const rows: SubRow[] = []
+      const exportPageSize = 100
+      let exportPage = 1
+      let total = Number.POSITIVE_INFINITY
+      while (rows.length < total) {
+        const params = new URLSearchParams(baseParams)
+        params.set('page', String(exportPage))
+        params.set('pageSize', String(exportPageSize))
+        const res = await fetch(`/api/admin/subscriptions?${params}`)
+        if (!res.ok) throw new Error('Failed')
+        const json = await res.json()
+        const pageRows = (json.subscriptions ?? []) as SubRow[]
+        rows.push(...pageRows)
+        total = Number(json.total ?? rows.length)
+        if (pageRows.length < exportPageSize) break
+        exportPage += 1
+      }
+
+      const header = 'User Name,Email,Plan,Status,Country,Amount,Currency,Billing Cycle,Period Start,Period End,Created'
+      const csv = [header, ...rows.map(r => {
+        const currency = (r.currency || 'INR').toUpperCase()
+        return [(r.profiles as any)?.full_name ?? '', (r.profiles as any)?.email ?? '', r.plan ?? '', r.status ?? '',
+          (r.businesses as any)?.country ?? '', r.amount_paid != null ? fromMinorUnits(r.amount_paid, currency) : '', currency,
+          r.billing_cycle ?? '', r.current_period_start ?? '', r.current_period_end ?? '', r.created_at ?? ''].map(csvCell).join(',')
+      })].join('\n')
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -217,10 +234,10 @@ export default function SubscriptionsClient() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="MRR" value={mrr} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
-        <KpiCard title="ARR" value={arr} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
+        <KpiCard title="MRR (INR)" value={fromMinorUnits(data?.summary?.mrrByCurrency?.INR ?? 0, 'INR')} prefix="₹" loading={loading} error={error} onRetry={fetchData} description="Annual subscriptions normalized to 1/12 per month" />
+        <KpiCard title="ARR (INR)" value={fromMinorUnits(data?.summary?.arrByCurrency?.INR ?? 0, 'INR')} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
         <KpiCard title="Total Subscriptions" value={data?.total ?? 0} loading={loading} error={error} onRetry={fetchData} />
-        <KpiCard title="Active" value={(data?.subscriptions ?? []).filter((s: any) => s.status === 'active').length} loading={loading} error={error} onRetry={fetchData} />
+        <KpiCard title="Active Paid" value={data?.summary?.active ?? 0} loading={loading} error={error} onRetry={fetchData} />
       </div>
 
       {/* Filters */}

@@ -1,4 +1,4 @@
-import { CURRENCIES } from "@/lib/invoice-types"
+import { CURRENCIES, toMinorUnits } from "@/lib/invoice-types"
 
 export interface InvoicePaymentDetails {
     amount: number
@@ -73,7 +73,7 @@ export function deriveInvoicePaymentDetails(
     if (!SUPPORTED_CURRENCIES.has(currency as (typeof CURRENCIES)[number]["code"])) {
         throw new Error("Unsupported invoice currency")
     }
-    const amount = Math.round(total * currencyMultiplier(currency))
+    const amount = toMinorUnits(total, currency)
     if (!Number.isSafeInteger(amount) || amount <= 0 || amount > MAX_SMALLEST_UNIT_AMOUNT) {
         throw new Error("Invoice total is outside the supported payment range")
     }

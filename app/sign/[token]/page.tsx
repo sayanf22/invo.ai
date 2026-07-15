@@ -43,12 +43,10 @@ interface SignatureData {
     expires_at: string | null
     verification_url: string | null
     documents: {
-        id: string
         type: string
         data: Record<string, unknown>
         status: string | null
-    }
-    session_id?: string | null
+    } | null
 }
 
 interface ConfirmationData {
@@ -382,6 +380,7 @@ export default function SigningPage() {
     const [isAlreadySigned, setIsAlreadySigned] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [confirmation, setConfirmation] = useState<ConfirmationData | null>(null)
+    const [publicDocumentUrl, setPublicDocumentUrl] = useState<string | null>(null)
     const [autoInvoiceOnSign, setAutoInvoiceOnSign] = useState(false)
     const [sessionContext, setSessionContext] = useState<any>(null)
     const [documentType, setDocumentType] = useState<string | null>(null)
@@ -424,6 +423,7 @@ export default function SigningPage() {
 
                 const sig: SignatureData = data.signature
                 setBusiness(data.business ?? null)
+                setPublicDocumentUrl(data.publicDocumentUrl ?? null)
                 setAutoInvoiceOnSign(!!data.autoInvoiceOnSign)
                 setSessionContext(data.sessionContext ?? null)
                 setDocumentType(data.documentType ?? null)
@@ -697,7 +697,6 @@ export default function SigningPage() {
 
     // Sub-task 13.5: Confirmation screen after successful submission
     if (confirmation) {
-        const sessionId = (signature as any)?.session_id
         return (
             <div className="min-h-screen flex flex-col bg-background">
                 <header className="border-b py-4 px-6 flex items-center justify-between">
@@ -758,9 +757,9 @@ export default function SigningPage() {
                         </div>
 
                         {/* View signed PDF button */}
-                        {sessionId && (
+                        {publicDocumentUrl && (
                             <a
-                                href={`/view/${sessionId}`}
+                                href={publicDocumentUrl}
                                 className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
                             >
                                 <FileText className="h-4 w-4" />

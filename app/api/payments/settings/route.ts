@@ -35,29 +35,53 @@ export async function GET(request: NextRequest) {
         const { data, error } = await adminClient().from("user_payment_settings").select(`
             razorpay_key_id, razorpay_account_name, razorpay_enabled, razorpay_test_mode,
             razorpay_webhook_id, razorpay_webhook_secret,
+            razorpay_credentials_verified_at, razorpay_local_webhook_verified_at,
+            razorpay_provider_webhook_verified_at,
             stripe_enabled, stripe_test_mode, stripe_webhook_id, stripe_webhook_secret,
+            stripe_credentials_verified_at, stripe_webhook_verified_at,
             cashfree_client_id, cashfree_enabled, cashfree_test_mode,
+            cashfree_credentials_verified_at, cashfree_local_webhook_verified_at,
+            cashfree_webhook_verified_at,
             updated_at
         `).eq("user_id", auth.user.id).maybeSingle()
         if (error) throw error
+        const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com").replace(/\/$/, "")
         return NextResponse.json({
             settings: data ? {
                 razorpay: data.razorpay_enabled ? {
                     keyIdHint: data.razorpay_key_id ? `${data.razorpay_key_id.slice(0, 8)}••••${data.razorpay_key_id.slice(-4)}` : null,
                     accountName: data.razorpay_account_name,
                     testMode: data.razorpay_test_mode,
+                    credentialsVerified: Boolean(data.razorpay_credentials_verified_at),
+                    verifiedAt: data.razorpay_credentials_verified_at,
+                    webhookUrl: `${appUrl}/api/razorpay/webhook/${auth.user.id}`,
+                    webhookMode: "manual",
                     webhookConfigured: Boolean(data.razorpay_webhook_secret),
-                    webhookRegistered: Boolean(data.razorpay_webhook_id),
+                    webhookRegistered: Boolean(data.razorpay_provider_webhook_verified_at),
+                    localReceiverVerifiedAt: data.razorpay_local_webhook_verified_at,
+                    providerWebhookVerifiedAt: data.razorpay_provider_webhook_verified_at,
                 } : null,
                 stripe: data.stripe_enabled ? {
                     testMode: data.stripe_test_mode,
+                    credentialsVerified: Boolean(data.stripe_credentials_verified_at),
+                    verifiedAt: data.stripe_credentials_verified_at,
+                    webhookUrl: `${appUrl}/api/stripe/webhook/${auth.user.id}`,
+                    webhookMode: "automatic",
                     webhookConfigured: Boolean(data.stripe_webhook_secret),
-                    webhookRegistered: Boolean(data.stripe_webhook_id),
+                    webhookRegistered: Boolean(data.stripe_webhook_verified_at),
+                    providerWebhookVerifiedAt: data.stripe_webhook_verified_at,
                 } : null,
                 cashfree: data.cashfree_enabled ? {
                     clientIdHint: data.cashfree_client_id ? `${data.cashfree_client_id.slice(0, 4)}••••${data.cashfree_client_id.slice(-4)}` : null,
                     testMode: data.cashfree_test_mode,
+                    credentialsVerified: Boolean(data.cashfree_credentials_verified_at),
+                    verifiedAt: data.cashfree_credentials_verified_at,
+                    webhookUrl: `${appUrl}/api/cashfree/webhook/${auth.user.id}`,
+                    webhookMode: "per_link",
                     webhookConfigured: true,
+                    webhookRegistered: Boolean(data.cashfree_webhook_verified_at),
+                    localReceiverVerifiedAt: data.cashfree_local_webhook_verified_at,
+                    providerWebhookVerifiedAt: data.cashfree_webhook_verified_at,
                 } : null,
                 updatedAt: data.updated_at,
             } : null,
@@ -112,6 +136,8 @@ export async function DELETE(request: NextRequest) {
                 stripe_secret_key_encrypted: null,
                 stripe_webhook_id: null,
                 stripe_webhook_secret: null,
+                stripe_credentials_verified_at: null,
+                stripe_webhook_verified_at: null,
                 stripe_enabled: false,
             }).eq("user_id", auth.user.id)
             if (updateError) throw updateError
@@ -121,6 +147,9 @@ export async function DELETE(request: NextRequest) {
                 razorpay_key_secret_encrypted: null,
                 razorpay_webhook_id: null,
                 razorpay_webhook_secret: null,
+                razorpay_credentials_verified_at: null,
+                razorpay_local_webhook_verified_at: null,
+                razorpay_provider_webhook_verified_at: null,
                 razorpay_enabled: false,
             }).eq("user_id", auth.user.id)
             if (error) throw error
@@ -129,6 +158,9 @@ export async function DELETE(request: NextRequest) {
                 cashfree_client_id: null,
                 cashfree_client_secret_encrypted: null,
                 cashfree_webhook_secret: null,
+                cashfree_credentials_verified_at: null,
+                cashfree_local_webhook_verified_at: null,
+                cashfree_webhook_verified_at: null,
                 cashfree_enabled: false,
             }).eq("user_id", auth.user.id)
             if (error) throw error
@@ -167,9 +199,16 @@ async function saveRazorpay(auth: any, body: Record<string, unknown>, request: N
     const { data: existing, error: existingError } = await db.from("user_payment_settings")
         .select("razorpay_webhook_secret").eq("user_id", auth.user.id).maybeSingle()
     if (existingError) throw existingError
-    const priorSecret = existing?.razorpay_webhook_secret
-        ? await decrypt(existing.razorpay_webhook_secret).catch(() => null) || existing.razorpay_webhook_secret
-        : generateWebhookSecret()
+    let webhookSecret = generateWebhookSecret()
+    const isNewWebhookSecret = !existing?.razorpay_webhook_secret
+    if (existing?.razorpay_webhook_secret) {
+        const decryptedSecret = await decrypt(existing.razorpay_webhook_secret).catch(() => null)
+        if (!decryptedSecret) {
+            return NextResponse.json({ error: "Stored Razorpay webhook secret is unreadable. Remove the connection and reconnect it." }, { status: 409 })
+        }
+        webhookSecret = decryptedSecret
+    }
+    const verifiedAt = new Date().toISOString()
     const { error } = await db.from("user_payment_settings").upsert({
         user_id: auth.user.id,
         razorpay_key_id: keyId,
@@ -177,12 +216,21 @@ async function saveRazorpay(auth: any, body: Record<string, unknown>, request: N
         razorpay_account_name: body.accountName ? sanitizeInput(String(body.accountName)).slice(0, 100) : null,
         razorpay_enabled: true,
         razorpay_test_mode: keyId.startsWith("rzp_test_"),
-        razorpay_webhook_secret: await encrypt(priorSecret),
-        updated_at: new Date().toISOString(),
+        razorpay_webhook_secret: await encrypt(webhookSecret),
+        razorpay_credentials_verified_at: verifiedAt,
+        razorpay_local_webhook_verified_at: null,
+        razorpay_provider_webhook_verified_at: null,
+        updated_at: verifiedAt,
     }, { onConflict: "user_id" })
     if (error) throw error
     await auditConnection(auth, "razorpay", keyId.startsWith("rzp_test_"), request)
-    return NextResponse.json({ success: true, gateway: "razorpay", testMode: keyId.startsWith("rzp_test_") })
+    return NextResponse.json({
+        success: true,
+        gateway: "razorpay",
+        testMode: keyId.startsWith("rzp_test_"),
+        // Returned only when first generated. Existing secrets are never revealed again.
+        webhookSecret: isNewWebhookSecret ? webhookSecret : undefined,
+    })
 }
 
 async function saveStripe(auth: any, body: Record<string, unknown>, request: NextRequest) {
@@ -203,6 +251,7 @@ async function saveStripe(auth: any, body: Record<string, unknown>, request: Nex
     const { data: existing, error: existingError } = await db.from("user_payment_settings")
         .select("stripe_secret_key_encrypted,stripe_webhook_id").eq("user_id", auth.user.id).maybeSingle()
     if (existingError) throw existingError
+    const stripeVerifiedAt = new Date().toISOString()
     const { error } = await db.from("user_payment_settings").upsert({
         user_id: auth.user.id,
         stripe_secret_key_encrypted: await encrypt(secretKey),
@@ -210,7 +259,9 @@ async function saveStripe(auth: any, body: Record<string, unknown>, request: Nex
         stripe_test_mode: secretKey.startsWith("sk_test_"),
         stripe_webhook_id: webhook.webhookId,
         stripe_webhook_secret: await encrypt(webhook.webhookSecret),
-        updated_at: new Date().toISOString(),
+        stripe_credentials_verified_at: stripeVerifiedAt,
+        stripe_webhook_verified_at: stripeVerifiedAt,
+        updated_at: stripeVerifiedAt,
     }, { onConflict: "user_id" })
     if (error) {
         await deleteStripeWebhook(secretKey, webhook.webhookId)
@@ -240,6 +291,7 @@ async function saveCashfree(auth: any, body: Record<string, unknown>, request: N
         signal: AbortSignal.timeout(15000),
     })
     if (!verification.ok) return NextResponse.json({ error: "Cashfree rejected these credentials" }, { status: 400 })
+    const cashfreeVerifiedAt = new Date().toISOString()
     const { error } = await adminClient().from("user_payment_settings").upsert({
         user_id: auth.user.id,
         cashfree_client_id: clientId,
@@ -247,7 +299,10 @@ async function saveCashfree(auth: any, body: Record<string, unknown>, request: N
         cashfree_enabled: true,
         cashfree_test_mode: testMode,
         cashfree_webhook_secret: null,
-        updated_at: new Date().toISOString(),
+        cashfree_credentials_verified_at: cashfreeVerifiedAt,
+        cashfree_local_webhook_verified_at: null,
+        cashfree_webhook_verified_at: null,
+        updated_at: cashfreeVerifiedAt,
     }, { onConflict: "user_id" })
     if (error) throw error
     await auditConnection(auth, "cashfree", testMode, request)

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from "react"
 import { Loader2, FileText, CheckCircle2, Clock, RefreshCw, AlertCircle, X } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
-import { cleanDataForExport, calculateTotal, getCurrencySymbol } from "@/lib/invoice-types"
+import { cleanDataForExport, calculateTotal, formatCurrency, fromMinorUnits, getCurrencySymbol } from "@/lib/invoice-types"
 import { resolvePdfComponent } from "@/lib/pdf-export-helpers"
 import { cn } from "@/lib/utils"
 import type { PaymentInfo } from "./page"
@@ -194,18 +194,15 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
   const [respondingAs, setRespondingAs] = useState<"accepted" | "declined" | "changes_requested" | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Track document view (fire-and-forget, no sensitive data)
+  // Track document view with the public capability only.
   useEffect(() => {
-    const path = window.location.pathname
-    const match = path.match(/\/pay\/([0-9a-f-]{36})/i)
-    if (match?.[1]) {
-      fetch("/api/emails/track-view", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: match[1] }),
-      }).catch(() => {})
-    }
-  }, [])
+    if (!sessionId) return
+    fetch("/api/emails/track-view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ publicId: sessionId }),
+    }).catch(() => {})
+  }, [sessionId])
 
   // Render PDF
   useEffect(() => {
@@ -244,7 +241,7 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
     if (!sessionId) return
     setCheckingStatus(true)
     try {
-      const res = await fetch(`/api/payments/status?sessionId=${encodeURIComponent(sessionId)}`)
+      const res = await fetch(`/api/payments/status?publicId=${encodeURIComponent(sessionId)}`)
       if (!res.ok) return
       const data = await res.json()
       if (data.status) {
@@ -410,8 +407,8 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
               </p>
               {payment.amount_paid != null && (
                 <p className={cn("text-sm mt-0.5", isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
-                  {payment.currency} {(payment.amount_paid / 100).toFixed(2)} paid
-                  {isPartiallyPaid && ` of ${(payment.amount / 100).toFixed(2)}`}
+                  {formatCurrency(fromMinorUnits(payment.amount_paid, payment.currency), payment.currency)} paid
+                  {isPartiallyPaid && ` of ${formatCurrency(fromMinorUnits(payment.amount, payment.currency), payment.currency)}`}
                 </p>
               )}
               {payment.is_manual && (
@@ -539,7 +536,7 @@ export function PayDocumentView({ docData, payment: initialPayment, sessionId, d
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({
-                                sessionId,
+                                publicId: sessionId,
                                 response: respondingAs,
                                 clientName: docData.toName || undefined,
                                 clientEmail: docData.toEmail || undefined,
@@ -636,7 +633,7 @@ function ExpiredPaymentCard({
       const res = await fetch("/api/payments/regenerate-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ publicId: sessionId }),
       })
       if (res.ok) {
         // Fresh link generated — reload the page to pick up the new state.

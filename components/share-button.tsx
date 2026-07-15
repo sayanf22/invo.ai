@@ -18,6 +18,7 @@ import { authFetch } from "@/lib/auth-fetch"
 import { cn } from "@/lib/utils"
 import { resolvePdfComponent, resolveDocumentReference } from "@/lib/pdf-export-helpers"
 import { ChatAssetLinkCard } from "@/components/chat-asset-link-card"
+import { usePublicDocumentLink } from "@/hooks/use-public-document-link"
 
 interface ShareButtonProps {
   data: InvoiceData
@@ -208,18 +209,7 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
     }
   }
 
-  // Compute the public document link for this session.
-  // Convention used across the app: ${origin}/d/<first-8-chars-of-uuid>
-  // The middleware resolves /d/<shortId> to /pay/<full-id> so recipients
-  // see the right status-aware page (active doc / cancelled / signed).
-  // We only emit the link when the document has an actual session — drafts
-  // don't get a recipient URL because there's nothing to share yet.
-  const platformLink = (() => {
-    if (!sessionId) return null
-    if (typeof window === "undefined") return null
-    const shortId = sessionId.split("-")[0]
-    return `${window.location.origin}/d/${shortId}`
-  })()
+  const { publicUrl: platformLink } = usePublicDocumentLink(sessionId)
 
   // Build the WhatsApp / share message
   const buildMessage = useCallback(() => {

@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
         // Usage remains an immutable calendar-month counter. Plan changes do not
         // reset it, preventing upgrade/downgrade cycles from minting extra quota.
-        const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+        const monthKey = now.toISOString().slice(0, 7)
         const { data: usage } = await auth.supabase
             .from("user_usage" as any)
             .select("ai_requests_count, documents_count, emails_count")

@@ -475,16 +475,6 @@ export default function UserDetailDrawer({ userId, onClose, onDeleted }: Props) 
                     {isSuspended ? 'Unsuspend' : 'Suspend'}
                   </button>
                   <button
-                    onClick={() => toast.info('Feature coming soon')}
-                    className="px-3 py-1.5 text-sm rounded-md active:scale-95 transition-all duration-150"
-                    style={{
-                      backgroundColor: isDark ? '#1A1A1A' : '#F0F0F0',
-                      color: isDark ? '#F5F5F5' : '#0A0A0A',
-                    }}
-                  >
-                    Reset Password
-                  </button>
-                  <button
                     onClick={() => {
                       setDeleteStep(1)
                       setDeleteConfirmEmail('')

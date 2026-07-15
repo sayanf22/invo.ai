@@ -9,8 +9,7 @@ import { cancelProviderLink, type CreatedProviderLink, type InvoicePaymentGatewa
 import { checkPublicRateLimit } from "@/lib/public-rate-limit"
 import { getClientIP, validateBodySize } from "@/lib/api-auth"
 import { logAudit } from "@/lib/audit-log"
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+import { getPublicDocumentUrl, isPublicDocumentId } from "@/lib/public-capability"
 
 function adminClient() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -50,21 +49,22 @@ export async function POST(request: NextRequest) {
     }
     const sizeError = validateBodySize(body, 1024)
     if (sizeError) return sizeError
-    const sessionId = typeof body.sessionId === "string" ? body.sessionId : ""
-    if (!UUID_PATTERN.test(sessionId)) return NextResponse.json({ error: "Invalid sessionId" }, { status: 400 })
+    const publicId = typeof body.publicId === "string" ? body.publicId : ""
+    if (!isPublicDocumentId(publicId)) return NextResponse.json({ error: "Invalid public document capability" }, { status: 400 })
 
     try {
         const db = adminClient()
         const ipRateError = await checkPublicRateLimit(db, getClientIP(request), "payment_regenerate_ip", 10, 3600)
         if (ipRateError) return ipRateError
-        const sessionRateError = await checkPublicRateLimit(db, sessionId, "payment_regenerate_session", 3, 3600)
+        const sessionRateError = await checkPublicRateLimit(db, publicId, "payment_regenerate_session", 3, 3600)
         if (sessionRateError) return sessionRateError
 
         const { data: session, error: sessionError } = await db.from("document_sessions")
-            .select("id,user_id,status,document_type,context")
-            .eq("id", sessionId).maybeSingle()
+            .select("id,public_id,user_id,status,document_type,context")
+            .eq("public_id", publicId).maybeSingle()
         if (sessionError) throw sessionError
         if (!session || !session.context) return NextResponse.json({ error: "Session not found" }, { status: 404 })
+        const sessionId = session.id
         if (session.document_type !== "invoice") return NextResponse.json({ error: "Only invoices support payment links" }, { status: 400 })
         if (["paid", "cancelled"].includes(session.status)) {
             return NextResponse.json({ error: `Session is ${session.status}` }, { status: 409 })
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
         if (!lastPayment) return NextResponse.json({ error: "Payment link not found" }, { status: 404 })
         if (lastPayment.status === "paid") return NextResponse.json({ error: "Invoice already paid" }, { status: 409 })
         if (["created", "partially_paid"].includes(lastPayment.status)) {
-            return NextResponse.json({ success: true, platformLink: `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/pay/${sessionId}`, regenerated: false })
+            return NextResponse.json({ success: true, platformLink: getPublicDocumentUrl(publicId), regenerated: false })
         }
         if (lastPayment.status !== "expired") return NextResponse.json({ error: "This payment link was cancelled by the sender" }, { status: 410 })
         if (!Number.isSafeInteger(lastPayment.amount) || lastPayment.amount <= 0 || !/^[A-Z]{3}$/.test(lastPayment.currency)) {
@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
                 referenceId: freshReference,
                 customerEmail: lastPayment.customer_email || contextDetails.customerEmail,
                 sessionId,
+                publicId,
                 userId: session.user_id,
                 userSecretKey: credential.secretKey,
             })
@@ -133,6 +134,7 @@ export async function POST(request: NextRequest) {
                 description,
                 referenceId: freshReference,
                 sessionId,
+                publicId,
                 customerName: lastPayment.customer_name || contextDetails.customerName,
                 customerEmail: lastPayment.customer_email || contextDetails.customerEmail,
                 customerPhone: lastPayment.customer_phone || contextDetails.customerPhone,
@@ -167,7 +169,7 @@ export async function POST(request: NextRequest) {
             await cancelProviderLink(gateway, provider.correlationId, provider.providerLinkId, credentials)
                 .catch((cleanupError) => console.error("[payments/regenerate-link] orphan cleanup failed:", cleanupError))
             if (insertError?.code === "23505") {
-                return NextResponse.json({ success: true, platformLink: `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/pay/${sessionId}`, regenerated: false })
+                return NextResponse.json({ success: true, platformLink: getPublicDocumentUrl(publicId), regenerated: false })
             }
             throw insertError || new Error("Payment link persistence failed")
         }
@@ -181,7 +183,7 @@ export async function POST(request: NextRequest) {
         }, request).catch(() => {})
         return NextResponse.json({
             success: true,
-            platformLink: `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/pay/${sessionId}`,
+            platformLink: getPublicDocumentUrl(publicId),
             shortUrl: provider.shortUrl,
             regenerated: true,
         })

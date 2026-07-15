@@ -221,7 +221,7 @@ export default function AdminSidebar({ adminEmail }: AdminSidebarProps) {
             href={item.href}
             title={collapsed ? item.label : undefined}
             className={cn(
-              'flex items-center gap-3 rounded-md text-sm transition-all duration-150',
+              'relative flex items-center gap-3 rounded-md text-sm transition-all duration-150',
               collapsed ? 'justify-center px-0 py-2.5 mx-1' : 'px-3 py-2',
               depth > 0 && !collapsed ? 'pl-8' : '',
             )}
@@ -249,7 +249,18 @@ export default function AdminSidebar({ adminEmail }: AdminSidebarProps) {
             ) : (
               <item.icon className="h-4 w-4 shrink-0" />
             )}
-            {!collapsed && <span>{item.label}</span>}
+            {!collapsed && <span className="flex-1 text-left">{item.label}</span>}
+            {item.href === '/clorefy-ctrl-8x2m/support' && unreadSupportCount > 0 && (
+              <span
+                aria-label={`${unreadSupportCount} unread support messages`}
+                className={cn(
+                  'inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white',
+                  collapsed && 'absolute -right-1 -top-1 min-w-4 h-4 px-0.5 text-[9px]',
+                )}
+              >
+                {unreadSupportCount > 99 ? '99+' : unreadSupportCount}
+              </span>
+            )}
           </Link>
         )}
 
@@ -314,46 +325,7 @@ export default function AdminSidebar({ adminEmail }: AdminSidebarProps) {
               {/* Items */}
               {(collapsed || isOpen) && (
                 <div className={cn('space-y-0.5', !collapsed && 'px-2 pb-2')}>
-                  {group.items.map(({ href, label, icon: Icon }) => {
-                    const active = isActive(href)
-                    return (
-                      <Link
-                        key={href}
-                        href={href}
-                        title={collapsed ? label : undefined}
-                        className={cn(
-                          'flex items-center gap-3 rounded-md text-sm transition-all duration-150',
-                          collapsed ? 'justify-center px-0 py-2.5 mx-1' : 'px-3 py-2',
-                        )}
-                        style={{
-                          backgroundColor: active ? activeBg : 'transparent',
-                          color: active ? textActive : textInactive,
-                          borderLeft: !collapsed && active ? `2px solid ${isDark ? '#FFFFFF' : '#0A0A0A'}` : !collapsed ? '2px solid transparent' : undefined,
-                        }}
-                        onMouseEnter={e => {
-                          if (!active) {
-                            e.currentTarget.style.backgroundColor = hoverBg
-                            e.currentTarget.style.color = textActive
-                          }
-                        }}
-                        onMouseLeave={e => {
-                          if (!active) {
-                            e.currentTarget.style.backgroundColor = 'transparent'
-                            e.currentTarget.style.color = textInactive
-                          }
-                        }}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        {!collapsed && <span>{label}</span>}
-                        {!collapsed && href === '/clorefy-ctrl-8x2m/support' && unreadSupportCount > 0 && (
-                          <span className="ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none"
-                            style={{ backgroundColor: '#EF4444', color: '#FFFFFF' }}>
-                            {unreadSupportCount > 99 ? '99+' : unreadSupportCount}
-                          </span>
-                        )}
-                      </Link>
-                    )
-                  })}
+                  {group.items.map(item => renderNavItem(item))}
                 </div>
               )}
 

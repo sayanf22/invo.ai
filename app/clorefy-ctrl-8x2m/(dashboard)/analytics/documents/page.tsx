@@ -27,7 +27,7 @@ interface OverviewData {
   estimatedAICostThisMonth: number
   aiRequests?: number
   aiTokens?: number
-  aiCostINR?: number
+  aiCostUSD?: number
   documentsTrend: Array<{ date: string; count: number }>
   docTypeBreakdown?: Array<{ type: string; count: number }>
 }
@@ -160,8 +160,8 @@ export default function DocumentsAnalyticsPage() {
             value={(data?.aiRequests ?? data?.totalAIRequestsThisMonth ?? 0).toLocaleString()} />
           <MetricCard label="Tokens Used" icon={FileText} loading={loading} isDark={isDark}
             value={(data?.aiTokens ?? data?.totalTokensThisMonth ?? 0).toLocaleString()} />
-          <MetricCard label="Est. Cost (₹)" icon={FileText} loading={loading} isDark={isDark}
-            value={`₹${(data?.aiCostINR ?? data?.estimatedAICostThisMonth ?? 0).toLocaleString()}`} />
+          <MetricCard label="Est. Cost (USD)" icon={FileText} loading={loading} isDark={isDark}
+            value={`$${(data?.aiCostUSD ?? data?.estimatedAICostThisMonth ?? 0).toLocaleString()}`} />
         </div>
       </div>
 

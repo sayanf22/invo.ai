@@ -1,136 +1,111 @@
 /**
  * POST /api/signatures/cancel
  *
- * Authenticated endpoint — allows the Document_Owner to cancel a pending signature request.
- * Sets signer_action = 'cancelled' and records a signature.cancelled audit event.
+ * Authenticated endpoint for cancelling the current unsigned signing envelope.
+ * The database serializes cancellation with signing on the parent session row.
  *
  * Body: { signatureId: string }
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { authenticateRequest, getClientIP } from "@/lib/api-auth"
+import { createClient } from "@supabase/supabase-js"
+import { authenticateRequest, getClientIP, validateBodySize, validateOrigin } from "@/lib/api-auth"
 import { checkRateLimit } from "@/lib/rate-limiter"
 import { recordAuditEvent } from "@/lib/signature-audit"
+import type { Database } from "@/lib/database.types"
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function getServiceRoleClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error("Signature service credentials are not configured")
+  return createClient<Database>(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
 
 export async function POST(request: NextRequest) {
+  const originError = validateOrigin(request)
+  if (originError) return originError
+
   try {
-    // Authenticate user
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    // Rate limit
     const rateLimitError = await checkRateLimit(auth.user.id, "general")
     if (rateLimitError) return rateLimitError
 
-    // Parse body
-    let body: { signatureId?: string }
+    let body: { signatureId?: unknown }
     try {
       body = await request.json()
     } catch {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
-    const { signatureId } = body
+    const sizeError = validateBodySize(body, 1024)
+    if (sizeError) return sizeError
 
-    if (!signatureId || typeof signatureId !== "string") {
-      return NextResponse.json({ error: "Missing signatureId" }, { status: 400 })
+    const signatureId = typeof body.signatureId === "string" ? body.signatureId.trim() : ""
+    if (!UUID_PATTERN.test(signatureId)) {
+      return NextResponse.json({ error: "A valid signatureId is required" }, { status: 400 })
     }
 
-    // Fetch signature and verify ownership via session's user_id
-    const { data: signature, error: lookupError } = await auth.supabase
-      .from("signatures")
-      .select("id, signed_at, signer_action, signer_name, session_id, document_id")
-      .eq("id", signatureId)
-      .single()
+    const cancelledAt = new Date().toISOString()
+    const serviceSupabase = getServiceRoleClient()
+    const { data, error } = await serviceSupabase.rpc("cancel_signature_request", {
+      p_signature_id: signatureId,
+      p_user_id: auth.user.id,
+      p_cancelled_at: cancelledAt,
+    })
+    const cancellation = Array.isArray(data) ? data[0] : data
 
-    if (lookupError || !signature) {
-      return NextResponse.json({ error: "Signature not found" }, { status: 404 })
+    if (error) {
+      console.error("[signatures/cancel] atomic cancellation error:", error)
+      return NextResponse.json({ error: "Failed to cancel signature request" }, { status: 500 })
+    }
+    if (!cancellation || cancellation.outcome !== "cancelled") {
+      const failures: Record<string, { error: string; status: number }> = {
+        invalid_request: { error: "Invalid cancellation request", status: 400 },
+        not_found: { error: "Signature request not found", status: 404 },
+        already_signed: { error: "A completed signature cannot be cancelled", status: 409 },
+        cohort_partially_signed: {
+          error: "This signing envelope already contains a completed signature and cannot be cancelled",
+          status: 409,
+        },
+        stale_request: { error: "This signature request has already been superseded", status: 409 },
+        already_responded: { error: "This signature request already has a recorded response", status: 409 },
+        parent_cancelled: { error: "This signing envelope is no longer active", status: 409 },
+        conflict: { error: "The signing envelope changed while cancellation was in progress", status: 409 },
+      }
+      const failure = failures[cancellation?.outcome ?? "conflict"] ?? failures.conflict
+      return NextResponse.json({ error: failure.error }, { status: failure.status })
     }
 
-    // Verify ownership: the signature's session must belong to the authenticated user
-    const sessionId = (signature as any).session_id
-    if (!sessionId) {
-      return NextResponse.json({ error: "Signature has no associated session" }, { status: 400 })
-    }
-
-    const { data: session, error: sessionError } = await auth.supabase
-      .from("document_sessions")
-      .select("user_id")
-      .eq("id", sessionId)
-      .single()
-
-    if (sessionError || !session) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 })
-    }
-
-    if (session.user_id !== auth.user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
-    // Verify signature is pending (signed_at IS NULL AND signer_action IS NULL)
-    if (signature.signed_at) {
-      return NextResponse.json(
-        { error: "Cannot cancel a signature that has already been signed" },
-        { status: 409 }
-      )
-    }
-
-    if (signature.signer_action) {
-      return NextResponse.json(
-        { error: "Cannot cancel a signature that already has an action" },
-        { status: 409 }
-      )
-    }
-
-    // Set signer_action = 'cancelled'
-    const { error: updateError } = await auth.supabase
-      .from("signatures")
-      .update({ signer_action: "cancelled" } as any)
-      .eq("id", signatureId)
-
-    if (updateError) {
-      console.error("[signatures/cancel] update error:", updateError)
-      return NextResponse.json({ error: "Failed to cancel signature" }, { status: 500 })
-    }
-
-    // Atomically revoke all remaining unsigned signature rows for this session.
-    // This ensures that even if other signature rows still have signer_action = null,
-    // they will also be marked cancelled so the GET handler returns 410 consistently.
-    if (sessionId) {
-      await auth.supabase
-        .from("signatures")
-        .update({ signer_action: "cancelled" } as any)
-        .eq("session_id", sessionId)
-        .is("signed_at", null)
-    }
-
-    // Reset session status back to 'active' so a new signature request can be sent
-    // Only reset if the session was in a pending state (not already signed/paid)
-    if (sessionId) {
-      await auth.supabase
-        .from("document_sessions")
-        .update({ status: "active" } as any)
-        .eq("id", sessionId)
-        .eq("user_id", auth.user.id)
-        .in("status", ["finalized", "active"]) // only reset if not signed/paid
-    }
-
-    // Record signature.cancelled audit event
     const clientIP = getClientIP(request)
     const userAgent = request.headers.get("user-agent") ?? undefined
-
-    await recordAuditEvent(auth.supabase, {
+    await recordAuditEvent(serviceSupabase, {
       action: "signature.cancelled",
       signature_id: signatureId,
-      document_id: signature.document_id ?? undefined,
-      session_id: sessionId,
+      document_id: cancellation.document_id ?? undefined,
+      session_id: cancellation.session_id ?? undefined,
       actor_email: auth.user.email,
       ip_address: clientIP,
       user_agent: userAgent,
-      metadata: { cancelled_by: auth.user.id, signer_name: signature.signer_name },
+      metadata: {
+        cancelled_by: auth.user.id,
+        signer_name: cancellation.signer_name,
+        cancelled_count: cancellation.cancelled_count,
+        cancelled_at: cancelledAt,
+      },
+    }).catch((auditError) => {
+      console.error("[signatures/cancel] audit logging failed:", auditError)
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      cancelledCount: cancellation.cancelled_count,
+    })
   } catch (error) {
     console.error("[signatures/cancel] unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

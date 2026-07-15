@@ -31,6 +31,7 @@ const credentials = {
 }
 const ownedInvoiceSession = {
   id: sessionId,
+  public_id: "a".repeat(64),
   user_id: "user-1",
   document_type: "invoice",
   status: "finalized",

@@ -48,6 +48,10 @@ function buildServiceSupabaseMock(opts: {
   const { signatureRow, sessionStatus } = opts
 
   return {
+    rpc: vi.fn().mockResolvedValue({
+      data: [{ allowed: true, remaining: 100, retry_after: 0 }],
+      error: null,
+    }),
     from: vi.fn().mockImplementation((table: string) => {
       if (table === "signatures") {
         return {
@@ -72,7 +76,15 @@ function buildServiceSupabaseMock(opts: {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
-                data: sessionStatus !== null ? { status: sessionStatus } : null,
+                data: sessionStatus !== null ? {
+                  status: sessionStatus,
+                  sent_at: null,
+                  user_id: "owner-user-id",
+                  document_type: "contract",
+                  context: {},
+                  auto_invoice_on_sign: false,
+                  public_id: "b".repeat(64),
+                } : null,
                 error: sessionStatus !== null ? null : { message: "not found" },
               }),
             }),

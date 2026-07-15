@@ -20,23 +20,32 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { getClientIP, sanitizeError } from "@/lib/api-auth"
+import { getClientIP, sanitizeError, validateBodySize, validateOrigin } from "@/lib/api-auth"
+import { checkPublicRateLimit } from "@/lib/public-rate-limit"
+import { getPublicDocumentUrl, hashSigningToken, isSigningToken } from "@/lib/public-capability"
 import { recordAuditEvent } from "@/lib/signature-audit"
 import { computeDocumentFingerprint } from "@/lib/document-fingerprint"
 import { generateAndStoreCertificate } from "@/lib/certificate-generator"
 import { sendEmail } from "@/lib/mailtrap"
 import { getPublicLogoUrl } from "@/lib/public-logo"
+import type { Database } from "@/lib/database.types"
 
 const MAX_BODY_SIZE = 500 * 1024
-
-// Sub-task 7.1: Token format regex — sign_ followed by exactly 32 lowercase hex chars
-const TOKEN_REGEX = /^sign_[0-9a-f]{32}$/
 
 function getServiceRoleClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error("Missing Supabase service role credentials")
-  return createClient(url, key)
+  return createClient<Database>(url, key, { auth: { persistSession: false } })
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;")
 }
 
 // ── Auto-invoice trigger ──────────────────────────────────────────────────────
@@ -122,7 +131,7 @@ async function triggerAutoInvoice({
       chain_id: chainId,
       client_name: contractSession.client_name || signerName,
     })
-    .select("id")
+    .select("id, public_id")
     .single()
 
   if (createError || !invoiceSession) {
@@ -178,7 +187,7 @@ async function triggerAutoInvoice({
     dueDate: invoiceContext.dueDate,
     description: invoiceContext.notes,
     personalMessage: `Your contract has been signed. Please find your invoice attached.`,
-    viewDocumentUrl: `https://clorefy.com/view/${invoiceSession.id}`,
+    viewDocumentUrl: getPublicDocumentUrl(invoiceSession.public_id, "view"),
     payNowUrl: null,
   })
 
@@ -238,8 +247,10 @@ async function triggerAutoInvoice({
 }
 
 export async function POST(request: NextRequest) {
+  const originError = validateOrigin(request)
+  if (originError) return originError
+
   try {
-    // Parse body
     let body: { token?: string; signatureDataUrl?: string }
     try {
       body = await request.json()
@@ -247,12 +258,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
-    if (JSON.stringify(body).length > MAX_BODY_SIZE) {
-      return NextResponse.json(
-        { error: "Request body too large. Maximum 500KB allowed." },
-        { status: 413 }
-      )
-    }
+    const sizeError = validateBodySize(body, MAX_BODY_SIZE)
+    if (sizeError) return sizeError
 
     const { token, signatureDataUrl } = body
 
@@ -264,8 +271,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid signature data" }, { status: 400 })
     }
 
-    // Sub-task 7.1: Validate token format before any DB lookup
-    if (!TOKEN_REGEX.test(token)) {
+    if (!isSigningToken(token) || !token.startsWith("sign_")) {
       return NextResponse.json({ error: "Invalid token format" }, { status: 400 })
     }
 
@@ -303,31 +309,39 @@ export async function POST(request: NextRequest) {
     const supabase = getServiceRoleClient()
     const clientIP = getClientIP(request)
     const userAgent = request.headers.get("user-agent") || "unknown"
+    const tokenHash = await hashSigningToken(token)
 
-    // Sub-task 7.2: Increment attempt_count on every call
-    // Supabase JS client doesn't support `col = col + 1` directly.
-    // We use a two-step approach: fetch then update with incremented value.
-    const { data: signatureRow, error: fetchError } = await supabase
-      .from("signatures")
-      .select(
-        "id, attempt_count, signed_at, signer_action, expires_at, document_hash, session_id, verification_url, document_id"
-      )
-      .eq("token", token)
-      .single()
+    const ipRateError = await checkPublicRateLimit(supabase, clientIP, "signature_sign_ip", 20, 3600)
+    if (ipRateError) return ipRateError
+    const tokenRateError = await checkPublicRateLimit(supabase, tokenHash, "signature_sign_token", 8, 3600)
+    if (tokenRateError) return tokenRateError
 
-    if (fetchError || !signatureRow) {
+    const { data: claimData, error: claimError } = await supabase.rpc("claim_signature_attempt", {
+      p_token_hash: tokenHash,
+    })
+    const claimed = Array.isArray(claimData) ? claimData[0] : claimData
+    if (claimError) {
+      console.error("[sign] claim_signature_attempt error:", claimError)
+      return NextResponse.json({ error: "Signing is temporarily unavailable" }, { status: 503 })
+    }
+    if (!claimed) {
       return NextResponse.json({ error: "Invalid or expired signing link" }, { status: 404 })
     }
 
-    const newAttemptCount = (signatureRow.attempt_count ?? 0) + 1
-
-    // Persist the incremented count
-    await supabase
-      .from("signatures")
-      .update({ attempt_count: newAttemptCount } as any)
-      .eq("id", signatureRow.id)
-
-    const signature = { ...signatureRow, attempt_count: newAttemptCount }
+    const signature = {
+      id: claimed.signature_id,
+      attempt_count: claimed.attempt_count,
+      signed_at: claimed.signed_at,
+      signer_action: claimed.signer_action,
+      expires_at: claimed.expires_at,
+      document_hash: claimed.document_hash,
+      session_id: claimed.session_id,
+      verification_url: claimed.verification_url,
+      document_id: claimed.document_id,
+      parent_status: claimed.parent_status,
+      parent_sent_at: claimed.parent_sent_at,
+      parent_public_id: claimed.parent_public_id,
+    }
 
     // Check abuse: attempt_count >= 6 → record audit event and return 410
     if (signature.attempt_count >= 6) {
@@ -344,6 +358,11 @@ export async function POST(request: NextRequest) {
         { error: "Signing link has been invalidated due to too many attempts" },
         { status: 410 }
       )
+    }
+
+    if (signature.parent_status === "cancelled" ||
+        (signature.parent_status === "active" && signature.parent_sent_at)) {
+      return NextResponse.json({ error: "This signing link is no longer active" }, { status: 410 })
     }
 
     // Check if already signed or invalidated by the sender/recipient.
@@ -398,41 +417,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Upload signature image to Supabase Storage (service role — bypasses RLS)
-    let signatureImageKey = signatureDataUrl // fallback: store raw data URL if upload fails
+    // Upload first, then let the atomic completion RPC decide whether the
+    // capability is still valid. Any rejected completion removes this object.
+    const objectKey = `signatures/${signature.id}_${Date.now()}.${fileExt}`
+    let bytes: Uint8Array
     try {
       const binaryStr = atob(base64Part)
-      const bytes = new Uint8Array(binaryStr.length)
-      for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i)
-      }
-      const objectKey = `signatures/${signature.id}_${Date.now()}.${fileExt}`
+      bytes = new Uint8Array(binaryStr.length)
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i)
+    } catch {
+      return NextResponse.json({ error: "Invalid signature image encoding" }, { status: 400 })
+    }
 
-      const { error: storageError } = await supabase.storage
-        .from("signatures")
-        .upload(objectKey, bytes, {
-          contentType,
-          upsert: false,
-        })
+    const { error: storageError } = await supabase.storage
+      .from("signatures")
+      .upload(objectKey, bytes, { contentType, upsert: false })
 
-      if (!storageError) {
-        // Prefix with "sb:" so the image proxy knows to use Supabase Storage
-        signatureImageKey = `sb:${objectKey}`
-      } else {
-        console.error("[sign] Supabase Storage upload failed, using data URL fallback:", storageError.message)
-        // Log the failure for debugging
-        await recordAuditEvent(supabase, {
-          action: "signature.upload_failed",
-          signature_id: signature.id,
-          document_id: signature.document_id ?? undefined,
-          session_id: signature.session_id ?? undefined,
-          ip_address: clientIP,
-          user_agent: userAgent,
-          metadata: { error: storageError.message },
-        })
-      }
-    } catch (uploadErr) {
-      console.error("[sign] Signature upload exception:", uploadErr)
+    if (storageError) {
+      console.error("[sign] Supabase Storage upload failed:", storageError)
       await recordAuditEvent(supabase, {
         action: "signature.upload_failed",
         signature_id: signature.id,
@@ -440,37 +442,51 @@ export async function POST(request: NextRequest) {
         session_id: signature.session_id ?? undefined,
         ip_address: clientIP,
         user_agent: userAgent,
+        metadata: { error: storageError.message },
       })
+      return NextResponse.json({ error: "Failed to store signature image" }, { status: 500 })
     }
 
+    const signatureImageKey = `sb:${objectKey}`
     const signedAt = new Date().toISOString()
 
-    // Commit only if the token is still pending. Unlock/cancel can invalidate it
-    // while image upload is in progress, so this compare-and-set closes that race.
-    const { data: signedRecord, error: updateError } = await supabase
-      .from("signatures")
-      .update({
-        signature_image_url: signatureImageKey,
-        signed_at: signedAt,
-        ip_address: clientIP,
-        user_agent: userAgent,
-      } as any)
-      .eq("id", signature.id)
-      .is("signed_at", null)
-      .is("signer_action", null)
-      .select("id")
-      .maybeSingle()
+    // Atomically commit the signature while holding the parent session lock.
+    // If the owner cancels/unlocks during upload, the RPC rejects the commit.
+    const { data: completionData, error: completionError } = await supabase.rpc(
+      "complete_signature_signing",
+      {
+        p_signature_id: signature.id,
+        p_token_hash: tokenHash,
+        p_signature_image_url: signatureImageKey,
+        p_signed_at: signedAt,
+        p_ip_address: clientIP === "unknown" ? null : clientIP,
+        p_user_agent: userAgent,
+      }
+    )
+    const completedSignature = Array.isArray(completionData) ? completionData[0] : completionData
 
-    if (updateError) {
-      console.error("[sign] signature update error:", updateError)
+    if (completionError) {
+      await supabase.storage.from("signatures").remove([objectKey]).catch(() => {})
+      console.error("[sign] complete_signature_signing error:", completionError)
       return NextResponse.json({ error: "Failed to record signature" }, { status: 500 })
     }
-    if (!signedRecord) {
-      if (signatureImageKey.startsWith("sb:")) {
-        await supabase.storage.from("signatures").remove([signatureImageKey.slice(3)]).catch(() => {})
+    if (!completedSignature || completedSignature.outcome !== "signed") {
+      await supabase.storage.from("signatures").remove([objectKey]).catch(() => {})
+      const failures: Record<string, { error: string; status: number }> = {
+        invalid_request: { error: "Invalid signature request", status: 400 },
+        not_found: { error: "Invalid or expired signing link", status: 404 },
+        parent_cancelled: { error: "This signing link is no longer active", status: 410 },
+        stale_request: { error: "This signing request has been superseded", status: 409 },
+        already_signed: { error: "This document has already been signed", status: 409 },
+        already_responded: { error: "This signing link is no longer active", status: 409 },
+        expired: { error: "Signing link has expired", status: 410 },
+        attempts_exceeded: { error: "Signing link has been invalidated due to too many attempts", status: 410 },
+        conflict: { error: "This signing link is no longer active", status: 409 },
       }
-      return NextResponse.json({ error: "This signing link is no longer active" }, { status: 409 })
+      const failure = failures[completedSignature?.outcome ?? "conflict"] ?? failures.conflict
+      return NextResponse.json({ error: failure.error }, { status: failure.status })
     }
+    const completedSession = completedSignature.completed_session === true
 
     // Sub-task 7.4: Record signature.signed audit event
     await recordAuditEvent(supabase, {
@@ -486,21 +502,29 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Sub-task 7.5: Check if all signers have signed
-    if (signature.session_id) {
-      const { data: allSignatures } = await supabase
+    // Only the request that atomically transitioned the parent session runs
+    // completion side effects. Other signer submissions still record signed audit.
+    if (completedSession && signature.session_id) {
+      const { data: completedParent } = await supabase
+        .from("document_sessions")
+        .select("active_signature_cohort_id")
+        .eq("id", signature.session_id)
+        .single()
+
+      let completedSignaturesQuery = supabase
         .from("signatures")
         .select("id, signed_at, signer_name, signer_email")
         .eq("session_id", signature.session_id)
+      if (completedParent?.active_signature_cohort_id) {
+        completedSignaturesQuery = completedSignaturesQuery.eq(
+          "signing_cohort_id",
+          completedParent.active_signature_cohort_id
+        )
+      }
+      const { data: allSignatures } = await completedSignaturesQuery
 
-      const allSigned =
-        allSignatures &&
-        allSignatures.length > 0 &&
-        allSignatures.every((s: { signed_at: string | null }) => s.signed_at !== null)
-
-      if (allSigned) {
-        const completedAt = new Date().toISOString()
-        const signatureIds = allSignatures.map((s: { id: string }) => s.id)
+      const completedAt = signedAt
+      const signatureIds = (allSignatures ?? []).map((s: { id: string }) => s.id)
 
         // Record signature.completed audit event
         await recordAuditEvent(supabase, {
@@ -526,7 +550,7 @@ export async function POST(request: NextRequest) {
         // Fetch session details for email/notifications
         const { data: session } = await supabase
           .from("document_sessions")
-          .select("context, document_type, user_id")
+          .select("context, document_type, user_id, public_id")
           .eq("id", signature.session_id)
           .single()
 
@@ -559,9 +583,19 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const verificationUrl = signature.verification_url ?? ""
+        const verificationUrl = completedSignature.verification_url ?? ""
         const signerEmail = currentSigner?.signer_email
         const signerName = currentSigner?.signer_name ?? "Someone"
+        const signedDocumentUrl = getPublicDocumentUrl(
+          session?.public_id ?? signature.parent_public_id,
+          "view"
+        )
+        const escapedBusinessName = escapeHtml(businessName)
+        const escapedDocumentLabel = escapeHtml(docTypeLabel)
+        const escapedReferenceNumber = escapeHtml(referenceNumber)
+        const escapedSignerName = escapeHtml(signerName)
+        const escapedVerificationUrl = escapeHtml(verificationUrl)
+        const escapedSignedDocumentUrl = escapeHtml(signedDocumentUrl)
 
         // Send completion email to signer
         if (signerEmail) {
@@ -577,15 +611,15 @@ export async function POST(request: NextRequest) {
   <tr><td align="center" style="padding:24px 8px;">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
       <tr><td style="padding:28px 28px 20px 28px;border-bottom:1px solid #f0f0f0;">
-        <p style="margin:0;font-size:20px;font-weight:700;color:#18181b;">${businessName}</p>
+        <p style="margin:0;font-size:20px;font-weight:700;color:#18181b;">${escapedBusinessName}</p>
       </td></tr>
       <tr><td style="padding:28px 28px 8px 28px;">
         <div style="width:48px;height:48px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
           <span style="font-size:24px;">✓</span>
         </div>
-        <p style="margin:0 0 8px 0;font-size:18px;font-weight:700;color:#18181b;">You signed ${docTypeLabel} ${referenceNumber}</p>
+        <p style="margin:0 0 8px 0;font-size:18px;font-weight:700;color:#18181b;">You signed ${escapedDocumentLabel} ${escapedReferenceNumber}</p>
         <p style="margin:0 0 24px 0;font-size:14px;color:#52525b;line-height:1.6;">
-          Hi ${signerName}, your electronic signature has been successfully recorded.
+          Hi ${escapedSignerName}, your electronic signature has been successfully recorded.
         </p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fafafa;border-radius:10px;border:1px solid #e4e4e7;margin-bottom:24px;">
           <tr><td style="padding:16px 20px;">
@@ -594,12 +628,12 @@ export async function POST(request: NextRequest) {
           </td></tr>
           ${verificationUrl ? `<tr><td style="padding:0 20px 16px 20px;">
             <p style="margin:0 0 6px 0;font-size:11px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.1em;">Verification</p>
-            <a href="${verificationUrl}" style="font-size:13px;color:#6366f1;word-break:break-all;">${verificationUrl}</a>
+            <a href="${escapedVerificationUrl}" style="font-size:13px;color:#6366f1;word-break:break-all;">${escapedVerificationUrl}</a>
           </td></tr>` : ""}
         </table>
       </td></tr>
       <tr><td style="padding:0 28px 28px 28px;">
-        <a href="https://clorefy.com/view/${signature.session_id}"
+        <a href="${escapedSignedDocumentUrl}"
           style="display:inline-block;padding:13px 28px;background:#18181b;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;">
           View Signed Document
         </a>
@@ -654,18 +688,8 @@ export async function POST(request: NextRequest) {
           } as any)
         }
 
-        // Update document_sessions.status and documents.status to "signed"
-        await supabase
-          .from("document_sessions")
-          .update({ status: "signed" } as any)
-          .eq("id", signature.session_id)
-
-        if (signature.document_id) {
-          await supabase
-            .from("documents")
-            .update({ status: "signed" })
-            .eq("id", signature.document_id)
-        }
+        // Parent session and document status were already transitioned by
+        // complete_signature_signing under the same parent-row lock.
 
         // ── Auto-invoice on sign ──────────────────────────────────────────────
         // If the contract has auto_invoice_on_sign = true, create a linked invoice
@@ -692,14 +716,13 @@ export async function POST(request: NextRequest) {
             }
           }
         }
-      }
     }
 
     // Sub-task 7.6: Return verificationUrl in success response
     return NextResponse.json({
       success: true,
       message: "Document signed successfully",
-      verificationUrl: signature.verification_url ?? null,
+      verificationUrl: completedSignature.verification_url ?? null,
     })
   } catch (error) {
     console.error("[sign] unexpected error:", error)

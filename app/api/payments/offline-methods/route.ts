@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { authenticateRequest } from "@/lib/api-auth"
+import { authenticateRequest, validateBodySize, validateOrigin } from "@/lib/api-auth"
+import { validateCSRFToken } from "@/lib/csrf"
+import { checkRateLimit } from "@/lib/rate-limiter"
 
 /**
  * GET /api/payments/offline-methods
@@ -23,13 +25,21 @@ export async function GET(request: NextRequest) {
  * Saves the user's offline payment methods to their business profile.
  */
 export async function POST(request: NextRequest) {
+  const originError = validateOrigin(request)
+  if (originError) return originError
   const auth = await authenticateRequest(request)
   if (auth.error) return auth.error
+  const csrfError = await validateCSRFToken(request, auth.user.id, auth.supabase)
+  if (csrfError) return csrfError
+  const rateError = await checkRateLimit(auth.user.id, "payment", auth.supabase as any)
+  if (rateError) return rateError
 
   let body: { methods: unknown }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+  const sizeError = validateBodySize(body, 20 * 1024)
+  if (sizeError) return sizeError
 
   if (!Array.isArray(body.methods)) {
     return NextResponse.json({ error: "methods must be an array" }, { status: 400 })

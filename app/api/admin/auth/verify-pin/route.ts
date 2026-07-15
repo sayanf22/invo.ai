@@ -189,15 +189,16 @@ export async function POST(request: NextRequest) {
   // All layers passed — reset brute force counter
   resetAttempts(ip)
 
-  // Issue admin session JWT
-  const token = await createAdminSessionToken(email)
+  // Issue and persist one session expiry shared by the JWT, DB row, and cookie.
+  const expiresAt = Date.now() + 3600_000
+  const token = await createAdminSessionToken(email, expiresAt)
 
   // Persist the revocable session before issuing a browser cookie. If this
   // fails, login fails closed and no valid-but-untracked JWT escapes.
   const { error: sessionError } = await serviceClient.from("admin_sessions").insert({
     admin_email: email.toLowerCase(),
     session_token_hash: await hashAdminSessionToken(token),
-    expires_at: new Date(Date.now() + 3600000).toISOString(),
+    expires_at: new Date(expiresAt).toISOString(),
     ip_address: ip === "unknown" ? null : ip,
   })
   if (sessionError) {

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { InvoicePaymentGateway } from "@/lib/payment-link-provider"
+import { formatCurrency, fromMinorUnits } from "@/lib/invoice-types"
 
 export type InvoicePaymentEventStatus = "paid" | "partially_paid" | "expired" | "cancelled"
 
@@ -57,14 +58,15 @@ export async function notifyInvoicePayment(
     if (!result.applied || !result.status || !["paid", "partially_paid"].includes(result.status)) return
     const amount = result.amount_paid ?? 0
     const currency = result.currency || "INR"
+    const displayAmount = formatCurrency(fromMinorUnits(amount, currency), currency)
     const partial = result.status === "partially_paid"
     const { error } = await (db as any).from("notifications").insert({
         user_id: userId,
         type: partial ? "general" : "payment_received",
         title: partial ? "Partial Payment Received" : "Invoice Paid! 🎉",
         message: partial
-            ? `${currency} ${(amount / 100).toFixed(2)} received for ${result.reference_id || "your invoice"}.`
-            : `Payment of ${currency} ${(amount / 100).toFixed(2)} received for ${result.reference_id || "your invoice"}.`,
+            ? `${displayAmount} received for ${result.reference_id || "your invoice"}.`
+            : `Payment of ${displayAmount} received for ${result.reference_id || "your invoice"}.`,
         metadata: {
             session_id: result.session_id ?? null,
             provider_event_id: providerEventId,

@@ -45,29 +45,34 @@ export async function generateAndStoreCertificate(
 ): Promise<void> {
   const db = (supabase ?? createServiceRoleClient()) as SupabaseClient<Database>
 
-  // ── Fetch all signatures for this session ──────────────────────────────────
-  const { data: signatures, error: sigError } = await db
+  // ── Fetch the completed parent and its active signing cohort ────────────────
+  const { data: session, error: sessionError } = await db
+    .from("document_sessions")
+    .select("id, document_type, context, created_at, active_signature_cohort_id")
+    .eq("id", sessionId)
+    .single()
+
+  if (sessionError || !session) {
+    throw new Error(`[certificate-generator] Failed to fetch session: ${sessionError?.message}`)
+  }
+
+  // Historical cancelled/revised cohorts are evidence, but they are not members
+  // of the envelope that completed and must not appear on its certificate.
+  let signaturesQuery = db
     .from("signatures")
     .select("id, signer_name, signer_email, party, signed_at, ip_address, signature_image_url, document_hash, verification_url")
     .eq("session_id", sessionId)
     .not("signed_at", "is", null)
+  if (session.active_signature_cohort_id) {
+    signaturesQuery = signaturesQuery.eq("signing_cohort_id", session.active_signature_cohort_id)
+  }
+  const { data: signatures, error: sigError } = await signaturesQuery
 
   if (sigError) {
     throw new Error(`[certificate-generator] Failed to fetch signatures: ${sigError.message}`)
   }
   if (!signatures || signatures.length === 0) {
     throw new Error(`[certificate-generator] No completed signatures found for session=${sessionId}`)
-  }
-
-  // ── Fetch session context for document metadata ────────────────────────────
-  const { data: session, error: sessionError } = await db
-    .from("document_sessions")
-    .select("id, document_type, context, created_at")
-    .eq("id", sessionId)
-    .single()
-
-  if (sessionError || !session) {
-    throw new Error(`[certificate-generator] Failed to fetch session: ${sessionError?.message}`)
   }
 
   // Extract document title and reference from context (best-effort)

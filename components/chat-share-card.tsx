@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
+import { usePublicDocumentLink } from "@/hooks/use-public-document-link"
 
 interface ChatShareCardProps {
   sessionId: string
@@ -52,8 +53,7 @@ export function ChatShareCard({
   const isInvoice = documentType.toLowerCase() === "invoice"
 
   const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
-  const shortId = sessionId.split("-")[0]
-  const platformLink = `${typeof window !== "undefined" ? window.location.origin : ""}/d/${shortId}`
+  const { publicUrl: platformLink } = usePublicDocumentLink(sessionId)
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setMounted(true))
@@ -64,10 +64,11 @@ export function ChatShareCard({
   useEffect(() => {
     if (pendingAction === "whatsapp") {
       const ref = referenceNumber || ""
-      const msg = `Hi ${clientName || ""},\n\nPlease find the ${docLabel.toLowerCase()} ${ref}.\n\n${platformLink}\n\nThank you,\n${fromName || ""}`
+      const linkLine = platformLink ? `\n\n${platformLink}` : ""
+      const msg = `Hi ${clientName || ""},\n\nPlease find the ${docLabel.toLowerCase()} ${ref}.${linkLine}\n\nThank you,\n${fromName || ""}`
       setWhatsappMessage(msg)
     }
-  }, [pendingAction]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pendingAction, platformLink, clientName, docLabel, referenceNumber, fromName])
 
   // Lock the document server-side by setting sent_at
   const lockDocument = async () => {
@@ -104,6 +105,10 @@ export function ChatShareCard({
       return
     }
     if (pendingAction === "link") {
+      if (!platformLink) {
+        toast.error("Public link is still loading. Please try again.")
+        return
+      }
       try {
         await navigator.clipboard.writeText(platformLink)
         setCopied(true)
@@ -240,6 +245,10 @@ export function ChatShareCard({
             <button
               type="button"
               onClick={async () => {
+                if (!platformLink) {
+                  toast.error("Public link is still loading. Please try again.")
+                  return
+                }
                 try {
                   await navigator.clipboard.writeText(platformLink)
                   setCopied(true)

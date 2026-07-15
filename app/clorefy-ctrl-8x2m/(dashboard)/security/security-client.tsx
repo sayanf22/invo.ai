@@ -24,9 +24,13 @@ interface BruteForceEvent {
   emails: string[]
 }
 
-interface SuspiciousUser {
+interface SecurityEvent {
+  action: string
+  user_id: string | null
   email: string
-  requests_per_hour: number
+  count: number
+  last_seen: string
+  ip_address: string | null
 }
 
 interface BlockedIP {
@@ -42,7 +46,8 @@ interface SecurityData {
   logs: AuditRow[]
   total: number
   bruteForce: BruteForceEvent[]
-  suspicious: SuspiciousUser[]
+  securityEvents: SecurityEvent[]
+  suspicious: SecurityEvent[]
   blockedIPs: BlockedIP[]
 }
 
@@ -194,11 +199,11 @@ export default function SecurityClient() {
 
       {/* Brute Force Events */}
       <div className="rounded-lg border p-5" style={{ backgroundColor: containerBg, borderColor: containerBorder }}>
-        <h2 className="text-base font-semibold mb-4" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Brute Force Events</h2>
+        <h2 className="text-base font-semibold mb-4" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Brute Force &amp; Authentication Failures</h2>
         {loading ? (
           <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-10 rounded animate-pulse" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />)}</div>
         ) : (data?.bruteForce ?? []).length === 0 ? (
-          <p style={{ color: '#71717A' }} className="text-sm">No brute force events detected</p>
+          <p style={{ color: '#71717A' }} className="text-sm">No recent brute force or authentication failures</p>
         ) : (
           <div className="space-y-3">
             {(data?.bruteForce ?? []).map((ev, i) => (
@@ -211,28 +216,33 @@ export default function SecurityClient() {
                     <p className="text-xs mt-0.5" style={{ color: '#52525B' }}>Targets: {ev.emails.slice(0, 3).join(', ')}{ev.emails.length > 3 ? ` +${ev.emails.length - 3}` : ''}</p>
                   )}
                 </div>
-                <span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#EF4444' }}>Brute Force</span>
+                <span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#EF4444' }}>Auth Failure</span>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Suspicious Activity */}
+      {/* Actual security audit events; ordinary generation traffic is excluded. */}
       <div className="rounded-lg border p-5" style={{ backgroundColor: containerBg, borderColor: containerBorder }}>
-        <h2 className="text-base font-semibold mb-4" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Suspicious Activity</h2>
-        <p className="text-xs mb-3" style={{ color: '#52525B' }}>Users with &gt;50 requests/hour</p>
+        <h2 className="text-base font-semibold mb-1" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Recent Security Events</h2>
+        <p className="text-xs mb-3" style={{ color: '#52525B' }}>Grouped security audit events from the last 24 hours</p>
         {loading ? (
           <div className="space-y-2">{[1, 2].map(i => <div key={i} className="h-10 rounded animate-pulse" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} />)}</div>
-        ) : (data?.suspicious ?? []).length === 0 ? (
-          <p style={{ color: '#71717A' }} className="text-sm">No suspicious activity detected</p>
+        ) : (data?.securityEvents ?? data?.suspicious ?? []).length === 0 ? (
+          <p style={{ color: '#71717A' }} className="text-sm">No recent security events</p>
         ) : (
           <div className="space-y-2">
-            {(data?.suspicious ?? []).map((u, i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-md border"
+            {(data?.securityEvents ?? data?.suspicious ?? []).map((event, i) => (
+              <div key={`${event.action}-${event.user_id ?? 'system'}-${i}`} className="flex items-start justify-between gap-3 p-3 rounded-md border"
                 style={{ backgroundColor: isDark ? '#111111' : '#FFFFFF', borderColor: containerBorder }}>
-                <span className="text-sm" style={{ color: '#71717A' }}>{u.email}</span>
-                <span className="text-sm font-medium" style={{ color: '#F59E0B' }}>{u.requests_per_hour} req/hr</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-mono break-all" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{event.action}</p>
+                  <p className="text-xs mt-0.5 break-all" style={{ color: '#71717A' }}>
+                    {event.email} · Last seen {formatDate(event.last_seen)}{event.ip_address ? ` · ${event.ip_address}` : ''}
+                  </p>
+                </div>
+                <span className="shrink-0 text-sm font-medium" style={{ color: '#F59E0B' }}>{event.count} event{event.count === 1 ? '' : 's'}</span>
               </div>
             ))}
           </div>

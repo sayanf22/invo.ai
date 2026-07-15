@@ -1,311 +1,242 @@
 /**
- * Admin Email Campaigns API
- *
- * GET  /api/admin/email-campaigns  — users enriched with email status + send logs + stats
- * POST /api/admin/email-campaigns  — force-sync segment (advanced / emergency use)
- *
- * The sync is handled automatically by the daily cron at 08:00 UTC.
- * This endpoint is the data source for the dashboard view.
+ * Admin email campaign data and emergency Brevo synchronization.
+ * GET is backed by a bounded aggregate RPC; no platform table is downloaded.
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import { verifyAdminSession } from "@/lib/admin-auth"
-import { createClient } from "@supabase/supabase-js"
 import { syncUserOnLogin } from "@/lib/brevo"
 import { computeFunnelStage } from "@/lib/funnel-stage"
-import { buildEmailHistory, type RawEmailEvent } from "@/lib/email-history"
+import type { Database, Json } from "@/lib/database.types"
+
+const PAGE_SIZE = 50
+const SYNC_BATCH_SIZE = 500
+const VALID_CATEGORIES = ["all", "dropoff", "inactive", "active", "stopped"] as const
+const VALID_EMAIL_STATUSES = ["all", "emailed", "never", "opened", "notopened"] as const
+const VALID_SEGMENTS = ["sync-dropoff", "sync-active", "sync-all"] as const
+
+type Segment = (typeof VALID_SEGMENTS)[number]
+type ServiceClient = SupabaseClient<Database>
+type JsonRecord = Record<string, unknown>
 
 function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !serviceRoleKey) throw new Error("Admin database credentials are not configured")
+  return createClient<Database>(url, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
 }
 
-// ── GET ───────────────────────────────────────────────────────────────────────
+function asRecord(value: Json | null): JsonRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as JsonRecord
+    : null
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" ? value : null
+}
+
+function asBoolean(value: unknown): boolean {
+  return value === true
+}
+function enrichUser(value: unknown, now: number): JsonRecord | null {
+  const row = value && typeof value === "object" && !Array.isArray(value)
+    ? value as JsonRecord
+    : null
+  const id = asString(row?.id)
+  const email = asString(row?.email)
+  const createdAt = asString(row?.created_at)
+  if (!row || !id || !email || !createdAt) return null
+
+  const lastActiveAt = asString(row.last_active_at)
+  const docsCount = Number(row.docs_count ?? 0)
+  const daysSinceActive = Math.max(0, Math.floor(
+    (now - new Date(lastActiveAt ?? createdAt).getTime()) / 86_400_000
+  ))
+  const daysSinceSignup = Math.max(0, Math.floor(
+    (now - new Date(createdAt).getTime()) / 86_400_000
+  ))
+  const funnel = computeFunnelStage({
+    createdAt,
+    lastActiveAt,
+    planSelected: asBoolean(row.plan_selected),
+    onboardingComplete: asBoolean(row.onboarding_complete),
+    onboardingPhase: asString(row.onboarding_phase),
+    docsCount,
+  }, now)
+
+  return {
+    ...row,
+    id,
+    email,
+    name: asString(row.name),
+    created_at: createdAt,
+    last_active_at: lastActiveAt,
+    days_since_active: daysSinceActive,
+    days_since_signup: daysSinceSignup,
+    docs_count: docsCount,
+    sent_emails: Array.isArray(row.sent_emails) ? row.sent_emails : [],
+    sent_email_log_count: Number(row.sent_email_log_count ?? 0),
+    sent_emails_truncated: asBoolean(row.sent_emails_truncated),
+    email_history: Array.isArray(row.email_history) ? row.email_history : [],
+    last_email_event: asRecord((row.last_email_event ?? null) as Json | null),
+    funnel_stage: funnel.label,
+    funnel_detail: funnel.detail,
+    funnel_stuck: funnel.stuck,
+  }
+}
 
 export async function GET(request: NextRequest) {
   const adminEmail = await verifyAdminSession(request)
   if (!adminEmail) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const supabase = getServiceClient()
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
+  try {
+    const requestedPage = Number(request.nextUrl.searchParams.get("page") ?? "1")
+    const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+    const search = (request.nextUrl.searchParams.get("search") ?? "").trim().slice(0, 200)
+    const requestedCategory = request.nextUrl.searchParams.get("category") ?? "all"
+    const requestedEmailStatus = request.nextUrl.searchParams.get("emailStatus") ?? "all"
+    const category = VALID_CATEGORIES.includes(requestedCategory as typeof VALID_CATEGORIES[number])
+      ? requestedCategory
+      : "all"
+    const emailStatus = VALID_EMAIL_STATUSES.includes(requestedEmailStatus as typeof VALID_EMAIL_STATUSES[number])
+      ? requestedEmailStatus
+      : "all"
+    const now = new Date()
 
-  // Fetch everything in parallel
-  const [
-    { data: profiles },
-    { data: sendLogs },
-    { data: emailEvents },
-    { data: docRows },
-    { data: campaigns },
-    { data: engagementEvents },
-    { data: progressRows },
-  ] = await Promise.all([
-    supabase.from("profiles")
-      .select("id, email, full_name, onboarding_complete, plan_selected, last_active_at, created_at, tier, last_login_location, last_login_at, last_login_ip, last_login_device")
-      .not("email", "is", null)
-      .order("created_at", { ascending: false }),
-    supabase.from("user_email_send_log")
-      .select("user_id, email_type, sent_at"),
-    supabase.from("email_events")
-      .select("id, email, event, event_at, subject, tag, reason, user_id")
-      .gte("event_at", thirtyDaysAgo)
-      .order("event_at", { ascending: false }),
-    supabase.from("document_sessions")
-      .select("user_id"),
-    supabase.from("admin_email_campaigns")
-      .select("*").order("sent_at", { ascending: false }).limit(30),
-    // All-time email events (with message_id) — the source of truth for the
-    // per-user history + accurate open/click attribution (grouped by message_id)
-    supabase.from("email_events")
-      .select("email, message_id, event, event_at, subject, tag")
-      .order("event_at", { ascending: false }),
-    // Onboarding progress per user — tells which phase they stalled at
-    supabase.from("onboarding_progress")
-      .select("user_id, current_phase"),
-  ])
-
-  // Map user_id → onboarding phase
-  const phaseMap = new Map<string, string | null>()
-  for (const r of progressRows ?? []) {
-    if (r.user_id) phaseMap.set(r.user_id, r.current_phase ?? null)
-  }
-
-  // Group all-time events by recipient email — used to rebuild each user's history
-  const eventsByEmail = new Map<string, RawEmailEvent[]>()
-  for (const ev of engagementEvents ?? []) {
-    const key = (ev.email ?? "").toLowerCase()
-    if (!key) continue
-    if (!eventsByEmail.has(key)) eventsByEmail.set(key, [])
-    eventsByEmail.get(key)!.push({
-      message_id: ev.message_id ?? null,
-      event: ev.event,
-      subject: ev.subject ?? null,
-      tag: ev.tag ?? null,
-      event_at: ev.event_at,
+    const { data, error } = await getServiceClient().rpc("get_admin_email_campaign_snapshot", {
+      p_page: page,
+      p_page_size: PAGE_SIZE,
+      p_search: search || null,
+      p_category: category,
+      p_email_status: emailStatus,
+      p_now: now.toISOString(),
     })
+    if (error) throw error
+    const snapshot = asRecord(data)
+    if (!snapshot) throw new Error("Campaign aggregate returned an invalid result")
+
+    const users = (Array.isArray(snapshot.users) ? snapshot.users : [])
+      .map(value => enrichUser(value, now.getTime()))
+      .filter((value): value is JsonRecord => value !== null)
+
+    return NextResponse.json({ ...snapshot, users })
+  } catch (error) {
+    console.error("[admin/email-campaigns] aggregate failed:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
-
-  // Build per-user lifecycle (auto) email send log — used for lifecycle state only
-  const sendLogMap = new Map<string, Array<{ email_type: string; sent_at: string }>>()
-  for (const log of sendLogs ?? []) {
-    if (!sendLogMap.has(log.user_id)) sendLogMap.set(log.user_id, [])
-    sendLogMap.get(log.user_id)!.push({ email_type: log.email_type, sent_at: log.sent_at })
-  }
-
-  // Build per-email engagement stats (delivered/bounced counts + latest event)
-  type EmailStats = {
-    last_event: { event: string; event_at: string } | null
-    delivered: number
-    opened: number
-    clicked: number
-    bounced: number
-    last_opened_at: string | null
-  }
-  const emailStatsMap = new Map<string, EmailStats>()
-  for (const ev of emailEvents ?? []) {
-    const s = emailStatsMap.get(ev.email) ?? {
-      last_event: null, delivered: 0, opened: 0, clicked: 0, bounced: 0, last_opened_at: null,
-    }
-    // events are ordered desc — first seen is the latest
-    if (!s.last_event) s.last_event = { event: ev.event, event_at: ev.event_at }
-    if (ev.event === "delivered") s.delivered += 1
-    else if (ev.event === "opened" || ev.event === "uniqueOpened") {
-      s.opened += 1
-      if (!s.last_opened_at) s.last_opened_at = ev.event_at
-    }
-    else if (ev.event === "click") s.clicked += 1
-    else if (ev.event === "hardBounce" || ev.event === "softBounce" || ev.event === "blocked") s.bounced += 1
-    emailStatsMap.set(ev.email, s)
-  }
-
-  // Build doc count map
-  const docCountMap = new Map<string, number>()
-  for (const r of docRows ?? []) {
-    docCountMap.set(r.user_id, (docCountMap.get(r.user_id) ?? 0) + 1)
-  }
-
-  const now = Date.now()
-
-  // Enrich each user
-  const usersWithStatus = (profiles ?? []).map((p: any) => {
-    const sentEmails = sendLogMap.get(p.id) ?? []
-    const stats = emailStatsMap.get(p.email) ?? null
-    const docsCount = docCountMap.get(p.id) ?? 0
-    const daysSinceActive = p.last_active_at
-      ? Math.floor((now - new Date(p.last_active_at).getTime()) / 86400000)
-      : Math.floor((now - new Date(p.created_at).getTime()) / 86400000)
-    const daysSinceSignup = Math.floor((now - new Date(p.created_at).getTime()) / 86400000)
-
-    // Determine user category
-    let category = "active"
-    if (!p.onboarding_complete && daysSinceSignup >= 2) {
-      category = "dropoff"
-    } else if (p.onboarding_complete && daysSinceActive >= 7) {
-      category = "inactive"
-    }
-
-    // Auto-stopped = received the final email in a lifecycle track (from send log)
-    const autoStopped = sentEmails.some(
-      (e) => e.email_type === "inactive_2" || e.email_type === "dropoff_2"
-    )
-
-    // Build the real email history from Brevo events (grouped by message_id).
-    // This is the source of truth for opens — no subject guessing.
-    const emailHistory = buildEmailHistory(eventsByEmail.get((p.email ?? "").toLowerCase()) ?? [])
-
-    const autoSentCount = emailHistory.filter((h) => h.kind === "auto").length
-    const manualSentCount = emailHistory.filter((h) => h.kind === "manual").length
-    const totalSentCount = emailHistory.length
-
-    const lastSentAt = emailHistory.length > 0 ? emailHistory[0].sent_at : null
-    const lastManualSentAt = emailHistory.find((h) => h.kind === "manual")?.sent_at ?? null
-    // User-level open totals derived from real per-send data (all-time, accurate)
-    const totalOpens = emailHistory.reduce((sum, h) => sum + h.open_count, 0)
-    const totalClicks = emailHistory.reduce((sum, h) => sum + h.click_count, 0)
-    const lastOpenedAt = emailHistory
-      .map((h) => h.last_opened_at)
-      .filter((t): t is string => !!t)
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null
-
-    // Where the user is in the journey / where they got stuck
-    const funnel = computeFunnelStage({
-      createdAt: p.created_at,
-      lastActiveAt: p.last_active_at,
-      planSelected: p.plan_selected ?? false,
-      onboardingComplete: p.onboarding_complete ?? false,
-      onboardingPhase: phaseMap.get(p.id) ?? null,
-      docsCount: docsCount,
-    }, now)
-
-    return {
-      id: p.id as string,
-      email: p.email as string,
-      name: (p.full_name as string | null) ?? null,
-      onboarding_complete: p.onboarding_complete ?? false,
-      last_active_at: p.last_active_at as string | null,
-      created_at: p.created_at as string,
-      tier: (p.tier as string | null) ?? "free",
-      days_since_active: daysSinceActive,
-      days_since_signup: daysSinceSignup,
-      docs_count: docsCount,
-      sent_emails: sentEmails,
-      // ── Email send breakdown ──
-      auto_sent_count: autoSentCount,
-      manual_sent_count: manualSentCount,
-      total_sent_count: totalSentCount,
-      last_manual_sent_at: lastManualSentAt,
-      last_sent_at: lastSentAt,
-      email_history: emailHistory,
-      // ── Engagement (open/click attributed per-send, all-time) ──
-      last_email_event: stats?.last_event ?? null,
-      opened: totalOpens > 0,
-      open_count: totalOpens,
-      delivered_count: stats?.delivered ?? 0,
-      clicked_count: totalClicks,
-      bounced: (stats?.bounced ?? 0) > 0,
-      last_opened_at: lastOpenedAt,
-      category,
-      auto_stopped: autoStopped,
-      never_emailed: totalSentCount === 0,
-      // ── Journey / location ──
-      funnel_stage: funnel.label,
-      funnel_detail: funnel.detail,
-      funnel_stuck: funnel.stuck,
-      last_login_at: (p.last_login_at as string | null) ?? null,
-      last_login_location: (p.last_login_location as string | null) ?? null,
-      last_login_ip: (p.last_login_ip as string | null) ?? null,
-      last_login_device: (p.last_login_device as string | null) ?? null,
-    }
-  })
-
-  // Email summary for KPI cards
-  const emailSummary: Record<string, number> = {}
-  for (const ev of emailEvents ?? []) {
-    emailSummary[ev.event] = (emailSummary[ev.event] ?? 0) + 1
-  }
-
-  // Count emails queued today (from send_log)
-  const todayStart = new Date()
-  todayStart.setUTCHours(0, 0, 0, 0)
-  const sentTodayCount = (sendLogs ?? []).filter(
-    (l: any) => new Date(l.sent_at) >= todayStart
-  ).length
-
-  return NextResponse.json({
-    users: usersWithStatus,
-    campaigns: campaigns ?? [],
-    emailSummary,
-    sentToday: sentTodayCount,
-    recentEvents: (emailEvents ?? []).slice(0, 50),
-  })
+}
+type UserRecord = {
+  id: string
+  email: string | null
+  full_name: string | null
+  onboarding_complete: boolean | null
+  last_active_at: string | null
+  created_at: string | null
 }
 
-// ── POST: force-sync (emergency / advanced) ───────────────────────────────────
+async function fetchSyncBatch(
+  supabase: ServiceClient,
+  segment: Segment,
+  offset: number,
+  twoDaysAgo: string
+): Promise<UserRecord[]> {
+  let query = supabase
+    .from("profiles")
+    .select("id, email, full_name, onboarding_complete, last_active_at, created_at")
+    .not("email", "is", null)
 
-const VALID_SEGMENTS = ["sync-dropoff", "sync-active", "sync-all"] as const
-type Segment = (typeof VALID_SEGMENTS)[number]
+  if (segment === "sync-dropoff") {
+    query = query
+      .eq("onboarding_complete", false)
+      .or(`last_active_at.is.null,last_active_at.lt.${twoDaysAgo}`)
+  } else if (segment === "sync-active") {
+    query = query.eq("onboarding_complete", true)
+  }
+
+  const { data, error } = await query
+    .order("id", { ascending: true })
+    .range(offset, offset + SYNC_BATCH_SIZE - 1)
+  if (error) throw error
+  return (data ?? []) as UserRecord[]
+}
 
 export async function POST(request: NextRequest) {
   const adminEmail = await verifyAdminSession(request)
   if (!adminEmail) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  let body: { segment: Segment; dryRun?: boolean }
-  try { body = await request.json() }
-  catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }) }
+  let body: { segment?: string; dryRun?: boolean }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
 
-  const { segment, dryRun = false } = body
-  if (!VALID_SEGMENTS.includes(segment)) {
+  if (!body.segment || !VALID_SEGMENTS.includes(body.segment as Segment)) {
     return NextResponse.json({ error: "Invalid segment" }, { status: 400 })
   }
-
-  const supabase = getServiceClient()
-  const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString()
-
-  type UserRecord = { email: string; full_name: string | null; onboarding_complete: boolean; last_active_at: string | null; created_at: string }
-  let users: UserRecord[] = []
-
-  if (segment === "sync-dropoff") {
-    const { data } = await supabase.from("profiles")
-      .select("email, full_name, onboarding_complete, last_active_at, created_at")
-      .eq("onboarding_complete", false)
-      .or(`last_active_at.is.null,last_active_at.lt.${twoDaysAgo}`)
-    users = (data ?? []).filter((u: any) => u.email)
-  } else if (segment === "sync-active") {
-    const { data } = await supabase.from("profiles")
-      .select("email, full_name, onboarding_complete, last_active_at, created_at")
-      .eq("onboarding_complete", true)
-    users = (data ?? []).filter((u: any) => u.email)
-  } else {
-    const { data } = await supabase.from("profiles")
-      .select("email, full_name, onboarding_complete, last_active_at, created_at")
-    users = (data ?? []).filter((u: any) => u.email)
-  }
-
-  if (dryRun) return NextResponse.json({ dryRun: true, count: users.length, segment })
-
-  let synced = 0, failed = 0
-  for (const u of users) {
-    try {
-      await syncUserOnLogin({
-        email: u.email,
-        firstName: u.full_name?.split(" ")[0] ?? null,
-        isNewUser: false,
-        onboardingComplete: u.onboarding_complete ?? false,
-        signupAt: u.created_at,
-      })
-      synced++
-    } catch { failed++ }
-    await new Promise<void>((r) => setTimeout(r, 70))
+  if (body.dryRun !== undefined && typeof body.dryRun !== "boolean") {
+    return NextResponse.json({ error: "dryRun must be a boolean" }, { status: 400 })
   }
 
   try {
-    await supabase.from("admin_email_campaigns").insert({
-      segment, emails_sent: synced, emails_failed: failed,
-      subject: `Manual ${segment} Brevo sync`, sent_by: adminEmail,
+    const segment = body.segment as Segment
+    const dryRun = body.dryRun === true
+    const supabase = getServiceClient()
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString()
+    let offset = 0
+    let total = 0
+    let synced = 0
+    let failed = 0
+
+    while (true) {
+      const users = await fetchSyncBatch(supabase, segment, offset, twoDaysAgo)
+      total += users.length
+
+      if (!dryRun) {
+        for (const user of users) {
+          if (!user.email || !user.created_at) {
+            failed += 1
+            continue
+          }
+          try {
+            await syncUserOnLogin({
+              email: user.email,
+              firstName: user.full_name?.split(" ")[0] ?? null,
+              isNewUser: false,
+              onboardingComplete: user.onboarding_complete ?? false,
+              signupAt: user.created_at,
+            })
+            synced += 1
+          } catch {
+            failed += 1
+          }
+          await new Promise<void>(resolve => setTimeout(resolve, 70))
+        }
+      }
+
+      if (users.length < SYNC_BATCH_SIZE) break
+      offset += SYNC_BATCH_SIZE
+    }
+
+    if (dryRun) return NextResponse.json({ dryRun: true, count: total, segment })
+
+    const { error: campaignError } = await supabase.from("admin_email_campaigns").insert({
+      segment,
+      emails_sent: synced,
+      emails_failed: failed,
+      subject: `Manual ${segment} Brevo sync`,
+      sent_by: adminEmail,
       sent_at: new Date().toISOString(),
     })
-  } catch { /* non-critical */ }
+    if (campaignError) console.error("[admin/email-campaigns] failed to record sync:", campaignError)
 
-  return NextResponse.json({ success: true, synced, failed, total: users.length, segment })
+    return NextResponse.json({ success: true, synced, failed, total, segment })
+  } catch (error) {
+    console.error("[admin/email-campaigns] sync failed:", error)
+    return NextResponse.json({ error: "Failed to synchronize email contacts" }, { status: 500 })
+  }
 }

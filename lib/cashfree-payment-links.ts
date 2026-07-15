@@ -16,7 +16,8 @@ export interface CashfreePaymentLinkParams {
   currency: string         // "INR"
   description: string      // link_purpose
   referenceId: string      // invoice number — stored in link_notes for reference
-  sessionId: string        // used as the unique link_id base (UUID = globally unique)
+  sessionId: string        // internal correlation only; never exposed in browser redirects
+  publicId: string         // 256-bit public document capability
   customerName?: string
   customerEmail?: string
   customerPhone?: string   // optional — omitted if not provided (no fake placeholder)
@@ -78,7 +79,7 @@ export async function createCashfreePaymentLink(params: CashfreePaymentLinkParam
     link_expiry_time: expiryIso,
     link_meta: {
       notify_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/api/cashfree/webhook/${params.userId || ""}`,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/?payment=success&session=${encodeURIComponent(params.sessionId)}`,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/pay/${params.publicId}?payment=success`,
     },
     link_notes: {
       session_id: params.sessionId,

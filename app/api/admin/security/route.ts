@@ -4,6 +4,11 @@ import { verifyAdminSession } from '@/lib/admin-auth'
 import { getSecurity } from '@/lib/admin-queries'
 import { logAudit } from '@/lib/audit-log'
 
+function boundedPositiveInt(value: string | null, fallback: number, max: number): number {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, max) : fallback
+}
+
 export async function GET(request: NextRequest) {
   const adminEmail = await verifyAdminSession(request)
   if (!adminEmail) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -16,8 +21,8 @@ export async function GET(request: NextRequest) {
       dateFrom: searchParams.get('dateFrom') ?? undefined,
       dateTo: searchParams.get('dateTo') ?? undefined,
       ip: searchParams.get('ip') ?? undefined,
-      page: searchParams.get('page') ? Number(searchParams.get('page')) : undefined,
-      pageSize: searchParams.get('pageSize') ? Number(searchParams.get('pageSize')) : undefined,
+      page: boundedPositiveInt(searchParams.get('page'), 1, 100_000),
+      pageSize: boundedPositiveInt(searchParams.get('pageSize'), 20, 100),
     })
     return NextResponse.json(data)
   } catch (err) {

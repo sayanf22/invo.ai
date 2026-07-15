@@ -229,7 +229,12 @@ describe("POST /api/emails/send-document", () => {
             eq: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
                 maybeSingle: vi.fn().mockResolvedValue({
-                  data: { id: "some-id", document_type: "invoice", context: { invoiceNumber: "INV-001" } },
+                  data: {
+                    id: "some-id",
+                    public_id: "b".repeat(64),
+                    document_type: "invoice",
+                    context: { invoiceNumber: "INV-001" },
+                  },
                   error: null,
                 }),
               }),
@@ -293,7 +298,12 @@ describe("POST /api/emails/send-document", () => {
     vi.mocked(sendEmail).mockResolvedValue({ success: true, messageIds: ["msg-123"] })
 
     const res = await POST(
-      makeRequest({ sessionId: VALID_SESSION_ID, recipientEmail: "test@example.com", resend: true })
+      makeRequest({
+        sessionId: VALID_SESSION_ID,
+        recipientEmail: "test@example.com",
+        resend: true,
+        skipPaymentLink: true,
+      })
     )
     expect(res.status).toBe(200)
     const body = await res.json()

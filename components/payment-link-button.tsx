@@ -5,7 +5,8 @@ import { Link2, Copy, Check, Loader2, MessageCircle, RefreshCw, X, AlertTriangle
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
-import type { InvoiceData } from "@/lib/invoice-types"
+import { calculateTotal, formatCurrency, fromMinorUnits, toMinorUnits, type InvoiceData } from "@/lib/invoice-types"
+import { usePaymentMethods } from "@/hooks/use-payment-methods"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 
@@ -21,51 +22,12 @@ interface PaymentLinkButtonProps {
 interface PaymentLinkState {
     id?: string
     shortUrl: string
+    platformLink: string
     amount: number
     currency: string
     status: "created" | "paid" | "partially_paid" | "expired" | "cancelled"
     razorpayId?: string
     isExisting?: boolean
-}
-
-const CURRENCY_MULTIPLIERS: Record<string, number> = {
-    INR: 100, USD: 100, EUR: 100, GBP: 100,
-    SGD: 100, AED: 100, CAD: 100, AUD: 100,
-    PHP: 100, MYR: 100, JPY: 1,
-}
-
-function toSmallestUnit(amount: number, currency: string): number {
-    return Math.round(amount * (CURRENCY_MULTIPLIERS[currency.toUpperCase()] ?? 100))
-}
-
-function getInvoiceTotal(data: InvoiceData): number {
-    if (!data.items?.length) return 0
-    const subtotal = data.items.reduce((sum, item) => {
-        const qty = Number(item.quantity) || 0
-        const rate = Number(item.rate) || 0
-        const disc = Number(item.discount) || 0
-        return sum + (qty * rate * (1 - disc / 100))
-    }, 0)
-    const taxRate = Number(data.taxRate) || 0
-    const discountValue = Number(data.discountValue) || 0
-    const shippingFee = Number(data.shippingFee) || 0
-    const discountAmount = data.discountType === "percent"
-        ? subtotal * (discountValue / 100)
-        : discountValue
-    const taxAmount = (subtotal - discountAmount) * (taxRate / 100)
-    return subtotal - discountAmount + taxAmount + shippingFee
-}
-
-function formatAmount(amount: number, currency: string): string {
-    try {
-        return new Intl.NumberFormat("en-IN", {
-            style: "currency",
-            currency: currency || "INR",
-            maximumFractionDigits: 2,
-        }).format(amount)
-    } catch {
-        return `${currency} ${amount.toFixed(2)}`
-    }
 }
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
@@ -121,7 +83,7 @@ function ConfirmDialog({
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Amount</p>
-                                <p className="text-xl font-bold text-foreground mt-0.5">{formatAmount(amount, currency)}</p>
+                                <p className="text-xl font-bold text-foreground mt-0.5">{formatCurrency(amount, currency)}</p>
                             </div>
                             <div className="text-right">
                                 {invoiceRef && (
@@ -181,6 +143,7 @@ function ConfirmDialog({
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaymentLinkChange, onLockChange }: PaymentLinkButtonProps) {
+    const { connectedGateways, hasAnyGateway, loading: gatewayLoading } = usePaymentMethods()
     const [isLoading, setIsLoading] = useState(false)
     const [isFetching, setIsFetching] = useState(false)
     const [paymentLink, setPaymentLink] = useState<PaymentLinkState | null>(null)
@@ -222,6 +185,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                     const link: PaymentLinkState = {
                         id: data.paymentLink.id,
                         shortUrl: data.paymentLink.short_url,
+                        platformLink: data.paymentLink.platformLink,
                         amount: data.paymentLink.amount ?? 0,
                         currency: data.paymentLink.currency ?? invoiceData.currency ?? "INR",
                         status: data.paymentLink.status,
@@ -229,8 +193,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                         isExisting: true,
                     }
                     setPaymentLink(link)
-                    const existingPlatformLink = `${window.location.origin}/pay/${sessionId}`
-                    onPaymentLinkChange?.(existingPlatformLink, link.status)
+                    onPaymentLinkChange?.(link.platformLink, link.status)
                     // Lock invoice if active link exists
                     if (link.status === "created" || link.status === "partially_paid" || link.status === "paid") {
                         onLockChange?.(true)
@@ -294,11 +257,13 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
         )
     }
 
-    const total = getInvoiceTotal(invoiceData)
+    const { total } = calculateTotal(invoiceData)
     const currency = invoiceData.currency || "INR"
-    const amountInSmallestUnit = toSmallestUnit(total, currency)
+    const amountInSmallestUnit = toMinorUnits(total, currency)
     const invoiceRef = invoiceData.invoiceNumber || invoiceData.referenceNumber || ""
     const clientName = invoiceData.toName || ""
+    const selectedMethod = (invoiceData.paymentMethod || "").toLowerCase()
+    const preferredGateway = connectedGateways.find((gateway) => gateway === selectedMethod)
 
     const doCreate = async () => {
         if (!sessionId || isLoading) return
@@ -312,7 +277,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
             const res = await authFetch("/api/payments/create-link", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sessionId }),
+                body: JSON.stringify({ sessionId, gateway: preferredGateway }),
             })
 
             const data = await res.json()
@@ -326,7 +291,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                         duration: 6000,
                     })
                 } else {
-                    toast.error(data.error || "Failed to create payment link")
+                    toast.error(data.message || data.error || "The payment gateway could not create this link")
                 }
                 return
             }
@@ -337,7 +302,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                 currency: data.paymentLink.currency ?? currency,
             }
             setPaymentLink(link)
-            onPaymentLinkChange?.(`${window.location.origin}/pay/${sessionId}`, data.paymentLink.status)
+            onPaymentLinkChange?.(link.platformLink, data.paymentLink.status)
             onLockChange?.(true) // Lock invoice after link creation
             toast.success("Payment link created! Invoice is now locked.")
         } catch (err) {
@@ -349,7 +314,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
         }
     }
 
-    const platformLink = sessionId ? `${window.location.origin}/pay/${sessionId}` : ""
+    const platformLink = paymentLink?.platformLink || ""
 
     const handleCopy = async () => {
         if (!platformLink) return
@@ -361,24 +326,24 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
 
     const handleWhatsApp = () => {
         if (!platformLink) return
-        const msg = `Hi ${clientName || ""},\n\nPlease find the payment link for ${invoiceRef || "your invoice"} (${formatAmount(total, currency)}):\n${platformLink}\n\nThank you,\n${invoiceData.fromName || ""}`
+        const msg = `Hi ${clientName || ""},\n\nPlease find the payment link for ${invoiceRef || "your invoice"} (${formatCurrency(total, currency)}):\n${platformLink}\n\nThank you,\n${invoiceData.fromName || ""}`
         window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank")
     }
 
     const handleCancel = async () => {
-        if (!paymentLink?.razorpayId || !sessionId) return
+        if (!paymentLink || !sessionId) return
         setShowCancelConfirm(true)
     }
 
     const handleCancelConfirmed = async () => {
-        if (!paymentLink?.razorpayId || !sessionId) return
+        if (!paymentLink || !sessionId) return
         setShowCancelConfirm(false)
         setIsLoading(true)
         try {
             const res = await authFetch("/api/payments/cancel-link", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sessionId, razorpayPaymentLinkId: paymentLink.razorpayId }),
+                body: JSON.stringify({ sessionId }),
             })
             if (res.ok) {
                 setPaymentLink(prev => prev ? { ...prev, status: "cancelled" } : null)
@@ -409,7 +374,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
                 <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-400">
-                    Paid {paymentLink.amount > 0 ? formatAmount(paymentLink.amount / 100, paymentLink.currency) : ""}
+                    Paid {paymentLink.amount > 0 ? formatCurrency(fromMinorUnits(paymentLink.amount, paymentLink.currency), paymentLink.currency) : ""}
                 </span>
                 <TooltipProvider>
                     <Tooltip>
@@ -422,6 +387,19 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                     </Tooltip>
                 </TooltipProvider>
             </div>
+        )
+    }
+
+    // ── No verified gateway ───────────────────────────────────────────────────
+    if (!paymentLink && !gatewayLoading && !hasAnyGateway) {
+        return (
+            <a
+                href="/settings?tab=payments"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[13px] font-semibold border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300 transition-colors"
+            >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Connect payment gateway
+            </a>
         )
     }
 
@@ -499,7 +477,7 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
                                 <div>
                                     <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Amount</p>
                                     <p className="text-xl font-bold text-foreground mt-0.5">
-                                        {formatAmount(paymentLink.amount / 100, paymentLink.currency)}
+                                        {formatCurrency(fromMinorUnits(paymentLink.amount, paymentLink.currency), paymentLink.currency)}
                                     </p>
                                 </div>
                                 {invoiceRef && (

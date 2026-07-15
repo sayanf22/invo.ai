@@ -59,6 +59,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             return NextResponse.json({ received: true, test: true })
         }
 
+        const { error: verificationError } = await db.from("user_payment_settings")
+            .update({ stripe_webhook_verified_at: new Date().toISOString() })
+            .eq("user_id", userId)
+        if (verificationError) {
+            console.error("[stripe/webhook] failed to persist provider verification:", verificationError)
+        }
+
         const claim = await claimWebhookEvent(db, "stripe", eventId, eventType, await hashWebhookPayload(body), userId)
         if (claim === "duplicate") return NextResponse.json({ received: true, duplicate: true })
         if (claim === "in_progress") return NextResponse.json({ error: "Event is processing" }, { status: 503 })

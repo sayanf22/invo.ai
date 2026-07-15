@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/admin-auth'
+import { requireAdminSession } from '@/lib/admin-auth'
 import { AdminThemeProvider } from '@/components/admin/admin-theme-provider'
 import AdminShell from '@/components/admin/admin-shell'
 
@@ -7,8 +7,7 @@ export default async function AdminDashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const adminEmail = await requireAdmin()
-  const sessionExpiresAt = Date.now() + 3600 * 1000
+  const { email: adminEmail, expiresAt: sessionExpiresAt } = await requireAdminSession()
 
   return (
     <AdminThemeProvider>

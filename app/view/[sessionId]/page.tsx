@@ -23,6 +23,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { DocumentPreviewSkeleton } from "@/components/ui/skeletons"
+import { isPublicDocumentId } from "@/lib/public-capability"
+import { usePublicDocumentLink } from "@/hooks/use-public-document-link"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -143,12 +145,12 @@ function PdfViewer({ pdfBytes, zoom }: { pdfBytes: Uint8Array; zoom: number }) {
 function ShareSheet({
   data,
   payment,
-  sessionId,
+  publicUrl,
   onClose,
 }: {
   data: InvoiceData
   payment: PaymentInfo | null
-  sessionId: string
+  publicUrl: string | null
   onClose: () => void
 }) {
   const [copied, setCopied] = useState<string | null>(null)
@@ -202,9 +204,7 @@ function ShareSheet({
   const total = data.items?.reduce((s, i) => s + i.quantity * i.rate, 0) ?? 0
   const currency = data.currency || "INR"
 
-  // Use platform link for sharing (not raw gateway URL)
-  const platformLink = sessionId ? `${window.location.origin}/pay/${sessionId}` : null
-  const shareLink = platformLink || payment?.short_url || null
+  const shareLink = publicUrl || payment?.short_url || null
 
   const paymentMsg = shareLink
     ? `Hi ${data.toName || ""},\n\nPlease find your ${docType} ${invoiceRef} for ${currency} ${total.toFixed(2)}.\n\nPay here: ${shareLink}\n\nThank you,\n${data.fromName || ""}`
@@ -337,6 +337,7 @@ export default function ViewDocumentPage() {
   const [zoom, setZoom] = useState(typeof window !== "undefined" && window.innerWidth < 640 ? 75 : 100)
   const [showShare, setShowShare] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const { publicUrl } = usePublicDocumentLink(sessionId)
 
   // Quotation response state
   const [quotationResponse, setQuotationResponse] = useState<QuotationResponse | null>(null)
@@ -346,14 +347,14 @@ export default function ViewDocumentPage() {
   const [quotationClientEmail, setQuotationClientEmail] = useState('')
   const [quotationReason, setQuotationReason] = useState('')
 
-  // Track document view (fire-and-forget)
+  // Track recipient views only when the route contains a public capability.
   useEffect(() => {
-    if (!sessionId) return
+    if (!isPublicDocumentId(sessionId)) return
     fetch("/api/emails/track-view", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId }),
-    }).catch(() => {}) // non-critical
+      body: JSON.stringify({ publicId: sessionId }),
+    }).catch(() => {})
   }, [sessionId])
 
   // Load session data — works for both logged-in users and public email recipients
@@ -482,8 +483,13 @@ export default function ViewDocumentPage() {
           }
         }
 
-        // Fallback: public API for email recipients (no auth needed)
-        const res = await fetch(`/api/emails/view-document?sessionId=${sessionId}`)
+        // Public fallback accepts only the opaque recipient capability.
+        if (!isPublicDocumentId(sessionId)) {
+          toast.error("Document not found")
+          router.push("/")
+          return
+        }
+        const res = await fetch(`/api/emails/view-document?publicId=${sessionId}`)
 
         // 410 Gone = the owner cancelled the share after sending
         if (res.status === 410) {
@@ -560,7 +566,7 @@ export default function ViewDocumentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId,
+          publicId: sessionId,
           response: responseType,      // field name the API expects
           clientName: quotationClientName,
           clientEmail: quotationClientEmail,
@@ -822,7 +828,7 @@ export default function ViewDocumentPage() {
 
       {/* Share sheet */}
       {showShare && (
-        <ShareSheet data={docData} payment={payment} sessionId={sessionId} onClose={() => setShowShare(false)} />
+        <ShareSheet data={docData} payment={payment} publicUrl={publicUrl} onClose={() => setShowShare(false)} />
       )}
 
       {/* Quotation response dialogs */}

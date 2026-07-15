@@ -210,8 +210,10 @@ export async function POST(request: NextRequest) {
         user_agent: userAgent,
         document_hash: documentHash,
         verification_url: verificationUrl,
-        // No token needed — authenticated flow
-        token: `self_${randomUUID().replace(/-/g, "")}`,
+        signing_cohort_id: sigId,
+        // Authenticated self-signatures do not need a bearer capability.
+        token: null,
+        token_hash: null,
         expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
       } as any)
 

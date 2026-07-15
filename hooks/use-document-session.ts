@@ -215,10 +215,14 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                 }
             }
 
+            const previousContext = (session.context && typeof session.context === "object" && !Array.isArray(session.context))
+                ? session.context as Record<string, unknown>
+                : {}
+            const mergedContext = { ...previousContext, ...safeContext }
             const { error } = await supabase
                 .from("document_sessions")
                 .update({
-                    context: safeContext as unknown as Json,
+                    context: mergedContext as unknown as Json,
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", session.id)

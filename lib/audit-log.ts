@@ -46,6 +46,7 @@ export type AuditAction =
     | "account.self_delete"
     | "admin.usage_reset"
     | "admin.announcement_create"
+    | "admin.announcement_deactivate"
     | "admin.ip_block"
     | "admin.ip_unblock"
     | "admin.pin_change"

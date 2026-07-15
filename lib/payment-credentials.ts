@@ -19,9 +19,9 @@ export async function getUserPaymentCredentials(userId: string): Promise<UserPay
     const { data, error } = await adminClient()
         .from("user_payment_settings")
         .select(`
-            razorpay_key_id, razorpay_key_secret_encrypted, razorpay_enabled, razorpay_test_mode,
-            stripe_secret_key_encrypted, stripe_enabled, stripe_test_mode,
-            cashfree_client_id, cashfree_client_secret_encrypted, cashfree_enabled, cashfree_test_mode
+            razorpay_key_id, razorpay_key_secret_encrypted, razorpay_enabled, razorpay_test_mode, razorpay_credentials_verified_at,
+            stripe_secret_key_encrypted, stripe_enabled, stripe_test_mode, stripe_credentials_verified_at,
+            cashfree_client_id, cashfree_client_secret_encrypted, cashfree_enabled, cashfree_test_mode, cashfree_credentials_verified_at
         `)
         .eq("user_id", userId)
         .maybeSingle()
@@ -30,7 +30,7 @@ export async function getUserPaymentCredentials(userId: string): Promise<UserPay
     if (!data) return null
 
     const result: UserPaymentCredentials = {}
-    if (data.razorpay_enabled && data.razorpay_key_id && data.razorpay_key_secret_encrypted) {
+    if (data.razorpay_enabled && data.razorpay_credentials_verified_at && data.razorpay_key_id && data.razorpay_key_secret_encrypted) {
         const secret = await decrypt(data.razorpay_key_secret_encrypted)
         if (secret) result.razorpay = {
             keyId: data.razorpay_key_id,
@@ -39,14 +39,14 @@ export async function getUserPaymentCredentials(userId: string): Promise<UserPay
         }
     }
 
-    if (data.stripe_enabled && data.stripe_secret_key_encrypted) {
+    if (data.stripe_enabled && data.stripe_credentials_verified_at && data.stripe_secret_key_encrypted) {
         const secret = await decrypt(data.stripe_secret_key_encrypted)
         if (secret) result.stripe = {
             secretKey: secret,
             testMode: data.stripe_test_mode ?? false,
         }
     }
-    if (data.cashfree_enabled && data.cashfree_client_id && data.cashfree_client_secret_encrypted) {
+    if (data.cashfree_enabled && data.cashfree_credentials_verified_at && data.cashfree_client_id && data.cashfree_client_secret_encrypted) {
         const secret = await decrypt(data.cashfree_client_secret_encrypted)
         if (secret) result.cashfree = {
             clientId: data.cashfree_client_id,

@@ -243,9 +243,32 @@ export function getCurrencySymbol(code: string): string {
   return CURRENCIES.find((c) => c.code === code)?.symbol ?? code
 }
 
+export function getCurrencyFractionDigits(currencyCode: string): number {
+  try {
+    return new Intl.NumberFormat("en", { style: "currency", currency: currencyCode.toUpperCase() })
+      .resolvedOptions().maximumFractionDigits ?? 2
+  } catch {
+    return 2
+  }
+}
+
+export function toMinorUnits(amount: number, currencyCode: string): number {
+  return Math.round(amount * 10 ** getCurrencyFractionDigits(currencyCode))
+}
+
+export function fromMinorUnits(amount: number, currencyCode: string): number {
+  return amount / 10 ** getCurrencyFractionDigits(currencyCode)
+}
+
 export function formatCurrency(amount: number, currencyCode: string): string {
-  const symbol = getCurrencySymbol(currencyCode)
-  return `${symbol} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode.toUpperCase(),
+    }).format(amount)
+  } catch {
+    return `${currencyCode} ${amount.toLocaleString("en-US")}`
+  }
 }
 
 export function calculateSubtotal(items: LineItem[]): number {

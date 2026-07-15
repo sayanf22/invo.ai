@@ -1614,52 +1614,49 @@ function LegacyEditorPanel({ data, onChange, documentStatus, sessionId }: Editor
                 </p>
               )}
 
-              {/* Payment link options — only for document types that support payment links (e.g. invoice) */}
-              {supportsPaymentLink && (
+              {/* Payment link controls only appear when a verified gateway exists. */}
+              {supportsPaymentLink && (connectedGateways.length > 0 ? (
                 <div className="rounded-xl border border-border bg-background p-3 space-y-3">
                   <p className="text-xs font-semibold text-foreground">Payment Link & QR</p>
-
-                  {/* Show payment link in PDF toggle — hidden when document is paid */}
                   {documentStatus !== "paid" && (
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-medium text-foreground">Embed payment link in PDF</p>
-                        <p className="text-[10px] text-muted-foreground">Shows the payment URL at the bottom of the PDF</p>
+                        <p className="text-xs font-medium text-foreground">Add Pay option to PDF</p>
+                        <p className="text-[10px] text-muted-foreground">Adds a Pay Now button and QR code without printing the raw URL.</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => onChange({ showPaymentLinkInPdf: !data.showPaymentLinkInPdf })}
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer ${data.showPaymentLinkInPdf ? "bg-primary" : "bg-muted"}`}
-                        aria-label={data.showPaymentLinkInPdf ? "Disable payment link in PDF" : "Enable payment link in PDF"}
+                        aria-label={data.showPaymentLinkInPdf ? "Disable Pay option in PDF" : "Enable Pay option in PDF"}
                       >
                         <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.showPaymentLinkInPdf ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                       </button>
                     </div>
                   )}
-
                   {data.paymentLink ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-muted/40 border border-border">
-                        <span className="text-[11px] font-mono text-foreground/70 truncate flex-1">{data.paymentLink}</span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
-                          data.paymentLinkStatus === "paid" ? "bg-emerald-100 text-emerald-700" :
-                          data.paymentLinkStatus === "created" ? "bg-blue-100 text-blue-700" :
-                          "bg-muted text-muted-foreground"
-                        }`}>
-                          {data.paymentLinkStatus === "paid" ? "Paid ✓" : data.paymentLinkStatus === "created" ? "Pending" : data.paymentLinkStatus || "Active"}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        QR code will be auto-generated and embedded in the PDF when you download it.
-                      </p>
+                    <div className="flex items-center justify-between rounded-lg bg-muted/40 border border-border px-2.5 py-2">
+                      <span className="text-[11px] text-foreground/70">Secure payment page ready</span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                        data.paymentLinkStatus === "paid" ? "bg-emerald-100 text-emerald-700" :
+                        data.paymentLinkStatus === "created" ? "bg-blue-100 text-blue-700" :
+                        "bg-muted text-muted-foreground"
+                      }`}>
+                        {data.paymentLinkStatus === "paid" ? "Paid ✓" : data.paymentLinkStatus === "created" ? "Pending" : data.paymentLinkStatus || "Active"}
+                      </span>
                     </div>
                   ) : (
                     <p className="text-[10px] text-muted-foreground">
-                      Use the <span className="font-semibold text-primary">Get Payment Link</span> button in the preview toolbar to create a payment link. It will automatically appear in the PDF with a QR code.
+                      Create the payment link from the preview toolbar. If the provider rejects it, the exact failure is shown and nothing is added to the invoice.
                     </p>
                   )}
                 </div>
-              )}
+              ) : (
+                <a href="/settings?tab=payments" className="flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                  <span>Connect and verify a payment gateway to add a Pay option</span>
+                  <span aria-hidden>→</span>
+                </a>
+              ))}
 
               {/* Payment instructions */}
               <div>

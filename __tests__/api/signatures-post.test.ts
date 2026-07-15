@@ -46,7 +46,6 @@ import { createClient } from "@supabase/supabase-js"
 
 const MOCK_SESSION_ID = "session-uuid-123"
 const MOCK_DOCUMENT_ID = "doc-uuid-456"
-const MOCK_SIGNATURE_ID = "sig-uuid-789"
 const MOCK_HASH = "a".repeat(64)
 
 const mockUser = { id: "user-abc" }
@@ -63,8 +62,29 @@ function makeRequest(body: unknown): NextRequest {
 
 function buildSupabaseMock(opts: { insertSpy?: ReturnType<typeof vi.fn> } = {}) {
   const insertSpy = opts.insertSpy ?? vi.fn()
+  const rpcSpy = vi.fn().mockImplementation((name: string, args: Record<string, unknown>) => {
+    if (name === "create_signature_request") {
+      ;(insertSpy as unknown as (value: Record<string, unknown>) => void)(args)
+      return Promise.resolve({
+        data: [{
+          outcome: "created",
+          signature_id: args.p_signature_id,
+          previous_status: "active",
+          previous_sent_at: null,
+          previous_client_name: null,
+          previous_signature_cohort_id: null,
+        }],
+        error: null,
+      })
+    }
+    if (name === "rollback_unsent_signature_request") {
+      return Promise.resolve({ data: true, error: null })
+    }
+    return Promise.resolve({ data: null, error: null })
+  })
 
   const supabase = {
+    rpc: rpcSpy,
     from: vi.fn().mockImplementation((table: string) => {
       if (table === "document_sessions") {
         return {
@@ -82,11 +102,6 @@ function buildSupabaseMock(opts: { insertSpy?: ReturnType<typeof vi.fn> } = {}) 
               }),
             }),
           }),
-          // Route finalizes the session via the service-role client:
-          // serviceSupabase.from("document_sessions").update({...}).eq("id", sessionId)
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: null }),
-          }),
         }
       }
       if (table === "businesses") {
@@ -101,48 +116,12 @@ function buildSupabaseMock(opts: { insertSpy?: ReturnType<typeof vi.fn> } = {}) 
           }),
         }
       }
-      if (table === "signatures") {
-        return {
-          insert: insertSpy.mockReturnValue({
-            select: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: {
-                  id: MOCK_SIGNATURE_ID,
-                  document_id: MOCK_DOCUMENT_ID,
-                  signer_email: "signer@example.com",
-                  signer_name: "Jane Doe",
-                  party: "Client",
-                  token: "sign_" + "0".repeat(32),
-                  document_hash: MOCK_HASH,
-                  session_id: MOCK_SESSION_ID,
-                  expires_at: new Date(Date.now() + 604800000).toISOString(),
-                  created_at: new Date().toISOString(),
-                },
-                error: null,
-              }),
-            }),
-          }),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: null }),
-          }),
-        }
-      }
-      // fallback
-      return {
-        insert: vi.fn().mockResolvedValue({ error: null }),
-        update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-      }
+      return { insert: vi.fn().mockResolvedValue({ error: null }) }
     }),
   }
 
-  // The route creates a service-role client via createClient() from
-  // @supabase/supabase-js for all `signatures` writes and the final
-  // `document_sessions` finalize update. Wire it to the same mock so the
-  // service-role chain (from().insert().select().single(), from().update().eq())
-  // is faithfully modeled and the insert spy is exercised.
-  vi.mocked(createClient).mockReturnValue(supabase as any)
-
-  return { insertSpy, supabase }
+  vi.mocked(createClient).mockReturnValue(supabase as never)
+  return { insertSpy, rpcSpy, supabase }
 }
 
 const validBody = {
@@ -258,9 +237,10 @@ describe("POST /api/signatures", () => {
     expect(res.status).toBe(403)
   })
 
-  // Sub-task 5.5: Test that signature record is NOT created when email fails
-  it("does NOT create signature record when email send fails (atomic)", async () => {
-    const { insertSpy, supabase } = buildSupabaseMock()
+  // The request is created transactionally before delivery, then atomically
+  // rolled back if the external email provider rejects the invitation.
+  it("rolls back the signature request when email send fails", async () => {
+    const { insertSpy, rpcSpy, supabase } = buildSupabaseMock()
 
     vi.mocked(authenticateRequest).mockResolvedValue({
       error: null,
@@ -281,8 +261,11 @@ describe("POST /api/signatures", () => {
     const body = await res.json()
     expect(body.error).toContain("email")
 
-    // The signatures.insert should NOT have been called
-    expect(insertSpy).not.toHaveBeenCalled()
+    expect(insertSpy).toHaveBeenCalledOnce()
+    expect(rpcSpy).toHaveBeenCalledWith(
+      "rollback_unsent_signature_request",
+      expect.objectContaining({ p_token_hash: expect.stringMatching(/^[0-9a-f]{64}$/) })
+    )
   })
 
   // Sub-task 5.5: Test that document_hash is set correctly
@@ -303,7 +286,7 @@ describe("POST /api/signatures", () => {
     // insertSpy was called with an object containing document_hash = MOCK_HASH
     expect(insertSpy).toHaveBeenCalledOnce()
     const insertArg = insertSpy.mock.calls[0][0]
-    expect(insertArg.document_hash).toBe(MOCK_HASH)
+    expect(insertArg.p_document_hash).toBe(MOCK_HASH)
   })
 
   // Sub-task 5.5: Test that verification_url is correct
@@ -322,7 +305,7 @@ describe("POST /api/signatures", () => {
     expect(res.status).toBe(200)
 
     const body = await res.json()
-    expect(body.signature.verification_url).toBe(`https://clorefy.com/verify/${MOCK_SIGNATURE_ID}`)
+    expect(body.signature.verification_url).toMatch(/^https:\/\/clorefy\.com\/verify\/[0-9a-f-]{36}$/)
   })
 
   it("sets session_id on the signature row", async () => {
@@ -339,7 +322,7 @@ describe("POST /api/signatures", () => {
     await POST(makeRequest(validBody))
 
     const insertArg = insertSpy.mock.calls[0][0]
-    expect(insertArg.session_id).toBe(MOCK_SESSION_ID)
+    expect(insertArg.p_session_id).toBe(MOCK_SESSION_ID)
   })
 
   it("sets expires_at to exactly created_at + 604800 seconds", async () => {
@@ -358,8 +341,8 @@ describe("POST /api/signatures", () => {
     const after = Date.now()
 
     const insertArg = insertSpy.mock.calls[0][0]
-    const createdAt = new Date(insertArg.created_at).getTime()
-    const expiresAt = new Date(insertArg.expires_at).getTime()
+    const createdAt = new Date(insertArg.p_created_at).getTime()
+    const expiresAt = new Date(insertArg.p_expires_at).getTime()
     const diff = expiresAt - createdAt
 
     // Should be exactly 604800000 ms (7 days)
@@ -385,7 +368,7 @@ describe("POST /api/signatures", () => {
     await POST(makeRequest(bodyWithoutParty))
 
     const insertArg = insertSpy.mock.calls[0][0]
-    expect(insertArg.party).toBe("Client")
+    expect(insertArg.p_party).toBe("Client")
   })
 
   it("returns 200 with signingUrl on success", async () => {

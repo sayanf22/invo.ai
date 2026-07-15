@@ -13,18 +13,31 @@ interface GatewaySettings {
     keyIdHint?: string | null
     accountName?: string | null
     testMode: boolean
+    credentialsVerified: boolean
+    verifiedAt?: string
+    webhookUrl: string
+    webhookMode: "manual"
     webhookConfigured: boolean
     webhookRegistered: boolean
   } | null
   stripe?: {
     testMode: boolean
+    credentialsVerified: boolean
+    verifiedAt?: string
+    webhookUrl: string
+    webhookMode: "automatic"
     webhookConfigured: boolean
     webhookRegistered: boolean
   } | null
   cashfree?: {
     clientIdHint?: string | null
     testMode: boolean
+    credentialsVerified: boolean
+    verifiedAt?: string
+    webhookUrl: string
+    webhookMode: "per_link"
     webhookConfigured: boolean
+    webhookRegistered: boolean
   } | null
   updatedAt?: string
 }
@@ -116,15 +129,18 @@ function Input({ value, onChange, placeholder, type = "text" }: { value: string;
 function SecretInput({ value, onChange, placeholder, show, onToggle }: { value: string; onChange: (v: string) => void; placeholder?: string; show: boolean; onToggle: () => void }) {
   return <div className="relative"><Input value={value} onChange={onChange} placeholder={placeholder} type={show ? "text" : "password"} /><button type="button" onClick={onToggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground transition-colors" tabIndex={-1}>{show ? <EyeOff size={15} /> : <Eye size={15} />}</button></div>
 }
-function CopyField({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false)
-  return <div><label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">{label}</label><div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/30"><code className="flex-1 text-xs font-mono text-foreground/80 truncate">{value}</code><button type="button" onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className="shrink-0 p-1 rounded-lg text-foreground/40 hover:text-foreground hover:bg-muted transition-colors">{copied ? <Check size={13} className="text-primary" /> : <Copy size={13} />}</button></div></div>
-}
-
-// ── Secret Reveal + Custom Secret for Razorpay ───────────────────────────────
-// Full guide is at /integrations/payments/razorpay.
-function RazorpaySecretReveal({ gateway }: { gateway: string }) {
-  const [secret, setSecret] = useState<string | null>(null)
+// ── Write-only Razorpay webhook secret management ────────────────────────────
+// Secrets are shown only after initial generation or explicit rotation.
+function RazorpaySecretReveal({
+  gateway,
+  initialSecret,
+  onSecretHidden,
+}: {
+  gateway: string
+  initialSecret?: string | null
+  onSecretHidden?: () => void
+}) {
+  const [secret, setSecret] = useState<string | null>(initialSecret ?? null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -133,17 +149,30 @@ function RazorpaySecretReveal({ gateway }: { gateway: string }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  const fetchSecret = async () => {
+  useEffect(() => {
+    if (!secret) return
+    const timer = window.setTimeout(() => {
+      setSecret(null)
+      onSecretHidden?.()
+    }, 60000)
+    return () => window.clearTimeout(timer)
+  }, [secret, onSecretHidden])
+
+  const rotateSecret = async () => {
+    if (!window.confirm("Rotate the Razorpay webhook secret? Existing webhook deliveries will fail until you paste the new secret into Razorpay.")) return
     setLoading(true)
     setError(null)
     try {
-      const res = await authFetch(`/api/payments/webhook-secret?gateway=${gateway}`)
-      if (res.ok) {
-        const data = await res.json()
-        setSecret(data.secret)
-        setTimeout(() => setSecret(null), 60000)
+      const res = await authFetch("/api/payments/webhook-secret", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gateway, rotate: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.webhookSecret) {
+        setSecret(data.webhookSecret)
       } else {
-        setError("Could not load secret")
+        setError(data.error || "Could not rotate secret")
       }
     } catch {
       setError("Network error")
@@ -190,9 +219,9 @@ function RazorpaySecretReveal({ gateway }: { gateway: string }) {
 
   return (
     <div className="space-y-2">
-      {/* Option A: Use our generated secret */}
+      {/* Option A: Generate a new write-only secret */}
       <div className="space-y-1">
-        <p className="text-[11px] font-semibold text-foreground">Option A — Use our generated secret (recommended)</p>
+        <p className="text-[11px] font-semibold text-foreground">Option A — Generate a new secret</p>
         {secret ? (
           <div className="space-y-1">
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20">
@@ -200,17 +229,17 @@ function RazorpaySecretReveal({ gateway }: { gateway: string }) {
               <button type="button" onClick={copy} className="shrink-0 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                 {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
               </button>
-              <button type="button" onClick={() => setSecret(null)} className="shrink-0 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              <button type="button" onClick={() => { setSecret(null); onSecretHidden?.() }} className="shrink-0 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                 <EyeOff size={13} />
               </button>
             </div>
             <p className="text-[10px] text-amber-600 dark:text-amber-400">Auto-hides in 60s · Copy and paste into Razorpay&apos;s Secret field</p>
           </div>
         ) : (
-          <button type="button" onClick={fetchSecret} disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold border border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50">
-            {loading ? <Loader2 size={11} className="animate-spin" /> : <Eye size={11} />}
-            {loading ? "Loading..." : "Reveal Secret"}
+          <button type="button" onClick={rotateSecret} disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/30 transition-colors disabled:opacity-50">
+            {loading ? <Loader2 size={11} className="animate-spin" /> : <Lock size={11} />}
+            {loading ? "Rotating..." : "Rotate & show new secret"}
           </button>
         )}
       </div>
@@ -227,7 +256,7 @@ function RazorpaySecretReveal({ gateway }: { gateway: string }) {
               Type any strong secret (minimum 16 characters). Use the same string in Razorpay&apos;s Secret field AND save it here so we can verify signatures.
             </p>
             <div className="flex gap-2">
-              <input type="text" value={customSecret} onChange={e => setCustomSecret(e.target.value)}
+              <input type="password" value={customSecret} onChange={e => setCustomSecret(e.target.value)}
                 placeholder="e.g. MyWebhookSecret123"
                 className="flex-1 px-3 py-1.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all font-mono text-xs" />
               <button type="button" onClick={saveCustomSecret} disabled={saving || !customSecret.trim()}
@@ -245,13 +274,19 @@ function RazorpaySecretReveal({ gateway }: { gateway: string }) {
   )
 }
 
-function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistered }: {
-  gateway: string; webhookUrl: string; webhookConfigured?: boolean; webhookRegistered?: boolean
+function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistered, oneTimeSecret, onSecretHidden }: {
+  gateway: string
+  webhookUrl: string
+  webhookConfigured?: boolean
+  webhookRegistered?: boolean
+  oneTimeSecret?: string | null
+  onSecretHidden?: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
   const isStripe = gateway === "stripe"
-  const isReady = isStripe ? webhookRegistered : webhookConfigured
+  const isCashfree = gateway === "cashfree"
+  const isReady = webhookRegistered === true
   const guideUrl = `/integrations/payments/${gateway}`
 
   return (
@@ -273,8 +308,12 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
           }
           <span className={cn("text-[12px] font-semibold truncate", isReady ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
             {isReady
-              ? isStripe ? "Webhook auto-configured ✓" : "Webhook URL ready"
-              : "Webhook setup needed"}
+              ? isStripe ? "Provider webhook registered ✓" : isCashfree ? "Real provider delivery verified ✓" : "Real provider delivery verified ✓"
+              : gateway === "razorpay"
+                ? "Complete setup; awaiting a real Razorpay delivery"
+                : gateway === "cashfree"
+                  ? "Awaiting the first real Cashfree delivery"
+                  : "Webhook setup needs verification"}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -295,7 +334,11 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
             </div>
             {/* Razorpay lets the merchant choose the webhook signing secret. */}
             {gateway === "razorpay" && webhookConfigured && (
-              <RazorpaySecretReveal gateway={gateway} />
+              <RazorpaySecretReveal
+                gateway={gateway}
+                initialSecret={oneTimeSecret}
+                onSecretHidden={onSecretHidden}
+              />
             )}
             {/* Link to full guide */}
             <a href={guideUrl} target="_blank" rel="noopener noreferrer"
@@ -517,6 +560,7 @@ export function PaymentSettings() {
   const [cfClientId, setCfClientId] = useState("")
   const [cfClientSecret, setCfClientSecret] = useState("")
   const [cfTestMode, setCfTestMode] = useState(false)
+  const [oneTimeRazorpaySecret, setOneTimeRazorpaySecret] = useState<string | null>(null)
 
   const resetForm = () => { setRzpKeyId(""); setRzpKeySecret(""); setRzpAccountName(""); setStripeSecretKey(""); setCfClientId(""); setCfClientSecret(""); setCfTestMode(false); setShowSecret(false) }
 
@@ -538,6 +582,7 @@ export function PaymentSettings() {
       const data = await res.json()
       if (data.success) toast.success(data.message || `${gateway} webhook is working!`)
       else toast.error(data.error || data.message || "Webhook test failed")
+      await fetchSettings()
     } catch { toast.error("Failed to test webhook") }
     finally { setTestingWebhook(null) }
   }
@@ -568,7 +613,12 @@ export function PaymentSettings() {
       const res = await authFetch("/api/payments/settings", { method: "POST", body: JSON.stringify(body) })
       const data = await res.json()
       if (!res.ok) { toast.error(data.error || "Failed to save settings"); return }
-      toast.success(selectedGateway.charAt(0).toUpperCase() + selectedGateway.slice(1) + " connected successfully")
+      if (selectedGateway === "razorpay" && typeof data.webhookSecret === "string") {
+        setOneTimeRazorpaySecret(data.webhookSecret)
+        toast.success("Razorpay connected. Copy the webhook secret now; it will not be shown again.")
+      } else {
+        toast.success(selectedGateway.charAt(0).toUpperCase() + selectedGateway.slice(1) + " connected successfully")
+      }
       setSelectedGateway(null); resetForm(); await fetchSettings()
     } catch { toast.error("Something went wrong") }
     finally { setSaving(false) }
@@ -624,7 +674,7 @@ export function PaymentSettings() {
           <div className="space-y-5">
             {connectedGateways.length > 0 && (
               <section className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/50 px-0.5">Connected</p>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/50 px-0.5">Configured gateways</p>
                 <div className="space-y-4">
                   {connectedGateways.map(gw => {
                     const s = settings![gw.id]!
@@ -636,18 +686,22 @@ export function PaymentSettings() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-[15px] font-semibold text-foreground">{gw.name}</span>
-                              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle2 size={10} /> Connected</span>
-                              {(s as any).testMode && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Test Mode</span>}
+                              {s.credentialsVerified ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle2 size={10} /> Credentials verified</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"><AlertTriangle size={10} /> Verification required</span>
+                              )}
+                              {s.testMode && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Test Mode</span>}
                             </div>
                             <p className="text-[13px] text-muted-foreground mt-1 font-mono truncate">
-                              {(s as any).keyIdHint || (s as any).clientIdHint || gw.description}
+                              {("keyIdHint" in s && s.keyIdHint) || ("clientIdHint" in s && s.clientIdHint) || gw.description}
                             </p>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             <button onClick={() => handleTestWebhook(gw.id)} disabled={testingWebhook === gw.id}
                               className="hidden sm:inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded-xl font-medium border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors disabled:opacity-50">
                               {testingWebhook === gw.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
-                              <span className="hidden md:inline ml-1">Test</span>
+                              <span className="hidden md:inline ml-1">Verify</span>
                             </button>
                             <button onClick={() => { if (isEditing) { setEditingGateway(null); resetForm() } else { setEditingGateway(gw.id); setSelectedGateway(null); resetForm() } }}
                               className={cn("inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded-xl font-medium border transition-colors", isEditing ? "bg-muted/60 border-primary/30" : "border-border hover:bg-muted/60")}>
@@ -661,9 +715,11 @@ export function PaymentSettings() {
                         </div>
                         <WebhookPanel
                           gateway={gw.id}
-                          webhookUrl={`${typeof window !== "undefined" ? window.location.origin : "https://yourdomain.com"}/api/${gw.id}/webhook`}
-                          webhookConfigured={(s as any).webhookConfigured}
-                          webhookRegistered={(s as any).webhookRegistered}
+                          webhookUrl={s.webhookUrl}
+                          webhookConfigured={s.webhookConfigured}
+                          webhookRegistered={s.webhookRegistered}
+                          oneTimeSecret={gw.id === "razorpay" ? oneTimeRazorpaySecret : null}
+                          onSecretHidden={gw.id === "razorpay" ? () => setOneTimeRazorpaySecret(null) : undefined}
                         />
                         <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", isEditing ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
                           <div className="min-h-0 overflow-hidden">

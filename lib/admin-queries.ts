@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { fromMinorUnits } from "@/lib/invoice-types"
 
 /**
  * AI Model Pricing Reference (2026)
@@ -70,6 +71,9 @@ export interface OverviewKPIs {
   // Revenue
   totalRevenue: number
   currentMRR: number
+  mrrByCurrency: Record<string, number>
+  arrByCurrency: Record<string, number>
+  revenueTrendByCurrency: Record<string, Array<{ month: string; amount: number }>>
   signupsTrend: Array<{ date: string; count: number }>
   documentsTrend: Array<{ date: string; count: number }>
   revenueTrend: Array<{ month: string; amount: number }>
@@ -111,6 +115,14 @@ export interface PaginatedSubscriptions {
   total: number
   page: number
   pageSize: number
+  summary: {
+    active: number
+    /** Legacy minor-unit maps retained for the existing subscriptions UI. */
+    mrrByCurrency: Record<string, number>
+    arrByCurrency: Record<string, number>
+    mrrByCurrencyMajorUnits: Record<string, number>
+    arrByCurrencyMajorUnits: Record<string, number>
+  }
 }
 
 export interface AIUsageQueryParams {
@@ -141,10 +153,15 @@ export interface AIUsageData {
 }
 
 export interface RevenueData {
+  /** INR compatibility values; native currencies are never combined. */
   mrr: number
   arr: number
   newRevenueThisMonth: number
   momChange: number
+  mrrByCurrency: Record<string, number>
+  arrByCurrency: Record<string, number>
+  newRevenueThisMonthByCurrency: Record<string, number>
+  previousMonthRevenueByCurrency: Record<string, number>
   revenueByPlan: Array<{ plan: string; count: number; revenue: number }>
   paymentHistory: Array<Record<string, unknown>>
   paymentHistoryTotal: number
@@ -161,13 +178,20 @@ export interface SecurityQueryParams {
 }
 
 export interface SecurityData {
-  // UI-facing field names (what security-client.tsx reads)
   logs: Array<Record<string, unknown>>
   total: number
   bruteForce: Array<{ ip: string; attempts: number; last_seen: string; emails: string[] }>
-  suspicious: Array<{ email: string; requests_per_hour: number }>
+  securityEvents: Array<{
+    action: string
+    user_id: string | null
+    email: string
+    count: number
+    last_seen: string
+    ip_address: string | null
+  }>
+  /** Compatibility alias for securityEvents; no generation traffic is included. */
+  suspicious: SecurityData["securityEvents"]
   blockedIPs: Array<Record<string, unknown>>
-  // Legacy / backward-compat names kept for other consumers
   auditLogs: Array<Record<string, unknown>>
   auditLogsTotal: number
   bruteForceEvents: Array<Record<string, unknown>>
@@ -192,9 +216,8 @@ function startOfDay(d: Date): Date {
 }
 
 function startOfWeek(d: Date): Date {
-  const day = d.getDay() // 0=Sun
-  const diff = d.getDate() - day
-  return new Date(d.getFullYear(), d.getMonth(), diff)
+  const daysSinceMonday = (d.getDay() + 6) % 7
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - daysSinceMonday)
 }
 
 function startOfMonth(d: Date): Date {
@@ -202,8 +225,33 @@ function startOfMonth(d: Date): Date {
 }
 
 function currentMonthKey(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  return new Date().toISOString().slice(0, 7)
+}
+
+type PageResult<T> = {
+  data: T[] | null
+  error: { message?: string } | null
+}
+
+/** Fetch every row for an application-side reduction without exceeding API row caps. */
+export async function fetchAllPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>,
+  requestedPageSize = 1000
+): Promise<T[]> {
+  const pageSize = Math.max(1, Math.min(1000, Math.floor(requestedPageSize)))
+  const rows: T[] = []
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await fetchPage(from, from + pageSize - 1)
+    if (error) throw new Error(error.message || "Admin pagination query failed")
+    const page = data ?? []
+    rows.push(...page)
+    if (page.length < pageSize) return rows
+  }
+}
+
+function boundedPositiveInt(value: number | undefined, fallback: number, max: number): number {
+  return Number.isInteger(value) && (value ?? 0) > 0 ? Math.min(value!, max) : fallback
 }
 
 // ─── 6.1 getOverviewKPIs ──────────────────────────────────────────────────────
@@ -267,14 +315,8 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .gte("last_active_at", thirtyDaysAgoMAU)
     .then(r => ({ count: r.count ?? 0 }))
 
-  // Active paid users — canonical effective subscriptions, not stale profile tiers.
-  const nowIso = new Date().toISOString()
-  const { count: activePaidUsers } = await supabase
-    .from("subscriptions")
-    .select("*", { count: "exact", head: true })
-    .neq("plan", "free")
-    .gt("current_period_end", nowIso)
-    .then(r => ({ count: r.count ?? 0 }))
+  // Effective paid count is derived below after subscription and override precedence.
+  let activePaidUsers = 0
 
   // Total documents all time
   const { count: totalDocumentsAllTime } = await supabase
@@ -292,10 +334,13 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .then(r => ({ count: r.count ?? 0 }))
 
   // AI requests and cost this month (sum across all users)
-  const { data: usageRows } = await supabase
+  const usageRows = await fetchAllPages<any>((first, last) => supabase
     .from("user_usage")
-    .select("ai_requests_count, estimated_cost_usd")
+    .select("user_id, month, ai_requests_count, estimated_cost_usd")
     .eq("month", monthKey)
+    .order("month")
+    .order("user_id")
+    .range(first, last))
 
   const totalAIRequestsThisMonth = (usageRows ?? []).reduce(
     (sum, r) => sum + (r.ai_requests_count ?? 0),
@@ -313,51 +358,71 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .order("created_at", { ascending: false })
     .limit(20)
 
-  // MRR from subscriptions table (amount_paid is in paise for INR)
-  const { data: activeSubs } = await supabase
+  // MRR and revenue from active INR subscriptions only. Cross-currency totals
+  // are intentionally excluded because no authoritative FX rate is stored.
+  const activeSubs = await fetchAllPages<any>((first, last) => supabase
     .from("subscriptions")
-    .select("amount_paid, currency, plan")
+    .select("id, amount_paid, currency, plan, billing_cycle, current_period_end")
     .eq("status", "active")
-    .neq("plan", "free")
+    .in("plan", ["starter", "pro", "agency"])
+    .gt("current_period_end", now.toISOString())
+    .order("id")
+    .range(first, last))
 
-  let currentMRR = 0
-  for (const s of activeSubs ?? []) {
-    // amount_paid is in paise (smallest currency unit), convert to rupees
-    currentMRR += (s.amount_paid ?? 0) / 100
+  // Native-currency MRR/ARR maps use major units; INR scalar fields remain
+  // compatibility aliases and no currencies are combined.
+  const mrrByCurrency: Record<string, number> = {}
+  let totalRevenue = 0
+  for (const subscription of activeSubs) {
+    const currency = String(subscription.currency ?? "INR").toUpperCase()
+    const amount = fromMinorUnits(subscription.amount_paid ?? 0, currency)
+    const monthly = subscription.billing_cycle === "yearly" ? amount / 12 : amount
+    mrrByCurrency[currency] = (mrrByCurrency[currency] ?? 0) + monthly
+    if (currency === "INR") totalRevenue += amount
   }
+  const arrByCurrency = Object.fromEntries(
+    Object.entries(mrrByCurrency).map(([currency, amount]) => [currency, amount * 12])
+  )
+  const currentMRR = mrrByCurrency.INR ?? 0
 
-  const totalRevenue = (activeSubs ?? []).reduce((sum, s) => sum + ((s.amount_paid ?? 0) / 100), 0)
-
-  // Revenue trend (last 6 months) — from audit_logs payment webhooks
-  const { data: paymentLogs } = await supabase
-    .from("audit_logs")
-    .select("metadata, created_at")
-    .eq("action", "payment.webhook")
+  // Revenue trend (last 6 months), explicitly INR-only.
+  const paymentLogs = await fetchAllPages<any>((first, last) => supabase
+    .from("payment_history")
+    .select("id, amount, currency, created_at")
+    .eq("status", "captured")
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(first, last))
 
-  const revenueByMonth: Record<string, number> = {}
-  for (const log of paymentLogs ?? []) {
-    const meta = log.metadata as Record<string, unknown> | null
-    const amount = meta?.amount
-    if (typeof amount === "number" && amount > 0) {
-      const month = (log.created_at ?? "").slice(0, 7)
-      revenueByMonth[month] = (revenueByMonth[month] ?? 0) + amount
-    }
+  const revenueByCurrencyMonth: Record<string, Record<string, number>> = {}
+  for (const payment of paymentLogs) {
+    const currency = String(payment.currency ?? "INR").toUpperCase()
+    const month = (payment.created_at ?? "").slice(0, 7)
+    revenueByCurrencyMonth[currency] ??= {}
+    revenueByCurrencyMonth[currency][month] = (revenueByCurrencyMonth[currency][month] ?? 0)
+      + fromMinorUnits(payment.amount ?? 0, currency)
   }
 
-  const revenueTrend: Array<{ month: string; amount: number }> = []
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-    revenueTrend.push({ month: key, amount: revenueByMonth[key] ?? 0 })
-  }
+  const revenueCurrencies = new Set([...Object.keys(mrrByCurrency), ...Object.keys(revenueByCurrencyMonth), "INR"])
+  const revenueTrendByCurrency = Object.fromEntries([...revenueCurrencies].map(currency => [
+    currency,
+    Array.from({ length: 6 }, (_, index) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+      return { month: key, amount: revenueByCurrencyMonth[currency]?.[key] ?? 0 }
+    }),
+  ]))
+  const revenueTrend = revenueTrendByCurrency.INR
 
   // Signups trend (last 30 days) — group by date in JS
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-  const { data: recentProfiles } = await supabase
+  const recentProfiles = await fetchAllPages<any>((first, last) => supabase
     .from("profiles")
-    .select("created_at")
+    .select("id, created_at")
     .gte("created_at", thirtyDaysAgo.toISOString())
+    .order("created_at")
+    .order("id")
+    .range(first, last))
 
   const signupsByDay: Record<string, number> = {}
   for (const p of recentProfiles ?? []) {
@@ -369,11 +434,14 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .sort((a, b) => a.date.localeCompare(b.date))
 
   // Documents trend (last 30 days)
-  const { data: recentDocs } = await supabase
+  const recentDocs = await fetchAllPages<any>((first, last) => supabase
     .from("generation_history")
-    .select("created_at")
+    .select("id, created_at")
     .eq("success", true)
     .gte("created_at", thirtyDaysAgo.toISOString())
+    .order("created_at")
+    .order("id")
+    .range(first, last))
 
   const docsByDay: Record<string, number> = {}
   for (const d of recentDocs ?? []) {
@@ -384,19 +452,32 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .map(([date, count]) => ({ date, count }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
-  // Tier distribution from canonical effective subscription state. Every user
-  // starts free; an unexpired paid subscription promotes them to its plan.
-  const [{ count: totalProfilesForTiers }, { data: effectivePaidSubs }] = await Promise.all([
-    supabase.from("profiles").select("*", { count: "exact", head: true }).then(r => ({ count: r.count ?? 0 })),
-    supabase.from("subscriptions").select("plan").neq("plan", "free").gt("current_period_end", nowIso),
+  // Effective tier: all profile users start free; valid paid subscriptions apply,
+  // then each user's latest non-expired override wins, including free.
+  const nowIso = now.toISOString()
+  const [tierProfiles, effectivePaidSubs, tierOverrides] = await Promise.all([
+    fetchAllPages<any>((first, last) => supabase.from("profiles").select("id").order("id").range(first, last)),
+    fetchAllPages<any>((first, last) => supabase.from("subscriptions")
+      .select("id, user_id, plan, created_at").eq("status", "active")
+      .in("plan", ["starter", "pro", "agency"]).gt("current_period_end", nowIso)
+      .order("created_at").order("id").range(first, last)),
+    fetchAllPages<any>((first, last) => supabase.from("admin_tier_overrides")
+      .select("id, user_id, tier, created_at, expires_at")
+      .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+      .order("created_at").order("id").range(first, last)),
   ])
-  const tierCounts: Record<string, number> = { free: 0, starter: 0, pro: 0, agency: 0 }
-  for (const s of effectivePaidSubs ?? []) {
-    const plan = (s as any).plan ?? "free"
-    if (plan !== "free") tierCounts[plan] = (tierCounts[plan] ?? 0) + 1
+  const effectiveTiers = new Map<string, string>(tierProfiles.map(profile => [profile.id, "free"]))
+  for (const subscription of effectivePaidSubs) {
+    if (effectiveTiers.has(subscription.user_id)) effectiveTiers.set(subscription.user_id, subscription.plan)
   }
-  const paidTotal = (effectivePaidSubs ?? []).length
-  tierCounts.free = Math.max((totalProfilesForTiers ?? 0) - paidTotal, 0)
+  for (const override of tierOverrides) {
+    if (effectiveTiers.has(override.user_id) && ["free", "starter", "pro", "agency"].includes(override.tier)) {
+      effectiveTiers.set(override.user_id, override.tier)
+    }
+  }
+  const tierCounts: Record<string, number> = { free: 0, starter: 0, pro: 0, agency: 0 }
+  for (const tier of effectiveTiers.values()) tierCounts[tier] = (tierCounts[tier] ?? 0) + 1
+  activePaidUsers = [...effectiveTiers.values()].filter(tier => tier !== "free").length
   const tierDistribution = Object.entries(tierCounts).map(([tier, count]) => ({ tier, count }))
 
   const freeUsers = tierCounts["free"] ?? 0
@@ -456,10 +537,13 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .then(r => ({ count: r.count ?? 0 }))
 
   // Email delivery breakdown (opened, bounced, delivered)
-  const { data: emailStatusRows } = await supabase
+  const emailStatusRows = await fetchAllPages<any>((first, last) => supabase
     .from("document_emails")
-    .select("status")
+    .select("id, status, created_at")
     .gte("created_at", monthISO)
+    .order("created_at")
+    .order("id")
+    .range(first, last))
 
   const emailStatusCounts: Record<string, number> = {}
   for (const r of emailStatusRows ?? []) {
@@ -471,20 +555,23 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
   const emailsBouncedThisMonth = emailStatusCounts["bounced"] ?? 0
 
   // Tokens from generation_history (more accurate than user_usage)
-  const { data: tokenRows } = await supabase
+  const tokenRows = await fetchAllPages<any>((first, last) => supabase
     .from("generation_history")
-    .select("tokens_used, created_at")
+    .select("id, tokens_used, created_at")
     .gte("created_at", monthISO)
+    .order("created_at")
+    .order("id")
+    .range(first, last))
 
   const totalTokensThisMonth = (tokenRows ?? []).reduce((s, r) => s + (r.tokens_used ?? 0), 0)
 
-  // AI cost today (DeepSeek V3: ~$0.00094 per request average)
+  // Estimated AI cost is stored and reported in USD; do not invent an FX rate.
   const { count: aiRequestsToday } = await supabase
     .from("generation_history")
     .select("*", { count: "exact", head: true })
     .gte("created_at", todayISO)
     .then(r => ({ count: r.count ?? 0 }))
-  const estimatedAICostToday = Math.round(aiRequestsToday * 0.00094 * 85 * 100) / 100 // USD to INR
+  const estimatedAICostToday = Math.round(aiRequestsToday * 0.00094 * 100) / 100
 
   return {
     totalUsers,
@@ -515,10 +602,13 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     emailsBouncedThisMonth,
     totalAIRequestsThisMonth,
     totalTokensThisMonth,
-    estimatedAICostThisMonth: Math.round(estimatedAICostThisMonth * 85 * 100) / 100,
+    estimatedAICostThisMonth: Math.round(estimatedAICostThisMonth * 100) / 100,
     estimatedAICostToday,
     totalRevenue,
     currentMRR,
+    mrrByCurrency,
+    arrByCurrency,
+    revenueTrendByCurrency,
     signupsTrend,
     documentsTrend,
     revenueTrend,
@@ -540,9 +630,9 @@ export async function getUsersPage(params: UsersQueryParams): Promise<PaginatedU
     dateTo,
     sortBy = "created_at",
     sortDir = "desc",
-    page = 1,
-    pageSize = 20,
   } = params
+  const page = boundedPositiveInt(params.page, 1, 100_000)
+  const pageSize = boundedPositiveInt(params.pageSize, 20, 100)
 
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
@@ -593,22 +683,28 @@ export async function getUsersPage(params: UsersQueryParams): Promise<PaginatedU
   // Enrich with document counts and email counts
   if (data && data.length > 0) {
     const userIds = data.map((u: any) => u.id)
-    const { data: docCounts } = await supabase
-      .from("generation_history")
-      .select("user_id")
-      .eq("success", true)
-      .in("user_id", userIds)
-    
+    const [docCounts, emailCounts] = await Promise.all([
+      fetchAllPages<any>((first, last) => supabase
+        .from("generation_history")
+        .select("id, user_id")
+        .eq("success", true)
+        .in("user_id", userIds)
+        .order("user_id")
+        .order("id")
+        .range(first, last)),
+      fetchAllPages<any>((first, last) => supabase
+        .from("document_emails")
+        .select("id, user_id")
+        .in("user_id", userIds)
+        .order("user_id")
+        .order("id")
+        .range(first, last)),
+    ])
+
     const countMap: Record<string, number> = {}
     for (const d of docCounts ?? []) {
       countMap[d.user_id] = (countMap[d.user_id] ?? 0) + 1
     }
-
-    // Email counts from document_emails table
-    const { data: emailCounts } = await supabase
-      .from("document_emails")
-      .select("user_id")
-      .in("user_id", userIds)
 
     const emailCountMap: Record<string, number> = {}
     for (const e of emailCounts ?? []) {
@@ -730,7 +826,9 @@ export async function getSubscriptions(
   params: SubscriptionsQueryParams
 ): Promise<PaginatedSubscriptions> {
   const supabase = getAdminClient()
-  const { plan, status, dateFrom, dateTo, page = 1, pageSize = 20 } = params
+  const { plan, status, dateFrom, dateTo } = params
+  const page = boundedPositiveInt(params.page, 1, 100_000)
+  const pageSize = boundedPositiveInt(params.pageSize, 20, 100)
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
@@ -748,8 +846,49 @@ export async function getSubscriptions(
   const { data, count, error } = await query
   if (error) {
     console.error("getSubscriptions error:", error)
-    return { subscriptions: [], total: 0, page, pageSize }
+    return {
+      subscriptions: [],
+      total: 0,
+      page,
+      pageSize,
+      summary: {
+        active: 0,
+        mrrByCurrency: {},
+        arrByCurrency: {},
+        mrrByCurrencyMajorUnits: {},
+        arrByCurrencyMajorUnits: {},
+      },
+    }
   }
+
+  const nowIso = new Date().toISOString()
+  const activeSubscriptions = await fetchAllPages<any>((first, last) => supabase
+    .from("subscriptions")
+    .select("id, plan,status,amount_paid,currency,billing_cycle,current_period_end")
+    .eq("status", "active")
+    .in("plan", ["starter", "pro", "agency"])
+    .gt("current_period_end", nowIso)
+    .order("id")
+    .range(first, last))
+  const mrrByCurrency: Record<string, number> = {}
+  const mrrByCurrencyMajorUnits: Record<string, number> = {}
+  for (const subscription of activeSubscriptions) {
+    const currency = String(subscription.currency || "INR").toUpperCase()
+    const monthlyMinor = subscription.billing_cycle === "yearly"
+      ? (subscription.amount_paid ?? 0) / 12
+      : (subscription.amount_paid ?? 0)
+    const monthlyMajor = subscription.billing_cycle === "yearly"
+      ? fromMinorUnits(subscription.amount_paid ?? 0, currency) / 12
+      : fromMinorUnits(subscription.amount_paid ?? 0, currency)
+    mrrByCurrency[currency] = (mrrByCurrency[currency] ?? 0) + monthlyMinor
+    mrrByCurrencyMajorUnits[currency] = (mrrByCurrencyMajorUnits[currency] ?? 0) + monthlyMajor
+  }
+  const arrByCurrency = Object.fromEntries(
+    Object.entries(mrrByCurrency).map(([currency, amount]) => [currency, amount * 12])
+  )
+  const arrByCurrencyMajorUnits = Object.fromEntries(
+    Object.entries(mrrByCurrencyMajorUnits).map(([currency, amount]) => [currency, amount * 12])
+  )
 
   // Enrich with profile and business data (manual join — more reliable than PostgREST !inner)
   const enriched = data ?? []
@@ -775,6 +914,13 @@ export async function getSubscriptions(
     total: count ?? 0,
     page,
     pageSize,
+    summary: {
+      active: activeSubscriptions.length,
+      mrrByCurrency,
+      arrByCurrency,
+      mrrByCurrencyMajorUnits,
+      arrByCurrencyMajorUnits,
+    },
   }
 }
 
@@ -782,7 +928,9 @@ export async function getSubscriptions(
 
 export async function getAIUsage(params: AIUsageQueryParams): Promise<AIUsageData> {
   const supabase = getAdminClient()
-  const { dateFrom, dateTo, docType, userEmail, success, page = 1, pageSize = 20 } = params
+  const { dateFrom, dateTo, docType, userEmail, success } = params
+  const page = boundedPositiveInt(params.page, 1, 100_000)
+  const pageSize = boundedPositiveInt(params.pageSize, 20, 100)
 
   const now = new Date()
   const todayISO = startOfDay(now).toISOString()
@@ -791,10 +939,13 @@ export async function getAIUsage(params: AIUsageQueryParams): Promise<AIUsageDat
   const monthKey = currentMonthKey()
 
   // Summary cards from user_usage (current month totals)
-  const { data: usageRows } = await supabase
+  const usageRows = await fetchAllPages<any>((first, last) => supabase
     .from("user_usage")
-    .select("ai_requests_count, ai_tokens_used, estimated_cost_usd")
+    .select("user_id, month, ai_requests_count, ai_tokens_used, estimated_cost_usd")
     .eq("month", monthKey)
+    .order("month")
+    .order("user_id")
+    .range(first, last))
 
   const requestsThisMonth = (usageRows ?? []).reduce(
     (s, r) => s + (r.ai_requests_count ?? 0),
@@ -849,10 +1000,13 @@ export async function getAIUsage(params: AIUsageQueryParams): Promise<AIUsageDat
   })) as Array<Record<string, unknown>>
 
   // Doc type breakdown from generation_history
-  const { data: genRows } = await supabase
+  const genRows = await fetchAllPages<any>((first, last) => supabase
     .from("generation_history")
-    .select("document_type")
+    .select("id, document_type, created_at")
     .gte("created_at", monthISO)
+    .order("created_at")
+    .order("id")
+    .range(first, last))
 
   const typeCounts: Record<string, number> = {}
   for (const r of genRows ?? []) {
@@ -862,10 +1016,13 @@ export async function getAIUsage(params: AIUsageQueryParams): Promise<AIUsageDat
   const docTypeBreakdown = Object.entries(typeCounts).map(([type, count]) => ({ type, count }))
 
   // Avg generation time and success/error rates
-  const { data: perfRows } = await supabase
+  const perfRows = await fetchAllPages<any>((first, last) => supabase
     .from("generation_history")
-    .select("generation_time_ms, success")
+    .select("id, generation_time_ms, success, created_at")
     .gte("created_at", monthISO)
+    .order("created_at")
+    .order("id")
+    .range(first, last))
 
   const totalRows = (perfRows ?? []).length
   const successCount = (perfRows ?? []).filter(r => r.success === true).length
@@ -891,11 +1048,13 @@ export async function getAIUsage(params: AIUsageQueryParams): Promise<AIUsageDat
 
   // Filter by user email requires joining profiles — do a sub-query
   if (userEmail) {
-    const { data: matchedProfiles } = await supabase
+    const matchedProfiles = await fetchAllPages<any>((first, last) => supabase
       .from("profiles")
       .select("id")
       .ilike("email", `%${userEmail}%`)
-    const ids = (matchedProfiles ?? []).map(p => p.id)
+      .order("id")
+      .range(first, last))
+    const ids = matchedProfiles.map(p => p.id)
     if (ids.length > 0) {
       histQuery = histQuery.in("user_id", ids)
     } else {
@@ -971,10 +1130,11 @@ export interface RevenueQueryParams {
 
 export async function getRevenue(params: RevenueQueryParams = {}): Promise<RevenueData> {
   const supabase = getAdminClient()
-  const { page = 1, pageSize = 25, status } = params
+  const { status } = params
+  const page = boundedPositiveInt(params.page, 1, 100_000)
+  const pageSize = boundedPositiveInt(params.pageSize, 25, 100)
   const now = new Date()
   const monthISO = startOfMonth(now).toISOString()
-  const USD_TO_INR = 93 // Current approximate rate (April 2026)
 
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
@@ -1004,15 +1164,15 @@ export async function getRevenue(params: RevenueQueryParams = {}): Promise<Reven
   }
 
   const paymentHistory = (paymentRows ?? []).map((r: any) => {
-    const amountRaw = (r.amount ?? 0) / 100
-    const currency = r.currency ?? "INR"
+    const currency = String(r.currency ?? "INR").toUpperCase()
+    const amount = fromMinorUnits(r.amount ?? 0, currency)
     const profile = phProfileMap[r.user_id]
     return {
       id: r.id,
       user_email: profile?.email ?? "—",
       user_name: profile?.full_name ?? "—",
-      amount: amountRaw,
-      amount_inr: currency === "USD" ? Math.round(amountRaw * USD_TO_INR) : amountRaw,
+      amount,
+      amount_inr: currency === "INR" ? amount : null,
       currency,
       plan: (r.metadata as any)?.plan ?? r.plan ?? "—",
       billing_cycle: (r.metadata as any)?.billing_cycle ?? "—",
@@ -1027,25 +1187,38 @@ export async function getRevenue(params: RevenueQueryParams = {}): Promise<Reven
   })
 
   // ── MRR / revenue metrics from subscriptions ────────────────────────────────
-  const { data: allSubs } = await supabase
+  const allSubs = await fetchAllPages<any>((first, last) => supabase
     .from("subscriptions")
-    .select("user_id, plan, status, amount_paid, currency, created_at, current_period_start, current_period_end, billing_cycle")
+    .select("id, user_id, plan, status, amount_paid, currency, created_at, current_period_start, current_period_end, billing_cycle")
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(first, last))
 
-  const activePaid = (allSubs ?? []).filter((s: any) => s.status === "active" && s.plan !== "free")
-  let mrr = 0
+  const activePaid = allSubs.filter((s: any) =>
+    s.status === "active"
+    && ["starter", "pro", "agency"].includes(s.plan)
+    && Boolean(s.current_period_end)
+    && new Date(s.current_period_end) > now
+  )
+  const mrrByCurrency: Record<string, number> = {}
   const planCounts: Record<string, number> = {}
   const planRevenue: Record<string, number> = {}
 
   for (const s of activePaid) {
-    const amountInr = (s.amount_paid ?? 0) / 100
-    const displayAmount = s.currency === "USD" ? amountInr * USD_TO_INR : amountInr
-    mrr += displayAmount
+    const currency = String(s.currency ?? "INR").toUpperCase()
+    const nativeAmount = fromMinorUnits(s.amount_paid ?? 0, currency)
+    const monthlyNativeAmount = s.billing_cycle === "yearly" ? nativeAmount / 12 : nativeAmount
+    mrrByCurrency[currency] = (mrrByCurrency[currency] ?? 0) + monthlyNativeAmount
+    const displayAmount = currency === "INR" ? monthlyNativeAmount : 0
     const plan = s.plan ?? "unknown"
     planCounts[plan] = (planCounts[plan] ?? 0) + 1
     planRevenue[plan] = (planRevenue[plan] ?? 0) + displayAmount
   }
-  const arr = mrr * 12
+  const arrByCurrency = Object.fromEntries(
+    Object.entries(mrrByCurrency).map(([currency, amount]) => [currency, amount * 12])
+  )
+  const mrr = mrrByCurrency.INR ?? 0
+  const arr = arrByCurrency.INR ?? 0
 
   const revenueByPlan = Object.entries(planCounts).map(([plan, count]) => ({
     plan,
@@ -1054,31 +1227,43 @@ export async function getRevenue(params: RevenueQueryParams = {}): Promise<Reven
   }))
 
   // New revenue this month (from payment_history, most accurate)
-  const { data: newSubsThisMonth } = await supabase
+  const newSubsThisMonth = await fetchAllPages<any>((first, last) => supabase
     .from("payment_history")
-    .select("amount, currency")
+    .select("id, amount, currency, created_at")
     .gte("created_at", monthISO)
     .eq("status", "captured")
+    .order("created_at")
+    .order("id")
+    .range(first, last))
 
-  const newRevenueThisMonth = (newSubsThisMonth ?? []).reduce((sum, r: any) => {
-    const amt = (r.amount ?? 0) / 100
-    return sum + (r.currency === "USD" ? amt * USD_TO_INR : amt)
-  }, 0)
+  const newRevenueThisMonthByCurrency: Record<string, number> = {}
+  for (const row of newSubsThisMonth) {
+    const currency = String(row.currency ?? "INR").toUpperCase()
+    newRevenueThisMonthByCurrency[currency] = (newRevenueThisMonthByCurrency[currency] ?? 0)
+      + fromMinorUnits(row.amount ?? 0, currency)
+  }
+  const newRevenueThisMonth = newRevenueThisMonthByCurrency.INR ?? 0
 
   // MoM change
   const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const prevMonthISO = prevDate.toISOString()
-  const { data: prevMonthPayments } = await supabase
+  const prevMonthPayments = await fetchAllPages<any>((first, last) => supabase
     .from("payment_history")
-    .select("amount, currency")
+    .select("id, amount, currency, created_at")
     .gte("created_at", prevMonthISO)
     .lt("created_at", monthISO)
     .eq("status", "captured")
+    .order("created_at")
+    .order("id")
+    .range(first, last))
 
-  const prevMonthRevenue = (prevMonthPayments ?? []).reduce((sum, r: any) => {
-    const amt = (r.amount ?? 0) / 100
-    return sum + (r.currency === "USD" ? amt * USD_TO_INR : amt)
-  }, 0)
+  const previousMonthRevenueByCurrency: Record<string, number> = {}
+  for (const row of prevMonthPayments) {
+    const currency = String(row.currency ?? "INR").toUpperCase()
+    previousMonthRevenueByCurrency[currency] = (previousMonthRevenueByCurrency[currency] ?? 0)
+      + fromMinorUnits(row.amount ?? 0, currency)
+  }
+  const prevMonthRevenue = previousMonthRevenueByCurrency.INR ?? 0
 
   const momChange =
     prevMonthRevenue > 0
@@ -1088,7 +1273,11 @@ export async function getRevenue(params: RevenueQueryParams = {}): Promise<Reven
   return {
     mrr,
     arr,
+    mrrByCurrency,
+    arrByCurrency,
     newRevenueThisMonth,
+    newRevenueThisMonthByCurrency,
+    previousMonthRevenueByCurrency,
     momChange,
     revenueByPlan,
     paymentHistory: paymentHistory as Array<Record<string, unknown>>,
@@ -1100,127 +1289,127 @@ export async function getRevenue(params: RevenueQueryParams = {}): Promise<Reven
 
 export async function getSecurity(params: SecurityQueryParams): Promise<SecurityData> {
   const supabase = getAdminClient()
-  const { action, email, dateFrom, dateTo, ip, page = 1, pageSize = 20 } = params
-
+  const { action, email, dateFrom, dateTo, ip } = params
+  const page = boundedPositiveInt(params.page, 1, 100_000)
+  const pageSize = boundedPositiveInt(params.pageSize, 20, 100)
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
-  // Resolve user IDs from email filter
   let filteredUserIds: string[] | null = null
   if (email) {
-    const { data: matchedProfiles } = await supabase
+    const matchedProfiles = await fetchAllPages<any>((first, last) => supabase
       .from("profiles")
       .select("id")
       .ilike("email", `%${email}%`)
-    filteredUserIds = (matchedProfiles ?? []).map(p => p.id)
+      .order("id")
+      .range(first, last))
+    filteredUserIds = matchedProfiles.map(profile => profile.id)
   }
 
-  // Audit logs with filters
-  let auditQuery = supabase
-    .from("audit_logs")
-    .select("*", { count: "exact" })
-
-  if (action) {
-    auditQuery = auditQuery.ilike("action", `${action}%`)
+  let auditLogs: any[] = []
+  let auditLogsTotal = 0
+  if (filteredUserIds === null || filteredUserIds.length > 0) {
+    let auditQuery = supabase.from("audit_logs").select("*", { count: "exact" })
+    if (action) auditQuery = auditQuery.ilike("action", `${action}%`)
+    if (filteredUserIds) auditQuery = auditQuery.in("user_id", filteredUserIds)
+    if (dateFrom) auditQuery = auditQuery.gte("created_at", dateFrom)
+    if (dateTo) auditQuery = auditQuery.lte("created_at", dateTo)
+    if (ip) auditQuery = auditQuery.eq("ip_address", ip)
+    const result = await auditQuery.order("created_at", { ascending: false }).range(from, to)
+    if (result.error) console.error("getSecurity audit error:", result.error)
+    auditLogs = result.data ?? []
+    auditLogsTotal = result.count ?? 0
   }
 
-  if (filteredUserIds !== null) {
-    if (filteredUserIds.length === 0) {
-      return {
-        logs: [],
-        total: 0,
-        bruteForce: [],
-        suspicious: [],
-        blockedIPs: [],
-        auditLogs: [],
-        auditLogsTotal: 0,
-        bruteForceEvents: [],
-        suspiciousActivity: [],
-        ipBlocklist: [],
-      }
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const [securityRows, pinLockouts, profiles, ipBlocklist] = await Promise.all([
+    fetchAllPages<any>((first, last) => supabase.from("audit_logs")
+      .select("id, action, user_id, ip_address, metadata, created_at")
+      .like("action", "security.%").gte("created_at", oneDayAgo)
+      .order("created_at").order("id").range(first, last)),
+    fetchAllPages<any>((first, last) => supabase.from("audit_logs")
+      .select("id, action, user_id, ip_address, metadata, created_at")
+      .eq("action", "admin.pin_lockout").gte("created_at", oneDayAgo)
+      .order("created_at").order("id").range(first, last)),
+    fetchAllPages<any>((first, last) => supabase.from("profiles")
+      .select("id, email, full_name").order("id").range(first, last)),
+    fetchAllPages<any>((first, last) => supabase.from("ip_blocklist")
+      .select("*").order("created_at", { ascending: false })
+      .order("id", { ascending: false }).range(first, last)),
+  ])
+  const profileMap = new Map(profiles.map(profile => [
+    profile.id,
+    profile.email ?? profile.full_name ?? profile.id,
+  ]))
+
+  for (const row of auditLogs) {
+    row.email = row.user_id ? profileMap.get(row.user_id) ?? row.user_id : "system"
+  }
+
+  const bruteForceByIp = new Map<string, { ip: string; attempts: number; last_seen: string; emails: Set<string> }>()
+  const bruteRows = [...securityRows.filter(row =>
+    row.action === "security.brute_force_block" || row.action === "security.auth_failure"
+  ), ...pinLockouts]
+  for (const row of bruteRows) {
+    const metadata = (row.metadata ?? {}) as Record<string, unknown>
+    const address = String(row.ip_address ?? metadata.ip ?? "unknown")
+    const existing = bruteForceByIp.get(address) ?? {
+      ip: address,
+      attempts: 0,
+      last_seen: String(row.created_at),
+      emails: new Set<string>(),
     }
-    auditQuery = auditQuery.in("user_id", filteredUserIds)
+    existing.attempts += typeof metadata.failed_attempts === "number" ? metadata.failed_attempts : 1
+    if (String(row.created_at) > existing.last_seen) existing.last_seen = String(row.created_at)
+    if (typeof metadata.email === "string") existing.emails.add(metadata.email)
+    if (row.user_id && profileMap.has(row.user_id)) existing.emails.add(profileMap.get(row.user_id)!)
+    if (Array.isArray(metadata.target_emails)) {
+      for (const target of metadata.target_emails) if (typeof target === "string") existing.emails.add(target)
+    }
+    bruteForceByIp.set(address, existing)
   }
+  const bruteForce = [...bruteForceByIp.values()]
+    .map(event => ({ ...event, emails: [...event.emails] }))
+    .sort((a, b) => b.last_seen.localeCompare(a.last_seen))
 
-  if (dateFrom) auditQuery = auditQuery.gte("created_at", dateFrom)
-  if (dateTo) auditQuery = auditQuery.lte("created_at", dateTo)
-  if (ip) auditQuery = auditQuery.eq("ip_address", ip)
-
-  auditQuery = auditQuery.order("created_at", { ascending: false }).range(from, to)
-
-  const { data: auditLogs, count: auditLogsTotal, error: auditError } = await auditQuery
-  if (auditError) console.error("getSecurity audit error:", auditError)
-
-  // Brute force events
-  const { data: bruteForceEvents } = await supabase
-    .from("audit_logs")
-    .select("*")
-    .in("action", ["security.brute_force_block", "admin.pin_lockout"])
-    .order("created_at", { ascending: false })
-    .limit(50)
-
-  // Suspicious activity: users with >50 AI requests in any 1-hour window
-  // Use generation_history grouped by user_id and hour
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-  const { data: recentGen } = await supabase
-    .from("generation_history")
-    .select("user_id, created_at")
-    .gte("created_at", oneHourAgo)
-
-  const userHourCounts: Record<string, number> = {}
-  for (const r of recentGen ?? []) {
-    userHourCounts[r.user_id] = (userHourCounts[r.user_id] ?? 0) + 1
-  }
-
-  const suspiciousUserIds = Object.entries(userHourCounts)
-    .filter(([, count]) => count > 50)
-    .map(([userId]) => userId)
-
-  let suspiciousActivity: Array<Record<string, unknown>> = []
-  if (suspiciousUserIds.length > 0) {
-    const { data: suspProfiles } = await supabase
-      .from("profiles")
-      .select("id, email, full_name")
-      .in("id", suspiciousUserIds)
-    suspiciousActivity = (suspProfiles ?? []).map(p => ({
-      ...p,
-      requestsLastHour: userHourCounts[p.id] ?? 0,
-    })) as Array<Record<string, unknown>>
-  }
-
-  // IP blocklist
-  const { data: ipBlocklist } = await supabase
-    .from("ip_blocklist")
-    .select("*")
-    .order("created_at", { ascending: false })
-
-  return {
-    logs: (auditLogs ?? []) as Array<Record<string, unknown>>,
-    total: auditLogsTotal ?? 0,
-    bruteForce: (bruteForceEvents ?? []).map((ev: any) => {
-      // Normalize brute force event metadata into a usable shape
-      const meta = ev.metadata as Record<string, unknown> | null
-      const attempts = typeof meta?.failed_attempts === 'number' ? meta.failed_attempts : 1
-      const ip = typeof ev.ip_address === 'string' ? ev.ip_address : (typeof meta?.ip === 'string' ? meta.ip : "unknown")
-      const emails = Array.isArray(meta?.target_emails) ? (meta.target_emails as string[]) : []
-      return {
-        ip,
-        attempts,
-        last_seen: (ev.created_at as string) ?? new Date().toISOString(),
-        emails,
+  const groupedEvents = new Map<string, SecurityData["securityEvents"][number]>()
+  for (const row of securityRows) {
+    const userId = row.user_id ?? null
+    const key = `${row.action}\u0000${userId ?? "system"}`
+    const existing = groupedEvents.get(key)
+    if (existing) {
+      existing.count += 1
+      if (String(row.created_at) > existing.last_seen) {
+        existing.last_seen = String(row.created_at)
+        existing.ip_address = row.ip_address ?? null
       }
-    }),
-    suspicious: suspiciousActivity.map((u: any) => ({
-      email: u.email ?? u.id,
-      requests_per_hour: u.requestsLastHour ?? 0,
-    })),
-    blockedIPs: (ipBlocklist ?? []) as Array<Record<string, unknown>>,
-    // Legacy field names kept for backward compatibility with old API consumers
-    auditLogs: (auditLogs ?? []) as Array<Record<string, unknown>>,
-    auditLogsTotal: auditLogsTotal ?? 0,
-    bruteForceEvents: (bruteForceEvents ?? []) as Array<Record<string, unknown>>,
-    suspiciousActivity,
-    ipBlocklist: (ipBlocklist ?? []) as Array<Record<string, unknown>>,
+    } else {
+      groupedEvents.set(key, {
+        action: String(row.action),
+        user_id: userId,
+        email: userId ? profileMap.get(userId) ?? userId : "system",
+        count: 1,
+        last_seen: String(row.created_at),
+        ip_address: row.ip_address ?? null,
+      })
+    }
+  }
+  const securityEvents = [...groupedEvents.values()]
+    .sort((a, b) => b.last_seen.localeCompare(a.last_seen))
+
+  const blockedIPs = ipBlocklist as Array<Record<string, unknown>>
+  return {
+    logs: auditLogs,
+    total: auditLogsTotal,
+    bruteForce,
+    securityEvents,
+    suspicious: securityEvents,
+    blockedIPs,
+    auditLogs,
+    auditLogsTotal,
+    bruteForceEvents: bruteRows,
+    suspiciousActivity: securityEvents,
+    ipBlocklist: blockedIPs,
   }
 }
 
@@ -1251,11 +1440,14 @@ export async function getActivityInsights(): Promise<ActivityInsights> {
   const supabase = getAdminClient()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  const { data: rows } = await supabase
+  const rows = await fetchAllPages<any>((first, last) => supabase
     .from("generation_history")
-    .select("document_type, created_at, success")
+    .select("id, document_type, created_at, success")
     .gte("created_at", thirtyDaysAgo)
     .eq("success", true)
+    .order("created_at")
+    .order("id")
+    .range(first, last))
 
   // Build hourly buckets per doc type
   const typeHourly: Record<string, Record<number, number>> = {}

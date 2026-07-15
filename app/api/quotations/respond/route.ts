@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { buildQuotationResponseRow, type ResponseType } from "@/lib/quotation-response"
+import { getClientIP, validateBodySize, validateOrigin } from "@/lib/api-auth"
+import { checkPublicRateLimit } from "@/lib/public-rate-limit"
+import { isPublicDocumentId } from "@/lib/public-capability"
 
 /**
  * POST /api/quotations/respond
@@ -19,8 +22,10 @@ import { buildQuotationResponseRow, type ResponseType } from "@/lib/quotation-re
  * }
  */
 export async function POST(request: NextRequest) {
+    const originError = validateOrigin(request)
+    if (originError) return originError
     let body: {
-        sessionId?: string
+        publicId?: string
         response?: string
         clientName?: string
         clientEmail?: string
@@ -32,10 +37,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
     }
 
-    const { sessionId, response, clientName, clientEmail, note } = body
+    const sizeError = validateBodySize(body, 8 * 1024)
+    if (sizeError) return sizeError
+    const { publicId, response, clientName, clientEmail, note } = body
 
-    if (!sessionId || !response) {
-        return NextResponse.json({ error: "sessionId and response are required" }, { status: 400 })
+    if (!publicId || !response) {
+        return NextResponse.json({ error: "publicId and response are required" }, { status: 400 })
     }
 
     // Validate response type — use "declined" to match the DB constraint
@@ -47,10 +54,8 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    // Validate UUID format to prevent injection
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(sessionId)) {
-        return NextResponse.json({ error: "Invalid sessionId" }, { status: 400 })
+    if (!isPublicDocumentId(publicId)) {
+        return NextResponse.json({ error: "Invalid public document capability" }, { status: 400 })
     }
 
     // Use service role — recipients are not authenticated
@@ -66,11 +71,14 @@ export async function POST(request: NextRequest) {
         { auth: { persistSession: false } }
     )
 
-    // Verify session exists and is a quotation or proposal
+    const rateError = await checkPublicRateLimit(supabase, getClientIP(request), "quotation_response_ip", 20, 3600)
+    if (rateError) return rateError
+
+    // Resolve the opaque capability server-side; UUID capabilities are rejected.
     const { data: session, error: fetchError } = await supabase
         .from("document_sessions")
         .select("id, user_id, document_type, client_name, status, context")
-        .eq("id", sessionId)
+        .eq("public_id", publicId)
         .single()
 
     if (fetchError || !session) {
@@ -111,7 +119,7 @@ export async function POST(request: NextRequest) {
     // Build the row using the exported helper
     const row = buildQuotationResponseRow(
         {
-            sessionId,
+            sessionId: session.id,
             responseType: response as ResponseType,
             clientName: resolvedClientName,
             clientEmail: resolvedClientEmail,
@@ -152,7 +160,7 @@ export async function POST(request: NextRequest) {
                 : `${resolvedClientName} ${actionLabel} your ${docTypeLabel}${referenceNumber ? ` ${referenceNumber}` : ""}.`,
             read: false,
             metadata: {
-                session_id: sessionId,
+                session_id: session.id,
                 response,
                 client_name: resolvedClientName,
                 client_email: resolvedClientEmail,

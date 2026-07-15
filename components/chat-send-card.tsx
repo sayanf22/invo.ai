@@ -22,6 +22,7 @@ import type { InvoiceData } from "@/lib/invoice-types"
 import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 import { SenderSignFirstModal } from "@/components/sender-sign-first-modal"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
+import { usePublicDocumentLink } from "@/hooks/use-public-document-link"
 
 interface ChatSendCardProps {
   sessionId: string
@@ -74,6 +75,7 @@ export function ChatSendCard({
 }: ChatSendCardProps) {
   // Check if user has any payment gateway connected
   const { hasAnyGateway, loading: gatewayLoading } = usePaymentMethods()
+  const { publicUrl } = usePublicDocumentLink(sessionId)
 
   // Always start at compose so the user can review / edit the email
   const [step, setStep] = useState<Step>("compose")
@@ -367,13 +369,9 @@ export function ChatSendCard({
 
   // ── Step 3: Sent — compact confirmation with document link ──
   if (step === "sent") {
-    // Onboarding forms: the client-fillable link (captured from the API
-    // response, a fresh token every send). Every other type: the generic
-    // /d/<shortId> preview/pay link.
-    const shortId = sessionId.split("-")[0] // First 8 chars of UUID
     const docLink = isOnboardingForm
       ? (onboardFillUrl || "")
-      : `${typeof window !== "undefined" ? window.location.origin : ""}/d/${shortId}`
+      : (publicUrl || "")
     return (
       <div className={cn(
         "flex justify-start w-full",

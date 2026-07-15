@@ -194,7 +194,7 @@ function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn,
                     Pay Online
                 </Text>
                 <Text style={{ fontSize: 9, color: c.mut, lineHeight: 1.4, marginBottom: 6 }}>
-                    Click the link below or scan the QR code to pay securely online.
+                    Select Pay Now or scan the QR code to pay securely online.
                 </Text>
                 {/* Clickable "Pay Now" button */}
                 <Link src={url} style={{
@@ -214,10 +214,6 @@ function PaymentSection({ data, paymentQrCode, c, bold: boldFn, bNoneFn, bAllFn,
                         Pay Now â†’
                     </Text>
                 </Link>
-                {/* Short URL as text fallback */}
-                <Text style={{ fontSize: 8, color: c.mut, marginTop: 6, textDecoration: "underline" }}>
-                    {url}
-                </Text>
                 {data.paymentLinkStatus === "partially_paid" && (
                     <Text style={{ fontSize: 8, color: "#d97706", marginTop: 4, fontWeight: 700 }}>
                         {"Partial payment received \u2014 balance still due"}
@@ -3799,9 +3795,6 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                         }}>
                             <Text style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>Pay Now â†’</Text>
                         </Link>
-                        <Text style={{ fontSize: 8, color: mut, marginTop: 6, textDecoration: "underline" }}>
-                            {data.paymentLinkUrl}
-                        </Text>
                     </View>
                 )}
 

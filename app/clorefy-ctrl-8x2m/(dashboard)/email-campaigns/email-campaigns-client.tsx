@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useEffect, useState } from "react"
 import { Mail, Send, X, Search, CheckCircle, ChevronDown, Clock, Sparkles, User as UserIcon } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
 import { useAdminTheme } from "@/components/admin/admin-theme-provider"
@@ -21,12 +21,14 @@ interface UserRow {
   onboarding_complete: boolean; last_active_at: string | null; created_at: string
   tier: string; days_since_active: number; days_since_signup: number
   docs_count: number; sent_emails: SentEmail[]; last_email_event: LastEmailEvent | null
+  sent_email_log_count: number; sent_emails_truncated: boolean
   category: string; never_emailed: boolean; auto_stopped: boolean
   // Send breakdown
   auto_sent_count: number; manual_sent_count: number; total_sent_count: number
   last_manual_sent_at: string | null
   last_sent_at: string | null
   email_history: EmailHistoryEntry[]
+  email_history_truncated: boolean
   // Engagement (last 30 days)
   opened: boolean; open_count: number; delivered_count: number; clicked_count: number
   bounced: boolean; last_opened_at: string | null
@@ -41,12 +43,20 @@ interface EmailEvent {
   tag: string | null; event_at: string; reason: string | null; user_id: string | null
 }
 
-interface Props {
-  users: UserRow[]
-  campaigns: any[]
-  emailSummary: Record<string, number>
-  recentEvents: EmailEvent[]
-  sentToday: number
+interface CampaignSummary {
+  totalUsers: number
+  dropoffUsers: number
+  inactiveUsers: number
+  activeUsers: number
+  neverEmailedUsers: number
+  stoppedUsers: number
+}
+
+interface Pagination {
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -121,7 +131,7 @@ function EmailHistory({ u, border, text, muted, isDark }: { u: UserRow; border: 
           <Clock size={14} style={{ color: muted }} />
           Email history
           <span style={{ fontSize: 11, fontWeight: 600, color: muted, background: isDark ? "#1A1A1A" : "#FFFFFF", padding: "1px 7px", borderRadius: 999, border: `1px solid ${border}` }}>
-            {count}
+            {u.email_history_truncated ? `Latest ${count} of ${u.total_sent_count}` : count}
           </span>
         </span>
         <span className="flex items-center gap-2">
@@ -190,7 +200,7 @@ function EmailHistory({ u, border, text, muted, isDark }: { u: UserRow; border: 
                         )}
                       </div>
                       {h.subject && (
-                        <div className="text-xs truncate mt-0.5" style={{ color: muted }}>"{h.subject}"</div>
+                        <div className="text-xs truncate mt-0.5" style={{ color: muted }}>“{h.subject}”</div>
                       )}
                       {h.open_count > 0 && h.last_opened_at && (
                         <div style={{ fontSize: 10, color: "#059669", marginTop: 2 }}>
@@ -215,7 +225,12 @@ function EmailHistory({ u, border, text, muted, isDark }: { u: UserRow; border: 
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 
-export default function EmailCampaignsClient({ users, campaigns, emailSummary, recentEvents, sentToday }: Props) {
+const EMPTY_SUMMARY: CampaignSummary = {
+  totalUsers: 0, dropoffUsers: 0, inactiveUsers: 0,
+  activeUsers: 0, neverEmailedUsers: 0, stoppedUsers: 0,
+}
+
+export default function EmailCampaignsClient() {
   const { theme } = useAdminTheme()
   const isMobile = useIsMobile()
   const isDark = theme === "dark"
@@ -227,11 +242,70 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
   const hoverBg = isDark ? "#111111" : "#F0F0F0"
   const inputBg = isDark ? "#000000" : "#FFFFFF"
 
-  // Filters
+  const [users, setUsers] = useState<UserRow[]>([])
+  const [emailSummary, setEmailSummary] = useState<Record<string, number>>({})
+  const [recentEvents, setRecentEvents] = useState<EmailEvent[]>([])
+  const [sentToday, setSentToday] = useState(0)
+  const [summary, setSummary] = useState<CampaignSummary>(EMPTY_SUMMARY)
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 50, total: 0, totalPages: 1 })
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Filters are sent to Postgres so totals and pages remain correct beyond the row cap.
   const [search, setSearch]           = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [filterCat, setFilterCat]     = useState<"all"|"dropoff"|"inactive"|"active"|"stopped">("all")
   const [filterEmail, setFilterEmail] = useState<"all"|"emailed"|"never"|"opened"|"notopened">("all")
   const [activeTab, setActiveTab]     = useState<"users"|"events">("users")
+  const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250)
+    return () => window.clearTimeout(timer)
+  }, [search])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const params = new URLSearchParams({
+      page: String(page),
+      category: filterCat,
+      emailStatus: filterEmail,
+    })
+    if (debouncedSearch) params.set("search", debouncedSearch)
+
+    setLoading(true)
+    setLoadError(null)
+    fetch(`/api/admin/email-campaigns?${params.toString()}`, {
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then(async response => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || "Failed to load email outreach data")
+        setUsers(Array.isArray(data.users) ? data.users : [])
+        setEmailSummary(data.emailSummary ?? {})
+        setRecentEvents(Array.isArray(data.recentEvents) ? data.recentEvents : [])
+        setSentToday(Number(data.sentToday ?? 0))
+        setSummary(data.summary ?? EMPTY_SUMMARY)
+        setPagination(data.pagination ?? { page, pageSize: 50, total: 0, totalPages: 1 })
+      })
+      .catch(error => {
+        if (error instanceof DOMException && error.name === "AbortError") return
+        setLoadError(error instanceof Error ? error.message : "Failed to load email outreach data")
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [page, filterCat, filterEmail, debouncedSearch, refreshKey])
+
+  const dropoffCount = summary.dropoffUsers
+  const inactiveCount = summary.inactiveUsers
+  const neverEmailedCount = summary.neverEmailedUsers
+  const stoppedCount = summary.stoppedUsers
+  const filtered = users
 
   // Modal
   const [modalUser, setModalUser]     = useState<UserRow | null>(null)
@@ -243,27 +317,6 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
   const [aiIntent, setAiIntent]       = useState("")
   const [sendError, setSendError]     = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState(false)
-
-  // Derived counts
-  const dropoffCount      = users.filter(u => u.category === "dropoff").length
-  const inactiveCount     = users.filter(u => u.category === "inactive").length
-  const neverEmailedCount = users.filter(u => u.never_emailed).length
-  const stoppedCount      = users.filter(u => u.auto_stopped).length
-
-  // Filtered users
-  const filtered = useMemo(() => users.filter(u => {
-    if (filterCat === "stopped") return u.auto_stopped
-    if (filterCat !== "all" && u.category !== filterCat) return false
-    if (filterEmail === "emailed" && u.never_emailed) return false
-    if (filterEmail === "never" && !u.never_emailed) return false
-    if (filterEmail === "opened" && !u.opened) return false
-    if (filterEmail === "notopened" && (u.never_emailed || u.opened)) return false
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      return u.email.toLowerCase().includes(q) || (u.name ?? "").toLowerCase().includes(q)
-    }
-    return true
-  }), [users, filterCat, filterEmail, search])
 
   // Open modal
   function openEmail(u: UserRow) {
@@ -290,7 +343,9 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
       if (!res.ok) throw new Error(data.error || "AI generation failed")
       setSubject(data.subject ?? "")
       setMessage(data.message ?? "")
-    } catch (e: any) { setSendError(e.message) }
+    } catch (error: unknown) {
+      setSendError(error instanceof Error ? error.message : "AI generation failed")
+    }
     finally { setAiGen(false) }
   }
 
@@ -308,8 +363,11 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed")
       setSendSuccess(true)
+      setRefreshKey(key => key + 1)
       setTimeout(() => { setModalUser(null); setSendSuccess(false) }, 1600)
-    } catch (e: any) { setSendError(e.message) }
+    } catch (error: unknown) {
+      setSendError(error instanceof Error ? error.message : "Failed to send email")
+    }
     finally { setSending(false) }
   }
 
@@ -330,7 +388,7 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
-        <KpiCard title="Total users" value={users.length} />
+        <KpiCard title="Total users" value={summary.totalUsers} />
         <KpiCard title="Drop-off" value={dropoffCount} description="Never onboarded" />
         <KpiCard title="Inactive 7d+" value={inactiveCount} description="Idle users" />
         <KpiCard title="Never emailed" value={neverEmailedCount} />
@@ -369,29 +427,29 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
               <Search size={13} style={{ color: muted, flexShrink: 0 }} />
               <input
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
                 placeholder="Search…"
                 className="text-sm bg-transparent outline-none flex-1 min-w-0"
                 style={{ color: text }}
               />
               {search && (
-                <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                <button onClick={() => { setSearch(""); setPage(1) }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                   <X size={12} style={{ color: muted }} />
                 </button>
               )}
             </div>
 
-            <select value={filterCat} onChange={e => setFilterCat(e.target.value as any)}
+            <select value={filterCat} onChange={e => { setFilterCat(e.target.value as typeof filterCat); setPage(1) }}
               className="text-sm px-3 py-2 rounded-lg cursor-pointer outline-none"
               style={{ border: `1px solid ${border}`, background: cardBg, color: text }}>
-              <option value="all">All ({users.length})</option>
+              <option value="all">All ({summary.totalUsers})</option>
               <option value="dropoff">Drop-off ({dropoffCount})</option>
               <option value="inactive">Inactive ({inactiveCount})</option>
-              <option value="active">Active</option>
+              <option value="active">Active ({summary.activeUsers})</option>
               <option value="stopped">Auto-stopped ({stoppedCount})</option>
             </select>
 
-            <select value={filterEmail} onChange={e => setFilterEmail(e.target.value as any)}
+            <select value={filterEmail} onChange={e => { setFilterEmail(e.target.value as typeof filterEmail); setPage(1) }}
               className="text-sm px-3 py-2 rounded-lg cursor-pointer outline-none"
               style={{ border: `1px solid ${border}`, background: cardBg, color: text }}>
               <option value="all">All email status</option>
@@ -401,7 +459,7 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
               <option value="notopened">Not opened</option>
             </select>
 
-            <span className="text-xs ml-auto" style={{ color: muted }}>{filtered.length} users</span>
+            <span className="text-xs ml-auto" style={{ color: muted }}>{pagination.total} users</span>
           </div>
 
           {/* Users table */}
@@ -413,11 +471,17 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
               <span>Emails sent</span><span>Engagement</span><span>Action</span>
             </div>
 
-            {filtered.length === 0 && (
+            {loading && (
+              <div className="p-8 text-center text-sm" style={{ color: muted }}>Loading users…</div>
+            )}
+            {!loading && loadError && (
+              <div className="p-8 text-center text-sm" style={{ color: "#DC2626" }}>{loadError}</div>
+            )}
+            {!loading && !loadError && filtered.length === 0 && (
               <div className="p-8 text-center text-sm" style={{ color: muted }}>No users match your filters</div>
             )}
 
-            {filtered.map((u, i) => (
+            {!loading && !loadError && filtered.map((u, i) => (
               <div key={u.id}
                 onClick={() => openEmail(u)}
                 style={{ borderTop: i > 0 ? `1px solid ${border}` : "none", cursor: "pointer" }}
@@ -480,6 +544,34 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
               </div>
             ))}
           </div>
+
+          {!loading && !loadError && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <span className="text-xs" style={{ color: muted }}>
+                Page {pagination.page} of {pagination.totalPages} · {pagination.total} users
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage(current => Math.max(1, current - 1))}
+                  disabled={pagination.page <= 1}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+                  style={{ border: `1px solid ${border}`, background: cardBg, color: text }}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage(current => Math.min(pagination.totalPages, current + 1))}
+                  disabled={pagination.page >= pagination.totalPages}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+                  style={{ border: `1px solid ${border}`, background: cardBg, color: text }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -582,7 +674,7 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
                 </p>
               ) : (
                 <p className="text-xs mt-1.5" style={{ color: muted, margin: "6px 0 0", opacity: 0.7 }}>
-                  📍 Location: not recorded yet (captured on this user's next login)
+                  📍 Location: not recorded yet (captured on this user&apos;s next login)
                 </p>
               )}
               {modalUser.last_login_device ? (
@@ -603,7 +695,7 @@ export default function EmailCampaignsClient({ users, campaigns, emailSummary, r
             <div className="mb-4 p-4 rounded-xl" style={{ border: `1px solid ${border}`, background: isDark ? "#050505" : "#FAFAFA" }}>
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-bold" style={{ color: "#7C3AED" }}>✨ AI Draft</span>
-                <span className="text-xs" style={{ color: muted }}>Uses this user's real usage data</span>
+                <span className="text-xs" style={{ color: muted }}>Uses this user&apos;s real usage data</span>
               </div>
               <div className="flex gap-2 mb-3">
                 {(["friendly","professional","urgent"] as const).map(t => (

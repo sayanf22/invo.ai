@@ -32,6 +32,39 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_email_campaigns: {
+        Row: {
+          created_at: string
+          emails_failed: number
+          emails_sent: number
+          id: string
+          segment: string
+          sent_at: string
+          sent_by: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          emails_failed?: number
+          emails_sent?: number
+          id?: string
+          segment: string
+          sent_at?: string
+          sent_by: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          emails_failed?: number
+          emails_sent?: number
+          id?: string
+          segment?: string
+          sent_at?: string
+          sent_by?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       admin_sessions: {
         Row: {
           admin_email: string
@@ -420,6 +453,7 @@ export type Database = {
       }
       document_sessions: {
         Row: {
+          active_signature_cohort_id: string | null
           auto_invoice_on_sign: boolean
           business_context: Json | null
           chain_id: string | null
@@ -435,6 +469,7 @@ export type Database = {
           last_message_at: string | null
           quota_counted_at: string | null
           quota_counted_month: string | null
+          public_id: string
           sent_at: string | null
           status: string
           title: string | null
@@ -442,6 +477,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active_signature_cohort_id?: string | null
           auto_invoice_on_sign?: boolean
           business_context?: Json | null
           chain_id?: string | null
@@ -457,6 +493,7 @@ export type Database = {
           last_message_at?: string | null
           quota_counted_at?: string | null
           quota_counted_month?: string | null
+          public_id?: string
           sent_at?: string | null
           status?: string
           title?: string | null
@@ -464,6 +501,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active_signature_cohort_id?: string | null
           auto_invoice_on_sign?: boolean
           business_context?: Json | null
           chain_id?: string | null
@@ -479,6 +517,7 @@ export type Database = {
           last_message_at?: string | null
           quota_counted_at?: string | null
           quota_counted_month?: string | null
+          public_id?: string
           sent_at?: string | null
           status?: string
           title?: string | null
@@ -976,6 +1015,10 @@ export type Database = {
           full_name: string | null
           id: string
           last_active_at: string | null
+          last_login_at: string | null
+          last_login_device: string | null
+          last_login_ip: string | null
+          last_login_location: string | null
           onboarding_complete: boolean | null
           plan_selected: boolean | null
           saved_signature_url: string | null
@@ -991,6 +1034,10 @@ export type Database = {
           full_name?: string | null
           id: string
           last_active_at?: string | null
+          last_login_at?: string | null
+          last_login_device?: string | null
+          last_login_ip?: string | null
+          last_login_location?: string | null
           onboarding_complete?: boolean | null
           plan_selected?: boolean | null
           saved_signature_url?: string | null
@@ -1006,6 +1053,10 @@ export type Database = {
           full_name?: string | null
           id?: string
           last_active_at?: string | null
+          last_login_at?: string | null
+          last_login_device?: string | null
+          last_login_ip?: string | null
+          last_login_location?: string | null
           onboarding_complete?: boolean | null
           plan_selected?: boolean | null
           saved_signature_url?: string | null
@@ -1224,7 +1275,9 @@ export type Database = {
           signer_email: string
           signer_name: string | null
           signer_reason: string | null
+          signing_cohort_id: string
           token: string | null
+          token_hash: string | null
           user_agent: string | null
           verification_url: string | null
         }
@@ -1244,7 +1297,9 @@ export type Database = {
           signer_email: string
           signer_name?: string | null
           signer_reason?: string | null
+          signing_cohort_id: string
           token?: string | null
+          token_hash?: string | null
           user_agent?: string | null
           verification_url?: string | null
         }
@@ -1264,7 +1319,9 @@ export type Database = {
           signer_email?: string
           signer_name?: string | null
           signer_reason?: string | null
+          signing_cohort_id?: string
           token?: string | null
+          token_hash?: string | null
           user_agent?: string | null
           verification_url?: string | null
         }
@@ -1520,22 +1577,30 @@ export type Database = {
         Row: {
           cashfree_client_id: string | null
           cashfree_client_secret_encrypted: string | null
+          cashfree_credentials_verified_at: string | null
           cashfree_enabled: boolean | null
+          cashfree_local_webhook_verified_at: string | null
           cashfree_test_mode: boolean | null
           cashfree_webhook_secret: string | null
+          cashfree_webhook_verified_at: string | null
           created_at: string
           razorpay_account_name: string | null
+          razorpay_credentials_verified_at: string | null
           razorpay_enabled: boolean | null
           razorpay_key_id: string | null
           razorpay_key_secret_encrypted: string | null
+          razorpay_local_webhook_verified_at: string | null
+          razorpay_provider_webhook_verified_at: string | null
           razorpay_test_mode: boolean | null
           razorpay_webhook_id: string | null
           razorpay_webhook_secret: string | null
+          stripe_credentials_verified_at: string | null
           stripe_enabled: boolean | null
           stripe_secret_key_encrypted: string | null
           stripe_test_mode: boolean | null
           stripe_webhook_id: string | null
           stripe_webhook_secret: string | null
+          stripe_webhook_verified_at: string | null
           updated_at: string
           user_id: string
           webhook_registered_at: string | null
@@ -1543,22 +1608,30 @@ export type Database = {
         Insert: {
           cashfree_client_id?: string | null
           cashfree_client_secret_encrypted?: string | null
+          cashfree_credentials_verified_at?: string | null
           cashfree_enabled?: boolean | null
+          cashfree_local_webhook_verified_at?: string | null
           cashfree_test_mode?: boolean | null
           cashfree_webhook_secret?: string | null
+          cashfree_webhook_verified_at?: string | null
           created_at?: string
           razorpay_account_name?: string | null
+          razorpay_credentials_verified_at?: string | null
           razorpay_enabled?: boolean | null
           razorpay_key_id?: string | null
           razorpay_key_secret_encrypted?: string | null
+          razorpay_local_webhook_verified_at?: string | null
+          razorpay_provider_webhook_verified_at?: string | null
           razorpay_test_mode?: boolean | null
           razorpay_webhook_id?: string | null
           razorpay_webhook_secret?: string | null
+          stripe_credentials_verified_at?: string | null
           stripe_enabled?: boolean | null
           stripe_secret_key_encrypted?: string | null
           stripe_test_mode?: boolean | null
           stripe_webhook_id?: string | null
           stripe_webhook_secret?: string | null
+          stripe_webhook_verified_at?: string | null
           updated_at?: string
           user_id: string
           webhook_registered_at?: string | null
@@ -1566,22 +1639,30 @@ export type Database = {
         Update: {
           cashfree_client_id?: string | null
           cashfree_client_secret_encrypted?: string | null
+          cashfree_credentials_verified_at?: string | null
           cashfree_enabled?: boolean | null
+          cashfree_local_webhook_verified_at?: string | null
           cashfree_test_mode?: boolean | null
           cashfree_webhook_secret?: string | null
+          cashfree_webhook_verified_at?: string | null
           created_at?: string
           razorpay_account_name?: string | null
+          razorpay_credentials_verified_at?: string | null
           razorpay_enabled?: boolean | null
           razorpay_key_id?: string | null
           razorpay_key_secret_encrypted?: string | null
+          razorpay_local_webhook_verified_at?: string | null
+          razorpay_provider_webhook_verified_at?: string | null
           razorpay_test_mode?: boolean | null
           razorpay_webhook_id?: string | null
           razorpay_webhook_secret?: string | null
+          stripe_credentials_verified_at?: string | null
           stripe_enabled?: boolean | null
           stripe_secret_key_encrypted?: string | null
           stripe_test_mode?: boolean | null
           stripe_webhook_id?: string | null
           stripe_webhook_secret?: string | null
+          stripe_webhook_verified_at?: string | null
           updated_at?: string
           user_id?: string
           webhook_registered_at?: string | null
@@ -1795,6 +1876,127 @@ export type Database = {
           p_user_id: string
         }
         Returns: Json
+      }
+      get_admin_email_campaign_snapshot: {
+        Args: {
+          p_category?: string
+          p_email_status?: string
+          p_now?: string
+          p_page?: number
+          p_page_size?: number
+          p_search?: string | null
+        }
+        Returns: Json
+      }
+      get_admin_overview_snapshot: {
+        Args: {
+          p_bounds_end?: string | null
+          p_bounds_start?: string | null
+          p_now: string
+          p_period: string
+          p_previous_end?: string | null
+          p_previous_start?: string | null
+          p_timezone: string
+        }
+        Returns: Json
+      }
+      create_signature_request: {
+        Args: {
+          p_client_name: string | null
+          p_created_at: string
+          p_document_hash: string
+          p_document_id: string | null
+          p_expires_at: string
+          p_party: string
+          p_session_id: string
+          p_signature_id: string
+          p_signer_email: string
+          p_signer_name: string
+          p_token_hash: string
+          p_user_id: string
+          p_verification_url: string
+        }
+        Returns: {
+          outcome: string
+          previous_client_name: string | null
+          previous_sent_at: string | null
+          previous_signature_cohort_id: string | null
+          previous_status: string
+          signature_id: string | null
+        }[]
+      }
+      rollback_unsent_signature_request: {
+        Args: {
+          p_previous_client_name: string | null
+          p_previous_sent_at: string | null
+          p_previous_signature_cohort_id: string | null
+          p_previous_status: string
+          p_signature_id: string
+          p_token_hash: string
+          p_transitioned_at: string
+        }
+        Returns: boolean
+      }
+      claim_signature_attempt: {
+        Args: { p_token_hash: string }
+        Returns: {
+          attempt_count: number
+          document_hash: string | null
+          document_id: string | null
+          expires_at: string | null
+          parent_public_id: string
+          parent_sent_at: string | null
+          parent_status: string
+          session_id: string
+          signature_id: string
+          signed_at: string | null
+          signer_action: string | null
+          verification_url: string | null
+        }[]
+      }
+      complete_signature_signing: {
+        Args: {
+          p_ip_address: unknown
+          p_signature_id: string
+          p_signature_image_url: string
+          p_signed_at: string
+          p_token_hash: string
+          p_user_agent: string
+        }
+        Returns: {
+          completed_session: boolean
+          document_id: string | null
+          outcome: string
+          session_id: string | null
+          signature_id: string | null
+          verification_url: string | null
+        }[]
+      }
+      cancel_signature_request: {
+        Args: {
+          p_cancelled_at: string
+          p_signature_id: string
+          p_user_id: string
+        }
+        Returns: {
+          cancelled_count: number
+          document_id: string | null
+          outcome: string
+          session_id: string | null
+          signature_id: string | null
+          signer_name: string | null
+        }[]
+      }
+      respond_to_signature: {
+        Args: { p_action: string; p_reason?: string | null; p_token_hash: string }
+        Returns: {
+          document_id: string | null
+          outcome: string
+          session_id: string | null
+          signature_id: string | null
+          signer_email: string | null
+          signer_name: string | null
+        }[]
       }
       check_public_rate_limit: {
         Args: {

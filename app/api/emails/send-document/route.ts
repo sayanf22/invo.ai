@@ -9,7 +9,8 @@ import { getPublicLogoUrl } from "@/lib/public-logo"
 import { logAudit } from "@/lib/audit-log"
 import { checkEmailLimit, incrementEmailCount, getFollowUpSchedule, getUserTier } from "@/lib/cost-protection"
 import { createClient } from "@supabase/supabase-js"
-import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
+import { cancelProviderLink, type InvoicePaymentGateway } from "@/lib/payment-link-provider"
+import { getPublicDocumentUrl } from "@/lib/public-capability"
 
 interface SendDocumentRequest {
   sessionId: string
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     // 7. Fetch document session (verify ownership)
     const { data: session, error: sessionError } = await supabase
       .from("document_sessions")
-      .select("id, document_type, context")
+      .select("id, document_type, context, public_id")
       .eq("id", sessionId)
       .eq("user_id", userId)
       .maybeSingle()
@@ -105,8 +106,8 @@ export async function POST(request: NextRequest) {
     // the legacy "quotation" alias. Normalize once for capability lookups,
     // but keep `documentType` (raw value) for downstream routing/templates.
     const documentType = session.document_type as string
-    const normalizedType = normalizeDocumentType(documentType) ?? documentType
-    const typeCapabilities = getDocumentTypeConfig(normalizedType)?.capabilities ?? null
+    const publicDocumentUrl = getPublicDocumentUrl(session.public_id)
+    const publicViewUrl = getPublicDocumentUrl(session.public_id, "view")
     const context = (session.context ?? {}) as Record<string, unknown>
 
     // Extract fields from context
@@ -155,63 +156,92 @@ export async function POST(request: NextRequest) {
       if (paymentLookupError) throw paymentLookupError
 
       if (payment) {
-        payNowUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/pay/${sessionId}`
+        payNowUrl = publicDocumentUrl
       } else {
         try {
-          const { getUserRazorpayCredentials } = await import("@/lib/payment-credentials")
+          const { getUserPaymentCredentials } = await import("@/lib/payment-credentials")
           const { deriveInvoicePaymentDetails } = await import("@/lib/invoice-payment-context")
-          const userCreds = await getUserRazorpayCredentials(userId)
-
-          if (userCreds) {
-            const details = deriveInvoicePaymentDetails(context, sessionId)
-            const { createPaymentLink, cancelPaymentLink } = await import("@/lib/razorpay")
-            const requestedExpiry = Number(body.paymentLinkExpiryDays)
-            const expiryDays = Number.isInteger(requestedExpiry) && requestedExpiry >= 1 && requestedExpiry <= 365
-              ? requestedExpiry
-              : undefined
-            const razorpayLink = await createPaymentLink({
-              amount: details.amount,
-              currency: details.currency,
-              description: details.description,
-              referenceId: details.referenceId,
-              customerName: details.customerName,
-              customerEmail: recipientEmail,
-              customerPhone: details.customerPhone,
-              sessionId,
-              userId,
-              expireInDays: expiryDays,
-              dueDateIso: details.dueDate,
-              userKeyId: userCreds.keyId,
-              userKeySecret: userCreds.keySecret,
-            })
-
-            const { error: insertError } = await supabaseAdmin.from("invoice_payments").insert({
-              session_id: sessionId,
-              user_id: userId,
-              razorpay_payment_link_id: razorpayLink.id,
-              provider_link_id: razorpayLink.id,
-              short_url: razorpayLink.short_url,
-              amount: details.amount,
-              currency: details.currency,
-              status: "created",
-              reference_id: details.referenceId,
-              description: details.description,
-              customer_name: details.customerName ?? null,
-              customer_email: recipientEmail,
-              customer_phone: details.customerPhone ?? null,
-              expires_at: new Date(razorpayLink.expire_by * 1000).toISOString(),
-              gateway: "razorpay",
-              is_test_mode: userCreds.testMode,
-            } as any)
-            if (insertError) {
-              await cancelPaymentLink(razorpayLink.id, userCreds.keyId, userCreds.keySecret).catch(() => {})
-              throw insertError
-            }
-            payNowUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/pay/${sessionId}`
+          const credentials = await getUserPaymentCredentials(userId)
+          if (!credentials) {
+            return NextResponse.json({ error: "Connect and verify a payment gateway before including a payment link." }, { status: 422 })
           }
+
+          const details = deriveInvoicePaymentDetails(context, sessionId)
+          const requested = typeof (context as any).paymentMethod === "string"
+            ? String((context as any).paymentMethod).toLowerCase()
+            : ""
+          const gateway = (["razorpay", "stripe", "cashfree"].includes(requested) && (credentials as any)[requested])
+            ? requested
+            : details.currency === "INR"
+              ? (credentials.razorpay ? "razorpay" : credentials.cashfree ? "cashfree" : credentials.stripe ? "stripe" : null)
+              : (credentials.stripe ? "stripe" : credentials.razorpay ? "razorpay" : null)
+          if (!gateway || (gateway === "cashfree" && details.currency !== "INR")) {
+            return NextResponse.json({ error: `No connected payment gateway supports ${details.currency}.` }, { status: 422 })
+          }
+
+          let providerLinkId = ""
+          let correlationId = ""
+          let shortUrl = ""
+          let expiresAt: string | null = null
+          let testMode = false
+          if (gateway === "razorpay") {
+            const { createPaymentLink } = await import("@/lib/razorpay")
+            const credential = credentials.razorpay!
+            const requestedExpiry = Number(body.paymentLinkExpiryDays)
+            const link = await createPaymentLink({
+              amount: details.amount, currency: details.currency, description: details.description,
+              referenceId: details.referenceId, customerName: details.customerName,
+              customerEmail: recipientEmail, customerPhone: details.customerPhone,
+              sessionId, userId, dueDateIso: details.dueDate,
+              expireInDays: Number.isInteger(requestedExpiry) && requestedExpiry >= 1 && requestedExpiry <= 365 ? requestedExpiry : undefined,
+              userKeyId: credential.keyId, userKeySecret: credential.keySecret,
+            })
+            providerLinkId = correlationId = link.id
+            shortUrl = link.short_url
+            expiresAt = link.expire_by ? new Date(link.expire_by * 1000).toISOString() : null
+            testMode = credential.testMode
+          } else if (gateway === "stripe") {
+            const { createStripePaymentLink } = await import("@/lib/stripe-payments")
+            const credential = credentials.stripe!
+            const link = await createStripePaymentLink({ ...details, sessionId, publicId: session.public_id, userId, customerEmail: recipientEmail, userSecretKey: credential.secretKey })
+            providerLinkId = correlationId = link.id
+            shortUrl = link.url
+            testMode = credential.testMode
+          } else {
+            const { createCashfreePaymentLink } = await import("@/lib/cashfree-payment-links")
+            const credential = credentials.cashfree!
+            const link = await createCashfreePaymentLink({
+              ...details, sessionId, publicId: session.public_id, userId, customerEmail: recipientEmail,
+              testMode: credential.testMode, userClientId: credential.clientId,
+              userClientSecret: credential.clientSecret, expireInDays: 37,
+            })
+            correlationId = String(link.cf_link_id)
+            providerLinkId = link.link_id
+            shortUrl = link.link_url
+            testMode = credential.testMode
+          }
+
+          const { error: insertError } = await supabaseAdmin.from("invoice_payments").insert({
+            session_id: sessionId, user_id: userId, razorpay_payment_link_id: correlationId,
+            provider_link_id: providerLinkId, short_url: shortUrl, amount: details.amount,
+            currency: details.currency, status: "created", reference_id: details.referenceId,
+            description: details.description, customer_name: details.customerName ?? null,
+            customer_email: recipientEmail, customer_phone: details.customerPhone ?? null,
+            expires_at: expiresAt, gateway, is_test_mode: testMode,
+          } as any)
+          if (insertError) {
+            await cancelProviderLink(
+              gateway as InvoicePaymentGateway,
+              correlationId,
+              providerLinkId,
+              credentials,
+            ).catch(cleanupError => console.error("Auto-created payment link cleanup failed:", cleanupError))
+            throw insertError
+          }
+          payNowUrl = publicDocumentUrl
         } catch (err) {
-          // Email delivery remains available, but never advertises an unpersisted link.
-          console.error("Auto-create payment link failed (non-fatal):", err)
+          console.error("Auto-create payment link failed:", err)
+          return NextResponse.json({ error: "The payment gateway could not create a payment link. Verify the connection and invoice amount, then try again." }, { status: 502 })
         }
       }
     }
@@ -221,25 +251,9 @@ export async function POST(request: NextRequest) {
       ? sanitizeText(body.subject).slice(0, 200)
       : generateEmailSubject(documentType, referenceNumber, businessName)
 
-    // 10b. For signable documents (contract, quote, proposal, sow, nda,
-    // change_order), look up signing token to include Sign button. Capability
-    // is registry-driven so adding signable types only requires registry changes.
-    let signingUrl: string | null = null
-    const isSignableType = typeCapabilities?.supports_signature === true
-    if (isSignableType) {
-      const { data: sigRow } = await supabase
-        .from("signatures")
-        .select("token")
-        .eq("session_id" as any, sessionId)
-        .eq("signer_email", recipientEmail)
-        .is("signed_at", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (sigRow?.token) {
-        signingUrl = `https://clorefy.com/sign/${sigRow.token}`
-      }
-    }
+    // Signing invitations are sent by /api/signatures while the raw token exists.
+    // Generic document emails must never read or reconstruct a stored signing token.
+    const signingUrl: string | null = null
 
     // 11. Render HTML
     const html = renderEmailTemplate({
@@ -253,7 +267,7 @@ export async function POST(request: NextRequest) {
       dueDate,
       description,
       personalMessage: personalMessage || null,
-      viewDocumentUrl: `https://clorefy.com/view/${sessionId}`,
+      viewDocumentUrl: publicViewUrl,
       payNowUrl,
       signingUrl,
     })

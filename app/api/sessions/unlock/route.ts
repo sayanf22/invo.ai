@@ -118,7 +118,6 @@ export async function POST(request: NextRequest) {
         const now = new Date().toISOString()
         const { error: signatureCancelError } = await db.from("signatures").update({
             signer_action: "cancelled",
-            updated_at: now,
         }).eq("session_id", sessionId).is("signed_at", null).is("signer_action", null)
         if (signatureCancelError) throw signatureCancelError
 

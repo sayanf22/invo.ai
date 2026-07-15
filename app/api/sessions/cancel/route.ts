@@ -144,8 +144,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 1. Set session status to "cancelled"
-    const { error: updateError } = await auth.supabase
+    // 1. Transition only an unsigned, cancellable parent. If atomic signing won
+    // the race after the checks above, this guarded update affects no row.
+    const { data: cancelledSession, error: updateError } = await auth.supabase
       .from("document_sessions")
       .update({
         status: "cancelled",
@@ -153,19 +154,25 @@ export async function POST(request: NextRequest) {
       } as any)
       .eq("id", sessionId)
       .eq("user_id", auth.user.id)
+      .in("status", ["active", "finalized"])
+      .select("id")
+      .maybeSingle()
 
     if (updateError) {
       console.error("[sessions/cancel] update error:", updateError)
       return NextResponse.json({ error: "Failed to cancel document" }, { status: 500 })
     }
+    if (!cancelledSession) {
+      return NextResponse.json(
+        { error: "Document state changed while cancellation was in progress. It was not cancelled." },
+        { status: 409 }
+      )
+    }
 
     // 2. Atomically mark all unsigned signature rows as cancelled
     await (auth.supabase as any)
       .from("signatures")
-      .update({
-        signer_action: "cancelled",
-        updated_at: new Date().toISOString(),
-      })
+      .update({ signer_action: "cancelled" })
       .eq("session_id", sessionId)
       .is("signed_at", null)
       .is("signer_action", null)

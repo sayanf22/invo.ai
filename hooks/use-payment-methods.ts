@@ -76,9 +76,9 @@ export function usePaymentMethods() {
           const data = await gatewayRes.json()
           const settings = data.settings
           if (settings) {
-            if (settings.razorpay) gateways.push("razorpay")
-            if (settings.stripe) gateways.push("stripe")
-            if (settings.cashfree) gateways.push("cashfree")
+            if (settings.razorpay?.credentialsVerified) gateways.push("razorpay")
+            if (settings.stripe?.credentialsVerified) gateways.push("stripe")
+            if (settings.cashfree?.credentialsVerified) gateways.push("cashfree")
           }
         }
 

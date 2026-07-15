@@ -64,6 +64,7 @@ function request(event: Record<string, unknown>, test = false) {
 function settingsQuery(stripeTestMode = true) {
   return {
     select: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue({
       data: {

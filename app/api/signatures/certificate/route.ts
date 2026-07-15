@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     // Verify ownership
     const { data: session, error: sessionError } = await supabase
       .from("document_sessions")
-      .select("id, document_type, context, user_id, status")
+      .select("id, document_type, context, user_id, status, active_signature_cohort_id")
       .eq("id", sessionId)
       .single()
 
@@ -92,11 +92,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    // Fetch all signatures for this session
-    const { data: signatures } = await supabase
+    // Render only the signer cohort that completed the current envelope.
+    let signaturesQuery = supabase
       .from("signatures")
       .select("id, signer_name, signer_email, party, signed_at, ip_address, user_agent, document_hash, signature_image_url, verification_url")
       .eq("session_id", sessionId)
+    if (session.active_signature_cohort_id) {
+      signaturesQuery = signaturesQuery.eq("signing_cohort_id", session.active_signature_cohort_id)
+    }
+    const { data: signatures } = await signaturesQuery
       .order("created_at", { ascending: true })
 
     // Fetch audit trail

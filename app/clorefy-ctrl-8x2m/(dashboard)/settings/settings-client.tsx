@@ -1,21 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useAdminTheme } from '@/components/admin/admin-theme-provider'
 
 // ─── Tier feature flags (static UI) ──────────────────────────────────────────
 
 const TIER_FEATURES = [
-  { tier: 'Free', features: ['3 docs/month', '10 msgs/session', 'Basic templates'] },
-  { tier: 'Starter', features: ['50 docs/month', '25 msgs/session', 'All templates', 'PDF export'] },
-  { tier: 'Pro', features: ['150 docs/month', '30 msgs/session', 'All templates', 'PDF + DOCX export', 'Priority support'] },
-  { tier: 'Agency', features: ['Unlimited docs', 'Unlimited msgs', 'All templates', 'All exports', 'Dedicated support'] },
+  { tier: 'Free', features: ['5 documents/month', '10 generation messages/session', '200 chat messages/session', '5 emails/month', 'Invoice, contract, and quote'] },
+  { tier: 'Starter', features: ['50 documents/month', '30 generation messages/session', '500 chat messages/session', '100 emails/month', 'All document types'] },
+  { tier: 'Pro', features: ['150 documents/month', '50 generation messages/session', '1,500 chat messages/session', '250 emails/month', 'All document types'] },
+  { tier: 'Agency', features: ['Unlimited documents', 'Unlimited messages', 'Unlimited emails', 'All document types'] },
 ]
+
+interface Announcement {
+  id: string
+  message: string
+  active: boolean
+  created_by: string | null
+  created_at: string
+  expires_at: string | null
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SettingsClient() {
+export default function SettingsClient({ adminEmail }: { adminEmail: string }) {
   const { theme } = useAdminTheme()
   const isDark = theme === 'dark'
 
@@ -32,10 +41,26 @@ export default function SettingsClient() {
   // Announcement
   const [announcementMsg, setAnnouncementMsg] = useState('')
   const [announcementExpiry, setAnnouncementExpiry] = useState('')
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true)
   const [postingAnnouncement, setPostingAnnouncement] = useState(false)
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
 
-  // Maintenance mode toggle (static)
-  const [maintenanceMode, setMaintenanceMode] = useState(false)
+  const fetchAnnouncements = useCallback(async () => {
+    setLoadingAnnouncements(true)
+    try {
+      const res = await fetch('/api/admin/settings/announcement')
+      if (!res.ok) throw new Error('Failed')
+      const data = await res.json()
+      setAnnouncements(data.announcements ?? [])
+    } catch {
+      toast.error('Failed to load announcements')
+    } finally {
+      setLoadingAnnouncements(false)
+    }
+  }, [])
+
+  useEffect(() => { void fetchAnnouncements() }, [fetchAnnouncements])
 
   const inputStyle = {
     backgroundColor: inputBg,
@@ -86,23 +111,36 @@ export default function SettingsClient() {
           expires_at: announcementExpiry || undefined,
         }),
       })
-      if (!res.ok) throw new Error('Failed')
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error ?? 'Failed to create announcement')
+      }
       toast.success('Announcement created')
       setAnnouncementMsg(''); setAnnouncementExpiry('')
-    } catch {
-      toast.error('Failed to create announcement')
+      await fetchAnnouncements()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create announcement')
     } finally {
       setPostingAnnouncement(false)
     }
   }
 
-  function handleComingSoon() {
-    toast.info('Coming soon — feature flags are not yet connected to the backend')
-  }
-
-  function handleMaintenanceToggle() {
-    toast.info('Coming soon — maintenance mode is not yet connected to the backend')
-    setMaintenanceMode(v => !v)
+  async function deactivateAnnouncement(id: string) {
+    setDeactivatingId(id)
+    try {
+      const res = await fetch('/api/admin/settings/announcement', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, active: false }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      setAnnouncements(current => current.filter(announcement => announcement.id !== id))
+      toast.success('Announcement deactivated')
+    } catch {
+      toast.error('Failed to deactivate announcement')
+    } finally {
+      setDeactivatingId(null)
+    }
   }
 
   return (
@@ -114,10 +152,12 @@ export default function SettingsClient() {
         <h2 className="text-base font-semibold mb-3" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Admin Account</h2>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center font-semibold"
-            style={{ backgroundColor: isDark ? '#27272A' : '#D4D4D8', color: isDark ? '#F5F5F5' : '#0A0A0A' }}>A</div>
+            style={{ backgroundColor: isDark ? '#27272A' : '#D4D4D8', color: isDark ? '#F5F5F5' : '#0A0A0A' }}>
+            {adminEmail[0]?.toUpperCase() ?? 'A'}
+          </div>
           <div>
             <p className="text-sm font-medium" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Admin</p>
-            <p className="text-xs" style={{ color: '#71717A' }}>Email is managed server-side</p>
+            <p className="text-xs" style={{ color: '#71717A' }}>{adminEmail}</p>
           </div>
         </div>
       </div>
@@ -174,23 +214,51 @@ export default function SettingsClient() {
             {postingAnnouncement ? 'Posting…' : 'Post Announcement'}
           </button>
         </form>
-        <p className="text-xs mt-4" style={{ color: '#52525B' }}>Note: A dedicated GET endpoint for listing announcements is not yet available.</p>
+        <div className="mt-5 pt-4 border-t" style={{ borderColor: containerBorder }}>
+          <h3 className="text-sm font-medium mb-3" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Active announcements</h3>
+          {loadingAnnouncements ? (
+            <p className="text-xs" style={{ color: '#71717A' }}>Loading announcements…</p>
+          ) : announcements.length === 0 ? (
+            <p className="text-xs" style={{ color: '#71717A' }}>No active announcements.</p>
+          ) : (
+            <ul className="space-y-2">
+              {announcements.map(announcement => (
+                <li key={announcement.id} className="rounded-md border p-3" style={{ backgroundColor: isDark ? '#111111' : '#FFFFFF', borderColor: containerBorder }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm break-words" style={{ color: isDark ? '#D4D4D8' : '#27272A' }}>{announcement.message}</p>
+                      <p className="text-[11px] mt-1" style={{ color: '#71717A' }}>
+                        Created {new Date(announcement.created_at).toLocaleString()}
+                        {announcement.expires_at ? ` · Expires ${new Date(announcement.expires_at).toLocaleString()}` : ' · No expiry'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={deactivatingId === announcement.id}
+                      onClick={() => void deactivateAnnouncement(announcement.id)}
+                      className="shrink-0 px-2.5 py-1.5 rounded text-xs disabled:opacity-50"
+                      style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: '#EF4444' }}
+                    >
+                      {deactivatingId === announcement.id ? 'Deactivating…' : 'Deactivate'}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
-      {/* Feature Flags */}
+      {/* Enforced Tier Limits */}
       <div className="rounded-lg border p-5" style={{ backgroundColor: containerBg, borderColor: containerBorder }}>
-        <h2 className="text-base font-semibold mb-1" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Feature Flags</h2>
-        <p className="text-xs mb-4" style={{ color: '#52525B' }}>Tier feature toggles — backend integration coming soon.</p>
+        <h2 className="text-base font-semibold mb-1" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Enforced Tier Limits</h2>
+        <p className="text-xs mb-4" style={{ color: '#52525B' }}>Read-only values matching the server-side cost protection configuration.</p>
         <div className="space-y-4">
           {TIER_FEATURES.map(({ tier, features }) => (
             <div key={tier} className="p-3 rounded-md border" style={{ backgroundColor: isDark ? '#111111' : '#FFFFFF', borderColor: containerBorder }}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{tier}</span>
-                <button onClick={handleComingSoon}
-                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
-                  style={{ backgroundColor: isDark ? '#27272A' : '#D4D4D8' }}>
-                  <span className="inline-block h-3 w-3 translate-x-1 rounded-full transition-transform" style={{ backgroundColor: '#71717A' }} />
-                </button>
+                <span className="text-[10px] uppercase tracking-wider" style={{ color: '#71717A' }}>Server enforced</span>
               </div>
               <ul className="space-y-1">
                 {features.map(f => (
@@ -205,25 +273,6 @@ export default function SettingsClient() {
         </div>
       </div>
 
-      {/* Maintenance Mode */}
-      <div className="rounded-lg border p-5" style={{ backgroundColor: containerBg, borderColor: containerBorder }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Maintenance Mode</h2>
-            <p className="text-xs mt-0.5" style={{ color: '#52525B' }}>Temporarily disable access for non-admin users.</p>
-          </div>
-          <button
-            onClick={handleMaintenanceToggle}
-            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
-            style={{ backgroundColor: maintenanceMode ? '#F59E0B' : isDark ? '#27272A' : '#D4D4D8' }}
-          >
-            <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${maintenanceMode ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
-        </div>
-        {maintenanceMode && (
-          <p className="text-xs mt-3" style={{ color: '#F59E0B' }}>⚠ Coming soon — this toggle is not yet connected to the backend.</p>
-        )}
-      </div>
     </div>
   )
 }

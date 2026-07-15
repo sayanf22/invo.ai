@@ -112,7 +112,7 @@ export async function GET(
     // Fetch session and verify ownership
     const { data: session, error: sessionError } = await supabase
       .from("document_sessions")
-      .select("id, user_id, document_id, document_type, context")
+      .select("id, user_id, document_id, document_type, context, active_signature_cohort_id")
       .eq("id", sessionId)
       .single()
 
@@ -127,11 +127,16 @@ export async function GET(
 
     const documentId = session.document_id || sessionId
 
-    // Verify all signatures for this session are complete (all have signed_at)
-    const { data: signatures, error: sigError } = await supabase
+    // Verify every member of the completed active cohort signed. Historical
+    // cancelled/revised cohorts must not block a replacement envelope.
+    let signaturesQuery = supabase
       .from("signatures")
       .select("id, signed_at")
       .eq("session_id", sessionId)
+    if (session.active_signature_cohort_id) {
+      signaturesQuery = signaturesQuery.eq("signing_cohort_id", session.active_signature_cohort_id)
+    }
+    const { data: signatures, error: sigError } = await signaturesQuery
 
     if (sigError) {
       return NextResponse.json({ error: "Failed to fetch signatures" }, { status: 500 })

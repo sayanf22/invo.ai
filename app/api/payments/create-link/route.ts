@@ -10,6 +10,7 @@ import { getUserPaymentCredentials, type UserPaymentCredentials } from "@/lib/pa
 import { deriveInvoicePaymentDetails } from "@/lib/invoice-payment-context"
 import { cancelProviderLink, type CreatedProviderLink, type InvoicePaymentGateway } from "@/lib/payment-link-provider"
 import { logAudit } from "@/lib/audit-log"
+import { getPublicDocumentUrl } from "@/lib/public-capability"
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -20,26 +21,38 @@ function adminClient() {
     return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }
 
-function chooseGateway(currency: string, credentials: UserPaymentCredentials): InvoicePaymentGateway | null {
-    if (currency === "INR") {
-        if (credentials.razorpay) return "razorpay"
-        if (credentials.cashfree) return "cashfree"
-        if (credentials.stripe) return "stripe"
-        return null
-    }
-    if (credentials.stripe) return "stripe"
-    if (credentials.razorpay) return "razorpay"
-    return null
+const GATEWAY_CURRENCIES: Record<InvoicePaymentGateway, ReadonlySet<string> | "all"> = {
+    razorpay: new Set(["INR", "USD", "EUR", "GBP", "SGD", "AED", "CAD", "AUD", "PHP", "MYR"]),
+    stripe: "all",
+    cashfree: new Set(["INR"]),
 }
 
-function paymentResponse(row: any, sessionId: string, isExisting: boolean) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"
+function gatewaySupportsCurrency(gateway: InvoicePaymentGateway, currency: string): boolean {
+    const supported = GATEWAY_CURRENCIES[gateway]
+    return supported === "all" || supported.has(currency)
+}
+
+function chooseGateway(
+    currency: string,
+    credentials: UserPaymentCredentials,
+    requested?: InvoicePaymentGateway,
+): InvoicePaymentGateway | null {
+    if (requested) {
+        return credentials[requested] && gatewaySupportsCurrency(requested, currency) ? requested : null
+    }
+    const preferred: InvoicePaymentGateway[] = currency === "INR"
+        ? ["razorpay", "cashfree", "stripe"]
+        : ["stripe", "razorpay"]
+    return preferred.find((gateway) => credentials[gateway] && gatewaySupportsCurrency(gateway, currency)) ?? null
+}
+
+function paymentResponse(row: any, publicId: string, isExisting: boolean) {
     return {
         success: true,
         paymentLink: {
             id: row.id,
             shortUrl: row.short_url,
-            platformLink: `${appUrl}/pay/${sessionId}`,
+            platformLink: getPublicDocumentUrl(publicId),
             status: row.status,
             razorpayId: row.razorpay_payment_link_id,
             gateway: row.gateway,
@@ -76,11 +89,17 @@ export async function POST(request: NextRequest) {
     if (body.acceptPartial !== undefined && typeof body.acceptPartial !== "boolean") {
         return NextResponse.json({ error: "acceptPartial must be a boolean" }, { status: 400 })
     }
+    const requestedGateway = body.gateway === undefined || body.gateway === null || body.gateway === ""
+        ? undefined
+        : String(body.gateway).toLowerCase()
+    if (requestedGateway && !["razorpay", "stripe", "cashfree"].includes(requestedGateway)) {
+        return NextResponse.json({ error: "Invalid payment gateway" }, { status: 400 })
+    }
 
     try {
         const db = adminClient()
         const { data: session, error: sessionError } = await db.from("document_sessions")
-            .select("id,user_id,document_type,status,context")
+            .select("id,user_id,document_type,status,context,public_id")
             .eq("id", sessionId)
             .eq("user_id", auth.user.id)
             .maybeSingle()
@@ -107,7 +126,7 @@ export async function POST(request: NextRequest) {
             .in("status", ["created", "partially_paid"])
             .maybeSingle()
         if (existingError) throw existingError
-        if (existing) return NextResponse.json(paymentResponse(existing, sessionId, true))
+        if (existing) return NextResponse.json(paymentResponse(existing, session.public_id, true))
 
         const credentials = await getUserPaymentCredentials(auth.user.id)
         if (!credentials) {
@@ -117,12 +136,19 @@ export async function POST(request: NextRequest) {
                 message: "Please add payment gateway credentials in Settings → Payments.",
             }, { status: 422 })
         }
-        const gateway = chooseGateway(details.currency, credentials)
+        const gateway = chooseGateway(
+            details.currency,
+            credentials,
+            requestedGateway as InvoicePaymentGateway | undefined,
+        )
         if (!gateway) {
+            const requestedMessage = requestedGateway
+                ? `${requestedGateway.charAt(0).toUpperCase()}${requestedGateway.slice(1)} is not connected or does not support ${details.currency}.`
+                : `No configured gateway supports ${details.currency}.`
             return NextResponse.json({
                 error: "No compatible payment gateway configured",
-                code: "NO_PAYMENT_SETTINGS",
-                message: `No configured gateway supports ${details.currency}.`,
+                code: requestedGateway ? "GATEWAY_UNAVAILABLE" : "NO_PAYMENT_SETTINGS",
+                message: requestedMessage,
             }, { status: 422 })
         }
 
@@ -161,6 +187,7 @@ export async function POST(request: NextRequest) {
                     referenceId: details.referenceId,
                     customerEmail: details.customerEmail,
                     sessionId,
+                    publicId: session.public_id,
                     userId: auth.user.id,
                     userSecretKey: credential.secretKey,
                 })
@@ -179,6 +206,7 @@ export async function POST(request: NextRequest) {
                     description: details.description,
                     referenceId: details.referenceId,
                     sessionId,
+                    publicId: session.public_id,
                     customerName: details.customerName,
                     customerEmail: details.customerEmail,
                     customerPhone: details.customerPhone,
@@ -228,7 +256,7 @@ export async function POST(request: NextRequest) {
                     .select("id,short_url,status,razorpay_payment_link_id,gateway,amount,currency")
                     .eq("session_id", sessionId).eq("user_id", auth.user.id)
                     .in("status", ["created", "partially_paid"]).maybeSingle()
-                if (!winnerError && winner) return NextResponse.json(paymentResponse(winner, sessionId, true))
+                if (!winnerError && winner) return NextResponse.json(paymentResponse(winner, session.public_id, true))
             }
             throw insertError || new Error("Payment link persistence failed")
         }
@@ -241,7 +269,7 @@ export async function POST(request: NextRequest) {
             metadata: { gateway, amount: details.amount, currency: details.currency, session_id: sessionId } as any,
         }, request).catch(() => {})
 
-        return NextResponse.json(paymentResponse(saved, sessionId, false))
+        return NextResponse.json(paymentResponse(saved, session.public_id, false))
     } catch (error) {
         console.error("[payments/create-link] failed:", error)
         return NextResponse.json({ error: "Failed to create payment link. Please try again." }, { status: 500 })
@@ -256,12 +284,24 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "A valid sessionId is required" }, { status: 400 })
     }
     try {
-        const { data, error } = await adminClient().from("invoice_payments")
-            .select("id,short_url,status,amount,currency,reference_id,razorpay_payment_link_id,paid_at,amount_paid,created_at,gateway")
-            .eq("session_id", sessionId).eq("user_id", auth.user.id)
-            .order("created_at", { ascending: false }).limit(1).maybeSingle()
-        if (error) throw error
-        return NextResponse.json({ paymentLink: data ? { ...data, platformLink: `${process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"}/pay/${sessionId}` } : null })
+        const db = adminClient()
+        const [paymentResult, sessionResult] = await Promise.all([
+            db.from("invoice_payments")
+                .select("id,short_url,status,amount,currency,reference_id,razorpay_payment_link_id,paid_at,amount_paid,created_at,gateway")
+                .eq("session_id", sessionId).eq("user_id", auth.user.id)
+                .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+            db.from("document_sessions").select("public_id")
+                .eq("id", sessionId).eq("user_id", auth.user.id).maybeSingle(),
+        ])
+        if (paymentResult.error || sessionResult.error) throw paymentResult.error || sessionResult.error
+        if (!sessionResult.data) return NextResponse.json({ error: "Session not found" }, { status: 404 })
+        const data = paymentResult.data
+        return NextResponse.json({
+            paymentLink: data ? {
+                ...data,
+                platformLink: getPublicDocumentUrl(sessionResult.data.public_id),
+            } : null,
+        })
     } catch (error) {
         console.error("[payments/create-link] lookup failed:", error)
         return NextResponse.json({ error: "Failed to load payment link" }, { status: 500 })

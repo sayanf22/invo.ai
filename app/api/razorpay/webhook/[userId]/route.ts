@@ -68,6 +68,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             return NextResponse.json({ received: true, test: true })
         }
 
+        const { error: verificationError } = await db.from("user_payment_settings")
+            .update({ razorpay_provider_webhook_verified_at: new Date().toISOString() })
+            .eq("user_id", userId)
+        if (verificationError) {
+            console.error("[razorpay/invoice-webhook] failed to persist provider verification:", verificationError)
+        }
+
         const claim = await claimWebhookEvent(db, "razorpay_invoice", eventId, eventType, await hashWebhookPayload(body), userId)
         if (claim === "duplicate") return NextResponse.json({ received: true, duplicate: true })
         if (claim === "in_progress") return NextResponse.json({ error: "Event is processing" }, { status: 503 })

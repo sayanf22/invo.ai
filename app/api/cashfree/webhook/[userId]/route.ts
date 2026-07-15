@@ -61,6 +61,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             return NextResponse.json({ received: true, test: true })
         }
 
+        const { error: verificationError } = await db.from("user_payment_settings")
+            .update({ cashfree_webhook_verified_at: new Date().toISOString() })
+            .eq("user_id", userId)
+        if (verificationError) {
+            console.error("[cashfree/webhook] failed to persist provider verification:", verificationError)
+        }
+
         eventId = `cf_${correlationId}_${timestampHeader}_${linkStatus}`.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 200)
         const claim = await claimWebhookEvent(db, "cashfree", eventId, eventType, await hashWebhookPayload(body), userId)
         if (claim === "duplicate") return NextResponse.json({ received: true, duplicate: true })

@@ -9,6 +9,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { authenticateRequest, validateBodySize, getClientIP } from "@/lib/api-auth"
+import { checkPublicRateLimit } from "@/lib/public-rate-limit"
+import { getPublicDocumentUrl, hashSigningToken, isSigningToken } from "@/lib/public-capability"
 import { checkRateLimit } from "@/lib/rate-limiter"
 import { computeDocumentFingerprint } from "@/lib/document-fingerprint"
 import { recordAuditEvent } from "@/lib/signature-audit"
@@ -176,32 +178,46 @@ export async function POST(request: NextRequest) {
         // No rate limiting on signature creation — the email sending is the natural throttle
         // and we already create the record first (non-blocking email)
 
-        const body = await request.json()
+        let body: Record<string, unknown>
+        try {
+            const parsed: unknown = await request.json()
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+            }
+            body = parsed as Record<string, unknown>
+        } catch {
+            return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+        }
 
         // SECURITY: Input size limit (10KB)
         const sizeError = validateBodySize(body, 10 * 1024)
         if (sizeError) return sizeError
 
-        // Sub-task 5.1: Accept sessionId (replacing documentId)
-        const { sessionId, signerEmail, signerName, party = "Client", personalMessage } = body
+        const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : ""
+        const signerEmail = typeof body.signerEmail === "string" ? body.signerEmail.trim() : ""
+        const signerName = typeof body.signerName === "string" ? body.signerName.trim() : ""
+        const party = body.party === undefined
+            ? "Client"
+            : typeof body.party === "string" ? body.party.trim() : ""
+        const personalMessage = body.personalMessage === undefined || body.personalMessage === null
+            ? undefined
+            : typeof body.personalMessage === "string" ? body.personalMessage.trim() : null
 
-        if (!sessionId || !signerEmail || !signerName) {
+        if (!sessionId || !signerEmail || !signerName || !party || personalMessage === null) {
             return NextResponse.json(
-                { error: "Missing required fields: sessionId, signerEmail, signerName" },
+                { error: "Missing or invalid required fields: sessionId, signerEmail, signerName" },
                 { status: 400 }
             )
         }
 
-        // SECURITY: Validate email format
-        if (typeof signerEmail !== "string" || !signerEmail.includes("@") || !signerEmail.includes(".")) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signerEmail)) {
             return NextResponse.json(
                 { error: "Invalid signer email format" },
                 { status: 400 }
             )
         }
 
-        // SECURITY: Validate string lengths to prevent abuse
-        if (signerName.length > 200 || signerEmail.length > 254) {
+        if (signerName.length > 200 || signerEmail.length > 254 || party.length > 100 || (personalMessage?.length ?? 0) > 2000) {
             return NextResponse.json(
                 { error: "Input too long" },
                 { status: 400 }
@@ -267,10 +283,51 @@ export async function POST(request: NextRequest) {
         // Build signing URL
         const signingUrl = `https://clorefy.com/sign/${signingToken}`
 
-        // Requirement 9.5: Send the signing invitation email FIRST. The signature
-        // record is atomic with email delivery — if the email cannot be sent, we
-        // return an error and do NOT persist the signature record. This guarantees
-        // a signer is never created without an invitation actually going out.
+        // Persist the hash and finalize the parent session in one transaction.
+        // This guarantees an email is never sent for a request whose session
+        // transition failed, while the raw capability is never stored.
+        const signatureId = randomUUID()
+        const tokenHash = await hashSigningToken(signingToken)
+        const verificationUrl = `https://clorefy.com/verify/${signatureId}`
+        const clientName = (ctx.toName as string) || signerName || null
+        const serviceSupabase = createClient<Database>(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { persistSession: false } }
+        )
+
+        const { data: creationData, error: creationError } = await serviceSupabase.rpc(
+            "create_signature_request",
+            {
+                p_signature_id: signatureId,
+                p_user_id: auth.user.id,
+                p_session_id: sessionId,
+                p_document_id: documentId,
+                p_signer_email: signerEmail,
+                p_signer_name: signerName,
+                p_party: party,
+                p_token_hash: tokenHash,
+                p_created_at: createdAt.toISOString(),
+                p_expires_at: expiresAt.toISOString(),
+                p_document_hash: documentHash,
+                p_verification_url: verificationUrl,
+                p_client_name: clientName,
+            }
+        )
+        const creation = Array.isArray(creationData) ? creationData[0] : creationData
+
+        if (creationError) {
+            console.error("[signatures] Atomic request creation error:", creationError)
+            return NextResponse.json({ error: "Failed to create signature request" }, { status: 500 })
+        }
+        if (!creation || creation.outcome !== "created" || creation.signature_id !== signatureId) {
+            const status = creation?.outcome === "not_found" ? 404 : 409
+            return NextResponse.json(
+                { error: status === 404 ? "Session not found" : "This document cannot be sent for signature in its current state" },
+                { status }
+            )
+        }
+
         const emailSubject = `${businessName} requests your signature on ${docTypeLabel} ${referenceNumber}`.trim()
         const emailHtml = buildSigningInvitationEmail({
             businessName,
@@ -293,92 +350,57 @@ export async function POST(request: NextRequest) {
                 category: "signature_invitation",
             })
             emailSent = emailResult.success === true
-            if (!emailResult.success) {
-                console.error("[signatures] Email send failed:", emailResult)
-            }
+            if (!emailResult.success) console.error("[signatures] Email send failed:", emailResult)
         } catch (emailErr) {
             console.error("[signatures] Email exception:", emailErr)
-            emailSent = false
         }
 
         if (!emailSent) {
-            // Atomic: do NOT persist the signature record when the invitation email fails.
+            const { data: rolledBack, error: cleanupError } = await serviceSupabase.rpc(
+                "rollback_unsent_signature_request",
+                {
+                    p_signature_id: signatureId,
+                    p_token_hash: tokenHash,
+                    p_transitioned_at: createdAt.toISOString(),
+                    p_previous_status: creation.previous_status,
+                    p_previous_sent_at: creation.previous_sent_at,
+                    p_previous_client_name: creation.previous_client_name,
+                    p_previous_signature_cohort_id: creation.previous_signature_cohort_id,
+                }
+            )
+            if (cleanupError || rolledBack !== true) {
+                console.error("[signatures] Failed to roll back unsent request:", cleanupError ?? "request changed concurrently")
+            }
             return NextResponse.json(
                 { error: "Failed to send the signing invitation email. The signature request was not created — please try again." },
                 { status: 500 }
             )
         }
 
-        // Email delivered — now persist the signature record.
-        // Use service-role client to bypass RLS (auth already verified above)
-        const serviceSupabase = createClient<Database>(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        )
-
-        const { data: signature, error: sigError } = await serviceSupabase
-            .from("signatures")
-            .insert({
-                document_id: documentId,
-                signer_email: signerEmail,
-                signer_name: signerName,
-                party: party,
-                token: signingToken,
-                created_at: createdAt.toISOString(),
-                expires_at: expiresAt.toISOString(),
-                document_hash: documentHash,
-                session_id: sessionId,
-            } as any)
-            .select()
-            .single()
-
-        if (sigError || !signature) {
-            console.error("[signatures] Signature creation error:", sigError?.message, sigError?.code, sigError?.details, sigError?.hint)
-            return NextResponse.json({ error: `Failed to create signature request: ${sigError?.message || "unknown error"}` }, { status: 500 })
-        }
-
-        // Set verification_url now that we have the signature id
-        const verificationUrl = `https://clorefy.com/verify/${signature.id}`
-        await serviceSupabase
-            .from("signatures")
-            .update({ verification_url: verificationUrl } as any)
-            .eq("id", signature.id)
-
-        // Sub-task 5.3: Record audit event using service-role client
         const ipAddress = getClientIP(request)
         await recordAuditEvent(serviceSupabase, {
             action: "signature.request_created",
-            signature_id: signature.id,
+            signature_id: signatureId,
             document_id: documentId ?? undefined,
             session_id: sessionId,
             actor_email: signerEmail,
             ip_address: ipAddress,
-            metadata: {
-                signer_name: signerName,
-                party,
-                document_hash: documentHash,
-            },
+            metadata: { signer_name: signerName, party, document_hash: documentHash },
         })
-
-        // Finalize the session so the short link works (only finalized/paid/signed sessions are public)
-        // Also set sent_at and client_name for the Documents page
-        const clientName = (ctx.toName as string) || signerName || null
-        await serviceSupabase
-            .from("document_sessions")
-            .update({
-                status: "finalized",
-                sent_at: createdAt.toISOString(),
-                client_name: clientName,
-                updated_at: createdAt.toISOString(),
-            } as any)
-            .eq("id", sessionId)
 
         return NextResponse.json({
             success: true,
-            signature: { ...signature, verification_url: verificationUrl },
+            signature: {
+                id: signatureId,
+                signer_email: signerEmail,
+                signer_name: signerName,
+                party,
+                expires_at: expiresAt.toISOString(),
+                verification_url: verificationUrl,
+            },
             signingUrl,
             expiresAt: expiresAt.toISOString(),
-            emailSent,
+            emailSent: true,
         })
     } catch (error) {
         console.error("Signature request error:", error)
@@ -397,30 +419,33 @@ export async function GET(request: NextRequest) {
         const token = searchParams.get("token")
 
         if (token) {
-            // Validate token format before any DB lookup
-            const TOKEN_REGEX = /^sign_[0-9a-f]{32}$|^self_[0-9a-f]{32}$/
-            if (!TOKEN_REGEX.test(token)) {
+            if (!isSigningToken(token)) {
                 return NextResponse.json({ error: "Invalid or expired signing link" }, { status: 404 })
             }
 
-            // Public lookup by token — no auth required (signing flow)
-            // SECURITY: Use service-role client for public token lookups
             const serviceSupabase = createClient<Database>(
                 process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.SUPABASE_SERVICE_ROLE_KEY!
+                process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                { auth: { persistSession: false } }
             )
+            const ipAddress = getClientIP(request)
+            const tokenHash = await hashSigningToken(token)
+
+            const ipRateError = await checkPublicRateLimit(serviceSupabase, ipAddress, "signature_view_ip", 60, 60)
+            if (ipRateError) return ipRateError
+            const tokenRateError = await checkPublicRateLimit(serviceSupabase, tokenHash, "signature_view_token", 30, 300)
+            if (tokenRateError) return tokenRateError
 
             const { data: signature, error } = await serviceSupabase
                 .from("signatures")
-                .select("*, documents(id, type, data, status)")
-                .eq("token", token)
+                .select("id, signer_name, signer_email, party, signed_at, signer_action, expires_at, verification_url, signature_image_url, session_id, document_id, documents(type, data, status)")
+                .eq("token_hash", tokenHash)
                 .single()
 
             if (error || !signature) {
                 return NextResponse.json({ error: "Invalid or expired signing link" }, { status: 404 })
             }
 
-            const ipAddress = getClientIP(request)
             const userAgent = request.headers.get("user-agent") ?? undefined
 
             // Bug 2 fix: Check if the parent document session has been cancelled.
@@ -520,12 +545,17 @@ export async function GET(request: NextRequest) {
             // Sub-task 6.1 + 6.2: Fetch session once for audit event, notification, and business info
             const sessionId = (signature as any).session_id
             let business: { name: string; logo_url: string | null } | null = null
-            let sessionData: { auto_invoice_on_sign: boolean | null; context?: unknown; document_type?: string | null } | null = null
+            let sessionData: {
+                auto_invoice_on_sign: boolean | null
+                context?: unknown
+                document_type?: string | null
+                public_id: string
+            } | null = null
 
             if (sessionId) {
                 const { data: session } = await serviceSupabase
                     .from("document_sessions")
-                    .select("user_id, document_type, context, auto_invoice_on_sign")
+                    .select("user_id, document_type, context, auto_invoice_on_sign, public_id")
                     .eq("id", sessionId)
                     .single()
 
@@ -621,7 +651,40 @@ export async function GET(request: NextRequest) {
                 } catch { /* ignore image load failures */ }
             }
 
-            return NextResponse.json({ signature, business, autoInvoiceOnSign: !!sessionData?.auto_invoice_on_sign, sessionContext, documentType, signatureImageDataUrl })
+            if (!sessionData) {
+                return NextResponse.json({ error: "Invalid or expired signing link" }, { status: 404 })
+            }
+
+            const document = signature.documents as {
+                type: string
+                data: Database["public"]["Tables"]["documents"]["Row"]["data"]
+                status: string | null
+            } | null
+            const publicSignature = {
+                id: signature.id,
+                signer_name: signature.signer_name,
+                signer_email: signature.signer_email,
+                party: signature.party,
+                signed_at: signature.signed_at,
+                signer_action: signature.signer_action,
+                expires_at: signature.expires_at,
+                verification_url: signature.verification_url,
+                documents: document ? {
+                    type: document.type,
+                    data: document.data,
+                    status: document.status,
+                } : null,
+            }
+
+            return NextResponse.json({
+                signature: publicSignature,
+                business,
+                autoInvoiceOnSign: !!sessionData.auto_invoice_on_sign,
+                sessionContext,
+                documentType,
+                publicDocumentUrl: getPublicDocumentUrl(sessionData.public_id, "view"),
+                signatureImageDataUrl,
+            })
         }
 
         if (documentId) {

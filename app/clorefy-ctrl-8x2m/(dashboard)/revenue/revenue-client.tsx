@@ -51,6 +51,12 @@ function formatDate(iso: string | null) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+function csvCell(value: unknown): string {
+  let text = value == null ? '' : String(value)
+  if (/^[=+\-@]/.test(text)) text = `'${text}`
+  return `"${text.replace(/"/g, '""')}"`
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function RevenueClient() {
@@ -60,7 +66,7 @@ export default function RevenueClient() {
   function StatusBadge({ status }: { status: string | null }) {
     const s = status ?? 'unknown'
     const colorMap: Record<string, string> = {
-      paid: '#22C55E', failed: '#EF4444', refunded: '#F59E0B', pending: '#EAB308', unknown: '#71717A',
+      captured: '#22C55E', paid: '#22C55E', failed: '#EF4444', refunded: '#F59E0B', pending: '#EAB308', unknown: '#71717A',
     }
     const c = colorMap[s] ?? '#71717A'
     return (
@@ -85,13 +91,14 @@ export default function RevenueClient() {
     )},
     { key: 'amount', header: 'Amount', render: (r: PaymentRow) => {
       const curr = r.currency ?? 'INR'
-      const symbol = curr === 'USD' ? '$' : '₹'
       const raw = r.amount ?? 0
+      let display = `${curr} ${raw.toLocaleString()}`
+      try { display = new Intl.NumberFormat(undefined, { style: 'currency', currency: curr }).format(raw) } catch { /* keep ISO fallback */ }
       return (
         <div>
-          <span className="text-sm font-medium" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{symbol}{raw.toLocaleString()}</span>
-          {curr === 'USD' && r.amount_inr != null && (
-            <span className="text-xs block" style={{ color: '#71717A' }}>≈ ₹{r.amount_inr.toLocaleString()}</span>
+          <span className="text-sm font-medium" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{display}</span>
+          {curr !== 'INR' && (
+            <span className="text-xs block" style={{ color: '#71717A' }}>Excluded from INR summary metrics</span>
           )}
         </div>
       )
@@ -111,7 +118,7 @@ export default function RevenueClient() {
   const planColumns = [
     { key: 'plan', header: 'Plan', render: (r: PlanRevRow) => <span className="capitalize font-medium" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{r.plan}</span> },
     { key: 'subscribers', header: 'Subscribers', render: (r: PlanRevRow) => <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>{(r.count ?? r.subscribers ?? 0).toLocaleString()}</span> },
-    { key: 'revenue', header: 'Revenue', render: (r: PlanRevRow) => <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>₹{(r.revenue ?? 0).toLocaleString()}</span> },
+    { key: 'revenue', header: 'Revenue (INR)', render: (r: PlanRevRow) => <span style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>₹{(r.revenue ?? 0).toLocaleString()}</span> },
   ]
 
   const [data, setData] = useState<RevenueData | null>(null)
@@ -141,16 +148,31 @@ export default function RevenueClient() {
 
   async function handleExport() {
     try {
-      const params = new URLSearchParams({ pageSize: '10000' })
-      if (statusFilter) params.set('status', statusFilter)
-      const res = await fetch(`/api/admin/revenue?${params}`)
-      if (!res.ok) throw new Error('Failed')
-      const json = await res.json()
-      const rows = (json.paymentHistory ?? []) as PaymentRow[]
+      const baseParams = new URLSearchParams()
+      if (statusFilter) baseParams.set('status', statusFilter)
+
+      const rows: PaymentRow[] = []
+      const exportPageSize = 100
+      let exportPage = 1
+      let total = Number.POSITIVE_INFINITY
+      while (rows.length < total) {
+        const params = new URLSearchParams(baseParams)
+        params.set('page', String(exportPage))
+        params.set('pageSize', String(exportPageSize))
+        const res = await fetch(`/api/admin/revenue?${params}`)
+        if (!res.ok) throw new Error('Failed')
+        const json = await res.json()
+        const pageRows = (json.paymentHistory ?? []) as PaymentRow[]
+        rows.push(...pageRows)
+        total = Number(json.paymentHistoryTotal ?? rows.length)
+        if (pageRows.length < exportPageSize) break
+        exportPage += 1
+      }
+
       const header = 'User Name,Email,Amount,Currency,Amount INR,Plan,Country,Billing Cycle,Payment ID,Date,Status'
       const csv = [header, ...rows.map(r =>
         [r.user_name ?? '', r.user_email ?? '', r.amount ?? '', r.currency ?? '', r.amount_inr ?? '',
-         r.plan ?? '', r.country ?? '', r.billing_cycle ?? '', r.payment_id ?? '', r.date ?? '', r.status ?? ''].join(',')
+         r.plan ?? '', r.country ?? '', r.billing_cycle ?? '', r.payment_id ?? '', r.date ?? '', r.status ?? ''].map(csvCell).join(',')
       )].join('\n')
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
@@ -179,15 +201,15 @@ export default function RevenueClient() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="MRR" value={data?.mrr ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
-        <KpiCard title="ARR" value={data?.arr ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
-        <KpiCard title="New Revenue This Month" value={data?.newRevenueThisMonth ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
+        <KpiCard title="MRR (INR)" value={data?.mrr ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} description="Annual plans normalized monthly; no estimated FX conversion" />
+        <KpiCard title="ARR (INR)" value={data?.arr ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
+        <KpiCard title="Captured This Month (INR)" value={data?.newRevenueThisMonth ?? 0} prefix="₹" loading={loading} error={error} onRetry={fetchData} />
         <KpiCard title="MoM Change" value={data?.momChange ?? 0} suffix="%" loading={loading} error={error} onRetry={fetchData} />
       </div>
 
       {/* Revenue by Plan */}
       <div>
-        <h2 className="text-base font-semibold mb-3" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Revenue by Plan</h2>
+        <h2 className="text-base font-semibold mb-3" style={{ color: isDark ? '#F5F5F5' : '#0A0A0A' }}>Revenue by Plan (INR only)</h2>
         <DataTable
           columns={planColumns as Parameters<typeof DataTable>[0]['columns']}
           data={(data?.revenueByPlan ?? []).map((r, i) => ({ ...r, id: String(i) })) as Record<string, unknown>[]}
@@ -204,7 +226,7 @@ export default function RevenueClient() {
             style={{ backgroundColor: isDark ? '#111111' : '#FAFAFA', borderColor: isDark ? '#1A1A1A' : '#E5E5E5', color: isDark ? '#D4D4D8' : '#27272A' }}
             className="px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 self-start sm:self-auto">
             <option value="">All Statuses</option>
-            <option value="paid">Paid</option>
+            <option value="captured">Captured</option>
             <option value="failed">Failed</option>
             <option value="refunded">Refunded</option>
             <option value="pending">Pending</option>

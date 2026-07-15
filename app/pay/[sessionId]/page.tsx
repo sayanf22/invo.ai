@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { PayDocumentView } from "./pay-document-view"
+import { isPublicDocumentId } from "@/lib/public-capability"
 
 // ── Service-role Supabase client (no auth required) ───────────────────
 function createServiceClient() {
@@ -26,11 +27,9 @@ interface PageProps {
 }
 
 export default async function PayPage({ params }: PageProps) {
-  const { sessionId } = await params
+  const { sessionId: publicId } = await params
 
-  // Basic UUID validation to avoid unnecessary DB queries
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!sessionId || !uuidRegex.test(sessionId)) {
+  if (!isPublicDocumentId(publicId)) {
     return <PayDocumentView docData={null} payment={null} />
   }
 
@@ -39,13 +38,14 @@ export default async function PayPage({ params }: PageProps) {
   // Fetch session — include status so we can detect manual/offline payments
   const { data: session } = await supabase
     .from("document_sessions")
-    .select("context, document_type, status, sent_at")
-    .eq("id", sessionId)
+    .select("id, context, document_type, status, sent_at")
+    .eq("public_id", publicId)
     .single()
 
   if (!session?.context) {
     return <PayDocumentView docData={null} payment={null} />
   }
+  const sessionId = session.id
 
   // ── Cancellation guard ──
   // Two paths cancel a document:
@@ -98,7 +98,7 @@ export default async function PayPage({ params }: PageProps) {
         const res = await fetch(`${appUrl}/api/payments/regenerate-link`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId }),
+          body: JSON.stringify({ publicId }),
           // Server-side fetch — no caching
           cache: "no-store",
         })
@@ -176,7 +176,7 @@ export default async function PayPage({ params }: PageProps) {
     <PayDocumentView
       docData={docData}
       payment={payment}
-      sessionId={sessionId}
+      sessionId={publicId}
       documentType={session.document_type || "invoice"}
       existingResponse={existingResponse}
     />

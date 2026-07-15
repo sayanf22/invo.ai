@@ -127,6 +127,7 @@ import { useContextDocuments } from "@/hooks/use-context-documents"
 import { useUserTier, isReferenceContextEnabled } from "@/hooks/use-user-tier"
 import { ContextManagerDialog } from "@/components/context-manager"
 import { ChatAssetLinkCard } from "@/components/chat-asset-link-card"
+import { fetchPublicDocumentLink } from "@/lib/public-document-link-client"
 
 // ── Send intent detection ─────────────────────────────────────────────────────
 // Detects when user wants to SEND/DELIVER the document.
@@ -679,9 +680,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         if (docType === "client_onboarding_form") {
                             restoredMessages.push({ role: "assistant" as const, content: "", linkCard: "__resolving_onboard_link__" })
                         } else {
-                            const shortId = session.id.split("-")[0]
-                            const docLink = `${typeof window !== "undefined" ? window.location.origin : "https://clorefy.com"}/d/${shortId}`
-                            restoredMessages.push({ role: "assistant" as const, content: "", linkCard: docLink })
+                            restoredMessages.push({ role: "assistant" as const, content: "", linkCard: "__resolving_public_link__" })
                         }
                         continue
                     }
@@ -736,6 +735,20 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     .catch(() => {
                         setMessages(prev => prev.map(m => m.linkCard === "__resolving_onboard_link__"
                             ? { ...m, linkCard: undefined, content: "Couldn't look up the form link." }
+                            : m))
+                    })
+            }
+
+            if (restoredMessages.some(m => m.linkCard === "__resolving_public_link__")) {
+                fetchPublicDocumentLink(session.id)
+                    .then(publicUrl => {
+                        setMessages(prev => prev.map(m => m.linkCard === "__resolving_public_link__"
+                            ? { ...m, linkCard: publicUrl || undefined, content: publicUrl ? "" : "Couldn't create a public document link." }
+                            : m))
+                    })
+                    .catch(() => {
+                        setMessages(prev => prev.map(m => m.linkCard === "__resolving_public_link__"
+                            ? { ...m, linkCard: undefined, content: "Couldn't look up the document link." }
                             : m))
                     })
             }
@@ -2017,8 +2030,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                         }
                         return
                     }
-                    const shortId = session.id.split("-")[0]
-                    const docLink = `${window.location.origin}/d/${shortId}`
+                    const docLink = await fetchPublicDocumentLink(session.id)
+                    if (!docLink) {
+                        const msg = "Couldn't look up the document link. Please try again."
+                        setMessages(prev => [...prev, { role: "assistant", content: msg }])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", msg)
+                        return
+                    }
                     setMessages(prev => [...prev, { role: "assistant", content: "", linkCard: docLink }])
                     await saveMessage("user", displayText)
                     await saveMessage("assistant", "View document link", { card: "link" })

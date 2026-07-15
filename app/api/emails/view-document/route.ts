@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { isPublicDocumentId } from "@/lib/public-capability"
 
 /**
  * GET /api/emails/view-document?sessionId=xxx
@@ -14,14 +15,9 @@ import { createClient } from "@supabase/supabase-js"
  * Draft/unsent/unsigned documents are blocked.
  */
 export async function GET(request: NextRequest) {
-  const sessionId = request.nextUrl.searchParams.get("sessionId")
+  const publicId = request.nextUrl.searchParams.get("publicId")
 
-  if (!sessionId || typeof sessionId !== "string" || sessionId.length < 10) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 400 })
-  }
-
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!uuidRegex.test(sessionId)) {
+  if (!isPublicDocumentId(publicId)) {
     return NextResponse.json({ error: "Invalid session" }, { status: 400 })
   }
 
@@ -33,13 +29,14 @@ export async function GET(request: NextRequest) {
 
     const { data: session, error } = await supabase
       .from("document_sessions")
-      .select("context, document_type, status, sent_at, user_id")
-      .eq("id", sessionId)
+      .select("id, context, document_type, status, sent_at, user_id")
+      .eq("public_id", publicId)
       .single()
 
     if (error || !session?.context) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
+    const sessionId = session.id
 
     // Allow public access when the document has been delivered to a recipient,
     // either by:

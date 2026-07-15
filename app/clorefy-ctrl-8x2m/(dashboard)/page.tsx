@@ -17,6 +17,7 @@ import {
 
 interface OverviewData {
   period: string
+  metadata: { timezone: string }
   // User
   totalUsers: number
   signupsInPeriod: number
@@ -49,7 +50,9 @@ interface OverviewData {
   totalEmailsSent: number
   totalEmailsAllTime: number
   totalEmailsToday: number
+  totalEmailsThisWeek: number
   totalEmailsThisMonth: number
+  totalEmailsThisYear: number
   emailsOpenedThisMonth: number
   emailsDeliveredThisMonth: number
   emailsBouncedThisMonth: number
@@ -57,16 +60,20 @@ interface OverviewData {
   // AI
   aiRequests: number
   aiTokens: number
-  aiCostINR: number
+  aiCostUSD: number | null
+  aiCostAvailable?: boolean
   totalAIRequestsThisMonth: number
   estimatedAICostThisMonth: number
-  // Revenue
-  currentMRR: number
-  arr: number
+  // Revenue (native currencies; INR aliases retained for compatibility)
+  mrrByCurrency: Record<string, number>
+  arrByCurrency: Record<string, number>
+  currentMRRINR: number
+  arrINR: number
   // Trends
   signupsTrend: Array<{ date: string; count: number }>
   documentsTrend: Array<{ date: string; count: number }>
-  revenueTrend: Array<{ month: string; amount: number }>
+  revenueTrendByCurrency: Record<string, Array<{ month: string; amount: number }>>
+  revenueTrendINR: Array<{ month: string; amount: number }>
   recentActivity: Array<Record<string, unknown>>
 }
 
@@ -78,6 +85,14 @@ function formatDate(iso: string): string {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     })
   } catch { return iso }
+}
+
+function formatCurrency(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount)
+  } catch {
+    return `${currency} ${amount.toLocaleString()}`
+  }
 }
 
 function getActivityEmail(entry: Record<string, unknown>): string {
@@ -145,6 +160,7 @@ export default function AdminOverviewPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [range, setRange] = useState<DateRange>({ period: 'month' })
+  const [revenueCurrency, setRevenueCurrency] = useState('INR')
 
   const today = new Date().toLocaleDateString(undefined, {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -153,7 +169,8 @@ export default function AdminOverviewPage() {
   const fetchData = useCallback(async (r: DateRange) => {
     setLoading(true); setError(false)
     try {
-      const qs = rangeToQueryParams(r)
+      const qs = new URLSearchParams(rangeToQueryParams(r))
+      qs.set('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone)
       const res = await fetch(`/api/admin/overview?${qs}`)
       if (!res.ok) throw new Error('Failed')
       setData(await res.json())
@@ -162,6 +179,16 @@ export default function AdminOverviewPage() {
   }, [])
 
   useEffect(() => { fetchData(range) }, [fetchData, range])
+
+  const revenueCurrencies = [...new Set([
+    ...Object.keys(data?.mrrByCurrency ?? {}),
+    ...Object.keys(data?.revenueTrendByCurrency ?? {}),
+  ])].sort()
+  useEffect(() => {
+    if (revenueCurrencies.length > 0 && !revenueCurrencies.includes(revenueCurrency)) {
+      setRevenueCurrency(revenueCurrencies[0])
+    }
+  }, [revenueCurrencies, revenueCurrency])
 
   const chartBg = isDark ? '#0A0A0A' : '#FAFAFA'
   const chartBorder = isDark ? '#1A1A1A' : '#E5E5E5'
@@ -185,19 +212,17 @@ export default function AdminOverviewPage() {
     : (data?.totalDocuments ?? data?.totalDocumentsThisMonth ?? 0)  // month + custom
 
   const emailsValue = p === 'today' ? (data?.totalEmailsToday ?? 0)
+    : p === 'week' ? (data?.totalEmailsThisWeek ?? 0)
+    : p === 'year' ? (data?.totalEmailsThisYear ?? 0)
     : p === 'all' ? (data?.totalEmailsAllTime ?? 0)
+    : p === 'custom' ? (data?.totalEmailsSent ?? 0)
     : (data?.totalEmailsThisMonth ?? 0)
-
-  const activeUsersValue = p === 'today' ? (data?.dailyActiveUsers ?? 0)
-    : p === 'week' ? (data?.weeklyActiveUsers ?? 0)
-    : p === 'year' ? (data?.activeInPeriod ?? 0)
-    : p === 'all' ? (data?.totalUsers ?? 0)
-    : (data?.monthlyActiveUsers ?? 0)
 
   const signupsValue = p === 'today' ? (data?.newSignupsToday ?? 0)
     : p === 'week' ? (data?.newSignupsThisWeek ?? 0)
     : p === 'year' ? (data?.newSignupsThisYear ?? 0)
     : p === 'all' ? (data?.totalUsers ?? 0)
+    : p === 'custom' ? (data?.signupsInPeriod ?? 0)
     : (data?.newSignupsThisMonth ?? 0)
 
   return (
@@ -249,11 +274,41 @@ export default function AdminOverviewPage() {
         <KpiTile label="AI Requests" icon={MessageSquare} loading={loading} isDark={isDark}
           href="/clorefy-ctrl-8x2m/ai-usage"
           value={(data?.aiRequests ?? 0).toLocaleString()}
-          sub={`₹${(data?.aiCostINR ?? 0).toLocaleString()} est.`} />
-        <KpiTile label="MRR" icon={DollarSign} loading={loading} isDark={isDark}
+          sub={data?.aiCostAvailable === false
+            ? "Cost is tracked monthly; unavailable for this sub-month range"
+            : `$${(data?.aiCostUSD ?? 0).toLocaleString()} est. USD`} />
+        <KpiTile label="MRR (INR compatibility)" icon={DollarSign} loading={loading} isDark={isDark}
           href="/clorefy-ctrl-8x2m/revenue"
-          value={`₹${(data?.currentMRR ?? 0).toLocaleString()}`}
-          sub={`₹${((data?.arr ?? 0)).toLocaleString()} ARR`} />
+          value={`₹${(data?.currentMRRINR ?? 0).toLocaleString()}`}
+          sub={`₹${((data?.arrINR ?? 0)).toLocaleString()} ARR`} />
+      </div>
+
+      {/* Native-currency revenue — currencies are intentionally never combined. */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: isDark ? '#3F3F46' : '#A1A1AA' }}>
+          Recurring Revenue by Currency
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {loading ? Array.from({ length: 2 }).map((_, index) => (
+            <div key={index} className="h-24 rounded-2xl border animate-pulse"
+              style={{ backgroundColor: chartBg, borderColor: chartBorder }} />
+          )) : revenueCurrencies.length === 0 ? (
+            <div className="rounded-2xl border p-4 text-sm" style={{ backgroundColor: chartBg, borderColor: chartBorder, color: '#71717A' }}>
+              No active paid revenue
+            </div>
+          ) : revenueCurrencies.map(currency => (
+            <div key={currency} className="rounded-2xl border p-4"
+              style={{ backgroundColor: chartBg, borderColor: chartBorder }}>
+              <p className="text-xs font-semibold tracking-wider mb-2" style={{ color: '#71717A' }}>{currency}</p>
+              <p className="text-xl font-bold" style={{ color: isDark ? '#FFFFFF' : '#0A0A0A' }}>
+                {formatCurrency(data?.mrrByCurrency?.[currency] ?? 0, currency)} MRR
+              </p>
+              <p className="text-xs mt-1" style={{ color: '#52525B' }}>
+                {formatCurrency(data?.arrByCurrency?.[currency] ?? 0, currency)} ARR
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Active users row ── */}
@@ -390,14 +445,24 @@ export default function AdminOverviewPage() {
           </div>
           {/* Revenue */}
           <div className="rounded-2xl border p-5" style={{ backgroundColor: chartBg, borderColor: chartBorder }}>
-            <p className="text-sm font-semibold mb-4" style={{ color: isDark ? '#D4D4D8' : '#27272A' }}>Revenue (₹)</p>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <p className="text-sm font-semibold" style={{ color: isDark ? '#D4D4D8' : '#27272A' }}>
+                Revenue ({revenueCurrency})
+              </p>
+              <select value={revenueCurrency} onChange={event => setRevenueCurrency(event.target.value)}
+                aria-label="Revenue trend currency"
+                className="rounded-lg border px-2 py-1 text-xs"
+                style={{ backgroundColor: isDark ? '#111111' : '#FFFFFF', borderColor: chartBorder, color: isDark ? '#D4D4D8' : '#27272A' }}>
+                {revenueCurrencies.map(currency => <option key={currency} value={currency}>{currency}</option>)}
+              </select>
+            </div>
             {loading ? <div className="h-36 rounded-xl animate-pulse" style={{ backgroundColor: isDark ? '#1A1A1A' : '#E5E5E5' }} /> : (
               <ResponsiveContainer width="100%" height={150}>
-                <LineChart data={data?.revenueTrend ?? []}>
+                <LineChart data={data?.revenueTrendByCurrency?.[revenueCurrency] ?? []}>
                   <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                   <XAxis dataKey="month" tick={{ fill: axisColor, fontSize: 9 }} tickLine={false} />
                   <YAxis tick={{ fill: axisColor, fontSize: 9 }} tickLine={false} axisLine={false} />
-                  <Tooltip {...tooltipStyle} formatter={(v: any) => [`₹${Number(v).toLocaleString()}`, 'Revenue']} />
+                  <Tooltip {...tooltipStyle} formatter={(value) => [formatCurrency(Number(typeof value === 'number' || typeof value === 'string' ? value : 0), revenueCurrency), 'Revenue']} />
                   <Line type="monotone" dataKey="amount" stroke="#22C55E" dot={false} strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>

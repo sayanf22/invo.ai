@@ -114,8 +114,8 @@ const OPERATION_COSTS = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getCurrentMonth(): string {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+    // Usage buckets are immutable UTC calendar months across every writer.
+    return new Date().toISOString().slice(0, 7)
 }
 
 function protectionUnavailableResponse(): NextResponse {

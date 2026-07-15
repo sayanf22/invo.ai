@@ -150,54 +150,14 @@ function isPublicPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // ── Short link redirect: /d/[shortId] → /pay/[full-session-id] ──────
-  // Handle this in middleware to avoid service role key issues in edge runtime.
-  // Uses the anon key + RPC function to look up the session ID.
-  // The RPC `lookup_session_id_by_short_id` returns the id + status for any
-  // session that has been sent at least once (or is in a terminal state).
-  // We then redirect to /pay/[fullId] which renders the correct UI for each
-  // status — valid docs show the document, cancelled/unlocked docs show the
-  // "no longer available" screen. This matches DocuSign/Adobe Sign behaviour
-  // where a voided envelope resolves to a clear cancellation page rather
-  // than dropping the recipient on the homepage.
+  // ── Capability redirect: /d/[publicId] → /pay/[publicId] ───────────
+  // publicId is a 256-bit random recipient capability. It is never resolved
+  // to, or replaced with, the internal document_sessions UUID in middleware.
   if (pathname.startsWith("/d/") && pathname.length > 3) {
-    const shortId = pathname.slice(3) // strip "/d/"
-    // Validate: must be 6-8 hex chars
-    if (/^[0-9a-f]{6,8}$/i.test(shortId)) {
-      try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        if (supabaseUrl && supabaseKey) {
-          const res = await fetch(
-            `${supabaseUrl}/rest/v1/rpc/lookup_session_id_by_short_id`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                apikey: supabaseKey,
-                Authorization: `Bearer ${supabaseKey}`,
-              },
-              body: JSON.stringify({ short_id: shortId.toLowerCase() }),
-              signal: AbortSignal.timeout(3000),
-            }
-          )
-          if (res.ok) {
-            const rows = await res.json()
-            // RPC returns array of {id: uuid, status: text}
-            if (Array.isArray(rows) && rows.length > 0 && rows[0].id) {
-              const fullId = rows[0].id
-              const payUrl = new URL(`/pay/${fullId}`, request.url)
-              return NextResponse.redirect(payUrl, { status: 302 })
-            }
-          }
-        }
-      } catch {
-        // Fall through to not-found page if middleware lookup fails
-      }
+    const publicId = pathname.slice(3)
+    if (/^[0-9a-f]{64}$/.test(publicId)) {
+      return NextResponse.redirect(new URL(`/pay/${publicId}`, request.url), { status: 302 })
     }
-    // Invalid shortId or no matching session — show a "link not found" page
-    // by rewriting (not redirecting) to /pay with an empty session marker.
-    // Using rewrite preserves the original URL so users can retry/share.
     return NextResponse.rewrite(new URL("/d/not-found", request.url))
   }
 
@@ -269,32 +229,27 @@ export async function middleware(request: NextRequest) {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
         if (supabaseUrl && supabaseKey) {
-          const now = new Date().toISOString()
           const blocklistRes = await fetch(
-            `${supabaseUrl}/rest/v1/ip_blocklist?ip_address=eq.${encodeURIComponent(clientIP)}&select=ip_address,expires_at&limit=1`,
+            `${supabaseUrl}/rest/v1/rpc/is_ip_blocked`,
             {
+              method: "POST",
               headers: {
+                "Content-Type": "application/json",
                 apikey: supabaseKey,
                 Authorization: `Bearer ${supabaseKey}`,
               },
-              signal: AbortSignal.timeout(2000), // 2s max — don't block the request
+              body: JSON.stringify({ p_ip: clientIP }),
+              signal: AbortSignal.timeout(2000),
             }
           )
           if (blocklistRes.ok) {
-            const blocked = await blocklistRes.json()
-            if (Array.isArray(blocked) && blocked.length > 0) {
-              const entry = blocked[0]
-              const isActive = !entry.expires_at || entry.expires_at > now
-              cacheIPResult(clientIP, isActive)
-              if (isActive) {
-                return new NextResponse(
-                  JSON.stringify({ error: "Access denied." }),
-                  { status: 403, headers: { "Content-Type": "application/json" } }
-                )
-              }
-            } else {
-              // Not in blocklist — cache as allowed
-              cacheIPResult(clientIP, false)
+            const blocked = (await blocklistRes.json()) === true
+            cacheIPResult(clientIP, blocked)
+            if (blocked) {
+              return new NextResponse(
+                JSON.stringify({ error: "Access denied." }),
+                { status: 403, headers: { "Content-Type": "application/json" } }
+              )
             }
           }
         }

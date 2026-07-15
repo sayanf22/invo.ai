@@ -10,6 +10,8 @@ export type AuditAction =
   | "signature.abuse_detected"
   | "signature.upload_failed"
   | "signature.cancelled"
+  | "signature.declined"
+  | "signature.revision_requested"
   | "signature.r2_fallback"
 
 export function buildAuditEventRow(event: {

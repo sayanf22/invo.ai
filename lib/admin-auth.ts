@@ -7,6 +7,11 @@ export interface AdminSessionPayload {
   exp: number
 }
 
+export interface VerifiedAdminSession {
+  email: string
+  expiresAt: number
+}
+
 function getSecret(): Uint8Array {
   const secret = process.env.ADMIN_SESSION_SECRET
   if (!secret) throw new Error("ADMIN_SESSION_SECRET is not set")
@@ -33,7 +38,7 @@ export async function hashAdminSessionToken(token: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("")
 }
 
-async function verifyTokenAndPersistence(token: string): Promise<string | null> {
+async function verifyTokenAndPersistence(token: string): Promise<VerifiedAdminSession | null> {
   const { payload } = await jwtVerify(token, getSecret())
   const email = String((payload as unknown as AdminSessionPayload).email || "").toLowerCase()
   if (!email || !getAdminEmails().includes(email)) return null
@@ -45,7 +50,10 @@ async function verifyTokenAndPersistence(token: string): Promise<string | null> 
     .gt("expires_at", new Date().toISOString())
     .maybeSingle()
   if (error || !data || String(data.admin_email).toLowerCase() !== email) return null
-  return email
+
+  const expiresAt = new Date(data.expires_at).getTime()
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null
+  return { email, expiresAt }
 }
 
 /** Verify both the signed cookie and its revocable, non-expired DB session. */
@@ -53,23 +61,23 @@ export async function verifyAdminSession(request: Request): Promise<string | nul
   try {
     const cookieHeader = request.headers.get("cookie") || ""
     const match = cookieHeader.match(/(?:^|;\s*)admin_session=([^;]+)/)
-    return match ? await verifyTokenAndPersistence(match[1]) : null
+    return match ? (await verifyTokenAndPersistence(match[1]))?.email ?? null : null
   } catch {
     return null
   }
 }
 
-export async function createAdminSessionToken(email: string): Promise<string> {
+export async function createAdminSessionToken(email: string, expiresAt = Date.now() + 3600_000): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
   return new SignJWT({ email: email.toLowerCase() })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt(now)
-    .setExpirationTime(now + 3600)
+    .setExpirationTime(Math.floor(expiresAt / 1000))
     .sign(getSecret())
 }
 
 /** Server-component helper with the same revocation check as API routes. */
-export async function requireAdmin(): Promise<string> {
+export async function requireAdminSession(): Promise<VerifiedAdminSession> {
   const { cookies } = await import("next/headers")
   const { notFound } = await import("next/navigation")
   const token = (await cookies()).get("admin_session")?.value
@@ -79,4 +87,8 @@ export async function requireAdmin(): Promise<string> {
   } catch {
     return notFound()
   }
+}
+
+export async function requireAdmin(): Promise<string> {
+  return (await requireAdminSession()).email
 }
