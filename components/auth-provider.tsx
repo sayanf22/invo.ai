@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, useRef } from "react"
-import { createClient, clearAuthTokens, resetSupabaseClient, clearCorruptedAuthTokens } from "@/lib/supabase"
+import { createClient, clearAuthTokens, clearCorruptedAuthTokens } from "@/lib/supabase"
 import type { User, Session, SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database.types"
 
@@ -48,7 +48,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         msg.includes("parse")
                     if (isTrulyCorrupt) {
                         clearAuthTokens()
-                        resetSupabaseClient()
                     }
                     setSession(null)
                     setUser(null)
@@ -86,7 +85,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     msg.includes("parse")
                 if (isTrulyCorrupt) {
                     clearAuthTokens()
-                    resetSupabaseClient()
                 }
                 setSession(null)
                 setUser(null)

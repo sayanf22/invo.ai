@@ -4,6 +4,58 @@ import type { Database } from "./database.types"
 let supabaseInstance: ReturnType<typeof createBrowserClient<Database>> | null = null
 
 /**
+ * Phoenix reads window.sessionStorage while Supabase initializes Realtime.
+ * Edge can deny that property in privacy-restricted or embedded contexts,
+ * which would otherwise prevent the entire Supabase browser client from being
+ * created. Install an in-memory sessionStorage only when native access throws.
+ *
+ * This is not an auth storage adapter: @supabase/ssr continues to own auth
+ * persistence and cookie interoperability with the server client.
+ */
+function ensureRealtimeSessionStorage() {
+    if (typeof window === "undefined") return
+
+    try {
+        window.sessionStorage.getItem("clorefy_storage_probe")
+        return
+    } catch {
+        // Fall through to a page-lifetime store for Realtime fallback metadata.
+    }
+
+    const values = new Map<string, string>()
+    const memoryStorage: Storage = {
+        get length() {
+            return values.size
+        },
+        clear() {
+            values.clear()
+        },
+        getItem(key) {
+            return values.get(key) ?? null
+        },
+        key(index) {
+            return Array.from(values.keys())[index] ?? null
+        },
+        removeItem(key) {
+            values.delete(key)
+        },
+        setItem(key, value) {
+            values.set(key, String(value))
+        },
+    }
+
+    try {
+        Object.defineProperty(window, "sessionStorage", {
+            configurable: true,
+            value: memoryStorage,
+        })
+    } catch {
+        // The Supabase constructor will surface the browser restriction if the
+        // Window object itself cannot be patched in this environment.
+    }
+}
+
+/**
  * Create a Supabase client for browser use.
  * 
  * Uses @supabase/ssr's createBrowserClient which handles cookie reading/writing
@@ -13,6 +65,7 @@ let supabaseInstance: ReturnType<typeof createBrowserClient<Database>> | null = 
 export function createClient() {
     if (supabaseInstance) return supabaseInstance
 
+    ensureRealtimeSessionStorage()
     supabaseInstance = createBrowserClient<Database>(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -69,9 +122,4 @@ export function clearCorruptedAuthTokens() {
     // Do NOT touch cookies here. Cookie values are URL-encoded by NextResponse
     // and @supabase/ssr decodes them correctly. Deleting them causes the
     // user's valid session to vanish on every page load.
-}
-
-/** Reset the singleton Supabase client. */
-export function resetSupabaseClient() {
-    supabaseInstance = null
 }

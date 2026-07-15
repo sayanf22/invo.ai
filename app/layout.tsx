@@ -423,12 +423,16 @@ export default function RootLayout({
           function handleChunkError(msg) {
             var isChunk = msg && (msg.indexOf('Loading chunk') !== -1 || msg.indexOf('ChunkLoadError') !== -1);
             if (isChunk) {
-              var key = 'clorefy_chunk_reload';
-              var last = sessionStorage.getItem(key);
-              var now = Date.now();
-              if (!last || now - Number(last) > 30000) {
-                sessionStorage.setItem(key, String(now));
-                window.location.reload();
+              try {
+                var key = 'clorefy_chunk_reload';
+                var last = sessionStorage.getItem(key);
+                var now = Date.now();
+                if (!last || now - Number(last) > 30000) {
+                  sessionStorage.setItem(key, String(now));
+                  window.location.reload();
+                }
+              } catch (storageError) {
+                console.warn('Chunk loading failed and sessionStorage is unavailable; skipping automatic reload.', msg, storageError);
               }
             }
           }

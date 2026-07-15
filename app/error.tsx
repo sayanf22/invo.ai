@@ -1,8 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { InvoLogo } from "@/components/invo-logo"
-import { Loader2 } from "lucide-react"
 
 export default function Error({
   error,
@@ -11,8 +10,6 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  const [isChunkError, setIsChunkError] = useState(false)
-
   useEffect(() => {
     console.error("Unhandled error:", error)
 
@@ -23,27 +20,22 @@ export default function Error({
       error?.message?.includes("ChunkLoadError")
 
     if (chunkError) {
-      setIsChunkError(true)
-      const reloadKey = "clorefy_chunk_reload"
-      const lastReload = sessionStorage.getItem(reloadKey)
-      const now = Date.now()
-      // Only auto-reload once per 30 seconds to prevent loops
-      if (!lastReload || now - Number(lastReload) > 30_000) {
-        sessionStorage.setItem(reloadKey, String(now))
-        window.location.reload()
+      try {
+        const reloadKey = "clorefy_chunk_reload"
+        const lastReload = sessionStorage.getItem(reloadKey)
+        const now = Date.now()
+        // Only auto-reload once per 30 seconds to prevent loops
+        if (!lastReload || now - Number(lastReload) > 30_000) {
+          sessionStorage.setItem(reloadKey, String(now))
+          window.location.reload()
+        }
+      } catch (storageError) {
+        // Storage may be blocked in Edge privacy modes or embedded contexts.
+        // Fall through to the normal error UI instead of creating a reload loop.
+        console.warn("Chunk reload skipped because sessionStorage is unavailable:", storageError)
       }
     }
   }, [error])
-
-  // Show a clean "updating" screen instead of an error for chunk issues
-  if (isChunkError) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 gap-4">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Updating to the latest version…</p>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4">
