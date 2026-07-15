@@ -2468,6 +2468,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     invoiceData={data}
                                     documentType={docType}
                                     detectedEmail={msg.sendCard.email}
+                                    onBeforeSend={() => updateSessionContext(data)}
                                     onDismiss={() => setMessages(prev => prev.filter((_, i) => i !== idx))}
                                     onLockDocument={() => {
                                         // Notify parent to lock the document and immediately update
@@ -2991,6 +2992,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                     invoiceData={data}
                     documentType={docType}
                     defaultEmail={sendDialogEmail}
+                    onBeforeSend={() => updateSessionContext(data)}
                     onEmailSent={() => {
                         setSendDialogOpen(false)
                         toast.success("Document sent!")

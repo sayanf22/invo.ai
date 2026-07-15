@@ -93,6 +93,17 @@ export function PromptScreen({
     })
   }, [])
 
+  const flushContextBeforeSend = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+    if (!saveContextRef.current) {
+      throw new Error("Document is still initializing. Please try again.")
+    }
+    await saveContextRef.current(data)
+  }, [data])
+
   const handleSessionSelect = useCallback(async (sessionId: string) => {
     // Check if this is a chat-only session — if so, route to ChatOnlyScreen
     // instead of loading it into the split-screen.
@@ -340,6 +351,7 @@ export function PromptScreen({
                 showEditor={mobileTab === "edit"}
                 sessionId={selectedSessionId}
                 onPaymentLinkChange={handlePaymentLinkChange}
+                onBeforeSend={flushContextBeforeSend}
                 onLockChange={handleLockChange}
                 externallyUnlocked={chatUnlockNonce > 0}
                 documentStatus={documentSessionStatus}
@@ -400,6 +412,7 @@ export function PromptScreen({
             showEditor={showEditor}
             sessionId={selectedSessionId}
             onPaymentLinkChange={handlePaymentLinkChange}
+            onBeforeSend={flushContextBeforeSend}
             onLockChange={handleLockChange}
             externallyUnlocked={chatUnlockNonce > 0}
             documentStatus={documentSessionStatus}

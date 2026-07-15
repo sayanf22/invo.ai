@@ -87,8 +87,9 @@ export interface InvoiceData {
   // Payment
   paymentInstructions: string
   paymentMethod: string
-  paymentLink?: string        // Razorpay short_url e.g. https://rzp.io/i/xxx
+  paymentLink?: string        // Secure platform payment URL created only during confirmed send
   paymentLinkStatus?: "created" | "paid" | "partially_paid" | "expired" | "cancelled"
+  collectOnlinePayment?: boolean // Explicit user intent: create a provider link when Send is confirmed
   showPaymentLinkInPdf?: boolean  // Controls whether payment link & QR code are embedded in PDF
 
   // Client response (quotations & proposals only)
@@ -228,6 +229,7 @@ export function getInitialInvoiceData(): InvoiceData {
     shippingFee: 0,
     paymentInstructions: "",
     paymentMethod: "",
+    collectOnlinePayment: false,
     showPaymentLinkInPdf: true,
     notes: "",
     terms: "",

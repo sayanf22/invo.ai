@@ -1617,20 +1617,20 @@ function LegacyEditorPanel({ data, onChange, documentStatus, sessionId }: Editor
               {/* Payment link controls only appear when a verified gateway exists. */}
               {supportsPaymentLink && (connectedGateways.length > 0 ? (
                 <div className="rounded-xl border border-border bg-background p-3 space-y-3">
-                  <p className="text-xs font-semibold text-foreground">Payment Link & QR</p>
+                  <p className="text-xs font-semibold text-foreground">Online Payment</p>
                   {documentStatus !== "paid" && (
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-medium text-foreground">Add Pay option to PDF</p>
-                        <p className="text-[10px] text-muted-foreground">Adds a Pay Now button and QR code without printing the raw URL.</p>
+                        <p className="text-xs font-medium text-foreground">Collect payment when sending</p>
+                        <p className="text-[10px] text-muted-foreground">The final amount is confirmed first. The link is created only after you click Send.</p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => onChange({ showPaymentLinkInPdf: !data.showPaymentLinkInPdf })}
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer ${data.showPaymentLinkInPdf ? "bg-primary" : "bg-muted"}`}
-                        aria-label={data.showPaymentLinkInPdf ? "Disable Pay option in PDF" : "Enable Pay option in PDF"}
+                        onClick={() => onChange({ collectOnlinePayment: !data.collectOnlinePayment })}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 shrink-0 cursor-pointer ${data.collectOnlinePayment ? "bg-primary" : "bg-muted"}`}
+                        aria-label={data.collectOnlinePayment ? "Disable online payment collection" : "Enable online payment collection"}
                       >
-                        <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.showPaymentLinkInPdf ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                        <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${data.collectOnlinePayment ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                       </button>
                     </div>
                   )}
@@ -1647,7 +1647,7 @@ function LegacyEditorPanel({ data, onChange, documentStatus, sessionId }: Editor
                     </div>
                   ) : (
                     <p className="text-[10px] text-muted-foreground">
-                      Create the payment link from the preview toolbar. If the provider rejects it, the exact failure is shown and nothing is added to the invoice.
+                      No link yet. Review the final amount and confirm Send to create and attach the payment link.
                     </p>
                   )}
                 </div>

@@ -20,7 +20,9 @@ interface SendDocumentRequest {
   resend?: boolean
   scheduleFollowUps?: boolean  // whether to schedule auto follow-ups (invoices only)
   paymentLinkExpiryDays?: number  // custom expiry for auto-created payment link
-  skipPaymentLink?: boolean  // if true, don't include or create payment link in email
+  collectOnlinePayment?: boolean  // affirmative intent; omission/false never creates a link
+  confirmedPaymentAmount?: number // minor units shown in the final confirmation UI
+  confirmedPaymentCurrency?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -42,6 +44,15 @@ export async function POST(request: NextRequest) {
       body = await request.json()
     } catch {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    }
+    if (body.collectOnlinePayment !== undefined && typeof body.collectOnlinePayment !== "boolean") {
+      return NextResponse.json({ error: "collectOnlinePayment must be a boolean" }, { status: 400 })
+    }
+    if (body.confirmedPaymentAmount !== undefined && !Number.isSafeInteger(body.confirmedPaymentAmount)) {
+      return NextResponse.json({ error: "confirmedPaymentAmount must be an integer in minor units" }, { status: 400 })
+    }
+    if (body.confirmedPaymentCurrency !== undefined && !/^[A-Za-z]{3}$/.test(body.confirmedPaymentCurrency)) {
+      return NextResponse.json({ error: "confirmedPaymentCurrency must be a 3-letter currency code" }, { status: 400 })
     }
 
     // 3. Rate limit — standard Postgres-backed limiter, "email" category (15/min)
@@ -137,9 +148,32 @@ export async function POST(request: NextRequest) {
     // public logo endpoint instead. See lib/public-logo.ts.
     const businessLogoUrl = getPublicLogoUrl(userId, business?.logo_url || null)
 
-    // 9. For invoices: fetch active payment link — auto-create if none exists
+    // 9. For invoices: create/reuse a payment link only after explicit amount confirmation.
     let payNowUrl: string | null = null
-    if (documentType === "invoice" && !body.skipPaymentLink) {
+    const collectOnlinePayment = documentType === "invoice" && body.collectOnlinePayment === true
+    if (collectOnlinePayment) {
+      const { deriveInvoicePaymentDetails } = await import("@/lib/invoice-payment-context")
+      let details: ReturnType<typeof deriveInvoicePaymentDetails>
+      try {
+        details = deriveInvoicePaymentDetails(context, sessionId)
+      } catch (error) {
+        return NextResponse.json({
+          error: error instanceof Error ? error.message : "Invalid invoice amount",
+        }, { status: 422 })
+      }
+
+      const confirmedCurrency = body.confirmedPaymentCurrency?.toUpperCase()
+      if (
+        !Number.isSafeInteger(body.confirmedPaymentAmount)
+        || body.confirmedPaymentAmount !== details.amount
+        || confirmedCurrency !== details.currency
+      ) {
+        return NextResponse.json({
+          error: "The invoice amount changed while preparing to send. Review the final amount and confirm Send again.",
+          code: "PAYMENT_AMOUNT_CHANGED",
+        }, { status: 409 })
+      }
+
       // Use service role client for invoice_payments (may not be in RLS scope)
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -148,7 +182,7 @@ export async function POST(request: NextRequest) {
 
       const { data: payment, error: paymentLookupError } = await (supabaseAdmin as any)
         .from("invoice_payments")
-        .select("id, status")
+        .select("id, status, amount, currency")
         .eq("session_id", sessionId)
         .eq("user_id", userId)
         .in("status", ["created", "partially_paid"])
@@ -156,17 +190,21 @@ export async function POST(request: NextRequest) {
       if (paymentLookupError) throw paymentLookupError
 
       if (payment) {
+        if (payment.amount !== details.amount || payment.currency?.toUpperCase() !== details.currency) {
+          return NextResponse.json({
+            error: "An older payment link exists for a different amount. Cancel it, review the invoice, and send again.",
+            code: "STALE_PAYMENT_LINK",
+          }, { status: 409 })
+        }
         payNowUrl = publicDocumentUrl
       } else {
         try {
           const { getUserPaymentCredentials } = await import("@/lib/payment-credentials")
-          const { deriveInvoicePaymentDetails } = await import("@/lib/invoice-payment-context")
           const credentials = await getUserPaymentCredentials(userId)
           if (!credentials) {
             return NextResponse.json({ error: "Connect and verify a payment gateway before including a payment link." }, { status: 422 })
           }
 
-          const details = deriveInvoicePaymentDetails(context, sessionId)
           const requested = typeof (context as any).paymentMethod === "string"
             ? String((context as any).paymentMethod).toLowerCase()
             : ""

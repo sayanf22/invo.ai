@@ -42,6 +42,8 @@ interface DocumentPreviewProps {
   showEditor?: boolean
   sessionId?: string | null
   onPaymentLinkChange?: (shortUrl: string, status: string) => void
+  /** Flushes the current editor context before a confirmed Send. */
+  onBeforeSend?: () => Promise<void>
   /** Called when invoice lock state changes (true = locked after payment link created) */
   onLockChange?: (locked: boolean) => void
   /**
@@ -407,7 +409,7 @@ function ToolbarSep() {
 }
 
 /* ─── Main DocumentPreview ─── */
-export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onLockChange, externallyUnlocked = false, documentStatus = "", onDocumentCancelled, onOnboardLinkCreated }: DocumentPreviewProps) {
+export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, sessionId, onPaymentLinkChange, onBeforeSend, onLockChange, externallyUnlocked = false, documentStatus = "", onDocumentCancelled, onOnboardLinkCreated }: DocumentPreviewProps) {
   const supabase = useSupabase()
   const user = useUser()
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
@@ -1360,6 +1362,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
           invoiceData={data}
           documentType={data.documentType || "invoice"}
           userTier={userTier}
+          onBeforeSend={onBeforeSend}
           onEmailSent={(info) => {
             setSentAt(new Date().toISOString())
             // Lock the document after sending from toolbar

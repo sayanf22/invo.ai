@@ -5,7 +5,7 @@ import { Link2, Copy, Check, Loader2, MessageCircle, RefreshCw, X, AlertTriangle
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
-import { calculateTotal, formatCurrency, fromMinorUnits, toMinorUnits, type InvoiceData } from "@/lib/invoice-types"
+import { calculateTotal, formatCurrency, fromMinorUnits, type InvoiceData } from "@/lib/invoice-types"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
@@ -38,117 +38,14 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
     cancelled:      { label: "Cancelled",         className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
 }
 
-// ── Confirmation Dialog ───────────────────────────────────────────────────────
-
-function ConfirmDialog({
-    amount,
-    currency,
-    invoiceRef,
-    clientName,
-    onConfirm,
-    onCancel,
-    isLoading,
-}: {
-    amount: number
-    currency: string
-    invoiceRef: string
-    clientName: string
-    onConfirm: () => void
-    onCancel: () => void
-    isLoading: boolean
-}) {
-    return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-[6px]" onClick={onCancel} />
-            <div className="relative w-full sm:max-w-[400px] bg-card rounded-t-[28px] sm:rounded-[24px] shadow-[0_24px_80px_-12px_rgba(0,0,0,0.25)] overflow-hidden border border-border/60">
-                {/* Handle */}
-                <div className="flex justify-center pt-3 pb-1 sm:hidden">
-                    <div className="w-10 h-1 rounded-full bg-border/60" />
-                </div>
-
-                <div className="px-6 pb-7 pt-4 sm:pt-6 space-y-5">
-                    {/* Icon + Header */}
-                    <div className="flex flex-col items-center text-center gap-3">
-                        <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Link2 className="w-7 h-7 text-primary" />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-foreground">Create Payment Link</h3>
-                            <p className="text-sm text-muted-foreground mt-1">Review details before creating</p>
-                        </div>
-                    </div>
-
-                    {/* Amount card */}
-                    <div className="rounded-2xl bg-muted/40 border border-border/60 p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Amount</p>
-                                <p className="text-xl font-bold text-foreground mt-0.5">{formatCurrency(amount, currency)}</p>
-                            </div>
-                            <div className="text-right">
-                                {invoiceRef && (
-                                    <>
-                                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Invoice</p>
-                                        <p className="text-sm font-semibold text-foreground mt-0.5">{invoiceRef}</p>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                        {clientName && (
-                            <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between">
-                                <span className="text-xs text-muted-foreground">Client</span>
-                                <span className="text-xs font-semibold text-foreground">{clientName}</span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Info items */}
-                    <div className="space-y-2.5">
-                        {[
-                            { icon: "🔒", text: "Amount will be locked after creation" },
-                            { icon: "📝", text: "Invoice becomes read-only to prevent fraud" },
-                            { icon: "⏱️", text: "Link expires based on your payment terms" },
-                        ].map((item, i) => (
-                            <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-amber-50/60 dark:bg-amber-950/20">
-                                <span className="text-sm shrink-0">{item.icon}</span>
-                                <span className="text-[13px] text-foreground/70">{item.text}</span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-3 pt-1">
-                        <button
-                            onClick={onCancel}
-                            disabled={isLoading}
-                            className="flex-1 py-3 px-4 rounded-2xl text-sm font-semibold border border-border bg-card hover:bg-muted/60 transition-all disabled:opacity-50 active:scale-[0.98]"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={onConfirm}
-                            disabled={isLoading}
-                            className="flex-1 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-60 active:scale-[0.98]"
-                        >
-                            {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {isLoading ? "Creating..." : "Create Link"}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
-}
-
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaymentLinkChange, onLockChange }: PaymentLinkButtonProps) {
-    const { connectedGateways, hasAnyGateway, loading: gatewayLoading } = usePaymentMethods()
+    const { hasAnyGateway, loading: gatewayLoading } = usePaymentMethods()
     const [isLoading, setIsLoading] = useState(false)
     const [isFetching, setIsFetching] = useState(false)
     const [paymentLink, setPaymentLink] = useState<PaymentLinkState | null>(null)
     const [copied, setCopied] = useState(false)
-    const [showConfirm, setShowConfirm] = useState(false)
     const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
     // Use registry to determine capability — handles all 10 canonical types
@@ -217,6 +114,15 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
         fetchExisting()
     }, [fetchExisting])
 
+    useEffect(() => {
+        const refreshAfterSend = (event: Event) => {
+            const detail = (event as CustomEvent<{ sessionId?: string }>).detail
+            if (detail?.sessionId === sessionId) fetchExisting()
+        }
+        window.addEventListener("clorefy:payment-link-created", refreshAfterSend)
+        return () => window.removeEventListener("clorefy:payment-link-created", refreshAfterSend)
+    }, [fetchExisting, sessionId])
+
     // Only show for document types that support payment links (or payment_followup which displays
     // the referenced invoice's existing link). Hide for all other document types.
     if (!supportsPaymentLink && !isPaymentFollowup) return null
@@ -259,60 +165,8 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
 
     const { total } = calculateTotal(invoiceData)
     const currency = invoiceData.currency || "INR"
-    const amountInSmallestUnit = toMinorUnits(total, currency)
     const invoiceRef = invoiceData.invoiceNumber || invoiceData.referenceNumber || ""
     const clientName = invoiceData.toName || ""
-    const selectedMethod = (invoiceData.paymentMethod || "").toLowerCase()
-    const preferredGateway = connectedGateways.find((gateway) => gateway === selectedMethod)
-
-    const doCreate = async () => {
-        if (!sessionId || isLoading) return
-        if (amountInSmallestUnit <= 0) {
-            toast.error("Invoice total must be greater than 0 to create a payment link")
-            return
-        }
-
-        setIsLoading(true)
-        try {
-            const res = await authFetch("/api/payments/create-link", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sessionId, gateway: preferredGateway }),
-            })
-
-            const data = await res.json()
-
-            if (!res.ok) {
-                console.error("Payment link creation failed:", res.status, data)
-                if (data.code === "NO_PAYMENT_SETTINGS") {
-                    toast.error("Connect a payment gateway first", {
-                        description: "Go to Settings → Payments to add Razorpay, Stripe, or Cashfree.",
-                        action: { label: "Open Settings", onClick: () => window.open("/settings?tab=payments", "_blank") },
-                        duration: 6000,
-                    })
-                } else {
-                    toast.error(data.message || data.error || "The payment gateway could not create this link")
-                }
-                return
-            }
-
-            const link: PaymentLinkState = {
-                ...data.paymentLink,
-                amount: data.paymentLink.amount ?? amountInSmallestUnit,
-                currency: data.paymentLink.currency ?? currency,
-            }
-            setPaymentLink(link)
-            onPaymentLinkChange?.(link.platformLink, data.paymentLink.status)
-            onLockChange?.(true) // Lock invoice after link creation
-            toast.success("Payment link created! Invoice is now locked.")
-        } catch (err) {
-            console.error("Payment link creation error:", err)
-            toast.error("Failed to create payment link. Please try again.")
-        } finally {
-            setIsLoading(false)
-            setShowConfirm(false)
-        }
-    }
 
     const platformLink = paymentLink?.platformLink || ""
 
@@ -403,48 +257,16 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
         )
     }
 
-    // ── No link yet ───────────────────────────────────────────────────────────
+    // ── No link yet: creation is intentionally deferred to confirmed Send. ───
     if (!paymentLink) {
         return (
-            <>
-                <button
-                    type="button"
-                    onClick={() => {
-                        if (total <= 0) { toast.error("Invoice total must be greater than 0"); return }
-                        setShowConfirm(true)
-                    }}
-                    disabled={isLoading || isFetching}
-                    className={cn(
-                        "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl",
-                        "text-[13px] font-semibold bg-foreground text-background",
-                        "hover:bg-foreground/90 active:scale-[0.96] active:bg-foreground/80",
-                        "transition-all duration-150 touch-manipulation select-none shrink-0",
-                        "disabled:opacity-50 disabled:cursor-not-allowed"
-                    )}
-                    style={{
-                        boxShadow: "0 1px 2px rgba(0,0,0,0.1), 0 3px 8px -2px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.08)"
-                    }}
-                >
-                    {isFetching
-                        ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                        : <Link2 className="w-3.5 h-3.5 shrink-0" />
-                    }
-                    <span className="sm:hidden">Pay Link</span>
-                    <span className="hidden sm:inline">Pay Link</span>
-                </button>
-
-                {showConfirm && (
-                    <ConfirmDialog
-                        amount={total}
-                        currency={currency}
-                        invoiceRef={invoiceRef}
-                        clientName={clientName}
-                        onConfirm={doCreate}
-                        onCancel={() => setShowConfirm(false)}
-                        isLoading={isLoading}
-                    />
-                )}
-            </>
+            <div className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[12px] font-medium border border-border bg-card text-muted-foreground">
+                {isFetching
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    : <Link2 className="w-3.5 h-3.5 shrink-0" />
+                }
+                <span>Payment link created on Send</span>
+            </div>
         )
     }
 
@@ -617,11 +439,10 @@ export function PaymentLinkButton({ sessionId, invoiceData, documentType, onPaym
             )}
 
             {(paymentLink.status === "expired" || paymentLink.status === "cancelled") && (
-                <button type="button" onClick={() => { setPaymentLink(null); onLockChange?.(false); onPaymentLinkChange?.("", "cancelled") }}
-                    className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-xl text-[12px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all active:scale-[0.97] shadow-sm">
+                <span className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-xl text-[12px] font-medium border border-border bg-card text-muted-foreground">
                     <RefreshCw className="w-3 h-3" />
-                    <span>New Link</span>
-                </button>
+                    Send the invoice again to create a new link
+                </span>
             )}
         </div>
         </>

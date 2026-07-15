@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Mail, Loader2, X, Send, AlertTriangle, CheckCircle2, XCircle, Calendar, Bell, BellOff, Repeat2, FileText, Sparkles, CreditCard, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
-import type { InvoiceData } from "@/lib/invoice-types"
+import { toMinorUnits, type InvoiceData } from "@/lib/invoice-types"
 import { cn } from "@/lib/utils"
 
 interface SendEmailDialogProps {
@@ -15,6 +15,8 @@ interface SendEmailDialogProps {
   documentType: string
   defaultEmail?: string
   onEmailSent?: (info?: { onboardUrl?: string | null }) => void
+  /** Flushes the current editor context before the server confirms the payment amount. */
+  onBeforeSend?: () => Promise<void>
   isRecurring?: boolean
   onRecurringChange?: (active: boolean, frequency: string) => void
   userTier?: "free" | "starter" | "pro" | "agency"
@@ -70,6 +72,7 @@ export function SendEmailDialog({
   documentType,
   defaultEmail,
   onEmailSent,
+  onBeforeSend,
   isRecurring: initialRecurring = false,
   onRecurringChange,
   userTier = "free",
@@ -86,8 +89,8 @@ export function SendEmailDialog({
   const [isSending, setIsSending] = useState(false)
   const [scheduleFollowUps, setScheduleFollowUps] = useState(userTier !== "free")
   const [paymentLinkExpiryDays, setPaymentLinkExpiryDays] = useState(30)
-  // Payment link toggle state (invoices only)
-  const [includePaymentLink, setIncludePaymentLink] = useState(true)
+  // Payment collection is explicit; editor intent may preselect it, but never gateway presence alone.
+  const [includePaymentLink, setIncludePaymentLink] = useState(invoiceData.collectOnlinePayment === true)
   const [gatewayConnected, setGatewayConnected] = useState<boolean | null>(null) // null = loading
   // Recurring state (invoices only)
   const [makeRecurring, setMakeRecurring] = useState(initialRecurring)
@@ -113,9 +116,13 @@ export function SendEmailDialog({
         if (res.ok) {
           const data = await res.json()
           const s = data.settings
-          const hasGateway = !!(s?.razorpay || s?.stripe || s?.cashfree)
+          const hasGateway = Boolean(
+            s?.razorpay?.credentialsVerified
+            || s?.stripe?.credentialsVerified
+            || s?.cashfree?.credentialsVerified,
+          )
           setGatewayConnected(hasGateway)
-          setIncludePaymentLink(hasGateway) // default ON if connected
+          setIncludePaymentLink(hasGateway && invoiceData.collectOnlinePayment === true)
         } else {
           setGatewayConnected(false)
           setIncludePaymentLink(false)
@@ -126,7 +133,7 @@ export function SendEmailDialog({
       }
     })()
     return () => { cancelled = true }
-  }, [open, isInvoice])
+  }, [open, isInvoice, invoiceData.collectOnlinePayment])
 
   // ── Email validation ────────────────────────────────────────────────────────
   const validateEmail = useCallback(async (value: string) => {
@@ -241,6 +248,7 @@ export function SendEmailDialog({
   if (!open) return null
 
   const docTypeLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
+  const { formatted: confirmedTotal } = calcTotal(invoiceData)
   const isEmailFormatValid = /^[^\s@]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/.test(email.trim())
   const canSend =
     isEmailFormatValid &&
@@ -282,6 +290,17 @@ export function SendEmailDialog({
         return
       }
 
+      // Persist the exact editor state the user just confirmed before the server
+      // derives the canonical payment amount and creates a provider link.
+      await onBeforeSend?.()
+
+      const collectOnlinePayment = isInvoice && includePaymentLink
+      const { raw: confirmedTotalRaw } = calcTotal(invoiceData)
+      const confirmedCurrency = (invoiceData.currency || "USD").toUpperCase()
+      const confirmedPaymentAmount = collectOnlinePayment
+        ? toMinorUnits(confirmedTotalRaw, confirmedCurrency)
+        : undefined
+
       const res = await authFetch("/api/emails/send-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -292,11 +311,16 @@ export function SendEmailDialog({
           personalMessage: message.trim() || undefined,
           scheduleFollowUps: scheduleFollowUps && isInvoice,
           paymentLinkExpiryDays: isInvoice ? paymentLinkExpiryDays : undefined,
-          ...(isInvoice && !includePaymentLink ? { skipPaymentLink: true } : {}),
+          collectOnlinePayment,
+          confirmedPaymentAmount,
+          confirmedPaymentCurrency: collectOnlinePayment ? confirmedCurrency : undefined,
         }),
       })
 
       if (res.ok) {
+        if (collectOnlinePayment) {
+          window.dispatchEvent(new CustomEvent("clorefy:payment-link-created", { detail: { sessionId } }))
+        }
         // Save recurring settings if invoice
         if (isInvoice) {
           if (makeRecurring) {
@@ -501,14 +525,14 @@ export function SendEmailDialog({
                 <div className="flex items-start gap-2.5">
                   <CreditCard className={cn("w-4 h-4 shrink-0 mt-0.5", includePaymentLink && gatewayConnected ? "text-emerald-600" : "text-muted-foreground")} />
                   <div>
-                    <p className="text-sm font-medium text-foreground">Include payment link</p>
+                    <p className="text-sm font-medium text-foreground">Collect online payment</p>
                     <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                       {gatewayConnected === null
                         ? "Checking payment provider..."
                         : gatewayConnected
                         ? includePaymentLink
-                          ? "A payment link will be included in the email."
-                          : "No payment link will be included."
+                          ? `${confirmedTotal || "The final amount"} will be confirmed. The link is created and saved only after you click Send.`
+                          : "No payment link will be created or included."
                         : (
                           <span className="inline-flex items-center gap-1 flex-wrap">
                             Connect a payment provider to use this.{" "}
@@ -744,7 +768,7 @@ export function SendEmailDialog({
             {isSending ? (
               <><Loader2 className="w-4 h-4 animate-spin" />Sending...</>
             ) : (
-              <><Send className="w-4 h-4" />Send</>
+              <><Send className="w-4 h-4" />{isInvoice && includePaymentLink ? "Confirm amount & send" : "Send"}</>
             )}
           </button>
         </div>

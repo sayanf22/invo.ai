@@ -18,7 +18,7 @@ import {
 import { authFetch } from "@/lib/auth-fetch"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import type { InvoiceData } from "@/lib/invoice-types"
+import { toMinorUnits, type InvoiceData } from "@/lib/invoice-types"
 import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 import { SenderSignFirstModal } from "@/components/sender-sign-first-modal"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
@@ -34,13 +34,15 @@ interface ChatSendCardProps {
    *  carries the fresh fillable link so the parent can persist it in chat. */
   onSent: (info?: { onboardUrl?: string | null }) => void
   onLockDocument?: () => void
+  /** Flushes the current editor context before the server confirms the payment amount. */
+  onBeforeSend?: () => Promise<void>
   userTier?: "free" | "starter" | "pro" | "agency"
 }
 
 type Step = "compose" | "preview" | "sent"
 type SlideDir = "right" | "left"
 
-function calcTotal(data: InvoiceData): string {
+function calcTotal(data: InvoiceData): { formatted: string; raw: number } {
   const subtotal = (data.items || []).reduce((sum, item) => {
     const qty = Number(item.quantity) || 0
     const rate = Number(item.rate) || 0
@@ -53,12 +55,17 @@ function calcTotal(data: InvoiceData): string {
   const discountAmount = data.discountType === "percent"
     ? subtotal * (discountValue / 100) : discountValue
   const taxAmount = (subtotal - discountAmount) * (taxRate / 100)
-  const total = subtotal - discountAmount + taxAmount + shippingFee
-  if (total <= 0) return ""
+  const raw = subtotal - discountAmount + taxAmount + shippingFee
+  if (raw <= 0) return { formatted: "", raw }
   const currency = data.currency || "USD"
   try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(total)
-  } catch { return `${currency} ${total.toFixed(2)}` }
+    return {
+      formatted: new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(raw),
+      raw,
+    }
+  } catch {
+    return { formatted: `${currency} ${raw.toFixed(2)}`, raw }
+  }
 }
 
 function localFallbackMessage(data: InvoiceData, documentType: string): string {
@@ -71,7 +78,7 @@ function localFallbackMessage(data: InvoiceData, documentType: string): string {
 }
 
 export function ChatSendCard({
-  sessionId, invoiceData, documentType, detectedEmail, onDismiss, onSent, onLockDocument, userTier = "free",
+  sessionId, invoiceData, documentType, detectedEmail, onDismiss, onSent, onLockDocument, onBeforeSend, userTier = "free",
 }: ChatSendCardProps) {
   // Check if user has any payment gateway connected
   const { hasAnyGateway, loading: gatewayLoading } = usePaymentMethods()
@@ -82,7 +89,7 @@ export function ChatSendCard({
   const [slideDir, setSlideDir] = useState<SlideDir>("right")
   const [email, setEmail] = useState(detectedEmail)
   const [message, setMessage] = useState("")
-  const [includePayment, setIncludePayment] = useState(false)
+  const [includePayment, setIncludePayment] = useState(invoiceData.collectOnlinePayment === true)
   const [scheduleFollowUps, setScheduleFollowUps] = useState(userTier !== "free")
   const [makeRecurring, setMakeRecurring] = useState(false)
   const [recurringFrequency, setRecurringFrequency] = useState<"weekly" | "monthly" | "quarterly">("monthly")
@@ -133,13 +140,9 @@ export function ChatSendCard({
     }
   }, [isAutoSigning, sessionId])
 
-  // Default includePayment to true ONLY if user has a gateway connected
+  // A gateway is required, but payment collection remains an explicit user choice.
   useEffect(() => {
-    if (!gatewayLoading && hasAnyGateway) {
-      setIncludePayment(true)
-    } else if (!gatewayLoading && !hasAnyGateway) {
-      setIncludePayment(false)
-    }
+    if (!gatewayLoading && !hasAnyGateway) setIncludePayment(false)
   }, [hasAnyGateway, gatewayLoading])
 
   const isOnboardingForm = documentType.toLowerCase().replace(/\s+/g, "_") === "client_onboarding_form"
@@ -167,7 +170,7 @@ export function ChatSendCard({
     ? "Send Onboarding Form"
     : canUseSignatures ? `Send & Sign ${docLabel}` : `Send ${docLabel}`
   const ref = invoiceData.invoiceNumber || invoiceData.referenceNumber || ""
-  const total = calcTotal(invoiceData)
+  const { formatted: total, raw: totalRaw } = calcTotal(invoiceData)
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setMounted(true))
@@ -323,6 +326,16 @@ export function ChatSendCard({
         }
       }
 
+      // Persist the exact editor state the user just confirmed before the server
+      // derives the canonical payment amount and creates a provider link.
+      await onBeforeSend?.()
+
+      const collectOnlinePayment = isInvoice && includePayment
+      const confirmedCurrency = (invoiceData.currency || "USD").toUpperCase()
+      const confirmedPaymentAmount = collectOnlinePayment
+        ? toMinorUnits(totalRaw, confirmedCurrency)
+        : undefined
+
       const res = await authFetch("/api/emails/send-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -331,10 +344,15 @@ export function ChatSendCard({
           recipientEmail: email.trim(),
           personalMessage: message.trim() || undefined,
           scheduleFollowUps: isInvoice && scheduleFollowUps,
-          ...(isInvoice && !includePayment ? { skipPaymentLink: true } : {}),
+          collectOnlinePayment,
+          confirmedPaymentAmount,
+          confirmedPaymentCurrency: collectOnlinePayment ? confirmedCurrency : undefined,
         }),
       })
       if (res.ok) {
+        if (collectOnlinePayment) {
+          window.dispatchEvent(new CustomEvent("clorefy:payment-link-created", { detail: { sessionId } }))
+        }
         // Save recurring settings if invoice
         if (isInvoice && makeRecurring) {
           await authFetch("/api/recurring", {
@@ -361,7 +379,7 @@ export function ChatSendCard({
     } finally {
       setIsSending(false)
     }
-  }, [isSending, sessionId, email, message, isInvoice, isContract, isOnboardingForm, invoiceData.toName, includePayment, scheduleFollowUps, makeRecurring, recurringFrequency, autoInvoiceOnSign, onSent, onLockDocument, typeSupportsSignatures, signatureFieldsOn, canUseSignatures])
+  }, [isSending, sessionId, email, message, isInvoice, isContract, isOnboardingForm, invoiceData, includePayment, totalRaw, scheduleFollowUps, makeRecurring, recurringFrequency, autoInvoiceOnSign, onSent, onLockDocument, onBeforeSend, typeSupportsSignatures, signatureFieldsOn, canUseSignatures])
 
   const slideIn = slideDir === "right"
     ? "animate-in fade-in slide-in-from-right-3 duration-300"
@@ -517,7 +535,12 @@ export function ChatSendCard({
               <label className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-muted/30 border border-border/30 cursor-pointer group">
                 <div className="flex items-center gap-2.5">
                   <CreditCard className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                  <span className="text-xs font-medium text-foreground">Include payment link</span>
+                  <div>
+                    <span className="text-xs font-medium text-foreground block">Collect online payment</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {includePayment && total ? `${total} — link created only when Send is confirmed` : "No payment link will be created"}
+                    </span>
+                  </div>
                 </div>
                 <div className={cn(
                   "relative w-9 h-5 rounded-full transition-colors duration-200",
@@ -766,7 +789,9 @@ export function ChatSendCard({
                         <p className="text-[11.5px] text-muted-foreground mt-1 leading-relaxed">
                           {isOnboardingForm
                             ? "Your client gets a link to fill out this form online. Once they submit, their answers can never be edited."
-                            : "Once sent, this document will be locked. You can unlock it from the chat at any time to make edits."}
+                            : isInvoice && includePayment
+                              ? `Confirm ${total || "the final invoice amount"}. The payment link is created and saved before the email is sent, then the invoice is locked.`
+                              : "Once sent, this document will be locked. You can unlock it from the chat at any time to make edits."}
                         </p>
                       </div>
                     </div>
