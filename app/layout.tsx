@@ -75,14 +75,15 @@ export const metadata: Metadata = {
   ],
   icons: {
     icon: [
-      { url: "/favicon.png", type: "image/png" },
-      { url: "/favicon.png", sizes: "32x32", type: "image/png" },
-      { url: "/favicon.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any", type: "image/x-icon" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [
-      { url: "/favicon.png", sizes: "180x180", type: "image/png" },
+      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
     ],
-    shortcut: "/favicon.png",
+    shortcut: "/favicon.ico",
   },
   metadataBase: new URL("https://clorefy.com"),
   alternates: {
@@ -420,26 +421,39 @@ export default function RootLayout({
         </ThemeProvider>
         {/* Auto-reload on ChunkLoadError (stale deployment cache) */}
         <script dangerouslySetInnerHTML={{ __html: `
+          function isChunkErrorMessage(msg) {
+            var text = String(msg || '').toLowerCase();
+            return text.indexOf('loading chunk') !== -1 ||
+              text.indexOf('chunkloaderror') !== -1 ||
+              text.indexOf('failed to fetch dynamically imported module') !== -1 ||
+              text.indexOf('error loading dynamically imported module') !== -1 ||
+              text.indexOf('importing a module script failed') !== -1;
+          }
           function handleChunkError(msg) {
-            var isChunk = msg && (msg.indexOf('Loading chunk') !== -1 || msg.indexOf('ChunkLoadError') !== -1);
-            if (isChunk) {
-              try {
-                var key = 'clorefy_chunk_reload';
-                var last = sessionStorage.getItem(key);
-                var now = Date.now();
-                if (!last || now - Number(last) > 30000) {
-                  sessionStorage.setItem(key, String(now));
-                  window.location.reload();
-                }
-              } catch (storageError) {
-                console.warn('Chunk loading failed and sessionStorage is unavailable; skipping automatic reload.', msg, storageError);
+            if (!isChunkErrorMessage(msg)) return;
+            if (document.documentElement.hasAttribute('data-clorefy-session-storage-fallback')) return;
+            try {
+              var key = 'clorefy_chunk_reload';
+              var last = Number(sessionStorage.getItem(key));
+              var now = Date.now();
+              if (!Number.isFinite(last) || now - last > 30000) {
+                sessionStorage.setItem(key, String(now));
+                window.location.reload();
               }
+            } catch (storageError) {
+              console.warn('Chunk loading failed and sessionStorage is unavailable; skipping automatic reload.', msg, storageError);
             }
           }
           window.addEventListener('error', function(e) {
+            var target = e.target;
+            var src = target && target.src;
+            if (src && src.indexOf('/_next/static/chunks/') !== -1) {
+              handleChunkError('ChunkLoadError');
+              return;
+            }
             var msg = e.message || (e.error && e.error.message) || '';
             handleChunkError(msg);
-          });
+          }, true);
           window.addEventListener('unhandledrejection', function(e) {
             var msg = (e.reason && (e.reason.message || String(e.reason))) || '';
             handleChunkError(msg);

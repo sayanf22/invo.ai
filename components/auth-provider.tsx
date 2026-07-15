@@ -118,10 +118,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
             } else if (event === "SIGNED_OUT") {
                 clearAuthTokens()
-                // Clear any persisted session so the next user doesn't see the previous user's work
-                if (typeof localStorage !== "undefined") {
-                    localStorage.removeItem("clorefy_active_session")
-                }
+                // Restricted/private browser contexts can deny localStorage.
+                // Storage cleanup must never prevent the signed-out UI state.
+                try {
+                    window.localStorage.removeItem("clorefy_active_session")
+                } catch {}
                 setSession(null)
                 setUser(null)
             } else {

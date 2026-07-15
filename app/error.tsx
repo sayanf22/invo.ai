@@ -14,18 +14,24 @@ export default function Error({
     console.error("Unhandled error:", error)
 
     // ChunkLoadError = stale deployment cache. Auto-reload once to get fresh chunks.
+    const message = `${error?.name ?? ""} ${error?.message ?? ""}`.toLowerCase()
     const chunkError =
-      error?.name === "ChunkLoadError" ||
-      error?.message?.includes("Loading chunk") ||
-      error?.message?.includes("ChunkLoadError")
+      message.includes("loading chunk") ||
+      message.includes("chunkloaderror") ||
+      message.includes("failed to fetch dynamically imported module") ||
+      message.includes("error loading dynamically imported module") ||
+      message.includes("importing a module script failed")
 
-    if (chunkError) {
+    if (
+      chunkError &&
+      !document.documentElement.hasAttribute("data-clorefy-session-storage-fallback")
+    ) {
       try {
         const reloadKey = "clorefy_chunk_reload"
-        const lastReload = sessionStorage.getItem(reloadKey)
+        const lastReload = Number(sessionStorage.getItem(reloadKey))
         const now = Date.now()
-        // Only auto-reload once per 30 seconds to prevent loops
-        if (!lastReload || now - Number(lastReload) > 30_000) {
+        // Only auto-reload once per 30 seconds to prevent loops.
+        if (!Number.isFinite(lastReload) || now - lastReload > 30_000) {
           sessionStorage.setItem(reloadKey, String(now))
           window.location.reload()
         }

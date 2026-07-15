@@ -16,7 +16,10 @@ function ensureRealtimeSessionStorage() {
     if (typeof window === "undefined") return
 
     try {
-        window.sessionStorage.getItem("clorefy_storage_probe")
+        const storage = window.sessionStorage
+        const probeKey = "clorefy_storage_probe"
+        storage.setItem(probeKey, "1")
+        storage.removeItem(probeKey)
         return
     } catch {
         // Fall through to a page-lifetime store for Realtime fallback metadata.
@@ -49,6 +52,7 @@ function ensureRealtimeSessionStorage() {
             configurable: true,
             value: memoryStorage,
         })
+        document.documentElement.setAttribute("data-clorefy-session-storage-fallback", "true")
     } catch {
         // The Supabase constructor will surface the browser restriction if the
         // Window object itself cannot be patched in this environment.
