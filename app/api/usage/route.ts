@@ -32,6 +32,8 @@ export async function GET(request: Request) {
         // Usage remains an immutable calendar-month counter. Plan changes do not
         // reset it, preventing upgrade/downgrade cycles from minting extra quota.
         const monthKey = now.toISOString().slice(0, 7)
+        const usagePeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+        const usageResetsAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
         const { data: usage } = await auth.supabase
             .from("user_usage" as any)
             .select("ai_requests_count, documents_count, emails_count")
@@ -59,16 +61,22 @@ export async function GET(request: Request) {
             billingStatus: displayStatus,
             periodEnd,
             isExpired: effectivelyDowngraded,
+            usageResetsAt: usageResetsAt.toISOString(),
+            usagePolicy: "calendar_month_utc",
             usage: {
                 documentsUsed,
                 documentsLimit,
                 documentsPercent: documentsLimit > 0 ? Math.min(Math.round((documentsUsed / documentsLimit) * 100), 100) : 0,
+                isOverLimit: documentsLimit > 0 && documentsUsed >= documentsLimit,
                 emailsUsed,
                 emailsLimit: tierLimits.emailsPerMonth,
                 aiRequests,
                 messagesPerSession: tierLimits.messagesPerSession,
                 messagesLimit: tierLimits.messagesPerSession,
                 currentMonth: monthKey,
+                periodStart: usagePeriodStart.toISOString(),
+                periodEndExclusive: usageResetsAt.toISOString(),
+                timezone: "UTC",
             },
         })
     } catch (error) {

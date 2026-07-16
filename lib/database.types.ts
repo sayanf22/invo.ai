@@ -2033,6 +2033,21 @@ export type Database = {
         }
         Returns: Json
       }
+      finalize_due_subscription_entitlements: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      record_subscription_terminal_event: {
+        Args: {
+          p_event_created_at: string
+          p_event_type: string
+          p_period_end: string | null
+          p_provider_status: string
+          p_subscription_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       release_document_quota: {
         Args: { p_session_id: string; p_user_id: string }
         Returns: undefined

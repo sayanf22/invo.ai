@@ -31,6 +31,17 @@ describe("atomic document quota enforcement", () => {
     expect(result.reserved).toBe(false)
   })
 
+  it("allows an already-counted session to remain editable even above the new tier limit", async () => {
+    const result = await reserveDocumentQuota(
+      client({ data: { allowed: true, reserved: false, current_count: 17, limit: 5, tier: "free" }, error: null }) as any,
+      userId,
+      sessionId,
+    )
+
+    expect(result.response).toBeNull()
+    expect(result.reserved).toBe(false)
+  })
+
   it("reports whether this request created the one-per-session reservation", async () => {
     const result = await reserveDocumentQuota(
       client({ data: { allowed: true, reserved: true, current_count: 1 }, error: null }) as any,

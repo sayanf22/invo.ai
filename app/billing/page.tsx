@@ -4,8 +4,16 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
-import { Check, Zap, Crown, Loader2, FileText, MessageSquare, Download, Receipt, ArrowLeft } from "lucide-react"
+import { Check, Zap, Crown, Loader2, FileText, MessageSquare, Download, Receipt, ArrowLeft, Info } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { useRazorpay } from "@/hooks/use-razorpay"
 import { authFetch } from "@/lib/auth-fetch"
 import { useSafeBack } from "@/hooks/use-safe-back"
@@ -16,7 +24,8 @@ import { HamburgerMenu } from "@/components/hamburger-menu"
 import { ClorefyLogo } from "@/components/clorefy-logo"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase"
-import { format } from "date-fns"
+import { fromMinorUnits } from "@/lib/invoice-types"
+import type { Database } from "@/lib/database.types"
 import { cn } from "@/lib/utils"
 
 const plans = [
@@ -48,25 +57,60 @@ interface UsageData {
     billingStatus?: string
     periodEnd?: string | null
     isExpired?: boolean
+    usageResetsAt: string
+    usagePolicy: string
     usage: {
         documentsUsed: number
         documentsLimit: number
         documentsPercent: number
+        isOverLimit: boolean
         aiRequests: number
         currentMonth: string
+        periodStart: string
+        periodEndExclusive: string
+        timezone: string
     }
 }
 
-interface PaymentRecord {
-    id: string
-    razorpay_payment_id: string
-    razorpay_order_id: string
-    amount: number
-    currency: string
-    status: string
-    plan: string
-    billing_cycle: string | null
-    created_at: string
+type PaymentHistoryRow = Database["public"]["Tables"]["payment_history"]["Row"]
+type PaymentRecord = Pick<
+    PaymentHistoryRow,
+    | "id"
+    | "razorpay_payment_id"
+    | "razorpay_order_id"
+    | "razorpay_invoice_id"
+    | "razorpay_subscription_id"
+    | "amount"
+    | "currency"
+    | "status"
+    | "plan"
+    | "billing_cycle"
+    | "created_at"
+>
+
+function formatExactLocal(value: string | null | undefined): string {
+    if (!value) return "Unavailable"
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return "Unavailable"
+    return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        timeZoneName: "short",
+    }).format(date)
+}
+
+function formatPaymentAmount(amount: number, currencyValue: string | null): string {
+    const currency = (currencyValue || "INR").toUpperCase()
+    const majorAmount = fromMinorUnits(amount, currency)
+    try {
+        return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(majorAmount)
+    } catch {
+        return `${currency} ${majorAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
 }
 
 export default function BillingPage() {
@@ -80,6 +124,7 @@ export default function BillingPage() {
     const [isDowngrading, setIsDowngrading] = useState(false)
     const [countryPricing, setCountryPricing] = useState<CountryPricing>(getBillablePricing(DEFAULT_COUNTRY))
     const [payments, setPayments] = useState<PaymentRecord[]>([])
+    const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(null)
     const [downloadingReceiptId, setDownloadingReceiptId] = useState<string | null>(null)
 
     const { subscribe, isProcessing } = useRazorpay({
@@ -99,17 +144,20 @@ export default function BillingPage() {
     }, [])
 
     const fetchPayments = useCallback(async () => {
+        if (!user?.id) return
         try {
             const supabase = createClient()
             const { data: rows } = await supabase
-                .from("payment_history" as any)
-                .select("id, razorpay_payment_id, razorpay_order_id, amount, currency, status, plan, billing_cycle, created_at")
+                .from("payment_history")
+                .select("id, razorpay_payment_id, razorpay_order_id, razorpay_invoice_id, razorpay_subscription_id, amount, currency, status, plan, billing_cycle, created_at")
+                .eq("user_id", user.id)
                 .eq("status", "captured")
+                .in("plan", ["starter", "pro", "agency"])
                 .order("created_at", { ascending: false })
                 .limit(10)
-            if (rows) setPayments(rows as unknown as PaymentRecord[])
+            if (rows) setPayments(rows)
         } catch {}
-    }, [])
+    }, [user?.id])
 
     // Auto-reconcile: if a payment was charged but activation was missed,
     // recover it silently on load and refresh the UI — no manual refresh needed.
@@ -125,14 +173,26 @@ export default function BillingPage() {
             if (result.activated) {
                 const planLabel = (result.plan || "").charAt(0).toUpperCase() + (result.plan || "").slice(1)
                 toast.success(`🎉 ${planLabel} plan activated!`)
-                await fetchUsage()
-                fetchPayments()
+            }
+            const shouldRefresh = Boolean(
+                result.activated
+                || result.terminal
+                || result.finalized
+                || result.pendingCleared
+                || result.scheduled
+            )
+            if (shouldRefresh) {
+                await Promise.all([fetchUsage(), fetchPayments()])
                 router.refresh()
             }
         } catch { /* silent — non-blocking */ }
     }, [fetchUsage, fetchPayments, router])
 
     const downloadReceipt = useCallback(async (payment: PaymentRecord) => {
+        if (payment.status !== "captured") {
+            toast.error("A receipt is only available for captured payments")
+            return
+        }
         setDownloadingReceiptId(payment.id)
         try {
             const { pdf } = await import("@react-pdf/renderer")
@@ -140,18 +200,22 @@ export default function BillingPage() {
             const receiptData = {
                 paymentId: payment.razorpay_payment_id,
                 orderId: payment.razorpay_order_id,
-                plan: PLAN_LABELS[payment.plan] || payment.plan,
-                billingCycle: payment.billing_cycle || "monthly",
+                invoiceId: payment.razorpay_invoice_id,
+                subscriptionId: payment.razorpay_subscription_id,
+                plan: payment.plan ? (PLAN_LABELS[payment.plan] || payment.plan) : "Unavailable",
+                billingCycle: payment.billing_cycle || "Unavailable",
                 amount: payment.amount,
-                currency: payment.currency,
+                currency: payment.currency || "INR",
                 date: payment.created_at,
                 userEmail: user?.email || "",
             }
             const blob = await pdf(<PaymentReceiptPDF receiptData={receiptData} />).toBlob()
             const url = URL.createObjectURL(blob)
             const link = document.createElement("a")
+            const rawReference = payment.razorpay_payment_id || payment.id || "payment"
+            const safeReference = rawReference.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80) || "payment"
             link.href = url
-            link.download = `clorefy-receipt-${payment.razorpay_payment_id}.pdf`
+            link.download = `clorefy-receipt-${safeReference}.pdf`
             document.body.appendChild(link)
             link.click()
             document.body.removeChild(link)
@@ -171,7 +235,7 @@ export default function BillingPage() {
             // Reconcile missed activations and any provider-confirmed transition
             // whose local persistence/old-mandate cleanup is still pending.
             const subscription = usage?.subscription as any
-            if (!usage || usage.plan === "free" || subscription?.provider_sync_required || subscription?.pending_previous_subscription_id) {
+            if (!usage || usage.plan === "free" || subscription?.provider_sync_required || subscription?.pending_previous_subscription_id || subscription?.pending_razorpay_subscription_id || subscription?.pending_change_type) {
                 autoReconcile()
             }
         })
@@ -262,16 +326,16 @@ export default function BillingPage() {
                     {data?.isExpired ? (
                         <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium pt-3 mt-1 border-t border-border/40">
                             {data?.storedPlan && data.storedPlan !== "free"
-                                ? `Your ${PLAN_LABELS[data.storedPlan] || data.storedPlan} plan ended${data?.periodEnd ? ` on ${new Date(data.periodEnd).toLocaleDateString()}` : ""} — now on Free`
+                                ? `Your ${PLAN_LABELS[data.storedPlan] || data.storedPlan} plan ended${data?.periodEnd ? ` at ${formatExactLocal(data.periodEnd)}` : ""} — now on Free`
                                 : "Subscription ended — now on Free"}
                         </p>
                     ) : data?.plan !== "free" && data?.subscription?.current_period_end && (
                         <p className="text-[11px] text-muted-foreground font-medium pt-3 mt-1 border-t border-border/40">
                             {(data?.subscription?.cancelled_at || data?.subscription?.scheduled_downgrade === "free")
-                                ? `Access until ${new Date(data.subscription.current_period_end).toLocaleDateString()}`
+                                ? `Access until ${formatExactLocal(data.subscription.current_period_end)}`
                                 : data?.subscription?.scheduled_downgrade
-                                    ? `Changes plan on ${new Date(data.subscription.current_period_end).toLocaleDateString()}`
-                                    : `Renews ${new Date(data.subscription.current_period_end).toLocaleDateString()}`}
+                                    ? `Changes plan at ${formatExactLocal(data.subscription.current_period_end)}`
+                                    : `Renews ${formatExactLocal(data.subscription.current_period_end)}`}
                         </p>
                     )}
                 </div>
@@ -310,46 +374,101 @@ export default function BillingPage() {
                         </div>
                     </div>
                     <p className="text-[11px] text-muted-foreground font-medium pt-3 mt-1 border-t border-border/40">
-                        Period: {usage?.currentMonth || "—"}
+                        UTC month: {usage?.currentMonth || "—"}
                     </p>
                 </div>
             </div>
+            <p className="-mt-5 mb-8 text-[11px] leading-relaxed text-muted-foreground">
+                Counters use a UTC calendar month ({usage?.timezone || "UTC"}); plan changes do not reset current-month usage, and existing documents remain editable.
+                {usage?.isOverLimit ? " Current document limit reached." : ""} Next reset: {formatExactLocal(data?.usageResetsAt || usage?.periodEndExclusive)}.
+            </p>
 
             {/* Payment History */}
             {payments.length > 0 && (
                 <div className="mb-8">
                     <h2 className="text-base font-semibold mb-3">Payment History</h2>
                     <div className="rounded-2xl border bg-card divide-y divide-border overflow-hidden">
-                        {payments.map((p) => {
-                            return (
-                                <div key={p.id} className="flex items-center gap-3 px-4 py-3">
-                                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center shrink-0">
-                                        <Receipt className="w-4 h-4 text-emerald-600" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium">{PLAN_LABELS[p.plan] || p.plan} Plan</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {format(new Date(p.created_at), "MMM dd, yyyy")}
-                                        </p>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="shrink-0 h-8 px-3 text-xs gap-1.5"
-                                        disabled={downloadingReceiptId === p.id}
-                                        onClick={() => downloadReceipt(p)}
-                                    >
-                                        {downloadingReceiptId === p.id
-                                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                            : <Download className="w-3.5 h-3.5" />}
-                                        Receipt
-                                    </Button>
+                        {payments.map((payment) => (
+                            <div key={payment.id} className="flex items-center gap-3 px-4 py-3">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center shrink-0">
+                                    <Receipt className="w-4 h-4 text-emerald-600" />
                                 </div>
-                            )
-                        })}
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium">
+                                        {payment.plan ? (PLAN_LABELS[payment.plan] || payment.plan) : "Paid subscription"}
+                                        <span className="ml-2 text-muted-foreground font-normal">{formatPaymentAmount(payment.amount, payment.currency)}</span>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">{formatExactLocal(payment.created_at)}</p>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="shrink-0 h-8 w-8"
+                                    aria-label="View payment information"
+                                    title="Payment information"
+                                    onClick={() => setSelectedPayment(payment)}
+                                >
+                                    <Info className="w-4 h-4" aria-hidden="true" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="shrink-0 h-8 w-8"
+                                    aria-label="Download payment receipt"
+                                    title="Download receipt"
+                                    disabled={downloadingReceiptId === payment.id}
+                                    onClick={() => downloadReceipt(payment)}
+                                >
+                                    {downloadingReceiptId === payment.id
+                                        ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                                        : <Download className="w-4 h-4" aria-hidden="true" />}
+                                </Button>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
+
+            <Dialog open={Boolean(selectedPayment)} onOpenChange={(open) => { if (!open) setSelectedPayment(null) }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Payment information</DialogTitle>
+                        <DialogDescription>Historical captured subscription payment.</DialogDescription>
+                    </DialogHeader>
+                    {selectedPayment && (
+                        <div className="space-y-2 text-sm">
+                            {[
+                                ["Plan", selectedPayment.plan ? (PLAN_LABELS[selectedPayment.plan] || selectedPayment.plan) : "Unavailable"],
+                                ["Amount", formatPaymentAmount(selectedPayment.amount, selectedPayment.currency)],
+                                ["Cycle", selectedPayment.billing_cycle || "Unavailable"],
+                                ["Status", selectedPayment.status],
+                                ["Recorded at", formatExactLocal(selectedPayment.created_at)],
+                                ["Payment ID", selectedPayment.razorpay_payment_id || "Unavailable"],
+                                ...(selectedPayment.razorpay_order_id ? [["Order ID", selectedPayment.razorpay_order_id]] : []),
+                                ...(selectedPayment.razorpay_invoice_id ? [["Invoice ID", selectedPayment.razorpay_invoice_id]] : []),
+                                ...(selectedPayment.razorpay_subscription_id ? [["Subscription ID", selectedPayment.razorpay_subscription_id]] : []),
+                            ].map(([label, value]) => (
+                                <div key={label} className="grid grid-cols-[110px_1fr] gap-3 border-b border-border/50 py-2 last:border-0">
+                                    <span className="text-muted-foreground">{label}</span>
+                                    <span className="font-medium break-all">{value}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button
+                            className="gap-2"
+                            disabled={!selectedPayment || downloadingReceiptId === selectedPayment.id}
+                            onClick={() => { if (selectedPayment) downloadReceipt(selectedPayment) }}
+                        >
+                            {selectedPayment && downloadingReceiptId === selectedPayment.id
+                                ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                                : <Download className="w-4 h-4" aria-hidden="true" />}
+                            Download receipt
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Billing Toggle */}
             <div className="flex items-center justify-center gap-1 mb-6 bg-secondary/60 border border-border/40 rounded-2xl p-1 w-fit mx-auto shadow-sm">
@@ -430,7 +549,7 @@ export default function BillingPage() {
                         Your billing change to <span className="font-bold">{plans.find(p => p.id === (data?.subscription as any)?.pending_plan)?.name || (data?.subscription as any)?.pending_plan}</span>
                         {(data?.subscription as any)?.pending_billing_cycle ? ` (${(data?.subscription as any).pending_billing_cycle})` : ""} is scheduled for{" "}
                         {(data?.subscription as any)?.pending_effective_at
-                            ? new Date((data?.subscription as any).pending_effective_at).toLocaleDateString()
+                            ? formatExactLocal((data?.subscription as any).pending_effective_at)
                             : "the end of the current billing period"}.
                         {" "}Your current plan and price remain active until then.
                     </p>

@@ -10,7 +10,7 @@
  *
  * **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.7**
  */
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import * as fc from "fast-check"
 import { resolveEffectiveTier } from "@/lib/cost-protection"
 
@@ -63,11 +63,26 @@ describe("Feature: subscription-expiry-enforcement, Property 1: Fix Verification
     )
   })
 
-  it("expires at the exact UTC period boundary", () => {
-    expect(resolveEffectiveTier({
-      plan: "pro",
-      status: "active",
-      current_period_end: new Date(Date.now() - 1).toISOString(),
-    })).toBe("free")
+  it("expires exactly at the UTC provider boundary", () => {
+    const boundary = new Date("2026-07-16T10:34:44.816Z")
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(boundary.getTime() - 1)
+      expect(resolveEffectiveTier({
+        plan: "pro", status: "cancelled", current_period_end: boundary.toISOString(),
+      })).toBe("pro")
+
+      vi.setSystemTime(boundary)
+      expect(resolveEffectiveTier({
+        plan: "pro", status: "cancelled", current_period_end: boundary.toISOString(),
+      })).toBe("free")
+
+      vi.setSystemTime(boundary.getTime() + 1)
+      expect(resolveEffectiveTier({
+        plan: "pro", status: "cancelled", current_period_end: boundary.toISOString(),
+      })).toBe("free")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

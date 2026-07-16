@@ -8,7 +8,7 @@
     Image,
     Link,
 } from "@react-pdf/renderer"
-import type { InvoiceData } from "@/lib/invoice-types"
+import { fromMinorUnits, type InvoiceData } from "@/lib/invoice-types"
 import { getDocumentTypeConfig } from "@/lib/document-type-registry"
 import type {
     SOWData,
@@ -2726,13 +2726,15 @@ export function ReceiptPDF({ data, logoUrl }: Props) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export interface PaymentReceiptData {
-    paymentId: string
-    orderId: string
+    paymentId?: string | null
+    orderId?: string | null
+    invoiceId?: string | null
+    subscriptionId?: string | null
     plan: string
     billingCycle: string
-    amount: number       // in paise (INR smallest unit)
+    amount: number       // in the currency's smallest unit
     currency: string
-    date: string
+    date: string | null
     userEmail: string
     userName?: string
 }
@@ -2744,33 +2746,42 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
     const bdr = "#d1d5db"
     const font = "Inter"
 
-    const amountInRupees = receiptData.amount / 100
-    const amountDisplay = receiptData.currency === "INR"
-        ? `Rs. ${amountInRupees.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        : `${receiptData.currency} ${amountInRupees.toFixed(2)}`
-
-    const fmtLongDate = (value: string | Date) => {
+    const currency = (receiptData.currency || "INR").toUpperCase()
+    const majorAmount = fromMinorUnits(receiptData.amount, currency)
+    const amountDisplay = (() => {
         try {
-            return new Date(value).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-        } catch { return String(value) }
+            return new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency,
+                currencyDisplay: "code",
+            }).format(majorAmount).replace(/\u00a0/g, " ")
+        } catch {
+            return `${currency} ${majorAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        }
+    })()
+
+    const fmtRecordedAt = (value: string | null) => {
+        if (!value) return "Unavailable"
+        const date = new Date(value)
+        if (Number.isNaN(date.getTime())) return "Unavailable"
+        return new Intl.DateTimeFormat("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            timeZoneName: "short",
+        }).format(date)
     }
 
-    const dateDisplay = fmtLongDate(receiptData.date)
-
+    const dateDisplay = fmtRecordedAt(receiptData.date)
     const planLabel = receiptData.plan.charAt(0).toUpperCase() + receiptData.plan.slice(1)
-    const cycleLabel = receiptData.billingCycle === "yearly" ? "Annual" : "Monthly"
-
-    // Service/billing period covered by THIS payment, derived from the payment
-    // date + billing cycle (accurate per-payment, independent of current sub state).
-    const periodRange = (() => {
-        try {
-            const start = new Date(receiptData.date)
-            const end = new Date(start)
-            if (receiptData.billingCycle === "yearly") end.setFullYear(end.getFullYear() + 1)
-            else end.setMonth(end.getMonth() + 1)
-            return { start: fmtLongDate(start), end: fmtLongDate(end) }
-        } catch { return null }
-    })()
+    const cycleLabel = receiptData.billingCycle === "yearly"
+        ? "Annual"
+        : receiptData.billingCycle === "monthly"
+            ? "Monthly"
+            : receiptData.billingCycle || "Unavailable"
 
     const thinLine = { ...bw(0, 0, 1, 0), ...bc("transparent", "transparent", bdr, "transparent"), ...bs("solid", "solid", "solid", "solid") }
     const thinLineTop = { ...bw(1, 0, 0, 0), ...bc(bdr, "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
@@ -2838,27 +2849,35 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
 
                 <View style={s.metaBlock} wrap={false}>
                     <View style={s.metaRow}>
-                        <Text style={s.metaLabel}>Receipt date</Text>
+                        <Text style={s.metaLabel}>Recorded at</Text>
                         <Text style={s.metaValue}>{dateDisplay}</Text>
                     </View>
                     <View style={s.metaRow}>
                         <Text style={s.metaLabel}>Payment ID</Text>
-                        <Text style={s.metaValue}>{receiptData.paymentId}</Text>
+                        <Text style={s.metaValue}>{receiptData.paymentId || "Unavailable"}</Text>
                     </View>
-                    <View style={s.metaRow}>
-                        <Text style={s.metaLabel}>Order ID</Text>
-                        <Text style={s.metaValue}>{receiptData.orderId}</Text>
-                    </View>
+                    {receiptData.orderId ? (
+                        <View style={s.metaRow}>
+                            <Text style={s.metaLabel}>Order ID</Text>
+                            <Text style={s.metaValue}>{receiptData.orderId}</Text>
+                        </View>
+                    ) : null}
+                    {receiptData.invoiceId ? (
+                        <View style={s.metaRow}>
+                            <Text style={s.metaLabel}>Invoice ID</Text>
+                            <Text style={s.metaValue}>{receiptData.invoiceId}</Text>
+                        </View>
+                    ) : null}
+                    {receiptData.subscriptionId ? (
+                        <View style={s.metaRow}>
+                            <Text style={s.metaLabel}>Subscription ID</Text>
+                            <Text style={s.metaValue}>{receiptData.subscriptionId}</Text>
+                        </View>
+                    ) : null}
                     <View style={s.metaRow}>
                         <Text style={s.metaLabel}>Billing cycle</Text>
                         <Text style={s.metaValue}>{cycleLabel}</Text>
                     </View>
-                    {periodRange ? (
-                        <View style={s.metaRow}>
-                            <Text style={s.metaLabel}>Service period</Text>
-                            <Text style={s.metaValue}>{periodRange.start} {"\u2013"} {periodRange.end}</Text>
-                        </View>
-                    ) : null}
                 </View>
 
                 <View style={s.addrRow} wrap={false}>
@@ -2888,7 +2907,7 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                     <View style={s.tableRow} wrap={false}>
                         <View style={s.colDesc}>
                             <Text style={s.td}>Clorefy {planLabel} Plan {"\u2014"} {cycleLabel}</Text>
-                            <Text style={s.tdSub}>{periodRange ? `Service period: ${periodRange.start} \u2013 ${periodRange.end}` : `Subscription \u00b7 ${dateDisplay}`}</Text>
+                            <Text style={s.tdSub}>Historical subscription payment {"\u00b7"} {dateDisplay}</Text>
                         </View>
                         <View style={s.colAmt}>
                             <Text style={s.tdB}>{amountDisplay}</Text>
@@ -2902,10 +2921,6 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                             <Text style={s.sumLabel}>Subtotal</Text>
                             <Text style={s.sumVal}>{amountDisplay}</Text>
                         </View>
-                        <View style={s.sumRow}>
-                            <Text style={s.sumLabel}>Tax</Text>
-                            <Text style={s.sumVal}>Included</Text>
-                        </View>
                         <View style={s.sumTotalRow}>
                             <Text style={s.sumTotalLabel}>Amount paid</Text>
                             <Text style={s.sumTotalVal}>{amountDisplay}</Text>
@@ -2916,14 +2931,14 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
                 <View style={s.noteBlock} wrap={false}>
                     <Text style={s.noteLabel}>Note</Text>
                     <Text style={s.noteText}>
-                        Thank you for subscribing to Clorefy. This receipt confirms your payment for the {planLabel} plan ({cycleLabel} billing).
-                        Your subscription is now active. For support, contact us at support@clorefy.com.
+                        This receipt confirms the historical payment for the {planLabel} plan ({cycleLabel} billing).
+                        For support, contact us at support@clorefy.com.
                     </Text>
                 </View>
 
                 <View style={s.footer} fixed>
                     <Text style={s.footerText}>{"Clorefy \u2014 clorefy.com"}</Text>
-                    <Text style={s.footerText}>Official payment receipt</Text>
+                    <Text style={s.footerText}>Clorefy payment receipt</Text>
                 </View>
             </Page>
         </Document>

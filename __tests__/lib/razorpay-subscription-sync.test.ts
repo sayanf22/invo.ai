@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
-  createClient: vi.fn(), getSubscription: vi.fn(), getVerifiedCharge: vi.fn(), apply: vi.fn(),
+  createClient: vi.fn(), getSubscription: vi.fn(), getVerifiedCharge: vi.fn(),
+  apply: vi.fn(), applyTerminal: vi.fn(),
 }))
 vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClient }))
 vi.mock("@/lib/razorpay", () => ({
@@ -10,6 +11,7 @@ vi.mock("@/lib/razorpay", () => ({
 }))
 vi.mock("@/lib/razorpay-subscription-state", () => ({
   applyRazorpaySubscriptionSnapshot: mocks.apply,
+  applyRazorpayTerminalSnapshot: mocks.applyTerminal,
 }))
 
 import { handleRazorpaySubscriptionEvent } from "@/lib/razorpay-subscription-sync"
@@ -45,6 +47,9 @@ beforeEach(() => {
   mocks.apply.mockResolvedValue({
     applied: true, stale: false, plan: "pro", billingCycle: "monthly",
   })
+  mocks.applyTerminal.mockResolvedValue({
+    applied: true, stale: false, finalized: true, pendingCleared: false,
+  })
 })
 
 describe("Razorpay subscription webhook entitlement gating", () => {
@@ -71,5 +76,27 @@ describe("Razorpay subscription webhook entitlement gating", () => {
       userId: "user-1", eventType: "subscription.charged",
       charge: expect.objectContaining({ id: "pay_EXACT123", invoice_id: "inv_EXACT123" }),
     }))
+  })
+
+  it.each([
+    ["subscription.cancelled", "cancelled"],
+    ["subscription.halted", "halted"],
+  ])("persists %s through the atomic terminal RPC", async (eventType, status) => {
+    const terminal = { ...entity, status, notes: { platform: "clorefy", user_id: "user-1" } }
+    mocks.getSubscription.mockResolvedValueOnce(terminal)
+    const response = await handleRazorpaySubscriptionEvent(event(), eventType, `evt_${status}`)
+    expect(response).toBeNull()
+    expect(mocks.applyTerminal).toHaveBeenCalledWith(expect.anything(), terminal, expect.objectContaining({
+      userId: "user-1", eventType,
+    }))
+  })
+
+  it("keeps the webhook retryable when atomic terminal cleanup fails", async () => {
+    mocks.getSubscription.mockResolvedValueOnce({
+      ...entity, status: "cancelled", notes: { platform: "clorefy", user_id: "user-1" },
+    })
+    mocks.applyTerminal.mockRejectedValueOnce(new Error("transaction rolled back"))
+    const response = await handleRazorpaySubscriptionEvent(event(), "subscription.cancelled", "evt_cancelled")
+    expect(response?.status).toBe(500)
   })
 })

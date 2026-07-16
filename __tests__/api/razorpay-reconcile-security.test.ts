@@ -3,7 +3,7 @@ import { NextRequest } from "next/server"
 
 const mocks = vi.hoisted(() => ({
   authenticate: vi.fn(), createClient: vi.fn(), getSubscription: vi.fn(),
-  getVerifiedCharge: vi.fn(), apply: vi.fn(),
+  getVerifiedCharge: vi.fn(), apply: vi.fn(), applyTerminal: vi.fn(),
 }))
 vi.mock("@/lib/api-auth", () => ({
   authenticateRequest: mocks.authenticate, validateOrigin: vi.fn(() => null),
@@ -16,8 +16,9 @@ vi.mock("@/lib/razorpay", () => ({
 }))
 vi.mock("@/lib/razorpay-subscription-state", () => ({
   applyRazorpaySubscriptionSnapshot: mocks.apply,
+  applyRazorpayTerminalSnapshot: mocks.applyTerminal,
 }))
-vi.mock("@/lib/audit-log", () => ({ logAudit: vi.fn() }))
+vi.mock("@/lib/audit-log", () => ({ logAudit: vi.fn(async () => undefined) }))
 vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClient }))
 
 const userId = "7670887d-0945-4f2e-afc6-86004f4bb35b"
@@ -49,6 +50,10 @@ beforeEach(() => {
     current_end: Math.floor(Date.now() / 1000) + 3600,
   })
   mocks.getVerifiedCharge.mockResolvedValue(null)
+  mocks.applyTerminal.mockResolvedValue({
+    applied: true, stale: false, finalized: true, pendingCleared: false,
+    periodEnd: "2026-07-16T10:34:44.816Z",
+  })
 })
 
 describe("Razorpay reconcile entitlement hardening", () => {
@@ -69,5 +74,24 @@ describe("Razorpay reconcile entitlement hardening", () => {
     expect(response.status).toBe(200)
     expect(mocks.getSubscription).not.toHaveBeenCalled()
     expect(mocks.getVerifiedCharge).not.toHaveBeenCalled()
+  })
+
+  it("reconciles a bound terminal provider state without inventing a paid charge", async () => {
+    mocks.createClient.mockReturnValue(service({
+      user_id: userId, plan: "pro", razorpay_subscription_id: subscriptionId,
+    }))
+    mocks.getSubscription.mockResolvedValueOnce({
+      id: subscriptionId, status: "cancelled",
+      notes: { platform: "clorefy", user_id: userId },
+      current_end: 1_784_198_084,
+    })
+    const { POST } = await import("@/app/api/razorpay/reconcile/route")
+    const response = await POST(request())
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body).toMatchObject({ activated: false, terminal: true, finalized: true })
+    expect(mocks.applyTerminal).toHaveBeenCalled()
+    expect(mocks.getVerifiedCharge).not.toHaveBeenCalled()
+    expect(mocks.apply).not.toHaveBeenCalled()
   })
 })

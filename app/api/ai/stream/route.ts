@@ -7,7 +7,7 @@ import { classifyIntent, detectMismatch, type DocumentType as IntentDocumentType
 import { buildChatOnlySystemPrompt } from "@/lib/chat-only-prompts"
 import { formatReferenceNumber } from "@/lib/document-type-registry"
 
-import { checkCostLimit, trackUsage, checkMessageLimit, checkChatMessageLimit, checkDocumentTypeAllowed, reserveDocumentQuota, releaseDocumentQuota, resolveEffectiveTier, getUserTier } from "@/lib/cost-protection"
+import { trackUsage, checkMessageLimit, checkChatMessageLimit, checkDocumentTypeAllowed, reserveDocumentQuota, releaseDocumentQuota, getUserTier } from "@/lib/cost-protection"
 import { logAIGeneration } from "@/lib/audit-log"
 import { sanitizeText, stripPromptInjection } from "@/lib/sanitize"
 
@@ -52,10 +52,6 @@ export async function POST(request: NextRequest) {
         // Chat-only mode skips all tier gates — chat conversations are free.
         // Quota is consumed only at promotion time (/api/sessions/promote).
         if (!isChatOnlyMode) {
-            // SECURITY: Cost protection - check monthly document limit with actual tier
-            const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
-            if (costError) return costError
-
             // SECURITY: Document type restriction — free tier only gets invoice + contract
             // This is the server-side enforcement — the frontend check is just UX
             const docTypeToCheck = (body.documentType || "invoice").toLowerCase()

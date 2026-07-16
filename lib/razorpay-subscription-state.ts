@@ -38,6 +38,20 @@ export interface ApplySubscriptionResult {
     chargedAmount: number | null
 }
 
+export interface ApplyTerminalResult {
+    applied: boolean
+    stale: boolean
+    finalized: boolean
+    pendingCleared: boolean
+    periodEnd: string | null
+}
+
+export interface ApplyTerminalOptions {
+    userId: string
+    eventType: "subscription.cancelled" | "subscription.halted" | "provider.reconcile"
+    eventCreatedAt?: Date
+}
+
 const NON_GRANT_EVENTS = new Set(["subscription.activated", "subscription.updated"])
 
 function eventRank(type: string | null | undefined): number {
@@ -234,6 +248,45 @@ export async function applyRazorpaySubscriptionSnapshot(
         billingCycle: snapshot.billingCycle,
         periodEnd: snapshot.periodEnd.toISOString(),
         chargedAmount: options.charge!.amount,
+    }
+}
+
+/** Persist a provider-confirmed terminal state without shortening paid access. */
+export async function applyRazorpayTerminalSnapshot(
+    db: SupabaseClient,
+    entity: RazorpaySubscriptionSnapshot,
+    options: ApplyTerminalOptions,
+): Promise<ApplyTerminalResult> {
+    if (!entity.id || !["cancelled", "halted"].includes(entity.status || "")) {
+        throw new Error("Razorpay subscription is not in a terminal live state")
+    }
+    if (entity.notes?.platform !== "clorefy" || entity.notes?.user_id !== options.userId) {
+        throw new Error("Razorpay subscription ownership metadata does not match")
+    }
+
+    const providerPeriodEnd = entity.current_end
+        ? new Date(entity.current_end * 1000).toISOString()
+        : null
+    const { data, error } = await (db as any).rpc("record_subscription_terminal_event", {
+        p_user_id: options.userId,
+        p_subscription_id: entity.id,
+        p_provider_status: entity.status,
+        p_period_end: providerPeriodEnd,
+        p_event_type: options.eventType,
+        p_event_created_at: (options.eventCreatedAt || new Date()).toISOString(),
+    })
+    if (error) throw error
+    if (!data || typeof data !== "object") throw new Error("Terminal subscription update returned no result")
+    if (!(data as any).applied && !(data as any).stale) {
+        throw new Error((data as any).reason || "Terminal subscription update failed")
+    }
+
+    return {
+        applied: Boolean((data as any).applied),
+        stale: Boolean((data as any).stale),
+        finalized: Boolean((data as any).finalized),
+        pendingCleared: Boolean((data as any).pending_cleared),
+        periodEnd: typeof (data as any).period_end === "string" ? (data as any).period_end : providerPeriodEnd,
     }
 }
 

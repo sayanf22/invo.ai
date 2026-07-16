@@ -4,7 +4,10 @@ import { authenticateRequest, validateOrigin } from "@/lib/api-auth"
 import { validateCSRFToken } from "@/lib/csrf"
 import { checkRateLimit } from "@/lib/rate-limiter"
 import { getSubscription, getVerifiedSubscriptionCharge } from "@/lib/razorpay"
-import { applyRazorpaySubscriptionSnapshot } from "@/lib/razorpay-subscription-state"
+import {
+    applyRazorpaySubscriptionSnapshot,
+    applyRazorpayTerminalSnapshot,
+} from "@/lib/razorpay-subscription-state"
 import { logAudit } from "@/lib/audit-log"
 
 /** Recover only locally-bound, charge-backed subscription transitions. */
@@ -40,6 +43,30 @@ export async function POST(request: NextRequest) {
             if (!provider || provider.id !== subscriptionId
                 || provider.notes?.platform !== "clorefy"
                 || provider.notes?.user_id !== auth.user.id) continue
+
+            if (provider.status === "cancelled" || provider.status === "halted") {
+                const result = await applyRazorpayTerminalSnapshot(svc, provider, {
+                    userId: auth.user.id,
+                    eventType: "provider.reconcile",
+                    eventCreatedAt: new Date(),
+                })
+                await logAudit(auth.supabase, {
+                    user_id: auth.user.id,
+                    action: "payment.verify",
+                    metadata: {
+                        razorpay_subscription_id: subscriptionId,
+                        provider_status: provider.status,
+                        finalized: result.finalized,
+                    } as any,
+                }, request).catch(() => {})
+                return NextResponse.json({
+                    activated: false,
+                    terminal: true,
+                    finalized: result.finalized,
+                    pendingCleared: result.pendingCleared,
+                    effectiveDate: result.periodEnd,
+                })
+            }
 
             const futureReplacement = (current as any)?.pending_razorpay_subscription_id === subscriptionId
                 && (current as any)?.razorpay_subscription_id !== subscriptionId
