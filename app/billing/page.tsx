@@ -212,7 +212,7 @@ export default function BillingPage() {
                 }
                 throw new Error(result.error || "Failed to cancel scheduled change")
             }
-            toast.success("Scheduled billing change cancelled")
+            toast.success("Pending change cancelled")
             await Promise.all([fetchUsage(), fetchPayments()])
             router.refresh()
         } catch (error) {
@@ -610,37 +610,58 @@ export default function BillingPage() {
                 <a href="/refund-policy" className="underline">Refund Policy</a> · <a href="/terms" className="underline">Terms</a>
             </p>
 
-            {(data?.subscription as any)?.pending_change_type && (
-                <div className="mt-4 p-4 rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
-                    <div className="text-center">
-                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                            {PLAN_LABELS[currentPlan] || currentPlan} → {PLAN_LABELS[(data?.subscription as any)?.pending_plan] || (data?.subscription as any)?.pending_plan}
-                            {(data?.subscription as any)?.pending_billing_cycle ? ` (${(data?.subscription as any).pending_billing_cycle})` : ""}
-                        </p>
-                        <p className="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
-                            {(data?.subscription as any)?.pending_effective_at
-                                ? `Your current ${PLAN_LABELS[currentPlan] || currentPlan} access remains active until ${formatExactLocal((data?.subscription as any).pending_effective_at)}.`
-                                : "The target plan starts only after Razorpay confirms a captured payment."}
-                            {" "}Document, email, and AI allowance counters reset once when this transition actually completes. Existing documents and payment history are preserved.
-                        </p>
-                        {(data?.subscription as any)?.pending_change_type === "cancellation" && (
-                            <p className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-100">
-                                To keep a paid plan, choose it above and authorize the replacement mandate before access ends.
-                            </p>
-                        )}
+            {(data?.subscription as any)?.pending_change_type && (() => {
+                const sub = data!.subscription as any
+                const pType = sub.pending_change_type as string
+                const pPlan = (sub.pending_plan as string) || ""
+                const pCycle = sub.pending_billing_cycle as string | null
+                const effectiveAt = sub.pending_effective_at as string | null
+                const isCancellation = pType === "cancellation"
+                // "Scheduled" only when there is a real future effective date (a
+                // downgrade or cancellation at period end). An upgrade has no date —
+                // it activates the moment payment is confirmed, so it is "pending",
+                // never "scheduled".
+                const isScheduled = Boolean(effectiveAt)
+                const targetLabel = `${PLAN_LABELS[pPlan] || pPlan}${pCycle ? ` · ${pCycle}` : ""}`
+                const title = isCancellation
+                    ? "Cancellation scheduled"
+                    : isScheduled ? "Plan change scheduled" : "Upgrade awaiting payment"
+                const body = isCancellation
+                    ? `Your ${PLAN_LABELS[currentPlan] || currentPlan} access stays active until ${formatExactLocal(effectiveAt)}. To keep a paid plan, choose one above and authorize the replacement before then.`
+                    : isScheduled
+                        ? `You'll move to ${targetLabel} on ${formatExactLocal(effectiveAt)}, and your ${PLAN_LABELS[currentPlan] || currentPlan} plan stays active until then. Document, email, and AI allowance counters reset once when this transition actually completes; your documents and payment history are preserved.`
+                        : `You started an upgrade to ${targetLabel}. It activates only after Razorpay confirms your payment — if you didn't finish checkout you can safely discard it. Your documents and payment history are preserved.`
+                return (
+                    <div className="mt-6 rounded-2xl border border-border/60 bg-card p-5 shadow-[0_8px_24px_rgb(0,0,0,0.06)]">
+                        <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 shrink-0 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/30 flex items-center justify-center">
+                                <Info className="w-4 h-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-sm font-semibold">{title}</p>
+                                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-medium">
+                                        {PLAN_LABELS[currentPlan] || currentPlan} → {targetLabel}
+                                    </Badge>
+                                </div>
+                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{body}</p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {!isCancellation && (
+                                        <Button variant="outline" size="sm" disabled={isCancellingChange || isProcessing} onClick={cancelPendingChange}>
+                                            {isCancellingChange
+                                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                : isScheduled ? "Cancel scheduled change" : "Discard upgrade"}
+                                        </Button>
+                                    )}
+                                    <Button variant="ghost" size="sm" disabled={isCancellingChange || isProcessing} onClick={autoReconcile}>
+                                        Refresh status
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap justify-center gap-2">
-                        {(data?.subscription as any)?.pending_change_type !== "cancellation" && (
-                            <Button variant="outline" size="sm" disabled={isCancellingChange || isProcessing} onClick={cancelPendingChange}>
-                                {isCancellingChange ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancel scheduled change"}
-                            </Button>
-                        )}
-                        <Button variant="ghost" size="sm" disabled={isCancellingChange || isProcessing} onClick={autoReconcile}>
-                            Retry status sync
-                        </Button>
-                    </div>
-                </div>
-            )}
+                )
+            })()}
 
             {downgradeTarget && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setDowngradeTarget(null)}>
