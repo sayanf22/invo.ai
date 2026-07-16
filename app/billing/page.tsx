@@ -59,6 +59,7 @@ interface UsageData {
     isExpired?: boolean
     usageResetsAt: string
     usagePolicy: string
+    billingAnchored?: boolean
     lastUsageReset?: {
         effectiveAt: string
         reason: string
@@ -412,9 +413,12 @@ export default function BillingPage() {
                 </div>
             </div>
             <p className="-mt-5 mb-8 text-[11px] leading-relaxed text-muted-foreground">
-                Allowances reset at each UTC month start and once when a verified plan transition becomes active; existing documents remain editable.
+                {data?.billingAnchored
+                    ? "Paid allowances renew on your billing date each month (monthly and yearly plans alike)."
+                    : "Free allowances reset at the start of each UTC calendar month."}
+                {" "}Existing documents always stay editable, even after a downgrade.
                 {data?.lastUsageReset ? ` Last plan reset: ${PLAN_LABELS[data.lastUsageReset.fromPlan] || data.lastUsageReset.fromPlan} → ${PLAN_LABELS[data.lastUsageReset.toPlan] || data.lastUsageReset.toPlan} at ${formatExactLocal(data.lastUsageReset.effectiveAt)}.` : ""}
-                {usage?.isOverLimit ? " Current document limit reached." : ""} Next scheduled reset: {formatExactLocal(data?.usageResetsAt || usage?.periodEndExclusive)}.
+                {usage?.isOverLimit ? " Current document limit reached." : ""} Next reset: {formatExactLocal(data?.usageResetsAt || usage?.periodEndExclusive)}.
             </p>
 
             {/* Payment History */}

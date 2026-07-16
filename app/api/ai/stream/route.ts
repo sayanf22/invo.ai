@@ -49,15 +49,10 @@ export async function POST(request: NextRequest) {
         // Fetch user tier from subscriptions table (needed for all limit checks)
         const userTier = await getUserTier(auth.supabase, auth.user.id)
 
-        // Chat-only mode skips all tier gates — chat conversations are free.
-        // Quota is consumed only at promotion time (/api/sessions/promote).
-        if (!isChatOnlyMode) {
-            // SECURITY: Document type restriction — free tier only gets invoice + contract
-            // This is the server-side enforcement — the frontend check is just UX
-            const docTypeToCheck = (body.documentType || "invoice").toLowerCase()
-            const typeError = checkDocumentTypeAllowed(docTypeToCheck, userTier)
-            if (typeError) return typeError
-        }
+        // NOTE: Document-type entitlement is enforced below, AFTER the session is
+        // loaded, and ONLY for brand-new documents. Editing an already-created
+        // document (including one generated during a former paid tier) must never
+        // be blocked by a later downgrade — existing work always stays editable.
 
         const sessionId = (body as any).sessionId
 
@@ -126,7 +121,7 @@ export async function POST(request: NextRequest) {
         }
         const { data: sessionData, error: sessionError } = await auth.supabase
             .from("document_sessions")
-            .select("id,status,document_type")
+            .select("id,status,document_type,quota_counted_at")
             .eq("id", sessionId)
             .eq("user_id", auth.user.id)
             .maybeSingle()
@@ -145,6 +140,16 @@ export async function POST(request: NextRequest) {
                 status: 409,
                 headers: { "Content-Type": "application/json" },
             })
+        }
+
+        // SECURITY: Document-type entitlement (free tier only gets invoice/contract/quote).
+        // Applied ONLY to new documents — a session that has already reserved its
+        // document quota is existing work and remains editable on any tier, so a
+        // paid→free downgrade never locks previously generated documents (all 9
+        // types created while paid stay fully editable).
+        if (!isChatOnlyMode && !(sessionData as any).quota_counted_at) {
+            const typeError = checkDocumentTypeAllowed(requestedType, userTier)
+            if (typeError) return typeError
         }
         body.sessionStatus = sessionData.status as any
 

@@ -114,8 +114,37 @@ const OPERATION_COSTS = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getCurrentMonth(): string {
-    // Usage buckets are immutable UTC calendar months across every writer.
+    // UTC calendar month — the free-tier allowance bucket and the safe fallback
+    // if the tier-aware period lookup is briefly unavailable.
     return new Date().toISOString().slice(0, 7)
+}
+
+/**
+ * Resolve the authoritative allowance-period bucket key for a user.
+ *
+ * Single source of truth is the DB function `current_usage_period_key`:
+ *   - free/expired → UTC calendar month ("YYYY-MM")
+ *   - paid         → billing-anchored monthly window, keyed by the calendar
+ *                    month the window starts in ("YYYY-MM")
+ *
+ * Every reader/writer of user_usage must scope to this key so paid windows and
+ * free calendar months stay consistent. Falls back to the calendar month if the
+ * lookup fails, which is correct for free users and safe for paid users (the
+ * atomic RPCs recompute the key server-side regardless).
+ */
+export async function resolveUsagePeriodKey(
+    supabase: SupabaseClient<Database>,
+    userId: string,
+): Promise<string> {
+    try {
+        const { data, error } = await (supabase.rpc as any)("current_usage_period_key", { p_user_id: userId })
+        if (error || typeof data !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(data)) {
+            return getCurrentMonth()
+        }
+        return data
+    } catch {
+        return getCurrentMonth()
+    }
 }
 
 function protectionUnavailableResponse(): NextResponse {
@@ -178,7 +207,7 @@ async function getUserUsage(
     supabase: SupabaseClient<Database>,
     userId: string
 ): Promise<UsageRecord | null> {
-    const month = getCurrentMonth()
+    const month = await resolveUsagePeriodKey(supabase, userId)
 
     const { data, error } = await supabase
         .from("user_usage")
@@ -398,7 +427,7 @@ export async function checkEmailLimit(
         // Unlimited tier
         if (limits.emailsPerMonth === 0) return null
 
-        const month = getCurrentMonth()
+        const month = await resolveUsagePeriodKey(supabase, userId)
         const { data: usage, error } = await supabase
             .from("user_usage")
             .select("emails_count")
@@ -456,11 +485,13 @@ export async function incrementEmailCount(
 
         if (error) {
             console.error("RPC increment_email_count failed, using upsert fallback:", error)
-            // Upsert fallback — handles both insert and update atomically
+            // Upsert fallback — handles both insert and update atomically.
+            // Scope to the tier-aware period so paid windows stay consistent.
+            const period = await resolveUsagePeriodKey(supabase, userId)
             await (supabase as any)
                 .from("user_usage")
                 .upsert(
-                    { user_id: userId, month, emails_count: 1 },
+                    { user_id: userId, month: period, emails_count: 1 },
                     { onConflict: "user_id,month", ignoreDuplicates: false }
                 )
         }
@@ -723,12 +754,13 @@ export async function incrementDocumentCount(
 
         if (error) {
             console.error("RPC increment_document_count failed, using upsert fallback:", error)
-            // Fallback: direct upsert on user_usage table
+            // Fallback: direct upsert scoped to the tier-aware period bucket.
+            const period = await resolveUsagePeriodKey(supabase, userId)
             const { data: existing } = await supabase
                 .from("user_usage")
                 .select("documents_count")
                 .eq("user_id", userId)
-                .eq("month", month)
+                .eq("month", period)
                 .single()
 
             if (existing) {
@@ -736,11 +768,11 @@ export async function incrementDocumentCount(
                     .from("user_usage")
                     .update({ documents_count: (existing.documents_count || 0) + 1 })
                     .eq("user_id", userId)
-                    .eq("month", month)
+                    .eq("month", period)
             } else {
                 await supabase
                     .from("user_usage")
-                    .insert({ user_id: userId, month, documents_count: 1 })
+                    .insert({ user_id: userId, month: period, documents_count: 1 })
             }
         }
     } catch (error) {

@@ -2159,6 +2159,14 @@ export type Database = {
       cleanup_expired_csrf_tokens: { Args: never; Returns: undefined }
       cleanup_old_rate_limits: { Args: never; Returns: undefined }
       cleanup_rate_limit_logs: { Args: never; Returns: undefined }
+      current_usage_period: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
+      current_usage_period_key: {
+        Args: { p_user_id: string }
+        Returns: string
+      }
       get_secret: { Args: { secret_name: string }; Returns: string }
       increment_document_count: {
         Args: { p_month: string; p_user_id: string }
