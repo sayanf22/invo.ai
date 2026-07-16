@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
             { auth: { persistSession: false, autoRefreshToken: false } },
         )
         const { data: localBinding, error: bindingError } = await svc.from("subscriptions" as any)
-            .select("user_id, razorpay_subscription_id, pending_razorpay_subscription_id")
+            .select("user_id, razorpay_subscription_id, pending_razorpay_subscription_id, pending_change_type, pending_created_at, pending_effective_at, pending_provider_plan_id")
             .eq("user_id", auth.user.id)
             .maybeSingle()
         if (bindingError) throw bindingError
@@ -103,7 +103,30 @@ export async function POST(request: NextRequest) {
             })
         }
 
-        const verified = await getVerifiedSubscriptionCharge(razorpay_subscription_id, razorpay_payment_id)
+        // Bound the captured-charge evidence to this transition so a stale
+        // invoice from an earlier period can never grant/reset access. The
+        // boundary only applies when the verified provider plan is exactly the
+        // pending target; otherwise fall back to the payment-correlated lookup.
+        const matchesPendingTarget = Boolean(
+            bound.pending_provider_plan_id && bound.pending_provider_plan_id === provider.plan_id,
+        )
+        const isDeferredTransition = bound.pending_change_type === "downgrade"
+            || bound.pending_change_type === "cycle_change"
+        let evidenceBoundary: number | undefined
+        if (matchesPendingTarget) {
+            if (isDeferredTransition && bound.pending_effective_at) {
+                const effectiveAt = Date.parse(bound.pending_effective_at)
+                if (Number.isFinite(effectiveAt)) evidenceBoundary = effectiveAt - 5 * 60 * 1000
+            } else if (bound.pending_created_at) {
+                const createdAt = Date.parse(bound.pending_created_at)
+                if (Number.isFinite(createdAt)) evidenceBoundary = createdAt
+            }
+        }
+        const verified = await getVerifiedSubscriptionCharge(
+            razorpay_subscription_id,
+            razorpay_payment_id,
+            evidenceBoundary,
+        )
             .catch((error) => {
                 console.error("[verify] charge evidence unavailable:", error)
                 return null

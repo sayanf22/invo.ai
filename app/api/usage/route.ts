@@ -29,17 +29,34 @@ export async function GET(request: Request) {
         const plan = resolveEffectiveTier(sub as any) as PlanId
         const planConfig = PLANS[plan]
 
-        // Usage remains an immutable calendar-month counter. Plan changes do not
-        // reset it, preventing upgrade/downgrade cycles from minting extra quota.
+        // UTC months remain the scheduled cadence. A verified completed plan
+        // transition can start a fresh allowance inside the same month; the
+        // pre-reset counters remain immutable in subscription_usage_resets.
         const monthKey = now.toISOString().slice(0, 7)
-        const usagePeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+        const calendarPeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
         const usageResetsAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
-        const { data: usage } = await auth.supabase
-            .from("user_usage" as any)
-            .select("ai_requests_count, documents_count, emails_count")
-            .eq("user_id", userId)
-            .eq("month", monthKey)
-            .maybeSingle()
+        const [{ data: usage }, { data: lastReset }] = await Promise.all([
+            auth.supabase
+                .from("user_usage" as any)
+                .select("ai_requests_count, documents_count, emails_count")
+                .eq("user_id", userId)
+                .eq("month", monthKey)
+                .maybeSingle(),
+            auth.supabase
+                .from("subscription_usage_resets" as any)
+                .select("from_plan, to_plan, effective_at, reason")
+                .eq("user_id", userId)
+                .eq("usage_month", monthKey)
+                .order("effective_at", { ascending: false })
+                .limit(1)
+                .maybeSingle(),
+        ])
+        const resetAt = (lastReset as any)?.effective_at
+            ? new Date((lastReset as any).effective_at)
+            : null
+        const usagePeriodStart = resetAt && resetAt > calendarPeriodStart
+            ? resetAt
+            : calendarPeriodStart
 
         const documentsUsed = (usage as any)?.documents_count || 0
         const emailsUsed = (usage as any)?.emails_count || 0
@@ -62,7 +79,13 @@ export async function GET(request: Request) {
             periodEnd,
             isExpired: effectivelyDowngraded,
             usageResetsAt: usageResetsAt.toISOString(),
-            usagePolicy: "calendar_month_utc",
+            usagePolicy: "calendar_month_plus_verified_transitions",
+            lastUsageReset: lastReset ? {
+                effectiveAt: (lastReset as any).effective_at,
+                reason: (lastReset as any).reason,
+                fromPlan: (lastReset as any).from_plan,
+                toPlan: (lastReset as any).to_plan,
+            } : null,
             usage: {
                 documentsUsed,
                 documentsLimit,

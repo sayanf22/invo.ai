@@ -165,6 +165,7 @@ export async function applyRazorpaySubscriptionSnapshot(
         const { error } = await (db as any).from("subscriptions").update({
             pending_plan: snapshot.plan,
             pending_billing_cycle: snapshot.billingCycle,
+            pending_provider_plan_id: authoritative.plan_id,
             pending_effective_at: snapshot.periodStart.toISOString(),
             provider_sync_required: false,
             updated_at: now.toISOString(),

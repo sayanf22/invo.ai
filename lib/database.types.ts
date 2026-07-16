@@ -1342,6 +1342,60 @@ export type Database = {
           },
         ]
       }
+      subscription_usage_resets: {
+        Row: {
+          created_at: string
+          effective_at: string
+          from_plan: string
+          id: string
+          payment_id: string | null
+          previous_ai_requests_count: number
+          previous_ai_tokens_used: number
+          previous_documents_count: number
+          previous_emails_count: number
+          previous_estimated_cost_usd: number
+          reason: string
+          to_plan: string
+          transition_key: string
+          usage_month: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          effective_at: string
+          from_plan: string
+          id?: string
+          payment_id?: string | null
+          previous_ai_requests_count?: number
+          previous_ai_tokens_used?: number
+          previous_documents_count?: number
+          previous_emails_count?: number
+          previous_estimated_cost_usd?: number
+          reason: string
+          to_plan: string
+          transition_key: string
+          usage_month: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          effective_at?: string
+          from_plan?: string
+          id?: string
+          payment_id?: string | null
+          previous_ai_requests_count?: number
+          previous_ai_tokens_used?: number
+          previous_documents_count?: number
+          previous_emails_count?: number
+          previous_estimated_cost_usd?: number
+          reason?: string
+          to_plan?: string
+          transition_key?: string
+          usage_month?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           amount_paid: number | null
@@ -1357,10 +1411,13 @@ export type Database = {
           id: string
           pending_billing_cycle: string | null
           pending_change_type: string | null
+          pending_created_at: string | null
           pending_effective_at: string | null
           pending_plan: string | null
           pending_previous_subscription_id: string | null
+          pending_provider_plan_id: string | null
           pending_razorpay_subscription_id: string | null
+          pending_transition_id: string | null
           plan: string
           provider_event_created_at: string | null
           provider_event_type: string | null
@@ -1389,10 +1446,13 @@ export type Database = {
           id?: string
           pending_billing_cycle?: string | null
           pending_change_type?: string | null
+          pending_created_at?: string | null
           pending_effective_at?: string | null
           pending_plan?: string | null
           pending_previous_subscription_id?: string | null
+          pending_provider_plan_id?: string | null
           pending_razorpay_subscription_id?: string | null
+          pending_transition_id?: string | null
           plan?: string
           provider_event_created_at?: string | null
           provider_event_type?: string | null
@@ -1421,10 +1481,13 @@ export type Database = {
           id?: string
           pending_billing_cycle?: string | null
           pending_change_type?: string | null
+          pending_created_at?: string | null
           pending_effective_at?: string | null
           pending_plan?: string | null
           pending_previous_subscription_id?: string | null
+          pending_provider_plan_id?: string | null
           pending_razorpay_subscription_id?: string | null
+          pending_transition_id?: string | null
           plan?: string
           provider_event_created_at?: string | null
           provider_event_type?: string | null
@@ -2029,6 +2092,16 @@ export type Database = {
           p_paid_at: string
           p_payment_method: string
           p_session_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      clear_subscription_transition: {
+        Args: {
+          p_expected_change_type: string
+          p_expected_pending_subscription_id: string | null
+          p_expected_transition_id: string | null
+          p_reason: string
           p_user_id: string
         }
         Returns: Json

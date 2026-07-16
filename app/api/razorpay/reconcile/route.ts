@@ -8,6 +8,7 @@ import {
     applyRazorpaySubscriptionSnapshot,
     applyRazorpayTerminalSnapshot,
 } from "@/lib/razorpay-subscription-state"
+import { recoverPendingSubscriptionTransition } from "@/lib/razorpay-transition-recovery"
 import { logAudit } from "@/lib/audit-log"
 
 /** Recover only locally-bound, charge-backed subscription transitions. */
@@ -30,6 +31,31 @@ export async function POST(request: NextRequest) {
         const { data: current, error } = await svc.from("subscriptions" as any)
             .select("*").eq("user_id", auth.user.id).maybeSingle()
         if (error) throw error
+
+        if ((current as any)?.pending_change_type) {
+            const recovery = await recoverPendingSubscriptionTransition(svc, current as any)
+            if (recovery.state === "cleared") {
+                return NextResponse.json({
+                    activated: false,
+                    pendingCleared: true,
+                    reason: recovery.reason || "stale_transition_cleared",
+                })
+            }
+            if (recovery.state === "reconciled") {
+                return NextResponse.json({ activated: true, reconciled: true })
+            }
+            if (recovery.state === "pending") {
+                return NextResponse.json({
+                    activated: false,
+                    scheduled: Boolean(recovery.effectiveAt),
+                    pending: true,
+                    plan: recovery.targetPlan,
+                    billingCycle: recovery.targetBillingCycle,
+                    effectiveDate: recovery.effectiveAt,
+                    reason: recovery.reason || "transition_pending",
+                }, { status: 202 })
+            }
+        }
 
         const candidates = [
             (current as any)?.pending_razorpay_subscription_id,

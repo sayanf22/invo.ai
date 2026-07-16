@@ -49,9 +49,21 @@ async function syncCharged(
     const row = await boundRow(db, entity.id)
     if (!row?.user_id) throw new Error("Subscription webhook is not locally bound")
     const payloadPaymentId = event.payload?.payment?.entity?.id
+    const matchesPendingTarget = Boolean(
+        row.pending_change_type
+        && row.pending_provider_plan_id
+        && row.pending_provider_plan_id === entity.plan_id
+        && (row.pending_razorpay_subscription_id
+            ? row.pending_razorpay_subscription_id === entity.id
+            : row.razorpay_subscription_id === entity.id),
+    )
+    const pendingBoundary = matchesPendingTarget
+        ? Date.parse(row.pending_effective_at || row.pending_created_at || "") - 5 * 60 * 1000
+        : NaN
     const verified = await getVerifiedSubscriptionCharge(
         entity.id,
         typeof payloadPaymentId === "string" ? payloadPaymentId : undefined,
+        Number.isFinite(pendingBoundary) ? pendingBoundary : undefined,
     )
     if (!verified) throw new Error("Subscription charge could not be verified")
 
@@ -93,6 +105,19 @@ async function syncTerminal(
 
     const row = await boundRow(db, live.id)
     if (!row?.user_id) return
+    const isReplacement = row.pending_razorpay_subscription_id === live.id
+        && row.razorpay_subscription_id !== live.id
+    if (isReplacement) {
+        const startedAt = row.pending_created_at ? Date.parse(row.pending_created_at) : NaN
+        const captured = await getVerifiedSubscriptionCharge(
+            live.id,
+            undefined,
+            Number.isFinite(startedAt) ? startedAt : undefined,
+        )
+        if (captured) {
+            throw new Error("Terminal replacement has captured payment evidence and requires reconciliation")
+        }
+    }
     await applyRazorpayTerminalSnapshot(db, live, {
         userId: row.user_id,
         eventType,

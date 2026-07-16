@@ -71,11 +71,26 @@ describe("Razorpay subscription webhook entitlement gating", () => {
   it("grants a charged event only through exact verified provider evidence", async () => {
     const response = await handleRazorpaySubscriptionEvent(event(), "subscription.charged", "evt_charged")
     expect(response).toBeNull()
-    expect(mocks.getVerifiedCharge).toHaveBeenCalledWith(entity.id, "pay_EXACT123")
+    // A current-plan renewal (no pending target match) uses no evidence boundary.
+    expect(mocks.getVerifiedCharge).toHaveBeenCalledWith(entity.id, "pay_EXACT123", undefined)
     expect(mocks.apply).toHaveBeenCalledWith(expect.anything(), entity, expect.objectContaining({
       userId: "user-1", eventType: "subscription.charged",
       charge: expect.objectContaining({ id: "pay_EXACT123", invoice_id: "inv_EXACT123" }),
     }))
+  })
+
+  it("bounds charge evidence to the transition when the event matches the pending target", async () => {
+    mocks.createClient.mockReturnValue(dbWithBinding({
+      user_id: "user-1",
+      razorpay_subscription_id: entity.id,
+      pending_change_type: "downgrade",
+      pending_provider_plan_id: entity.plan_id,
+      pending_effective_at: "2026-08-17T12:00:00.000Z",
+    }))
+    const response = await handleRazorpaySubscriptionEvent(event(), "subscription.charged", "evt_charged_target")
+    expect(response).toBeNull()
+    const expectedBoundary = Date.parse("2026-08-17T12:00:00.000Z") - 5 * 60 * 1000
+    expect(mocks.getVerifiedCharge).toHaveBeenCalledWith(entity.id, "pay_EXACT123", expectedBoundary)
   })
 
   it.each([

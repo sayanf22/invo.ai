@@ -10,6 +10,17 @@ This approach:
 - Enables clear upsell triggers ("18/50 docs used this month")
 - Matches how competitors price (per-invoice, per-document)
 
+## Billing Periods and Plan Changes
+
+- UTC month boundaries remain the normal allowance reset cadence.
+- Downgrades are scheduled for the exact end of the already-paid provider period; the current plan stays active until that timestamp.
+- Paid access or a higher tier is never granted from Checkout, authorization, or a lifecycle-only webhook. A captured Razorpay subscription charge and confirmed provider plan are both required.
+- When a verified transition actually activates, document, email, and AI allowance counters reset once. Scheduling, failed payment, and unverified payment do not reset anything.
+- A paid entitlement that ends and becomes Free receives one reset at the exact recorded period boundary.
+- Every transition reset archives the prior counters in `subscription_usage_resets`; webhook replays reuse a unique transition key and cannot reset twice.
+- Existing documents, document editability, and historical captured-payment receipts are preserved across every plan change.
+- Future scheduled paid changes can be cancelled. Because Razorpay cannot reactivate a cancelled mandate, reversing a scheduled move to Free requires authorizing a replacement mandate before current access ends.
+
 ## Per-Session Message Caps
 
 To prevent abuse (e.g., using a single session as an unlimited chatbot), each session has a message limit:
@@ -127,10 +138,11 @@ Clorefy offers AI generation + 9 doc types + global compliance + e-signatures â€
 ## Implementation Notes
 
 ### Database
-- Document count tracked in `user_usage` table (`documents_count`)
-- Email count tracked in `user_usage` table (`emails_count`)
-- Tier stored in `subscriptions` table (`plan`, `status`, `current_period_end`)
-- Tier resolves to "free" if subscription is missing, expired, or cancelled
+- Current allowance counters are tracked in `user_usage` by UTC month.
+- Completed plan transitions atomically archive pre-reset values in `subscription_usage_resets` before refreshing the active counters.
+- Email count is tracked in `user_usage` (`emails_count`).
+- Tier and recoverable transition state are stored in `subscriptions` (`plan`, `status`, `current_period_end`, and `pending_*`).
+- Tier resolves to Free when a paid period expires; the lifecycle finalizer applies the boundary reset exactly once.
 
 ### Tier Detection
 ```typescript

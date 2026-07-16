@@ -325,6 +325,8 @@ export async function getSubscription(subscriptionId: string): Promise<{
     notes?: Record<string, string>
     current_start?: number | null
     current_end?: number | null
+    has_scheduled_changes?: boolean
+    change_scheduled_at?: number | null
 } | null> {
     const { getSecret } = await import("@/lib/secrets")
     const keyId = await getSecret("RAZORPAY_KEY_ID")
@@ -876,6 +878,61 @@ export async function updateRazorpaySubscriptionPlan(
         throw new RazorpayApiError(errorBody?.error || { description: "Failed to update subscription plan" })
     }
 
+    return res.json()
+}
+
+export interface RazorpayScheduledSubscriptionChange {
+    id: string
+    status: string
+    plan_id: string
+    notes?: Record<string, string>
+    current_start?: number | null
+    current_end?: number | null
+    has_scheduled_changes?: boolean
+    change_scheduled_at?: number | null
+}
+
+/** Fetch the provider-authoritative cycle-end update, if one still exists. */
+export async function getRazorpayScheduledSubscriptionChange(
+    subscriptionId: string,
+): Promise<RazorpayScheduledSubscriptionChange | null> {
+    if (!subscriptionId.startsWith("sub_")) throw new Error("Invalid Razorpay subscription id")
+    const { keyId, keySecret } = await razorpayCredentials()
+    const res = await fetch(
+        `https://api.razorpay.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}/retrieve_scheduled_changes`,
+        {
+            headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+            signal: AbortSignal.timeout(10000),
+        },
+    )
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const description = String(body?.error?.description || "")
+        if (res.status === 404 || /no .*scheduled|no .*pending|not found/i.test(description)) return null
+        throw new RazorpayApiError(body?.error || { description: "Failed to fetch scheduled subscription change" })
+    }
+    const entity = await res.json()
+    return entity?.has_scheduled_changes === false ? null : entity
+}
+
+/** Cancel only a provider update that is still scheduled for cycle end. */
+export async function cancelRazorpayScheduledSubscriptionChange(
+    subscriptionId: string,
+): Promise<RazorpayScheduledSubscriptionChange> {
+    if (!subscriptionId.startsWith("sub_")) throw new Error("Invalid Razorpay subscription id")
+    const { keyId, keySecret } = await razorpayCredentials()
+    const res = await fetch(
+        `https://api.razorpay.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}/cancel_scheduled_changes`,
+        {
+            method: "POST",
+            headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
+            signal: AbortSignal.timeout(10000),
+        },
+    )
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new RazorpayApiError(body?.error || { description: "Failed to cancel scheduled subscription change" })
+    }
     return res.json()
 }
 

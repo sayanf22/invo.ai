@@ -59,6 +59,12 @@ interface UsageData {
     isExpired?: boolean
     usageResetsAt: string
     usagePolicy: string
+    lastUsageReset?: {
+        effectiveAt: string
+        reason: string
+        fromPlan: string
+        toPlan: string
+    } | null
     usage: {
         documentsUsed: number
         documentsLimit: number
@@ -126,6 +132,7 @@ export default function BillingPage() {
     const [payments, setPayments] = useState<PaymentRecord[]>([])
     const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(null)
     const [downloadingReceiptId, setDownloadingReceiptId] = useState<string | null>(null)
+    const [isCancellingChange, setIsCancellingChange] = useState(false)
 
     const { subscribe, isProcessing } = useRazorpay({
         onSuccess: () => { fetchUsage(); fetchPayments(); router.refresh() },
@@ -186,6 +193,32 @@ export default function BillingPage() {
                 router.refresh()
             }
         } catch { /* silent — non-blocking */ }
+    }, [fetchUsage, fetchPayments, router])
+
+    const cancelPendingChange = useCallback(async () => {
+        setIsCancellingChange(true)
+        try {
+            const res = await authFetch("/api/razorpay/cancel-change", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: "{}",
+            })
+            const result = await res.json().catch(() => ({}))
+            if (!res.ok) {
+                if (result.code === "REAUTHORIZATION_REQUIRED") {
+                    toast.info("Choose a paid plan below to replace the cancelled mandate before access ends.")
+                    return
+                }
+                throw new Error(result.error || "Failed to cancel scheduled change")
+            }
+            toast.success("Scheduled billing change cancelled")
+            await Promise.all([fetchUsage(), fetchPayments()])
+            router.refresh()
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to cancel scheduled change")
+        } finally {
+            setIsCancellingChange(false)
+        }
     }, [fetchUsage, fetchPayments, router])
 
     const downloadReceipt = useCallback(async (payment: PaymentRecord) => {
@@ -374,13 +407,14 @@ export default function BillingPage() {
                         </div>
                     </div>
                     <p className="text-[11px] text-muted-foreground font-medium pt-3 mt-1 border-t border-border/40">
-                        UTC month: {usage?.currentMonth || "—"}
+                        Allowance period: {formatExactLocal(usage?.periodStart)}
                     </p>
                 </div>
             </div>
             <p className="-mt-5 mb-8 text-[11px] leading-relaxed text-muted-foreground">
-                Counters use a UTC calendar month ({usage?.timezone || "UTC"}); plan changes do not reset current-month usage, and existing documents remain editable.
-                {usage?.isOverLimit ? " Current document limit reached." : ""} Next reset: {formatExactLocal(data?.usageResetsAt || usage?.periodEndExclusive)}.
+                Allowances reset at each UTC month start and once when a verified plan transition becomes active; existing documents remain editable.
+                {data?.lastUsageReset ? ` Last plan reset: ${PLAN_LABELS[data.lastUsageReset.fromPlan] || data.lastUsageReset.fromPlan} → ${PLAN_LABELS[data.lastUsageReset.toPlan] || data.lastUsageReset.toPlan} at ${formatExactLocal(data.lastUsageReset.effectiveAt)}.` : ""}
+                {usage?.isOverLimit ? " Current document limit reached." : ""} Next scheduled reset: {formatExactLocal(data?.usageResetsAt || usage?.periodEndExclusive)}.
             </p>
 
             {/* Payment History */}
@@ -482,10 +516,22 @@ export default function BillingPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {plans.map((plan) => {
                     const isCurrentPlan = plan.id === currentPlan
-                    const currentBillingCycle = (data?.subscription as any)?.billing_cycle || "monthly"
+                    const subscription = data?.subscription as any
+                    const currentBillingCycle = subscription?.billing_cycle || "monthly"
+                    const pendingPlan = subscription?.pending_plan as string | null
+                    const pendingCycle = subscription?.pending_billing_cycle as string | null
+                    const pendingType = subscription?.pending_change_type as string | null
+                    const hasPendingChange = Boolean(pendingType && pendingPlan)
+                    // Paid targets are scheduled for an exact plan AND billing cycle, so
+                    // the monthly and yearly cards never both show "Scheduled". Free has
+                    // no billing cycle.
+                    const isScheduledTarget = hasPendingChange && plan.id === pendingPlan
+                        && (plan.id === "free" || pendingCycle === billingCycle)
+                    const isPendingCancellation = pendingType === "cancellation" && pendingPlan === "free"
+                    const canAuthorizeCancellationReplacement = isPendingCancellation
+                        && plan.id !== "free" && !plan.comingSoon
                     const isExactCurrent = isCurrentPlan && (plan.id === "free" || currentBillingCycle === billingCycle)
                     const isCycleSwitch = isCurrentPlan && plan.id !== "free" && currentBillingCycle !== billingCycle
-                    const hasPendingChange = Boolean((data?.subscription as any)?.pending_change_type)
                     const paidPlan = plan.id as "starter" | "pro" | "agency"
                     const price = plan.id === "free" ? 0 : countryPricing[paidPlan]?.[billingCycle] || 0
                     const priceDisplay = plan.id === "free" ? "Free" : formatPrice(price, countryPricing)
@@ -496,10 +542,23 @@ export default function BillingPage() {
                         <div key={plan.id} className={`relative flex flex-col rounded-3xl border bg-card overflow-hidden transition-all duration-300 shadow-[0_8px_24px_rgb(0,0,0,0.06)] hover:shadow-[0_16px_40px_rgb(0,0,0,0.1)] hover:-translate-y-1 ${plan.popular ? "border-primary/50 ring-1 ring-primary/20" : "border-border/60"}`}>
                             {plan.popular && <div className="absolute top-0 left-0 right-0 h-1.5 bg-primary" />}
                             <div className="p-6 pb-4">
-                                <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-start justify-between gap-2 mb-2">
                                     <h3 className="font-semibold text-lg">{plan.name}</h3>
-                                    {plan.popular && <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 border-none text-[10px] px-2 py-0.5"><Zap className="w-3 h-3 mr-1" />Popular</Badge>}
+                                    <div className="flex flex-col items-end gap-1">
+                                        {isCurrentPlan && <Badge variant="outline" className="text-[10px] px-2 py-0.5">Current plan</Badge>}
+                                        {isScheduledTarget && (
+                                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 border-none text-[10px] px-2 py-0.5">
+                                                Scheduled plan
+                                            </Badge>
+                                        )}
+                                        {plan.popular && !isCurrentPlan && !isScheduledTarget && <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 border-none text-[10px] px-2 py-0.5"><Zap className="w-3 h-3 mr-1" />Popular</Badge>}
+                                    </div>
                                 </div>
+                                {isScheduledTarget && subscription?.pending_effective_at && (
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-300 mb-2">
+                                        Starts {formatExactLocal(subscription.pending_effective_at)}
+                                    </p>
+                                )}
                                 <div className="mt-4 mb-1 h-[40px] flex items-end">
                                     {plan.id === "free" ? <span className="text-3xl font-bold">Free</span> : <div className="flex items-end gap-1"><span className="text-3xl font-bold leading-none">{priceDisplay}</span><span className="text-muted-foreground text-sm mb-1 font-medium">/mo</span></div>}
                                 </div>
@@ -518,13 +577,17 @@ export default function BillingPage() {
                             </div>
                             <div className="p-6 pt-4 border-t border-border/40 mt-auto bg-muted/10">
                                 <Button className={cn("w-full rounded-xl py-5 font-semibold", plan.popular ? "bg-primary text-primary-foreground hover:bg-primary/90" : "")} variant={isExactCurrent ? "outline" : isDowngrade ? "ghost" : "default"} size="default"
-                                    disabled={isExactCurrent || hasPendingChange || plan.comingSoon || isProcessing || isDowngrading || (plan.id === "free" && currentPlan === "free")}
+                                    disabled={isScheduledTarget || (isExactCurrent && !canAuthorizeCancellationReplacement) || (hasPendingChange && !canAuthorizeCancellationReplacement) || plan.comingSoon || isProcessing || isDowngrading || isCancellingChange || (plan.id === "free" && currentPlan === "free")}
                                     onClick={() => {
-                                        if (isDowngrade) setDowngradeTarget(plan.id)
+                                        if (canAuthorizeCancellationReplacement) subscribe(plan.id, billingCycle, countryPricing.countryCode)
+                                        else if (isDowngrade) setDowngradeTarget(plan.id)
                                         else if (plan.id !== "free" && !plan.comingSoon) subscribe(plan.id, billingCycle, countryPricing.countryCode)
                                     }}>
-                                    {(isProcessing || isDowngrading) ? <Loader2 className="w-5 h-5 animate-spin" />
-                                        : hasPendingChange ? "Change Pending"
+                                    {(isProcessing || isDowngrading || isCancellingChange) ? <Loader2 className="w-5 h-5 animate-spin" />
+                                        : isScheduledTarget ? "Scheduled"
+                                        : canAuthorizeCancellationReplacement && isExactCurrent ? "Keep Current Plan"
+                                        : canAuthorizeCancellationReplacement ? `Authorize ${plan.name}`
+                                        : hasPendingChange ? "Resolve Pending Change"
                                         : isExactCurrent ? "Current Plan"
                                         : plan.comingSoon ? "Coming Soon"
                                         : isCycleSwitch ? `Switch to ${billingCycle === "yearly" ? "Yearly" : "Monthly"}`
@@ -544,15 +607,34 @@ export default function BillingPage() {
             </p>
 
             {(data?.subscription as any)?.pending_change_type && (
-                <div className="mt-4 p-4 rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 text-center">
-                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                        Your billing change to <span className="font-bold">{plans.find(p => p.id === (data?.subscription as any)?.pending_plan)?.name || (data?.subscription as any)?.pending_plan}</span>
-                        {(data?.subscription as any)?.pending_billing_cycle ? ` (${(data?.subscription as any).pending_billing_cycle})` : ""} is scheduled for{" "}
-                        {(data?.subscription as any)?.pending_effective_at
-                            ? formatExactLocal((data?.subscription as any).pending_effective_at)
-                            : "the end of the current billing period"}.
-                        {" "}Your current plan and price remain active until then.
-                    </p>
+                <div className="mt-4 p-4 rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                    <div className="text-center">
+                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                            {PLAN_LABELS[currentPlan] || currentPlan} → {PLAN_LABELS[(data?.subscription as any)?.pending_plan] || (data?.subscription as any)?.pending_plan}
+                            {(data?.subscription as any)?.pending_billing_cycle ? ` (${(data?.subscription as any).pending_billing_cycle})` : ""}
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+                            {(data?.subscription as any)?.pending_effective_at
+                                ? `Your current ${PLAN_LABELS[currentPlan] || currentPlan} access remains active until ${formatExactLocal((data?.subscription as any).pending_effective_at)}.`
+                                : "The target plan starts only after Razorpay confirms a captured payment."}
+                            {" "}Document, email, and AI allowance counters reset once when this transition actually completes. Existing documents and payment history are preserved.
+                        </p>
+                        {(data?.subscription as any)?.pending_change_type === "cancellation" && (
+                            <p className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-100">
+                                To keep a paid plan, choose it above and authorize the replacement mandate before access ends.
+                            </p>
+                        )}
+                    </div>
+                    <div className="mt-3 flex flex-wrap justify-center gap-2">
+                        {(data?.subscription as any)?.pending_change_type !== "cancellation" && (
+                            <Button variant="outline" size="sm" disabled={isCancellingChange || isProcessing} onClick={cancelPendingChange}>
+                                {isCancellingChange ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancel scheduled change"}
+                            </Button>
+                        )}
+                        <Button variant="ghost" size="sm" disabled={isCancellingChange || isProcessing} onClick={autoReconcile}>
+                            Retry status sync
+                        </Button>
+                    </div>
                 </div>
             )}
 
@@ -566,8 +648,9 @@ export default function BillingPage() {
                         <div className="rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 mb-4">
                             <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
                                 • You&apos;ll keep your current plan features until the end of your billing period<br />
-                                • The downgrade takes effect from the next billing cycle<br />
-                                • Your documents and data will be preserved<br />
+                                • The downgrade takes effect at the exact end of your paid billing period<br />
+                                • Document, email, and AI allowances reset once when the new plan becomes active<br />
+                                • Your documents, payment receipts, and account data will be preserved<br />
                                 {downgradeTarget === "free" && "• Some features will become unavailable on the Free plan"}
                             </p>
                         </div>

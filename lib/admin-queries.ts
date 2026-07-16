@@ -341,10 +341,17 @@ export async function getOverviewKPIs(): Promise<OverviewKPIs> {
     .order("month")
     .order("user_id")
     .range(first, last))
+  const usageResetRows = await fetchAllPages<any>((first, last) => supabase
+    .from("subscription_usage_resets")
+    .select("user_id, usage_month, previous_ai_requests_count")
+    .eq("usage_month", monthKey)
+    .order("usage_month")
+    .order("user_id")
+    .range(first, last))
 
   const totalAIRequestsThisMonth = (usageRows ?? []).reduce(
     (sum, r) => sum + (r.ai_requests_count ?? 0),
-    0
+    (usageResetRows ?? []).reduce((sum, r) => sum + (r.previous_ai_requests_count ?? 0), 0)
   )
   const estimatedAICostThisMonth = (usageRows ?? []).reduce(
     (sum, r) => sum + (r.estimated_cost_usd ?? 0),
@@ -946,10 +953,17 @@ export async function getAIUsage(params: AIUsageQueryParams): Promise<AIUsageDat
     .order("month")
     .order("user_id")
     .range(first, last))
+  const usageResetRows = await fetchAllPages<any>((first, last) => supabase
+    .from("subscription_usage_resets")
+    .select("user_id, usage_month, previous_ai_requests_count")
+    .eq("usage_month", monthKey)
+    .order("usage_month")
+    .order("user_id")
+    .range(first, last))
 
   const requestsThisMonth = (usageRows ?? []).reduce(
     (s, r) => s + (r.ai_requests_count ?? 0),
-    0
+    (usageResetRows ?? []).reduce((s, r) => s + (r.previous_ai_requests_count ?? 0), 0)
   )
   const tokensThisMonth = (usageRows ?? []).reduce(
     (s, r) => s + (r.ai_tokens_used ?? 0),
@@ -973,13 +987,22 @@ export async function getAIUsage(params: AIUsageQueryParams): Promise<AIUsageDat
     .gte("created_at", weekISO)
     .then(r => ({ count: r.count ?? 0 }))
 
-  // Top users by request count this month
-  const { data: topUsersRaw } = await supabase
-    .from("user_usage")
-    .select("user_id, ai_requests_count, ai_tokens_used, estimated_cost_usd")
-    .eq("month", monthKey)
-    .order("ai_requests_count", { ascending: false })
-    .limit(10)
+  // Top users by request count this month, including pre-transition counts
+  // archived when an allowance reset occurred.
+  const archivedRequestsByUser = new Map<string, number>()
+  for (const row of usageResetRows ?? []) {
+    archivedRequestsByUser.set(
+      row.user_id,
+      (archivedRequestsByUser.get(row.user_id) ?? 0) + (row.previous_ai_requests_count ?? 0),
+    )
+  }
+  const topUsersRaw = (usageRows ?? [])
+    .map(row => ({
+      ...row,
+      ai_requests_count: (row.ai_requests_count ?? 0) + (archivedRequestsByUser.get(row.user_id) ?? 0),
+    }))
+    .sort((a, b) => b.ai_requests_count - a.ai_requests_count)
+    .slice(0, 10)
 
   // Enrich top users with email from profiles
   const topUserIds = (topUsersRaw ?? []).map(u => u.user_id)

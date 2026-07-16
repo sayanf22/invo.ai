@@ -59,6 +59,11 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
             }
 
             const data = await orderRes.json()
+            const abandonPendingCheckout = () => authFetch("/api/razorpay/cancel-change", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: "{}",
+            }).catch(() => null)
 
             // If create-order updated an EXISTING Razorpay subscription in place
             // (a paid→paid upgrade — see app/api/razorpay/create-order/route.ts),
@@ -154,12 +159,16 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
                     }
                 },
                 modal: {
-                    ondismiss: () => setIsProcessing(false),
+                    ondismiss: () => {
+                        abandonPendingCheckout()
+                        setIsProcessing(false)
+                    },
                 },
             }
 
             const rzp = new window.Razorpay(options)
             rzp.on("payment.failed", (response: any) => {
+                abandonPendingCheckout()
                 toast.error(response.error?.description || "Payment failed")
                 onError?.(response.error?.description || "Payment failed")
                 setIsProcessing(false)

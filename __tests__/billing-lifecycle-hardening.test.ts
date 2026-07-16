@@ -40,6 +40,40 @@ describe("billing lifecycle hardening", () => {
     expect(stream).toContain("reserveDocumentQuota(")
   })
 
+  it("keeps transition allowance resets transactional, archived, and replay-safe", () => {
+    const sql = source("supabase/migrations/20260717_recover_subscription_transitions_and_reset_usage.sql")
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS public.subscription_usage_resets")
+    expect(sql).toContain("ON CONFLICT (transition_key) DO NOTHING")
+    // Paid resets happen inside the exact charge RPC, keyed by the transition id.
+    expect(sql).toContain("'paid:' || v_transition_id::text")
+    expect(sql).toContain("IF v_completes_transition THEN")
+    // Only the paid-to-Free boundary is owned by the standalone trigger.
+    expect(sql).toContain("OLD.current_period_end <= now()")
+    expect(sql).toContain("previous_documents_count")
+    expect(sql).toContain("REVOKE ALL ON FUNCTION public.clear_subscription_transition")
+    expect(sql).not.toMatch(/service_role_key|http_request|net\.http/i)
+  })
+
+  it("gates paid entitlement on an exact transition compare-and-set", () => {
+    const sql = source("supabase/migrations/20260717_recover_subscription_transitions_and_reset_usage.sql")
+    // The charge must match the stored transition id, plan/cycle, and provider plan.
+    expect(sql).toContain("v_sub.pending_transition_id IS NOT NULL")
+    expect(sql).toContain("v_sub.pending_provider_plan_id = p_plan_id")
+    // A renewal of the current plan must not clear an unrelated pending change.
+    expect(sql).toContain("charge_does_not_match_pending_transition")
+    // clear_subscription_transition requires the expected transition id (CAS).
+    expect(sql).toContain("v_sub.pending_transition_id IS DISTINCT FROM p_expected_transition_id")
+  })
+
+  it("shows the exact scheduled target and reset boundary in Billing", () => {
+    const billing = source("app/billing/page.tsx")
+    expect(billing).toContain("Scheduled plan")
+    expect(billing).toContain("Starts {formatExactLocal(subscription.pending_effective_at)}")
+    expect(billing).toContain("allowance counters reset once when this transition actually completes")
+    expect(billing).toContain("Cancel scheduled change")
+    expect(billing).not.toContain('hasPendingChange ? "Change Pending"')
+  })
+
   it("keeps legacy receipt IDs optional and avoids unsupported official or tax claims", () => {
     const templates = source("lib/pdf-templates.tsx")
     const receipt = templates.slice(

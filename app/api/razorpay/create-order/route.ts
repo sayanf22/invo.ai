@@ -19,6 +19,7 @@ import {
 import { getSecret } from "@/lib/secrets"
 import { logAudit } from "@/lib/audit-log"
 import { applyRazorpaySubscriptionSnapshot } from "@/lib/razorpay-subscription-state"
+import { recoverPendingSubscriptionTransition } from "@/lib/razorpay-transition-recovery"
 import { createClient } from "@supabase/supabase-js"
 
 const UPDATABLE_RAZORPAY_STATUSES = new Set(["authenticated", "active"])
@@ -34,6 +35,11 @@ function asFutureDate(value: unknown): Date | null {
     if (typeof value !== "string") return null
     const date = new Date(value)
     return Number.isFinite(date.getTime()) && date.getTime() > Date.now() ? date : null
+}
+
+function resolveStoredEffectivePlan(subscription: any): string {
+    const periodEnd = asFutureDate(subscription?.current_period_end)
+    return periodEnd && PLAN_ORDER.includes(subscription?.plan) ? subscription.plan : "free"
 }
 
 export async function POST(request: NextRequest) {
@@ -73,15 +79,127 @@ export async function POST(request: NextRequest) {
         const { data: currentSubRow, error: currentSubError } = await auth.supabase
             .from("subscriptions" as any).select("*").eq("user_id", auth.user.id).maybeSingle()
         if (currentSubError) throw currentSubError
-        const currentSub = currentSubRow as any
-        const existingId = currentSub?.razorpay_subscription_id as string | undefined
+        let currentSub = currentSubRow as any
 
         if (currentSub?.pending_change_type && currentSub?.pending_plan) {
-            return NextResponse.json({
-                error: "A billing change is already pending. Wait for it to complete or contact support.",
-                code: "CHANGE_PENDING",
-            }, { status: 409 })
+            let recovery
+            try {
+                recovery = await recoverPendingSubscriptionTransition(svc, currentSub)
+            } catch (error) {
+                console.error("[create-order] pending transition reconciliation failed:", error)
+                return NextResponse.json({
+                    error: "We could not verify the existing billing change. Please retry shortly.",
+                    code: "TRANSITION_CHECK_UNAVAILABLE",
+                    recoverable: true,
+                }, { status: 503 })
+            }
+
+            if (recovery.state === "cleared" || recovery.state === "reconciled") {
+                const { data: refreshed, error: refreshError } = await svc.from("subscriptions" as any)
+                    .select("*").eq("user_id", auth.user.id).maybeSingle()
+                if (refreshError) throw refreshError
+                currentSub = refreshed as any
+            } else {
+                const reversingCancellation = currentSub.pending_change_type === "cancellation"
+                    && currentSub.pending_plan === "free"
+                    && asFutureDate(currentSub.current_period_end)
+                if (reversingCancellation) {
+                    const periodEnd = asFutureDate(currentSub.current_period_end)!
+                    const targetCurrency = currentSub.currency || currency
+                    const targetProviderPlanId = getPlanIdForCurrency(tier, targetCurrency, cycle)
+                    if (!targetProviderPlanId) {
+                        return NextResponse.json({ error: "Invalid plan for subscription" }, { status: 400 })
+                    }
+                    const startAt = Math.max(
+                        Math.floor(periodEnd.getTime() / 1000),
+                        Math.floor(Date.now() / 1000) + 300,
+                    )
+                    const replacement = await createRazorpaySubscription(
+                        plan as PlanId, cycle, auth.user.id, targetCurrency, startAt,
+                    )
+                    const currentIndex = PLAN_ORDER.indexOf(resolveStoredEffectivePlan(currentSub))
+                    const targetIndex = PLAN_ORDER.indexOf(plan)
+                    const changeType = targetIndex < currentIndex ? "downgrade"
+                        : targetIndex > currentIndex ? "upgrade" : "cycle_change"
+                    const { data: replaced, error: replaceError } = await svc.from("subscriptions" as any)
+                        .update({
+                            scheduled_downgrade: "free",
+                            pending_plan: plan,
+                            pending_billing_cycle: cycle,
+                            pending_provider_plan_id: targetProviderPlanId,
+                            pending_razorpay_subscription_id: replacement.id,
+                            pending_change_type: changeType,
+                            pending_effective_at: new Date(startAt * 1000).toISOString(),
+                            pending_previous_subscription_id: currentSub.razorpay_subscription_id,
+                            provider_sync_required: false,
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq("user_id", auth.user.id)
+                        .eq("pending_change_type", "cancellation")
+                        .select("user_id")
+                        .maybeSingle()
+                    if (replaceError || !replaced) {
+                        const { cancelRazorpaySubscription } = await import("@/lib/razorpay")
+                        await cancelRazorpaySubscription(replacement.id, false).catch(() => {})
+                        return NextResponse.json({
+                            error: "The scheduled cancellation changed while we were preparing reauthorization. Please retry.",
+                            code: "TRANSITION_CHANGED",
+                        }, { status: 409 })
+                    }
+                    const amount = PLAN_PRICES_BY_CURRENCY[targetCurrency]?.[tier]?.[cycle]
+                        ?? PLAN_PRICES_BY_CURRENCY.INR[tier][cycle]
+                    return NextResponse.json({
+                        subscriptionId: replacement.id,
+                        keyId: await getSecret("RAZORPAY_KEY_ID"),
+                        plan,
+                        billingCycle: cycle,
+                        planName: PLANS[plan as PlanId].name,
+                        currency: targetCurrency,
+                        amount,
+                        scheduledChange: true,
+                        reversingCancellation: true,
+                        effectiveDate: new Date(startAt * 1000).toISOString(),
+                    })
+                }
+
+                const pendingCycle = currentSub.pending_billing_cycle || cycle
+                const sameCheckout = recovery.retryableCheckout
+                    && currentSub.pending_razorpay_subscription_id
+                    && currentSub.pending_plan === plan
+                    && pendingCycle === cycle
+                if (sameCheckout) {
+                    const pendingCurrency = currentSub.currency || currency
+                    const amount = PLAN_PRICES_BY_CURRENCY[pendingCurrency]?.[tier]?.[cycle]
+                        ?? PLAN_PRICES_BY_CURRENCY.INR[tier][cycle]
+                    return NextResponse.json({
+                        subscriptionId: currentSub.pending_razorpay_subscription_id,
+                        keyId: await getSecret("RAZORPAY_KEY_ID"),
+                        plan,
+                        billingCycle: cycle,
+                        planName: PLANS[plan as PlanId].name,
+                        currency: pendingCurrency,
+                        amount,
+                        reusedPendingCheckout: true,
+                        scheduledChange: Boolean(currentSub.pending_effective_at),
+                        effectiveDate: currentSub.pending_effective_at,
+                    })
+                }
+                return NextResponse.json({
+                    error: "A verified billing change is still pending.",
+                    code: "CHANGE_PENDING",
+                    transition: {
+                        type: currentSub.pending_change_type,
+                        fromPlan: resolveStoredEffectivePlan(currentSub),
+                        targetPlan: currentSub.pending_plan,
+                        targetBillingCycle: currentSub.pending_billing_cycle,
+                        effectiveAt: currentSub.pending_effective_at,
+                        recoverable: true,
+                    },
+                }, { status: 409 })
+            }
         }
+
+        const existingId = currentSub?.razorpay_subscription_id as string | undefined
 
         if (existingId) {
             const live = await getSubscription(existingId)
@@ -130,6 +248,7 @@ export async function POST(request: NextRequest) {
                     const { data: claimed, error: pendingError } = await svc.from("subscriptions" as any).update({
                         pending_plan: plan,
                         pending_billing_cycle: cycle,
+                        pending_provider_plan_id: targetPlanId,
                         pending_razorpay_subscription_id: replacement.id,
                         pending_change_type: changeType,
                         pending_effective_at: new Date(startAt * 1000).toISOString(),
@@ -172,6 +291,7 @@ export async function POST(request: NextRequest) {
                 const pendingPatch = {
                     pending_plan: plan,
                     pending_billing_cycle: cycle,
+                    pending_provider_plan_id: targetPlanId,
                     // In-place updates remain bound through the current provider ID.
                     // Keeping the same ID in both current and pending columns violates
                     // the ownership invariant and adds no correlation value.
@@ -291,6 +411,8 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        const providerPlanId = getPlanIdForCurrency(tier, currency, cycle)
+        if (!providerPlanId) return NextResponse.json({ error: "Invalid plan for subscription" }, { status: 400 })
         const subscription = await createRazorpaySubscription(plan as PlanId, cycle, auth.user.id, currency)
         const pendingState = {
             user_id: auth.user.id,
@@ -298,6 +420,7 @@ export async function POST(request: NextRequest) {
             status: currentSub?.status || "active",
             pending_plan: plan,
             pending_billing_cycle: cycle,
+            pending_provider_plan_id: providerPlanId,
             pending_razorpay_subscription_id: subscription.id,
             pending_change_type: "upgrade",
             pending_effective_at: null,

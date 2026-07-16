@@ -26,6 +26,7 @@ export type AuditAction =
     | "ai.generate"
     | "ai.onboarding"
     | "payment.subscription_created"
+    | "payment.subscription_change_cancelled"
     | "payment.verify"
     | "payment.verify_pending"
     | "payment.webhook"
