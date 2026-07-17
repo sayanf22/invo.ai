@@ -57,6 +57,7 @@ export type AuditAction =
     | "payment_settings.razorpay_connected"
     | "payment_settings.stripe_connected"
     | "payment_settings.cashfree_connected"
+    | "payment_settings.connection_tested"
     | "payment_link.created"
     | "payment_link.cancelled"
     | "payment_link.regenerated"

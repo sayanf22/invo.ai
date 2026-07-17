@@ -5,9 +5,25 @@ import { authFetch } from "@/lib/auth-fetch"
 import { useUser } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { ExternalLink, Trash2, Loader2, Eye, EyeOff, CheckCircle2, Lock, Pencil, Copy, Check, ChevronDown, ChevronUp, Banknote, Building2, Smartphone, CreditCard, Globe, Plus, X, AlertTriangle } from "lucide-react"
+import { ExternalLink, Trash2, Loader2, Eye, EyeOff, CheckCircle2, Lock, Pencil, Copy, Check, ChevronDown, ChevronUp, Banknote, Building2, Smartphone, CreditCard, Globe, Plus, X, AlertTriangle, RefreshCw } from "lucide-react"
 
 type Gateway = "razorpay" | "stripe" | "cashfree"
+type ConnectionCheckStatus = "passed" | "pending" | "warning" | "failed"
+interface ConnectionCheckResult {
+  id: string
+  label: string
+  status: ConnectionCheckStatus
+  detail: string
+}
+interface ConnectionTestResult {
+  success: boolean
+  gateway?: Gateway
+  mode?: "test" | "live"
+  testedAt?: string
+  message?: string
+  error?: string
+  checks?: ConnectionCheckResult[]
+}
 interface GatewaySettings {
   razorpay?: {
     keyIdHint?: string | null
@@ -19,6 +35,8 @@ interface GatewaySettings {
     webhookMode: "manual"
     webhookConfigured: boolean
     webhookRegistered: boolean
+    localReceiverVerifiedAt?: string | null
+    providerWebhookVerifiedAt?: string | null
   } | null
   stripe?: {
     testMode: boolean
@@ -28,6 +46,8 @@ interface GatewaySettings {
     webhookMode: "automatic"
     webhookConfigured: boolean
     webhookRegistered: boolean
+    localReceiverVerifiedAt?: string | null
+    providerWebhookVerifiedAt?: string | null
   } | null
   cashfree?: {
     clientIdHint?: string | null
@@ -38,6 +58,8 @@ interface GatewaySettings {
     webhookMode: "per_link"
     webhookConfigured: boolean
     webhookRegistered: boolean
+    localReceiverVerifiedAt?: string | null
+    providerWebhookVerifiedAt?: string | null
   } | null
   updatedAt?: string
 }
@@ -121,6 +143,46 @@ const METHOD_ICONS: Record<string, React.ElementType> = {
 
 function GatewayAvatar({ gw, size = 52 }: { gw: GatewayDef; size?: number }) {
   return <div className="rounded-xl flex items-center justify-center shrink-0" style={{ width: size, height: size, background: gw.accentBg }}><gw.Icon size={Math.round(size * 0.55)} /></div>
+}
+
+function formatVerifiedAt(value?: string | null): string | null {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date)
+}
+
+function ConnectionTestDetails({ result }: { result: ConnectionTestResult }) {
+  const checks = result.checks ?? []
+  if (checks.length === 0 && !result.message && !result.error) return null
+  return (
+    <div aria-live="polite" className={cn(
+      "mt-2 rounded-xl border p-3 space-y-2",
+      result.success
+        ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-800/60 dark:bg-emerald-950/20"
+        : "border-red-200 bg-red-50/60 dark:border-red-900/60 dark:bg-red-950/20"
+    )}>
+      {checks.map(check => {
+        const passed = check.status === "passed"
+        const pending = check.status === "pending" || check.status === "warning"
+        return (
+          <div key={check.id} className="flex items-start gap-2">
+            {passed
+              ? <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              : <AlertTriangle size={14} className={cn("mt-0.5 shrink-0", pending ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400")} />}
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-foreground">{check.label}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{check.detail}</p>
+            </div>
+          </div>
+        )
+      })}
+      <p className="text-[11px] font-medium text-foreground/70">{result.message || result.error}</p>
+    </div>
+  )
 }
 function FieldLabel({ children }: { children: React.ReactNode }) { return <label className="block text-[13px] font-medium text-foreground/70 mb-1.5 leading-none">{children}</label> }
 function Input({ value, onChange, placeholder, type = "text" }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
@@ -274,11 +336,15 @@ function RazorpaySecretReveal({
   )
 }
 
-function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistered, oneTimeSecret, onSecretHidden }: {
+function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistered, credentialsVerified, verifiedAt, localReceiverVerifiedAt, providerWebhookVerifiedAt, oneTimeSecret, onSecretHidden }: {
   gateway: string
   webhookUrl: string
   webhookConfigured?: boolean
   webhookRegistered?: boolean
+  credentialsVerified?: boolean
+  verifiedAt?: string | null
+  localReceiverVerifiedAt?: string | null
+  providerWebhookVerifiedAt?: string | null
   oneTimeSecret?: string | null
   onSecretHidden?: () => void
 }) {
@@ -286,8 +352,29 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
 
   const isStripe = gateway === "stripe"
   const isCashfree = gateway === "cashfree"
-  const isReady = webhookRegistered === true
+  const receiverVerified = Boolean(localReceiverVerifiedAt || (isStripe && webhookRegistered))
+  const providerVerified = Boolean(providerWebhookVerifiedAt || (isStripe && webhookRegistered))
+  const isReady = Boolean(credentialsVerified && receiverVerified && providerVerified)
   const guideUrl = `/integrations/payments/${gateway}`
+  const checkedAt = formatVerifiedAt(verifiedAt)
+  const headline = !credentialsVerified
+    ? "Run Test connection to verify the saved credentials"
+    : !webhookConfigured
+      ? "Payment API connected; webhook setup required"
+      : isReady
+        ? isStripe ? "Payment API and Stripe webhook connected" : "Payment API and real provider delivery verified"
+        : receiverVerified
+          ? `Payment API connected; awaiting a real ${isCashfree ? "Cashfree" : "Razorpay"} event`
+          : "Payment API connected; webhook receiver not tested"
+
+  const statusRow = (label: string, ok: boolean, pendingText: string, okText: string) => (
+    <div className="flex items-start justify-between gap-3 py-1.5">
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className={cn("text-[11px] font-semibold text-right", ok ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
+        {ok ? okText : pendingText}
+      </span>
+    </div>
+  )
 
   return (
     <div className={cn(
@@ -296,35 +383,26 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
         ? "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/40 dark:bg-emerald-950/10"
         : "border-amber-200 dark:border-amber-800/50 bg-amber-50/40 dark:bg-amber-950/10"
     )}>
-      <button
-        type="button"
-        onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-left"
-      >
+      <button type="button" onClick={() => setExpanded(v => !v)} className="w-full flex items-center justify-between px-3 py-2.5 text-left">
         <div className="flex items-center gap-2 min-w-0">
           {isReady
             ? <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-            : <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
-          }
-          <span className={cn("text-[12px] font-semibold truncate", isReady ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
-            {isReady
-              ? isStripe ? "Provider webhook registered ✓" : isCashfree ? "Real provider delivery verified ✓" : "Real provider delivery verified ✓"
-              : gateway === "razorpay"
-                ? "Complete setup; awaiting a real Razorpay delivery"
-                : gateway === "cashfree"
-                  ? "Awaiting the first real Cashfree delivery"
-                  : "Webhook setup needs verification"}
+            : <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />}
+          <span className={cn("text-[12px] font-semibold", isReady ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
+            {headline}
           </span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {expanded ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
-        </div>
+        {expanded ? <ChevronUp size={14} className="text-muted-foreground shrink-0" /> : <ChevronDown size={14} className="text-muted-foreground shrink-0" />}
       </button>
 
       <div className={cn("grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
         <div className="min-h-0 overflow-hidden">
           <div className="px-3 pb-3 pt-1 border-t border-border/30 space-y-2.5">
-            {/* Webhook URL — always show */}
+            <div className="divide-y divide-border/40">
+              {statusRow("Payment API", Boolean(credentialsVerified), "Not tested", checkedAt ? `Connected · ${checkedAt}` : "Connected")}
+              {statusRow("Signed webhook receiver", receiverVerified, "Not tested", "Working")}
+              {statusRow(isStripe ? "Stripe webhook" : "Real provider delivery", providerVerified, isStripe ? "Not registered" : "Awaiting first real event", isStripe ? "Registered and enabled" : "Verified")}
+            </div>
             <div>
               <label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5">Webhook URL</label>
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-background/80">
@@ -332,17 +410,10 @@ function WebhookPanel({ gateway, webhookUrl, webhookConfigured, webhookRegistere
                 <CopyBtn value={webhookUrl} />
               </div>
             </div>
-            {/* Razorpay lets the merchant choose the webhook signing secret. */}
             {gateway === "razorpay" && webhookConfigured && (
-              <RazorpaySecretReveal
-                gateway={gateway}
-                initialSecret={oneTimeSecret}
-                onSecretHidden={onSecretHidden}
-              />
+              <RazorpaySecretReveal gateway={gateway} initialSecret={oneTimeSecret} onSecretHidden={onSecretHidden} />
             )}
-            {/* Link to full guide */}
-            <a href={guideUrl} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline">
+            <a href={guideUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline">
               📖 View full setup guide with screenshots
               <ExternalLink size={10} />
             </a>
@@ -552,6 +623,7 @@ export function PaymentSettings() {
   const [removing, setRemoving] = useState<Gateway | null>(null)
   const [showSecret, setShowSecret] = useState(false)
   const [testingWebhook, setTestingWebhook] = useState<Gateway | null>(null)
+  const [connectionResults, setConnectionResults] = useState<Partial<Record<Gateway, ConnectionTestResult>>>({})
   const [activeTab, setActiveTab] = useState<"gateways" | "offline">("gateways")
   const [rzpKeyId, setRzpKeyId] = useState("")
   const [rzpKeySecret, setRzpKeySecret] = useState("")
@@ -575,16 +647,28 @@ export function PaymentSettings() {
 
   useEffect(() => { if (user) fetchSettings() }, [user, fetchSettings])
 
-  const handleTestWebhook = async (gateway: Gateway) => {
+  const handleTestConnection = async (gateway: Gateway) => {
     setTestingWebhook(gateway)
+    setConnectionResults(previous => ({ ...previous, [gateway]: undefined }))
     try {
       const res = await authFetch("/api/payments/test-webhook", { method: "POST", body: JSON.stringify({ gateway }) })
-      const data = await res.json()
-      if (data.success) toast.success(data.message || `${gateway} webhook is working!`)
-      else toast.error(data.error || data.message || "Webhook test failed")
+      const data = await res.json().catch(() => ({})) as ConnectionTestResult
+      const result: ConnectionTestResult = {
+        ...data,
+        success: res.ok && data.success === true,
+        message: data.message || (!res.ok ? data.error : undefined),
+      }
+      setConnectionResults(previous => ({ ...previous, [gateway]: result }))
+      if (result.success) toast.success(`${gateway.charAt(0).toUpperCase() + gateway.slice(1)} connection test completed`)
+      else toast.error(result.message || result.error || "Connection test failed")
       await fetchSettings()
-    } catch { toast.error("Failed to test webhook") }
-    finally { setTestingWebhook(null) }
+    } catch {
+      const result = { success: false, error: "Could not reach the connection test service." }
+      setConnectionResults(previous => ({ ...previous, [gateway]: result }))
+      toast.error(result.error)
+    } finally {
+      setTestingWebhook(null)
+    }
   }
 
   const connectedGateways = settings ? GATEWAYS.filter(g => settings[g.id] != null) : []
@@ -698,11 +782,6 @@ export function PaymentSettings() {
                             </p>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
-                            <button onClick={() => handleTestWebhook(gw.id)} disabled={testingWebhook === gw.id}
-                              className="hidden sm:inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded-xl font-medium border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors disabled:opacity-50">
-                              {testingWebhook === gw.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
-                              <span className="hidden md:inline ml-1">Verify</span>
-                            </button>
                             <button onClick={() => { if (isEditing) { setEditingGateway(null); resetForm() } else { setEditingGateway(gw.id); setSelectedGateway(null); resetForm() } }}
                               className={cn("inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded-xl font-medium border transition-colors", isEditing ? "bg-muted/60 border-primary/30" : "border-border hover:bg-muted/60")}>
                               <Pencil size={11} /><span className="hidden sm:inline ml-1">{isEditing ? "Cancel" : "Edit"}</span>
@@ -713,11 +792,26 @@ export function PaymentSettings() {
                             </button>
                           </div>
                         </div>
+                        {/* Test connection — always visible (mobile + desktop). Runs a
+                            server-side, non-transactional check of the saved credentials,
+                            payment API, webhook receiver, and real provider delivery. */}
+                        <div className="px-5 pb-1">
+                          <button onClick={() => handleTestConnection(gw.id)} disabled={testingWebhook === gw.id}
+                            className="w-full inline-flex items-center justify-center gap-2 text-sm px-3 py-2.5 rounded-xl font-semibold border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors disabled:opacity-50">
+                            {testingWebhook === gw.id ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                            {testingWebhook === gw.id ? "Testing connection…" : "Test connection"}
+                          </button>
+                          {connectionResults[gw.id] && <ConnectionTestDetails result={connectionResults[gw.id]!} />}
+                        </div>
                         <WebhookPanel
                           gateway={gw.id}
                           webhookUrl={s.webhookUrl}
                           webhookConfigured={s.webhookConfigured}
                           webhookRegistered={s.webhookRegistered}
+                          credentialsVerified={s.credentialsVerified}
+                          verifiedAt={s.verifiedAt ?? null}
+                          localReceiverVerifiedAt={s.localReceiverVerifiedAt ?? null}
+                          providerWebhookVerifiedAt={s.providerWebhookVerifiedAt ?? null}
                           oneTimeSecret={gw.id === "razorpay" ? oneTimeRazorpaySecret : null}
                           onSecretHidden={gw.id === "razorpay" ? () => setOneTimeRazorpaySecret(null) : undefined}
                         />

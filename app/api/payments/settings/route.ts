@@ -8,6 +8,13 @@ import { logAudit } from "@/lib/audit-log"
 import { sanitizeSQLInput as sanitizeInput } from "@/lib/sanitize"
 import { generateWebhookSecret } from "@/lib/razorpay"
 import { registerStripeWebhook, deleteStripeWebhook } from "@/lib/stripe-payments"
+import {
+    checkCashfreeConnection,
+    checkRazorpayConnection,
+    checkStripeConnection,
+    connectionFailureMessage,
+    connectionFailureStatus,
+} from "@/lib/payment-connection-test"
 
 function adminClient() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -189,11 +196,13 @@ async function saveRazorpay(auth: any, body: Record<string, unknown>, request: N
     if (!/^(rzp_live|rzp_test)_[A-Za-z0-9]{8,100}$/.test(keyId) || keySecret.length < 8 || keySecret.length > 256) {
         return NextResponse.json({ error: "Invalid Razorpay credentials" }, { status: 400 })
     }
-    const verification = await fetch("https://api.razorpay.com/v1/payment_links?count=1", {
-        headers: { Authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` },
-        signal: AbortSignal.timeout(15000),
-    })
-    if (!verification.ok) return NextResponse.json({ error: "Razorpay rejected these credentials" }, { status: 400 })
+    const verification = await checkRazorpayConnection(keyId, keySecret)
+    if (!verification.ok) {
+        return NextResponse.json(
+            { error: connectionFailureMessage("Razorpay", verification) },
+            { status: connectionFailureStatus(verification) }
+        )
+    }
 
     const db = adminClient()
     const { data: existing, error: existingError } = await db.from("user_payment_settings")
@@ -239,11 +248,13 @@ async function saveStripe(auth: any, body: Record<string, unknown>, request: Nex
     if (!/^(sk_live|sk_test)_[A-Za-z0-9_]{8,200}$/.test(secretKey)) {
         return NextResponse.json({ error: "Invalid Stripe Secret Key" }, { status: 400 })
     }
-    const verification = await fetch("https://api.stripe.com/v1/account", {
-        headers: { Authorization: `Bearer ${secretKey}` },
-        signal: AbortSignal.timeout(15000),
-    })
-    if (!verification.ok) return NextResponse.json({ error: "Stripe rejected this Secret Key" }, { status: 400 })
+    const verification = await checkStripeConnection(secretKey)
+    if (!verification.ok) {
+        return NextResponse.json(
+            { error: connectionFailureMessage("Stripe", verification) },
+            { status: connectionFailureStatus(verification) }
+        )
+    }
 
     const webhook = await registerStripeWebhook(secretKey, auth.user.id)
     if (!webhook) return NextResponse.json({ error: "Stripe credentials are valid, but webhook registration failed. Try again." }, { status: 502 })
@@ -285,12 +296,13 @@ async function saveCashfree(auth: any, body: Record<string, unknown>, request: N
     if (clientId.length < 6 || clientId.length > 200 || clientSecret.length < 8 || clientSecret.length > 256) {
         return NextResponse.json({ error: "Invalid Cashfree credentials" }, { status: 400 })
     }
-    const baseUrl = testMode ? "https://sandbox.cashfree.com" : "https://api.cashfree.com"
-    const verification = await fetch(`${baseUrl}/pg/links?count=1`, {
-        headers: { "x-api-version": "2025-01-01", "x-client-id": clientId, "x-client-secret": clientSecret },
-        signal: AbortSignal.timeout(15000),
-    })
-    if (!verification.ok) return NextResponse.json({ error: "Cashfree rejected these credentials" }, { status: 400 })
+    const verification = await checkCashfreeConnection(clientId, clientSecret, testMode)
+    if (!verification.ok) {
+        return NextResponse.json(
+            { error: connectionFailureMessage("Cashfree", verification) },
+            { status: connectionFailureStatus(verification) }
+        )
+    }
     const cashfreeVerifiedAt = new Date().toISOString()
     const { error } = await adminClient().from("user_payment_settings").upsert({
         user_id: auth.user.id,
