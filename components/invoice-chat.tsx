@@ -128,6 +128,7 @@ import { useUserTier, isReferenceContextEnabled } from "@/hooks/use-user-tier"
 import { ContextManagerDialog } from "@/components/context-manager"
 import { ChatAssetLinkCard } from "@/components/chat-asset-link-card"
 import { fetchPublicDocumentLink } from "@/lib/public-document-link-client"
+import { classifyDeliveryAction, hasDeliveryHint, type DeliveryAction } from "@/lib/delivery-intent-client"
 
 // ── Send intent detection ─────────────────────────────────────────────────────
 // Detects when user wants to SEND/DELIVER the document.
@@ -1239,92 +1240,85 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                     }
                 }
 
-                // Check share intent first (share, whatsapp, link)
-                const shareIntent = detectShareIntent(userMessage)
-                if (shareIntent.hasShareIntent) {
+                // ── Dynamic delivery-intent classification ─────────────────────
+                // Understand what the user actually wants (send / link / whatsapp /
+                // email) by MEANING via the model, instead of brittle keyword
+                // triggers. Only runs when the message hints at delivery, so pure
+                // edits and questions skip it and flow straight to the model. Falls
+                // back to keyword heuristics if the classifier is unavailable.
+                const deliveryAction: DeliveryAction = hasDeliveryHint(userMessage)
+                    ? await classifyDeliveryAction(userMessage, { documentType: docType, status: session.status || "" })
+                    : "none"
+
+                if (deliveryAction !== "none") {
                     setInputValue("")
-                    // If already sent, show link-only card
+                    const knownEmail = data.toEmail || ""
                     const isSent = session.status === "finalized" || session.status === "signed"
-                    const shareMsg = isSent
-                        ? `Here's the link for your ${docType}:`
-                        : shareIntent.method === "whatsapp"
-                            ? `Sure! Let me help you share your ${docType} on WhatsApp.`
-                            : shareIntent.method === "link"
-                                ? `Sure! Let me get a shareable link for your ${docType}.`
-                                : `How would you like to share your ${docType}?`
-                    setMessages(prev => [...prev,
-                        { role: "user" as const, content: userMessage },
-                        { role: "assistant" as const, content: shareMsg },
-                        { role: "assistant" as const, content: "", shareCard: true },
-                    ])
-                    await saveMessage("user", userMessage)
-                    await saveMessage("assistant", shareMsg, { card: "share" })
-                    return
-                }
 
-                // Check send intent (send it, send this, email to, send via email, resend)
-                const RESEND_REGEX = /\b(resend|re-send|send\s*again|send\s*once\s*more)\b/i
-                const isResend = RESEND_REGEX.test(userMessage)
-                const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
-
-                // The email to pre-fill — prioritize: detected in message > already in doc > empty
-                const knownEmail = detectedEmail || data.toEmail || ""
-
-                // Onboarding forms: before the send/share card, show a step to attach
-                // a client asset-upload link (owner's Drive/Dropbox folder). Skippable.
-                // Also triggers on "resend" (fixes already-sent forms that used the
-                // old static-PDF path — resending now always goes through the
-                // fillable-link flow).
-                if (docType === "client_onboarding_form" && (hasSendIntent || isResend)) {
-                    setInputValue("")
-                    // Once sent, the form is locked. To send again the owner must
-                    // cancel it first (which invalidates the old fill link), then
-                    // resend. This mirrors the manual (Share) lock behavior.
-                    const isLockedStatus = ["finalized", "signed", "paid"].includes(session.status || "")
-                    if (isLockedStatus) {
-                        const lockedMsg = "This onboarding form has already been sent, so it's locked. To send it again, cancel it from the preview panel first — that invalidates the old link — then ask me to resend."
+                    // Onboarding forms are delivered ONLY as a fillable /onboard/<token>
+                    // link, via the asset-link → Send flow.
+                    if (docType === "client_onboarding_form") {
+                        const isLockedStatus = ["finalized", "signed", "paid"].includes(session.status || "")
+                        if (isLockedStatus) {
+                            const lockedMsg = "This onboarding form has already been sent, so it's locked. To send it again, cancel it from the preview panel first — that invalidates the old link — then ask me to resend."
+                            setMessages(prev => [...prev,
+                                { role: "user" as const, content: userMessage },
+                                { role: "assistant" as const, content: lockedMsg },
+                            ])
+                            await saveMessage("user", userMessage)
+                            await saveMessage("assistant", lockedMsg)
+                            return
+                        }
+                        const method: "email" | "general" = deliveryAction === "email" ? "email" : "general"
+                        const introMsg = "Before you send — add a link where your client can upload their assets (logo, brand files). This is optional; you can skip it."
                         setMessages(prev => [...prev,
                             { role: "user" as const, content: userMessage },
-                            { role: "assistant" as const, content: lockedMsg },
+                            { role: "assistant" as const, content: introMsg },
+                            { role: "assistant" as const, content: "", assetLinkCard: { method, email: knownEmail } },
                         ])
                         await saveMessage("user", userMessage)
-                        await saveMessage("assistant", lockedMsg)
+                        await saveMessage("assistant", introMsg, { card: "asset_link", method, email: knownEmail })
                         return
                     }
-                    const method: "email" | "general" = (sendMethod === "email" || isResend) ? "email" : "general"
-                    const introMsg = "Before you send — add a link where your client can upload their assets (logo, brand files). This is optional; you can skip it."
-                    setMessages(prev => [...prev,
-                        { role: "user" as const, content: userMessage },
-                        { role: "assistant" as const, content: introMsg },
-                        { role: "assistant" as const, content: "", assetLinkCard: { method, email: knownEmail } },
-                    ])
-                    await saveMessage("user", userMessage)
-                    // Persist the intro + card so a page reload mid-flow restores it
-                    // (mirrors how { card: "send"|"share" } is restored elsewhere).
-                    await saveMessage("assistant", introMsg, { card: "asset_link", method, email: knownEmail })
-                    return
-                }
 
-                if ((hasSendIntent && sendMethod === "email") || isResend) {
-                    setInputValue("")
-                    const isSent = session.status === "finalized" || session.status === "signed"
-                    const minimalMsg = isSent || isResend
-                        ? `Sure! Fill in the details below to resend your ${docType}.`
-                        : `Sure! Fill in the details below to send your ${docType}.`
-                    setMessages(prev => [...prev,
-                        { role: "user" as const, content: userMessage },
-                        { role: "assistant" as const, content: minimalMsg },
-                        // Always show compose step so email is editable
-                        { role: "assistant" as const, content: "", sendCard: { email: knownEmail } },
-                    ])
-                    await saveMessage("user", userMessage)
-                    await saveMessage("assistant", minimalMsg, { card: "send", email: knownEmail })
-                    return
-                }
-                if (hasSendIntent && sendMethod === "general") {
-                    setInputValue("")
-                    // Generic "send" (no channel specified) — always show 3 options
-                    const shareMsg = `How would you like to send your ${docType}?`
+                    // Email delivery → compose/send card (email editable).
+                    if (deliveryAction === "email") {
+                        const minimalMsg = isSent
+                            ? `Sure! Fill in the details below to resend your ${docType}.`
+                            : `Sure! Fill in the details below to send your ${docType}.`
+                        setMessages(prev => [...prev,
+                            { role: "user" as const, content: userMessage },
+                            { role: "assistant" as const, content: minimalMsg },
+                            { role: "assistant" as const, content: "", sendCard: { email: knownEmail } },
+                        ])
+                        await saveMessage("user", userMessage)
+                        await saveMessage("assistant", minimalMsg, { card: "send", email: knownEmail })
+                        return
+                    }
+
+                    // Shareable link → create/return it and show it directly, so
+                    // "create a link to send" actually produces the link.
+                    if (deliveryAction === "link") {
+                        const publicUrl = await fetchPublicDocumentLink(session.id)
+                        if (publicUrl) {
+                            const linkMsg = `Here's the shareable link for your ${docType}:`
+                            setMessages(prev => [...prev,
+                                { role: "user" as const, content: userMessage },
+                                { role: "assistant" as const, content: linkMsg },
+                                { role: "assistant" as const, content: "", linkCard: publicUrl },
+                            ])
+                            await saveMessage("user", userMessage)
+                            await saveMessage("assistant", linkMsg)
+                            await saveMessage("assistant", "View document link", { card: "link" })
+                            return
+                        }
+                        // Couldn't mint a link — fall through to the multi-option card.
+                    }
+
+                    // WhatsApp or unspecified send → multi-option share card.
+                    const shareMsg = deliveryAction === "whatsapp"
+                        ? `Sure! Let me help you share your ${docType} on WhatsApp.`
+                        : `How would you like to send your ${docType}?`
                     setMessages(prev => [...prev,
                         { role: "user" as const, content: userMessage },
                         { role: "assistant" as const, content: shareMsg },
