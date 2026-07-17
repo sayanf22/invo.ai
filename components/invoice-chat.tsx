@@ -115,6 +115,7 @@ import { MessageLimitBanner } from "@/components/message-limit-banner"
 import { UpgradeModal } from "@/components/upgrade-modal"
 import { AgenticThinkingBlock, type ActivityItem } from "@/components/ui/agentic-thinking-block"
 import { authFetch } from "@/lib/auth-fetch"
+import { ensureOnboardingFillLink } from "@/lib/onboarding-link-client"
 import { createClient } from "@/lib/supabase"
 import { ClientSelector } from "@/components/clients/client-selector"
 import { ChatSendCard } from "@/components/chat-send-card"
@@ -730,20 +731,18 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
             setMessages(restoredMessages)
             setWelcomeLoaded(true)
 
-            // Resolve the real onboarding fill link for any restored link card
-            // (sentinel set above — this effect can't be async directly).
+            // Resolve (or securely create) the real onboarding fill link for any
+            // restored link card. Token creation remains owner-authenticated.
             if (docType === "client_onboarding_form" && restoredMessages.some(m => m.linkCard === "__resolving_onboard_link__")) {
-                const sid = session.id
-                authFetch(`/api/onboarding?sessionId=${sid}`)
-                    .then(res => res.json().catch(() => ({})).then(d => ({ ok: res.ok, d })))
-                    .then(({ ok, d }) => {
+                ensureOnboardingFillLink(session.id)
+                    .then(onboardUrl => {
                         setMessages(prev => prev.map(m => m.linkCard === "__resolving_onboard_link__"
-                            ? { ...m, linkCard: ok && d.onboardUrl ? d.onboardUrl : undefined, content: ok && d.onboardUrl ? "" : "This form hasn't been sent yet, so there's no fillable link." }
+                            ? { ...m, linkCard: onboardUrl, content: "" }
                             : m))
                     })
-                    .catch(() => {
+                    .catch((error) => {
                         setMessages(prev => prev.map(m => m.linkCard === "__resolving_onboard_link__"
-                            ? { ...m, linkCard: undefined, content: "Couldn't look up the form link." }
+                            ? { ...m, linkCard: undefined, content: error instanceof Error ? error.message : "Couldn't create the form link." }
                             : m))
                     })
             }
@@ -1193,42 +1192,25 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
 
             if (!hasModification) {
                 // ── Onboarding link request (deterministic, no AI needed) ──────
-                // For an ALREADY-SENT onboarding form, any ask that mentions the
-                // "link"/"url" ("show me the link", "send me the link", "share the
-                // same link", "copy the link") returns the real fillable
-                // /onboard/<token> link — NOT the generic share card. Persisted as
-                // a { card: "link" } message so it survives a refresh. If the form
-                // isn't sent yet, we fall through to the normal send flow (a link
-                // only exists once the form has been sent, since email is atomic).
+                // Any direct link request creates or reuses the owner's secure
+                // /onboard/<token> capability; email delivery is optional.
                 if (docType === "client_onboarding_form") {
-                    const isSent = ["finalized", "signed"].includes(session.status || "")
                     const wantsLink = /\blink\b|\burl\b/i.test(userMessage)
-                    if (isSent && wantsLink) {
+                    if (wantsLink) {
                         setInputValue("")
                         try {
-                            const res = await authFetch(`/api/onboarding?sessionId=${session.id}`)
-                            const d = await res.json().catch(() => ({}))
-                            if (res.ok && d.onboardUrl) {
-                                const msg = "Here's your client's onboarding form link — share it any time:"
-                                setMessages(prev => [...prev,
-                                    { role: "user" as const, content: userMessage },
-                                    { role: "assistant" as const, content: msg },
-                                    { role: "assistant" as const, content: "", linkCard: d.onboardUrl },
-                                ])
-                                await saveMessage("user", userMessage)
-                                await saveMessage("assistant", msg)
-                                await saveMessage("assistant", "View form link", { card: "link" })
-                            } else {
-                                const msg = "This form link is no longer active. Cancel the form and resend it to generate a fresh link."
-                                setMessages(prev => [...prev,
-                                    { role: "user" as const, content: userMessage },
-                                    { role: "assistant" as const, content: msg },
-                                ])
-                                await saveMessage("user", userMessage)
-                                await saveMessage("assistant", msg)
-                            }
-                        } catch {
-                            const msg = "Couldn't look up the form link just now. Please try again."
+                            const onboardUrl = await ensureOnboardingFillLink(session.id)
+                            const msg = "Here's your client's fillable onboarding form link — share it any time:"
+                            setMessages(prev => [...prev,
+                                { role: "user" as const, content: userMessage },
+                                { role: "assistant" as const, content: msg },
+                                { role: "assistant" as const, content: "", linkCard: onboardUrl },
+                            ])
+                            await saveMessage("user", userMessage)
+                            await saveMessage("assistant", msg)
+                            await saveMessage("assistant", "View form link", { card: "link" })
+                        } catch (error) {
+                            const msg = error instanceof Error ? error.message : "Couldn't create the form link just now. Please try again."
                             setMessages(prev => [...prev,
                                 { role: "user" as const, content: userMessage },
                                 { role: "assistant" as const, content: msg },
@@ -2019,25 +2001,16 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
 
                 // [ACTION:SHOW_LINK] — AI wants to show the document link
                 if (cleaned.startsWith("[ACTION:SHOW_LINK]") && session) {
-                    // Onboarding forms have a real client-fillable link (a token
-                    // that isn't stored client-side), not the generic /d/<shortId>
-                    // preview link every other document type uses. Look it up.
+                    // Onboarding forms use a real client-fillable capability.
+                    // Create or reuse it securely; email delivery is optional.
                     if (docType === "client_onboarding_form") {
                         try {
-                            const res = await authFetch(`/api/onboarding?sessionId=${session.id}`)
-                            const d = await res.json().catch(() => ({}))
-                            if (res.ok && d.onboardUrl) {
-                                setMessages(prev => [...prev, { role: "assistant", content: "", linkCard: d.onboardUrl }])
-                                await saveMessage("user", displayText)
-                                await saveMessage("assistant", "View document link", { card: "link" })
-                            } else {
-                                const msg = "This form hasn't been sent yet, so there's no fillable link. Ask me to send it first."
-                                setMessages(prev => [...prev, { role: "assistant", content: msg }])
-                                await saveMessage("user", displayText)
-                                await saveMessage("assistant", msg)
-                            }
-                        } catch {
-                            const msg = "Couldn't look up the form link. Please try again."
+                            const onboardUrl = await ensureOnboardingFillLink(session.id)
+                            setMessages(prev => [...prev, { role: "assistant", content: "", linkCard: onboardUrl }])
+                            await saveMessage("user", displayText)
+                            await saveMessage("assistant", "View document link", { card: "link" })
+                        } catch (error) {
+                            const msg = error instanceof Error ? error.message : "Couldn't create the form link. Please try again."
                             setMessages(prev => [...prev, { role: "assistant", content: msg }])
                             await saveMessage("user", displayText)
                             await saveMessage("assistant", msg)

@@ -13,6 +13,7 @@ import { Mail, MessageCircle, Link2, Copy, Check, X, Lock, ArrowRight } from "lu
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
+import { ensureOnboardingFillLink } from "@/lib/onboarding-link-client"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
 import { usePublicDocumentLink } from "@/hooks/use-public-document-link"
 
@@ -46,6 +47,7 @@ export function ChatShareCard({
   const [mounted, setMounted] = useState(false)
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
   const [isLocking, setIsLocking] = useState(false)
+  const [isCreatingLink, setIsCreatingLink] = useState(false)
   const [copied, setCopied] = useState(false)
   const [whatsappMessage, setWhatsappMessage] = useState("")
 
@@ -74,6 +76,26 @@ export function ChatShareCard({
   // The link this card shares. Onboarding uses the fill link; everything else
   // uses the platform preview link.
   const shareLink = isOnboarding ? onboardFillUrl : platformLink
+
+  const resolveShareLink = async (): Promise<string | null> => {
+    if (!isOnboarding) {
+      if (!platformLink) toast.error("Public link is still loading. Please try again.")
+      return platformLink
+    }
+    if (onboardFillUrl) return onboardFillUrl
+
+    setIsCreatingLink(true)
+    try {
+      const fillUrl = await ensureOnboardingFillLink(sessionId)
+      setOnboardFillUrl(fillUrl)
+      return fillUrl
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create the fillable link.")
+      return null
+    } finally {
+      setIsCreatingLink(false)
+    }
+  }
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setMounted(true))
@@ -125,28 +147,26 @@ export function ChatShareCard({
     }
 
     if (pendingAction === "whatsapp") {
-      if (isOnboarding && !shareLink) {
-        toast.error("Send this form via email first to generate its fillable link.")
-        setPendingAction(null)
-        return
-      }
+      const resolvedLink = await resolveShareLink()
+      if (!resolvedLink) return
+
+      const message = whatsappMessage.includes(resolvedLink)
+        ? whatsappMessage
+        : `${whatsappMessage.trim()}\n\n${resolvedLink}`
       await lockDocument()
       setPendingAction(null)
-      window.open(`https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`, "_blank")
+      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank")
       return
     }
     if (pendingAction === "link") {
-      if (!shareLink) {
-        toast.error(isOnboarding
-          ? "Send this form via email first to generate its fillable link."
-          : "Public link is still loading. Please try again.")
-        return
-      }
+      const resolvedLink = await resolveShareLink()
+      if (!resolvedLink) return
+
       try {
-        await navigator.clipboard.writeText(shareLink)
+        await navigator.clipboard.writeText(resolvedLink)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
-        toast.success("Link copied!")
+        toast.success(isOnboarding ? "Fillable link copied!" : "Link copied!")
       } catch {
         toast.error("Failed to copy link")
       }
@@ -219,7 +239,7 @@ export function ChatShareCard({
               <button
                 type="button"
                 onClick={() => setPendingAction(null)}
-                disabled={isLocking}
+                disabled={isLocking || isCreatingLink}
                 className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-border/60 bg-background text-foreground/80 hover:bg-muted/40 hover:text-foreground transition-all duration-150 disabled:opacity-40 active:scale-[0.97]"
               >
                 Go back
@@ -227,14 +247,14 @@ export function ChatShareCard({
               <button
                 type="button"
                 onClick={handleConfirm}
-                disabled={isLocking}
+                disabled={isLocking || isCreatingLink}
                 className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold bg-foreground text-background hover:bg-foreground/90 transition-all duration-150 disabled:opacity-50 active:scale-[0.97]"
                 style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.06)" }}
               >
-                {isLocking ? (
+                {isLocking || isCreatingLink ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-background/30 border-t-background rounded-full animate-spin" />
-                    <span>Locking…</span>
+                    <span>{isCreatingLink ? "Generating link…" : "Locking…"}</span>
                   </>
                 ) : (
                   <>
@@ -274,21 +294,20 @@ export function ChatShareCard({
             </button>
           </div>
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/40 border border-border/30">
-            <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{shareLink || "Link unavailable — send via email first"}</span>
+            <span className="text-xs text-muted-foreground truncate flex-1 font-mono">
+              {shareLink || (isOnboarding ? "Fillable link will be generated when copied" : "Public link is loading")}
+            </span>
             <button
               type="button"
+              disabled={isCreatingLink}
               onClick={async () => {
-                if (!shareLink) {
-                  toast.error(isOnboarding
-                    ? "Send this form via email first to generate its fillable link."
-                    : "Public link is still loading. Please try again.")
-                  return
-                }
+                const resolvedLink = await resolveShareLink()
+                if (!resolvedLink) return
                 try {
-                  await navigator.clipboard.writeText(shareLink)
+                  await navigator.clipboard.writeText(resolvedLink)
                   setCopied(true)
                   setTimeout(() => setCopied(false), 2000)
-                  toast.success("Link copied!")
+                  toast.success(isOnboarding ? "Fillable link copied!" : "Link copied!")
                 } catch { toast.error("Failed to copy") }
               }}
               className="text-xs font-medium text-foreground hover:text-foreground/80 transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-muted/60 border border-border/40"

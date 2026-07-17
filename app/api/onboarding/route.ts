@@ -1,10 +1,9 @@
 /**
  * Onboarding Forms API
  *
- * POST  (owner, authenticated) — create a client-fillable onboarding form for a
- *        session and email the client a tokenized link. Mirrors the signatures
- *        create flow: email is sent FIRST (atomic) so a link is never created
- *        without an invitation going out.
+ * POST  (owner, authenticated) — securely create or reuse a tokenized,
+ *        client-fillable onboarding link. `delivery: "link"` returns it without
+ *        sending email; `delivery: "email"` also sends the invitation.
  * GET   (public, by ?token=) — fetch a form for the /onboard/[token] page. No
  *        auth; uses a service-role client and validates the token itself.
  *
@@ -40,195 +39,242 @@ function isEmail(v: unknown): v is string {
   return typeof v === "string" && v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
 }
 
-// ── POST: create + send ──────────────────────────────────────────────────────
+// ── POST: securely create/reuse a fillable link and optionally email it ──────
 export async function POST(request: NextRequest) {
   try {
     const auth = await authenticateRequest(request)
     if (auth.error) return auth.error
 
-    // CSRF protection — state-changing (sends emails, creates DB records).
     const csrfError = await validateCSRFToken(request, auth.user.id, auth.supabase as never)
     if (csrfError) return csrfError
-
-    // Rate limit — email sending is expensive; reuse the "email" category.
-    const rateLimitError = await checkRateLimit(auth.user.id, "email", auth.supabase as never)
-    if (rateLimitError) return rateLimitError
 
     const body = await request.json()
     const sizeError = validateBodySize(body, 10 * 1024)
     if (sizeError) return sizeError
 
-    const { sessionId, clientEmail, clientName, personalMessage } = body as {
+    const { sessionId, clientEmail, clientName, personalMessage, delivery: requestedDelivery } = body as {
       sessionId?: string
       clientEmail?: string
       clientName?: string
       personalMessage?: string
+      delivery?: "email" | "link"
     }
+    const delivery = requestedDelivery ?? "email"
+    const validSessionId = typeof sessionId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)
 
-    if (!sessionId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId) || !isEmail(clientEmail)) {
-      return NextResponse.json({ error: "sessionId and a valid clientEmail are required." }, { status: 400 })
+    if (!validSessionId || !["email", "link"].includes(delivery)) {
+      return NextResponse.json({ error: "A valid sessionId and delivery mode are required." }, { status: 400 })
+    }
+    if (delivery === "email" && !isEmail(clientEmail)) {
+      return NextResponse.json({ error: "A valid clientEmail is required for email delivery." }, { status: 400 })
+    }
+    if (clientName && String(clientName).length > 200) {
+      return NextResponse.json({ error: "Client name is too long." }, { status: 400 })
     }
     if (personalMessage && String(personalMessage).length > 2000) {
       return NextResponse.json({ error: "Message too long." }, { status: 400 })
     }
 
-    // Verify session ownership + type.
+    const rateLimitError = await checkRateLimit(
+      auth.user.id,
+      delivery === "email" ? "email" : "general",
+      auth.supabase as never,
+    )
+    if (rateLimitError) return rateLimitError
+
+    // Ownership is part of the query to prevent cross-user existence disclosure.
     const { data: session, error: sessionErr } = await auth.supabase
       .from("document_sessions")
       .select("*")
       .eq("id", sessionId)
-      .single()
+      .eq("user_id", auth.user.id)
+      .maybeSingle()
 
     if (sessionErr || !session) {
       return NextResponse.json({ error: "Session not found." }, { status: 404 })
-    }
-    if (session.user_id !== auth.user.id) {
-      return NextResponse.json({ error: "Unauthorized." }, { status: 403 })
     }
     if ((session.document_type || "").toLowerCase().replace(/\s+/g, "_") !== "client_onboarding_form") {
       return NextResponse.json({ error: "This document is not an onboarding form." }, { status: 400 })
     }
 
-    // Lock policy: once a form has been sent (finalized) or is otherwise locked,
-    // it cannot be re-sent. The owner must cancel it first — which invalidates
-    // the previous fill link — and then send again. Defense-in-depth for the
-    // same rule enforced in the chat + Share UI.
-    //
-    // Exception: a finalized session that has NEVER issued an onboarding form
-    // (zero rows) was finalized by a different/legacy path and has no fill link.
-    // Blocking it would trap the owner in a cancel loop with no way to send a
-    // working link. In that case we allow the send, which mints the first real
-    // token. Sessions that already have a form still require an explicit cancel.
     const admin = serviceClient()
-    const lockedStatuses = ["finalized", "signed", "paid"]
-    if (lockedStatuses.includes((session.status || "").toLowerCase())) {
-      const { count: existingFormCount } = await admin
-        .from("onboarding_forms")
-        .select("id", { count: "exact", head: true })
-        .eq("session_id", sessionId)
-      if ((existingFormCount ?? 0) > 0) {
-        return NextResponse.json(
-          { error: "This form has already been sent. Cancel it first to send again." },
-          { status: 409 },
-        )
-      }
-    }
-
+    const now = new Date()
     const context = (session.context ?? {}) as Record<string, unknown>
 
-    // Native uploads are available on every paid onboarding tier, including
-    // Starter. This value is snapshotted on the form so existing links never
-    // gain or lose upload access retroactively after a plan change.
-    const tier = await getUserTier(auth.supabase, auth.user.id)
-    const allowUploads = canUseNativeOnboardingUploads(tier)
+    // Idempotency: reuse the newest active capability instead of creating a new
+    // bearer token on every copy/share click.
+    const { data: foundForm } = await admin
+      .from("onboarding_forms")
+      .select("id, token, status, title, client_name, client_email, expires_at")
+      .eq("session_id", sessionId)
+      .eq("user_id", auth.user.id)
+      .neq("status", "expired")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-    const assetUploadLink = typeof context.assetUploadLink === "string" ? context.assetUploadLink : null
-    const fields = buildOnboardingFields(context, { allowUploads, assetUploadLink })
-    if (fields.length === 0) {
-      return NextResponse.json(
-        { error: "This form has no questions to fill. Add questions before sending." },
-        { status: 400 },
-      )
+    let activeForm = foundForm
+    if (
+      activeForm &&
+      activeForm.status !== "submitted" &&
+      activeForm.expires_at &&
+      new Date(activeForm.expires_at) <= now
+    ) {
+      await admin.from("onboarding_forms").update({ status: "expired" }).eq("id", activeForm.id)
+      activeForm = null
     }
 
-    const token = generateOnboardingToken()
-    const now = new Date()
-    const expiresAt = new Date(now.getTime() + ONBOARD_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
-    const fillUrl = `https://clorefy.com/onboard/${token}`
+    if (delivery === "email" && activeForm?.status === "submitted") {
+      return NextResponse.json({ error: "This onboarding form has already been submitted." }, { status: 409 })
+    }
+    if (!activeForm && ["signed", "paid"].includes((session.status || "").toLowerCase())) {
+      return NextResponse.json({ error: "This completed document cannot create a new onboarding link." }, { status: 409 })
+    }
 
-    const { data: business } = await auth.supabase
-      .from("businesses")
-      .select("name, logo_url")
-      .eq("user_id", auth.user.id)
-      .single()
-
-    const businessName = (business as any)?.name || "Your Business"
-    // Emails can't load a private R2 key — resolve through the public logo
-    // endpoint so the logo actually renders in Gmail/Outlook/Apple Mail.
-    const businessLogoUrl = getPublicLogoUrl(auth.user.id, (business as any)?.logo_url || null)
     const formTitle =
+      activeForm?.title ||
       (typeof context.projectName === "string" && context.projectName) ||
-      (typeof context.title === "string" && (context.title as string)) ||
+      (typeof context.title === "string" && context.title) ||
       "Client Onboarding"
     const resolvedClientName =
       (typeof clientName === "string" && clientName.trim()) ||
-      (typeof context.clientName === "string" && (context.clientName as string)) ||
-      (typeof context.toName === "string" && (context.toName as string)) ||
+      activeForm?.client_name ||
+      (typeof context.clientName === "string" && context.clientName) ||
+      (typeof context.toName === "string" && context.toName) ||
       ""
 
-    // Send invitation email FIRST — atomic with form creation.
+    let createdNow = false
+    if (!activeForm) {
+      const tier = await getUserTier(auth.supabase, auth.user.id)
+      const allowUploads = canUseNativeOnboardingUploads(tier)
+      const assetUploadLink = typeof context.assetUploadLink === "string" ? context.assetUploadLink : null
+      const fields = buildOnboardingFields(context, { allowUploads, assetUploadLink })
+      if (fields.length === 0) {
+        return NextResponse.json(
+          { error: "This form has no questions to fill. Add questions before creating its link." },
+          { status: 400 },
+        )
+      }
+
+      const token = generateOnboardingToken()
+      const expiresAt = new Date(now.getTime() + ONBOARD_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+      const { data: insertedForm, error: insertErr } = await admin
+        .from("onboarding_forms")
+        .insert({
+          user_id: auth.user.id,
+          session_id: sessionId,
+          token,
+          status: "pending",
+          allow_uploads: allowUploads,
+          fields,
+          title: formTitle,
+          client_name: resolvedClientName || null,
+          client_email: delivery === "email" ? clientEmail : null,
+          expires_at: expiresAt.toISOString(),
+        })
+        .select("id, token, status, title, client_name, client_email, expires_at")
+        .single()
+
+      if (insertErr || !insertedForm) {
+        console.error("[onboarding] insert failed:", insertErr?.message)
+        return NextResponse.json({ error: "Could not create the form link. Please try again." }, { status: 500 })
+      }
+      activeForm = insertedForm
+      createdNow = true
+    }
+
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com").replace(/\/$/, "")
+    const fillUrl = `${appUrl}/onboard/${activeForm.token}`
+    const expiresAtIso = activeForm.expires_at ||
+      new Date(now.getTime() + ONBOARD_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString()
     let emailSent = false
-    try {
-      const result = await sendEmail({
-        to: clientEmail,
-        subject: `Please complete your onboarding form for ${businessName}`,
-        html: buildOnboardingInvitationEmail({
-          businessName,
-          businessLogoUrl,
-          formTitle,
-          clientName: resolvedClientName,
-          fillUrl,
-          expiresAt: expiresAt.toISOString(),
-          personalMessage: personalMessage || null,
-        }),
-        senderName: businessName,
-        category: "onboarding_invitation",
-      })
-      emailSent = result.success === true
-      if (!result.success) console.error("[onboarding] email send failed:", result)
-    } catch (err) {
-      console.error("[onboarding] email exception:", err)
-    }
 
-    if (!emailSent) {
-      return NextResponse.json(
-        { error: "Failed to send the invitation email. The form was not created — please try again." },
-        { status: 500 },
+    if (delivery === "email") {
+      const recipientEmail = clientEmail as string
+      const { data: business } = await auth.supabase
+        .from("businesses")
+        .select("name, logo_url")
+        .eq("user_id", auth.user.id)
+        .single()
+      const businessName = (business as { name?: string | null } | null)?.name || "Your Business"
+      const businessLogoUrl = getPublicLogoUrl(
+        auth.user.id,
+        (business as { logo_url?: string | null } | null)?.logo_url || null,
       )
-    }
 
-    const { data: form, error: insertErr } = await admin
-      .from("onboarding_forms")
-      .insert({
+      try {
+        const result = await sendEmail({
+          to: recipientEmail,
+          subject: `Please complete your onboarding form for ${businessName}`,
+          html: buildOnboardingInvitationEmail({
+            businessName,
+            businessLogoUrl,
+            formTitle,
+            clientName: resolvedClientName,
+            fillUrl,
+            expiresAt: expiresAtIso,
+            personalMessage: personalMessage || null,
+          }),
+          senderName: businessName,
+          category: "onboarding_invitation",
+        })
+        emailSent = result.success === true
+        if (!result.success) console.error("[onboarding] email send failed:", result)
+      } catch (error) {
+        console.error("[onboarding] email exception:", error)
+      }
+
+      if (!emailSent) {
+        if (createdNow) await admin.from("onboarding_forms").delete().eq("id", activeForm.id)
+        return NextResponse.json({ error: "Failed to send the invitation email. Please try again." }, { status: 500 })
+      }
+
+      await admin.from("onboarding_forms").update({
+        client_name: resolvedClientName || null,
+        client_email: recipientEmail,
+      }).eq("id", activeForm.id)
+
+      await admin.from("document_emails").insert({
         user_id: auth.user.id,
         session_id: sessionId,
-        token,
-        status: "pending",
-        allow_uploads: allowUploads,
-        fields,
-        title: formTitle,
-        client_name: resolvedClientName || null,
-        client_email: clientEmail,
-        expires_at: expiresAt.toISOString(),
-      })
-      .select("id")
-      .single()
-
-    if (insertErr || !form) {
-      console.error("[onboarding] insert failed:", insertErr?.message)
-      return NextResponse.json({ error: "Could not create the form. Please try again." }, { status: 500 })
+        recipient_email: recipientEmail,
+        document_type: "client_onboarding_form",
+        personal_message: personalMessage || null,
+        status: "sent",
+        subject: `Please complete your onboarding form for ${businessName}`,
+      }).then(() => {}, () => {})
     }
 
-    // Track the send + finalize the session (mirrors the signature/send flow).
-    await admin.from("document_emails").insert({
-      user_id: auth.user.id,
-      session_id: sessionId,
-      recipient_email: clientEmail,
-      document_type: "client_onboarding_form",
-      personal_message: personalMessage || null,
-      status: "sent",
-      subject: `Please complete your onboarding form for ${businessName}`,
-    }).then(() => {}, () => {})
-
-    await admin.from("document_sessions").update({
+    const sessionUpdate: Record<string, unknown> = {
       status: "finalized",
-      sent_at: now.toISOString(),
+      sent_at: session.sent_at || now.toISOString(),
       client_name: resolvedClientName || session.client_name || null,
-      invoice_recipient_email: clientEmail,
       updated_at: now.toISOString(),
-    }).eq("id", sessionId)
+    }
+    if (delivery === "email") sessionUpdate.invoice_recipient_email = clientEmail
 
-    return NextResponse.json({ success: true, onboardUrl: fillUrl, formId: form.id, emailSent })
+    const { error: finalizeErr } = await admin
+      .from("document_sessions")
+      .update(sessionUpdate)
+      .eq("id", sessionId)
+      .eq("user_id", auth.user.id)
+    if (finalizeErr) {
+      console.error("[onboarding] session finalize failed:", finalizeErr.message)
+      if (createdNow && !emailSent) await admin.from("onboarding_forms").delete().eq("id", activeForm.id)
+      return NextResponse.json({ error: "The link was created but the document could not be locked. Please try again." }, { status: 500 })
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        onboardUrl: fillUrl,
+        formId: activeForm.id,
+        emailSent,
+        reused: !createdNow,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    )
   } catch (error) {
     console.error("Onboarding create error:", error instanceof Error ? error.message : error)
     return NextResponse.json({ error: "Internal server error." }, { status: 500 })

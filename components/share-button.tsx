@@ -15,6 +15,7 @@ import { pdf } from "@react-pdf/renderer"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
 import { authFetch } from "@/lib/auth-fetch"
+import { ensureOnboardingFillLink } from "@/lib/onboarding-link-client"
 import { cn } from "@/lib/utils"
 import { resolvePdfComponent, resolveDocumentReference } from "@/lib/pdf-export-helpers"
 import { ChatAssetLinkCard } from "@/components/chat-asset-link-card"
@@ -182,6 +183,23 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
       setTimeout(() => setCopied(null), 2000)
     } catch { toast.error("Failed to copy") }
   }, [])
+
+  const copyOnboardingFillLink = useCallback(async () => {
+    if (!sessionId) {
+      toast.error("Save the onboarding form before creating its link.")
+      return
+    }
+    setIsSharing(true)
+    try {
+      const fillUrl = await ensureOnboardingFillLink(sessionId)
+      setOnboardingFillUrl(fillUrl)
+      await copy(fillUrl, "onboarding-link")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create the fillable link.")
+    } finally {
+      setIsSharing(false)
+    }
+  }, [sessionId, copy])
 
   // ── Lock-on-share decision ──────────────────────────────────────────
   // The doc is "locked" — and therefore share actions can fire immediately —
@@ -480,6 +498,19 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
         <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-3 py-1">
           Share Document
         </DropdownMenuLabel>
+        {isOnboardingForm && sessionId && (
+          <DropdownMenuItem
+            onClick={copyOnboardingFillLink}
+            className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium"
+          >
+            {isSharing
+              ? <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              : copied === "onboarding-link"
+                ? <Check className="w-4 h-4 text-emerald-500" />
+                : <Link2 className="w-4 h-4 text-primary" />}
+            <span>{copied === "onboarding-link" ? "Fillable Link Copied" : "Copy Fillable Link"}</span>
+          </DropdownMenuItem>
+        )}
         {sessionId && onOpenSendDialog && (
           <DropdownMenuItem onClick={() => requestShare("send-email-dialog")} className="gap-3 py-2.5 px-3 rounded-xl cursor-pointer text-sm font-medium">
             <Mail className="w-4 h-4 text-primary" />
