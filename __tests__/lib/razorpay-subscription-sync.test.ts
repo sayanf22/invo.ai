@@ -62,8 +62,11 @@ describe("Razorpay subscription webhook entitlement gating", () => {
 
   it("rejects an unbound charged event before provider charge verification", async () => {
     mocks.createClient.mockReturnValue(dbWithBinding(null))
-    const response = await handleRazorpaySubscriptionEvent(event(), "subscription.charged", "evt_charged")
-    expect(response?.status).toBe(500)
+    await expect(handleRazorpaySubscriptionEvent(
+      event(),
+      "subscription.charged",
+      "evt_charged",
+    )).rejects.toThrow("Subscription webhook is not locally bound")
     expect(mocks.getVerifiedCharge).not.toHaveBeenCalled()
     expect(mocks.apply).not.toHaveBeenCalled()
   })
@@ -111,7 +114,10 @@ describe("Razorpay subscription webhook entitlement gating", () => {
       ...entity, status: "cancelled", notes: { platform: "clorefy", user_id: "user-1" },
     })
     mocks.applyTerminal.mockRejectedValueOnce(new Error("transaction rolled back"))
-    const response = await handleRazorpaySubscriptionEvent(event(), "subscription.cancelled", "evt_cancelled")
-    expect(response?.status).toBe(500)
+    await expect(handleRazorpaySubscriptionEvent(
+      event(),
+      "subscription.cancelled",
+      "evt_cancelled",
+    )).rejects.toThrow("transaction rolled back")
   })
 })

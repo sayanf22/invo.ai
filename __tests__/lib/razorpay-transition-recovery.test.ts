@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(), getScheduled: vi.fn(), getSubscription: vi.fn(),
   getVerified: vi.fn(), apply: vi.fn(), applyTerminal: vi.fn(),
+  hasPersistedEntitlement: vi.fn(),
 }))
 vi.mock("@/lib/razorpay", () => ({
   cancelRazorpaySubscription: mocks.cancel,
@@ -15,6 +16,7 @@ vi.mock("@/lib/razorpay", () => ({
 vi.mock("@/lib/razorpay-subscription-state", () => ({
   applyRazorpaySubscriptionSnapshot: mocks.apply,
   applyRazorpayTerminalSnapshot: mocks.applyTerminal,
+  hasPersistedRazorpayEntitlement: mocks.hasPersistedEntitlement,
 }))
 
 import {
@@ -48,7 +50,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.cancel.mockResolvedValue({ status: "cancelled" })
   mocks.getVerified.mockResolvedValue(null)
-  mocks.apply.mockResolvedValue({ applied: true, stale: false })
+  mocks.apply.mockResolvedValue({ applied: true, stale: false, plan: "starter", billingCycle: "monthly" })
+  mocks.hasPersistedEntitlement.mockResolvedValue(true)
   mocks.applyTerminal.mockResolvedValue({ applied: true, finalized: false })
 })
 afterEach(() => vi.useRealTimers())

@@ -10,7 +10,10 @@ import {
     planIdToPlan,
     verifyPaymentSignature,
 } from "@/lib/razorpay"
-import { applyRazorpaySubscriptionSnapshot } from "@/lib/razorpay-subscription-state"
+import {
+    applyRazorpaySubscriptionSnapshot,
+    hasPersistedRazorpayEntitlement,
+} from "@/lib/razorpay-subscription-state"
 import { logAudit } from "@/lib/audit-log"
 
 const pendingResponse = (message: string, extra: Record<string, unknown> = {}) =>
@@ -152,6 +155,26 @@ export async function POST(request: NextRequest) {
             eventCreatedAt: new Date(),
             charge: verified,
         })
+        const persisted = await hasPersistedRazorpayEntitlement(
+            svc,
+            auth.user.id,
+            razorpay_subscription_id,
+            result.plan,
+            result.billingCycle,
+        )
+        if (!persisted) {
+            await logAudit(auth.supabase, {
+                user_id: auth.user.id,
+                action: "payment.verify_pending",
+                metadata: {
+                    razorpay_subscription_id,
+                    razorpay_payment_id,
+                    reason: "entitlement_persistence_unconfirmed",
+                } as any,
+            }, request).catch(() => {})
+            return pendingResponse("Payment verification is still syncing; access has not been changed yet.")
+        }
+
         await logAudit(auth.supabase, {
             user_id: auth.user.id,
             action: "payment.verify",

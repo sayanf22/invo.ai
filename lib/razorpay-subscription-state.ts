@@ -252,6 +252,38 @@ export async function applyRazorpaySubscriptionSnapshot(
     }
 }
 
+/**
+ * Confirm that the exact charge-backed entitlement is present in Postgres.
+ * Provider state alone is never enough to report activation to the client.
+ */
+export async function hasPersistedRazorpayEntitlement(
+    db: SupabaseClient,
+    userId: string,
+    subscriptionId: string,
+    plan: Exclude<PlanId, "free">,
+    billingCycle: "monthly" | "yearly",
+): Promise<boolean> {
+    const { data, error } = await (db as any).from("subscriptions")
+        .select("plan, billing_cycle, status, current_period_end, razorpay_subscription_id, pending_razorpay_subscription_id, entitlement_source, entitlement_payment_id, entitlement_verified_at")
+        .eq("user_id", userId)
+        .maybeSingle()
+    if (error) throw error
+    if (!data) return false
+
+    const periodEnd = data.current_period_end ? Date.parse(data.current_period_end) : NaN
+    return data.plan === plan
+        && data.billing_cycle === billingCycle
+        && data.status === "active"
+        && data.razorpay_subscription_id === subscriptionId
+        && data.pending_razorpay_subscription_id !== subscriptionId
+        && data.entitlement_source === "razorpay"
+        && typeof data.entitlement_payment_id === "string"
+        && data.entitlement_payment_id.startsWith("pay_")
+        && Boolean(data.entitlement_verified_at)
+        && Number.isFinite(periodEnd)
+        && periodEnd > Date.now()
+}
+
 /** Persist a provider-confirmed terminal state without shortening paid access. */
 export async function applyRazorpayTerminalSnapshot(
     db: SupabaseClient,

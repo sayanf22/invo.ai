@@ -9,6 +9,7 @@ import {
 import {
     applyRazorpaySubscriptionSnapshot,
     applyRazorpayTerminalSnapshot,
+    hasPersistedRazorpayEntitlement,
 } from "@/lib/razorpay-subscription-state"
 
 export const ABANDONED_CHECKOUT_TTL_MS = 30 * 60 * 1000
@@ -203,6 +204,7 @@ export async function recoverPendingSubscriptionTransition(
             Number.isFinite(evidenceBoundary) ? evidenceBoundary : undefined,
         ).catch(() => null)
         : null
+    let persistenceUnconfirmed = false
     if (verified) {
         const result = await applyRazorpaySubscriptionSnapshot(db, verified.subscription, {
             userId: row.user_id,
@@ -210,11 +212,23 @@ export async function recoverPendingSubscriptionTransition(
             eventCreatedAt: new Date(),
             charge: verified,
         })
-        if (result.applied || result.stale) return { state: "reconciled" }
+        if (result.applied || result.stale) {
+            const persisted = await hasPersistedRazorpayEntitlement(
+                db,
+                row.user_id,
+                providerId,
+                result.plan,
+                result.billingCycle,
+            )
+            if (persisted) return { state: "reconciled" }
+            persistenceUnconfirmed = true
+        }
     }
 
     return pending(row, {
         retryableCheckout: Boolean(pendingId && pendingId !== currentId),
-        reason: matchesTarget ? "captured_charge_pending" : "provider_transition_pending",
+        reason: persistenceUnconfirmed
+            ? "entitlement_persistence_unconfirmed"
+            : matchesTarget ? "captured_charge_pending" : "provider_transition_pending",
     })
 }

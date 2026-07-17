@@ -96,12 +96,15 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
             if (data.upgraded) {
                 const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1)
                 if (data.pending) {
-                    toast.info(data.message || "Razorpay confirmed the change. Local billing status is still syncing.")
-                    await authFetch("/api/razorpay/reconcile", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: "{}",
-                    }).catch(() => null)
+                    const activated = await reconcileUntilActive(12, 1500)
+                    if (activated) {
+                        toast.success(`🎉 ${planLabel} activated!`)
+                        onSuccess?.(data.plan ?? plan, data.billingCycle ?? billingCycle)
+                    } else {
+                        toast.info(data.message || "Payment received. Activation is still being confirmed; access has not changed yet.")
+                    }
+                    setIsProcessing(false)
+                    return
                 } else if (data.deferredToNextCycle) {
                     const effectiveDate = data.periodEnd
                         ? new Date(data.periodEnd).toLocaleDateString()
@@ -156,29 +159,29 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
                         const verifyData = await verifyRes.json().catch(() => ({}))
                         if (!verifyRes.ok) throw new Error(verifyData.error || "Payment verification failed")
 
-                        if (verifyData.pending) {
-                            // The payment succeeded but the captured charge had not
-                            // synced yet at verify time. Actively drive the same
-                            // server-side reconciliation the Billing page runs on
-                            // load, polling briefly so activation completes without
-                            // a manual refresh. The server re-verifies the captured
-                            // charge on every attempt — the client never grants
-                            // access, it only asks the server to check again.
-                            const activated = await reconcileUntilActive()
-                            if (activated) {
-                                toast.success(`🎉 ${data.planName} plan activated!`)
-                            } else {
-                                toast.info(verifyData.message || "Payment received. Your plan will activate automatically in a moment.")
-                            }
-                            onSuccess?.(verifyData.plan ?? plan, verifyData.billingCycle ?? billingCycle)
-                            return
-                        }
+                        // A future provider change is intentionally pending, but it
+                        // is already scheduled. Handle it before generic pending so
+                        // the UI never mislabels it as an unconfirmed payment.
                         if (verifyData.scheduled) {
                             const effectiveDate = verifyData.effectiveDate
                                 ? new Date(verifyData.effectiveDate).toLocaleDateString()
                                 : "your next billing cycle"
                             toast.success(`Change scheduled for ${effectiveDate}. Your current plan remains active until then.`)
                             onSuccess?.(verifyData.targetPlan ?? plan, verifyData.targetBillingCycle ?? billingCycle)
+                            return
+                        }
+                        if (verifyData.pending) {
+                            // The server remains the sole authority. Poll long enough
+                            // for the first invoice and webhook race to settle, but
+                            // never fire the success callback unless Postgres confirms
+                            // the exact charge-backed entitlement.
+                            const activated = await reconcileUntilActive(12, 1500)
+                            if (activated) {
+                                toast.success(`🎉 ${data.planName} plan activated!`)
+                                onSuccess?.(verifyData.plan ?? plan, verifyData.billingCycle ?? billingCycle)
+                            } else {
+                                toast.info(verifyData.message || "Payment received. Activation is still being confirmed; access has not changed yet.")
+                            }
                             return
                         }
 

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getSubscription: vi.fn(),
   getVerifiedCharge: vi.fn(),
   applySnapshot: vi.fn(),
+  hasPersistedEntitlement: vi.fn(),
   createNotification: vi.fn(),
   serviceFrom: vi.fn(),
 }))
@@ -31,6 +32,7 @@ vi.mock("@/lib/razorpay", () => ({
 }))
 vi.mock("@/lib/razorpay-subscription-state", () => ({
   applyRazorpaySubscriptionSnapshot: mocks.applySnapshot,
+  hasPersistedRazorpayEntitlement: mocks.hasPersistedEntitlement,
 }))
 vi.mock("@/lib/audit-log", () => ({ logAudit: vi.fn(async () => undefined) }))
 vi.mock("@/lib/notifications", () => ({
@@ -100,6 +102,7 @@ beforeEach(() => {
     periodEnd: new Date(Date.now() + 2_592_000_000).toISOString(),
     chargedAmount: null,
   })
+  mocks.hasPersistedEntitlement.mockResolvedValue(true)
   mocks.createNotification.mockResolvedValue(undefined)
   mocks.serviceFrom.mockReturnValue({
     select: vi.fn(() => ({

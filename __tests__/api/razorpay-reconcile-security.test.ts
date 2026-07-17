@@ -4,6 +4,7 @@ import { NextRequest } from "next/server"
 const mocks = vi.hoisted(() => ({
   authenticate: vi.fn(), createClient: vi.fn(), getSubscription: vi.fn(),
   getVerifiedCharge: vi.fn(), apply: vi.fn(), applyTerminal: vi.fn(),
+  hasPersistedEntitlement: vi.fn(),
 }))
 vi.mock("@/lib/api-auth", () => ({
   authenticateRequest: mocks.authenticate, validateOrigin: vi.fn(() => null),
@@ -17,6 +18,7 @@ vi.mock("@/lib/razorpay", () => ({
 vi.mock("@/lib/razorpay-subscription-state", () => ({
   applyRazorpaySubscriptionSnapshot: mocks.apply,
   applyRazorpayTerminalSnapshot: mocks.applyTerminal,
+  hasPersistedRazorpayEntitlement: mocks.hasPersistedEntitlement,
 }))
 vi.mock("@/lib/audit-log", () => ({ logAudit: vi.fn(async () => undefined) }))
 vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClient }))
@@ -50,6 +52,7 @@ beforeEach(() => {
     current_end: Math.floor(Date.now() / 1000) + 3600,
   })
   mocks.getVerifiedCharge.mockResolvedValue(null)
+  mocks.hasPersistedEntitlement.mockResolvedValue(true)
   mocks.applyTerminal.mockResolvedValue({
     applied: true, stale: false, finalized: true, pendingCleared: false,
     periodEnd: "2026-07-16T10:34:44.816Z",
