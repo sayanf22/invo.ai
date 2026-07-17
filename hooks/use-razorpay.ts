@@ -30,6 +30,28 @@ function loadRazorpayScript(): Promise<boolean> {
     })
 }
 
+/**
+ * Ask the server to reconcile a paid-but-not-yet-synced subscription charge,
+ * polling a few times while the provider finalizes the first invoice. Returns
+ * true only when the server confirms activation from a captured charge. The
+ * server remains the sole authority; this never grants access on its own.
+ */
+async function reconcileUntilActive(attempts = 4, delayMs = 1500): Promise<boolean> {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        try {
+            const res = await authFetch("/api/razorpay/reconcile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: "{}",
+            })
+            const result = await res.json().catch(() => ({}))
+            if (res.ok && result.activated === true) return true
+        } catch { /* transient — retry */ }
+        if (attempt < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+    return false
+}
+
 export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
     const [isProcessing, setIsProcessing] = useState(false)
     const { user } = useAuth()
@@ -135,7 +157,20 @@ export function useRazorpay({ onSuccess, onError }: UseRazorpayOptions = {}) {
                         if (!verifyRes.ok) throw new Error(verifyData.error || "Payment verification failed")
 
                         if (verifyData.pending) {
-                            toast.info(verifyData.message || "Payment received. Activation is still syncing.")
+                            // The payment succeeded but the captured charge had not
+                            // synced yet at verify time. Actively drive the same
+                            // server-side reconciliation the Billing page runs on
+                            // load, polling briefly so activation completes without
+                            // a manual refresh. The server re-verifies the captured
+                            // charge on every attempt — the client never grants
+                            // access, it only asks the server to check again.
+                            const activated = await reconcileUntilActive()
+                            if (activated) {
+                                toast.success(`🎉 ${data.planName} plan activated!`)
+                            } else {
+                                toast.info(verifyData.message || "Payment received. Your plan will activate automatically in a moment.")
+                            }
+                            onSuccess?.(verifyData.plan ?? plan, verifyData.billingCycle ?? billingCycle)
                             return
                         }
                         if (verifyData.scheduled) {

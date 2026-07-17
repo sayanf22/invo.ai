@@ -45,8 +45,9 @@ export async function POST(request: Request) {
 
         if (SUBSCRIPTION_EVENTS.has(eventType)) {
             const { handleRazorpaySubscriptionEvent } = await import("@/lib/razorpay-subscription-sync")
-            const failure = await handleRazorpaySubscriptionEvent(event, eventType, eventId)
-            if (failure) throw new Error("Subscription synchronization failed")
+            // Throws on failure; the outer catch persists the specific error
+            // message into webhook_events.last_error for observability.
+            await handleRazorpaySubscriptionEvent(event, eventType, eventId)
         }
 
         await finishWebhookEvent(db, "razorpay", eventId, "processed")

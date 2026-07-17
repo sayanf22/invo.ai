@@ -103,34 +103,40 @@ export async function POST(request: NextRequest) {
             })
         }
 
-        // Bound the captured-charge evidence to this transition so a stale
-        // invoice from an earlier period can never grant/reset access. The
-        // boundary only applies when the verified provider plan is exactly the
-        // pending target; otherwise fall back to the payment-correlated lookup.
+        // Deferred transitions (downgrade / cycle change) charge at a future
+        // cycle boundary, so bound the evidence to that boundary to stop an old
+        // invoice from satisfying a future scheduled charge. For an immediate
+        // upgrade the signed razorpay_payment_id already correlates the charge
+        // to THIS checkout exactly (getVerifiedSubscriptionCharge resolves that
+        // payment's own invoice), so no time boundary is applied — a wall-clock
+        // boundary there only risks rejecting the legitimate just-paid charge on
+        // minor DB/provider clock skew.
         const matchesPendingTarget = Boolean(
             bound.pending_provider_plan_id && bound.pending_provider_plan_id === provider.plan_id,
         )
         const isDeferredTransition = bound.pending_change_type === "downgrade"
             || bound.pending_change_type === "cycle_change"
         let evidenceBoundary: number | undefined
-        if (matchesPendingTarget) {
-            if (isDeferredTransition && bound.pending_effective_at) {
-                const effectiveAt = Date.parse(bound.pending_effective_at)
-                if (Number.isFinite(effectiveAt)) evidenceBoundary = effectiveAt - 5 * 60 * 1000
-            } else if (bound.pending_created_at) {
-                const createdAt = Date.parse(bound.pending_created_at)
-                if (Number.isFinite(createdAt)) evidenceBoundary = createdAt
-            }
+        if (matchesPendingTarget && isDeferredTransition && bound.pending_effective_at) {
+            const effectiveAt = Date.parse(bound.pending_effective_at)
+            if (Number.isFinite(effectiveAt)) evidenceBoundary = effectiveAt - 5 * 60 * 1000
         }
-        const verified = await getVerifiedSubscriptionCharge(
-            razorpay_subscription_id,
-            razorpay_payment_id,
-            evidenceBoundary,
-        )
-            .catch((error) => {
+        // Razorpay finalizes the first subscription invoice a moment after the
+        // Checkout handler returns. Retry briefly so the common case activates
+        // synchronously instead of falling back to the pending banner.
+        let verified: Awaited<ReturnType<typeof getVerifiedSubscriptionCharge>> = null
+        for (let attempt = 0; attempt < 3; attempt++) {
+            verified = await getVerifiedSubscriptionCharge(
+                razorpay_subscription_id,
+                razorpay_payment_id,
+                evidenceBoundary,
+            ).catch((error) => {
                 console.error("[verify] charge evidence unavailable:", error)
                 return null
             })
+            if (verified) break
+            if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1200))
+        }
         if (!verified) {
             await logAudit(auth.supabase, {
                 user_id: auth.user.id,

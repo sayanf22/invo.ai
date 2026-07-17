@@ -1068,7 +1068,14 @@ function isExactCapturedPayment(
         && payment.amount > 0
         && payment.amount === invoice.amount_paid
         && payment.currency?.toUpperCase() === invoice.currency.toUpperCase()
-        && payment.subscription_id === subscriptionId
+        // Razorpay does NOT populate subscription_id on the payment entity for
+        // subscription charges (it is null for UPI and other methods) — it only
+        // appears on the invoice. The payment↔subscription binding is already
+        // proven transitively: payment.invoice_id === invoice.id here, and
+        // isExactPaidInvoice enforces invoice.subscription_id === subscriptionId
+        // and invoice.payment_id === payment.id. So only compare it when the
+        // provider actually supplies it, instead of rejecting every real charge.
+        && (payment.subscription_id == null || payment.subscription_id === subscriptionId)
         && payment.invoice_id === invoice.id
         && payment.order_id === invoice.order_id
 }

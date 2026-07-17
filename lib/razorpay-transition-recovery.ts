@@ -190,9 +190,12 @@ export async function recoverPendingSubscriptionTransition(
         }
     }
 
+    // Apply the same 5-minute grace the charge RPC and subscription webhook use
+    // so minor DB/provider clock skew never rejects the legitimate first charge.
+    // Target matching + captured-charge validation still gate every grant.
     const evidenceBoundary = isDeferred && row.pending_effective_at
         ? Date.parse(row.pending_effective_at) - 5 * 60 * 1000
-        : row.pending_created_at ? Date.parse(row.pending_created_at) : NaN
+        : row.pending_created_at ? Date.parse(row.pending_created_at) - 5 * 60 * 1000 : NaN
     const verified = matchesTarget
         ? await getVerifiedSubscriptionCharge(
             providerId,

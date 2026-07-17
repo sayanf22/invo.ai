@@ -141,7 +141,9 @@ export async function handleRazorpaySubscriptionEvent(
         // subscription.activated/updated are lifecycle signals only; never grants.
         return null
     } catch (error) {
+        // Re-throw the real error so the webhook route persists the specific
+        // cause in webhook_events.last_error instead of a generic wrapper.
         console.error("[razorpay/webhook] Subscription sync failed:", error)
-        return NextResponse.json({ error: "Subscription webhook processing failed" }, { status: 500 })
+        throw error instanceof Error ? error : new Error("Subscription webhook processing failed")
     }
 }
