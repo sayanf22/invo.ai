@@ -18,6 +18,7 @@ import { authenticateRequest, validateBodySize, getClientIP } from "@/lib/api-au
 import { validateCSRFToken } from "@/lib/csrf"
 import { checkRateLimit } from "@/lib/rate-limiter"
 import { getUserTier } from "@/lib/cost-protection"
+import { canUseNativeOnboardingUploads } from "@/lib/onboarding-entitlements"
 import { sendEmail } from "@/lib/mailtrap"
 import {
   buildOnboardingFields,
@@ -102,9 +103,11 @@ export async function POST(request: NextRequest) {
 
     const context = (session.context ?? {}) as Record<string, unknown>
 
-    // Uploads gated to Pro/Agency (entitlement snapshotted at send time).
+    // Native uploads are available on every paid onboarding tier, including
+    // Starter. This value is snapshotted on the form so existing links never
+    // gain or lose upload access retroactively after a plan change.
     const tier = await getUserTier(auth.supabase, auth.user.id)
-    const allowUploads = tier === "pro" || tier === "agency"
+    const allowUploads = canUseNativeOnboardingUploads(tier)
 
     const assetUploadLink = typeof context.assetUploadLink === "string" ? context.assetUploadLink : null
     const fields = buildOnboardingFields(context, { allowUploads, assetUploadLink })

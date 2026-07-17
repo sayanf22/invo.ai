@@ -780,6 +780,20 @@ export function PaymentSettings() {
                             <p className="text-[13px] text-muted-foreground mt-1 font-mono truncate">
                               {("keyIdHint" in s && s.keyIdHint) || ("clientIdHint" in s && s.clientIdHint) || gw.description}
                             </p>
+                            <button
+                              type="button"
+                              onClick={() => handleTestConnection(gw.id)}
+                              disabled={testingWebhook !== null}
+                              aria-label={`${s.credentialsVerified ? "Retest" : "Test"} ${gw.name} connection`}
+                              className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                            >
+                              {testingWebhook === gw.id
+                                ? <Loader2 size={12} className="animate-spin" />
+                                : <RefreshCw size={12} />}
+                              {testingWebhook === gw.id
+                                ? "Testing…"
+                                : s.credentialsVerified ? "Retest connection" : "Test connection"}
+                            </button>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             <button onClick={() => { if (isEditing) { setEditingGateway(null); resetForm() } else { setEditingGateway(gw.id); setSelectedGateway(null); resetForm() } }}
@@ -792,17 +806,11 @@ export function PaymentSettings() {
                             </button>
                           </div>
                         </div>
-                        {/* Test connection — always visible (mobile + desktop). Runs a
-                            server-side, non-transactional check of the saved credentials,
-                            payment API, webhook receiver, and real provider delivery. */}
-                        <div className="px-5 pb-1">
-                          <button onClick={() => handleTestConnection(gw.id)} disabled={testingWebhook === gw.id}
-                            className="w-full inline-flex items-center justify-center gap-2 text-sm px-3 py-2.5 rounded-xl font-semibold border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors disabled:opacity-50">
-                            {testingWebhook === gw.id ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                            {testingWebhook === gw.id ? "Testing connection…" : "Test connection"}
-                          </button>
-                          {connectionResults[gw.id] && <ConnectionTestDetails result={connectionResults[gw.id]!} />}
-                        </div>
+                        {connectionResults[gw.id] && (
+                          <div className="px-5 pb-1">
+                            <ConnectionTestDetails result={connectionResults[gw.id]!} />
+                          </div>
+                        )}
                         <WebhookPanel
                           gateway={gw.id}
                           webhookUrl={s.webhookUrl}

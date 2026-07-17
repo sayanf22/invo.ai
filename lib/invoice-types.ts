@@ -111,6 +111,12 @@ export interface InvoiceData {
   // / etc.) the owner provides so the client can upload large brand assets there.
   // Display-only; never fetched server-side. Stored in the document context.
   assetUploadLink?: string
+  projectName?: string
+  projectDescription?: string
+  requirements?: string[]
+  timelinePreference?: string
+  budgetRange?: string
+  customQuestions?: Array<{ id: string; question: string; answer: string }>
 
   // Signature
   signatureName: string

@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  Loader2, CheckCircle2, AlertTriangle, Upload, FileText, ImageIcon, X, Clock, CloudUpload, ExternalLink,
+  Loader2, CheckCircle2, AlertTriangle, FileText, ImageIcon, X, Clock, CloudUpload, ExternalLink,
   ArrowLeft, ArrowRight, List, Rows,
 } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
@@ -686,6 +686,8 @@ function FieldRenderer({ field, value, onText, onUpload, onRemoveFile, uploading
   onRemoveFile: (fileId: string) => void
   uploading: boolean
 }) {
+  const [isDragging, setIsDragging] = useState(false)
+  const uploadInputId = `onboarding-upload-${field.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`
   const label = (
     <label className="text-sm font-medium text-foreground mb-1.5 block">
       {field.label}{field.required && <span className="text-destructive ml-0.5">*</span>}
@@ -721,31 +723,80 @@ function FieldRenderer({ field, value, onText, onUpload, onRemoveFile, uploading
     return (
       <div>
         {label}
-        <label className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-border hover:border-primary/40 transition-colors px-4 py-6 cursor-pointer text-center">
+        <div
+          className={`relative rounded-2xl border-2 border-dashed px-5 py-6 text-center transition-all ${
+            isDragging
+              ? "border-primary bg-primary/5 ring-4 ring-primary/10"
+              : "border-border bg-muted/15 hover:border-primary/45 hover:bg-muted/30"
+          } ${uploading ? "pointer-events-none opacity-70" : ""}`}
+          onDragEnter={(event) => { event.preventDefault(); setIsDragging(true) }}
+          onDragOver={(event) => { event.preventDefault(); setIsDragging(true) }}
+          onDragLeave={(event) => {
+            event.preventDefault()
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDragging(false)
+          }}
+          onDrop={(event) => {
+            event.preventDefault()
+            setIsDragging(false)
+            if (!uploading) onUpload(event.dataTransfer.files)
+          }}
+        >
           <input
+            id={uploadInputId}
             type="file"
             accept={field.accept}
             multiple={field.multiple}
-            className="hidden"
-            onChange={(e) => { onUpload(e.target.files); if (e.target) e.target.value = "" }}
+            className="sr-only"
+            disabled={uploading}
+            onChange={(e) => { onUpload(e.target.files); e.currentTarget.value = "" }}
           />
-          <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Upload className="w-4 h-4 text-muted-foreground" />}
+          <div className="mx-auto w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center">
+            {uploading
+              ? <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              : <CloudUpload className="w-5 h-5 text-primary" />}
           </div>
-          <span className="text-sm text-foreground">{uploading ? "Uploading…" : (field.placeholder || "Click to upload")}</span>
-          <span className="text-[11px] text-muted-foreground">Images or PDF only · max 10MB · no videos</span>
-        </label>
+          <p className="text-sm font-semibold text-foreground mt-3">
+            {uploading ? "Uploading your files…" : isDragging ? "Drop files to upload" : (field.placeholder || "Upload project files")}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Drag and drop here, or{" "}
+            <label htmlFor={uploadInputId} className="font-semibold text-primary hover:underline cursor-pointer">
+              choose files
+            </label>
+          </p>
+          <div className="mt-3 flex items-center justify-center gap-2 flex-wrap text-[10px] text-muted-foreground">
+            <span className="rounded-full border border-border bg-background px-2 py-1">PNG, JPG, WEBP, GIF</span>
+            <span className="rounded-full border border-border bg-background px-2 py-1">PDF</span>
+            <span className="rounded-full border border-border bg-background px-2 py-1">10MB each · up to 15 files</span>
+          </div>
+        </div>
         {files.length > 0 && (
-          <div className="mt-2 space-y-1.5">
-            {files.map((f) => (
-              <div key={f.fileId} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/30">
-                {/\.(png|jpe?g|webp|gif)$/i.test(f.fileName) ? <ImageIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-                <span className="text-xs text-foreground truncate flex-1">{f.fileName}</span>
-                <button type="button" onClick={() => onRemoveFile(f.fileId)} className="text-muted-foreground hover:text-destructive shrink-0" aria-label="Remove file">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
+          <div className="mt-3 rounded-xl border border-border overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 bg-muted/30 border-b border-border">
+              <span className="text-xs font-semibold text-foreground">Uploaded files</span>
+              <span className="text-[11px] text-muted-foreground">{files.length}/15</span>
+            </div>
+            <div className="divide-y divide-border">
+              {files.map((f) => (
+                <div key={f.fileId} className="flex items-center gap-2.5 px-3 py-2.5 bg-background">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                    {/\.(png|jpe?g|webp|gif)$/i.test(f.fileName)
+                      ? <ImageIcon className="w-4 h-4 text-emerald-600" />
+                      : <FileText className="w-4 h-4 text-emerald-600" />}
+                  </div>
+                  <span className="text-xs text-foreground truncate flex-1">{f.fileName}</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" aria-label="Uploaded" />
+                  <button
+                    type="button"
+                    onClick={() => onRemoveFile(f.fileId)}
+                    className="w-7 h-7 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                    aria-label={`Remove ${f.fileName}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -55,7 +55,7 @@ interface RawQuestion {
  * - Each customQuestion becomes a long-text field.
  * - Files & Assets section (when relevant):
  *   • external_link → owner's cloud folder (Drive/Dropbox) if they provided one
- *   • file          → native compressed upload (Pro+ only)
+ *   • file          → native compressed upload (Starter+)
  *   • short_text    → the client's own file link (optional)
  */
 export function buildOnboardingFields(

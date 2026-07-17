@@ -821,11 +821,15 @@ Required fields:
 - timelinePreference: when the client needs this completed (optional)
 - budgetRange: client's stated budget range (optional)
 - customQuestions: array of { id, question, answer } pairs
-  - Generate 4-8 relevant questions based on the business type and project scope
-  - For a tech project: ask about tech stack preferences, integrations, browser/device support
-  - For a design project: ask about brand guidelines, preferred styles, competitor references
-  - For a consulting project: ask about current pain points, success metrics, stakeholders
-  - Leave answers as "" (empty) — the client fills these in
+  - Generate 8-12 non-duplicative, context-specific discovery questions. Keep the form focused and never exceed 12 questions.
+  - Ask only questions whose answers are not already present in the user request or business/client context.
+  - Cover the most relevant areas for this engagement: goals and measurable success criteria; target audience/users; current situation and available assets; scope, priorities, and deliverables; technical systems and integrations; stakeholders and approval process; timeline, dependencies, and launch date; budget or procurement constraints; risks, legal/compliance, and accessibility needs; launch, handoff, training, and ongoing support.
+  - Adapt every question to the actual business type, project, and requested deliverables. Avoid generic filler such as "Tell us about your business" when more specific context is available.
+  - Ask one clear thing per question. Questions should invite useful detail without becoming long or leading.
+  - For a tech project: ask specifically about existing stack, required integrations, data migration, security/access roles, and browser/device support where relevant.
+  - For a design project: ask specifically about brand guidelines, audience, required formats, accessibility, decision-makers, and competitor/reference examples where relevant.
+  - For a consulting project: ask specifically about current pain points, baseline metrics, desired outcomes, stakeholders, constraints, and implementation ownership where relevant.
+  - Use stable unique ids such as "q1", "q2", etc., and leave every answer as "" (empty) — the client fills these in.
 - fromName, fromEmail, fromAddress: from business profile
 - notes: instructions for completing the form, submission deadline
 - assetUploadLink: optional external URL (Google Drive/Dropbox folder) where the client uploads brand assets. If the user asks to "add an asset link", "add an upload link", or pastes a Drive/Dropbox URL for client uploads, set this field to that URL. PRESERVE it unchanged on all edits unless the user explicitly changes or removes it.

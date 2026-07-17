@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
-import { Check, Zap, Crown, Loader2, FileText, MessageSquare, Download, Receipt, ArrowLeft, Info } from "lucide-react"
+import { Check, Zap, Crown, Loader2, FileText, MessageSquare, Download, Receipt, ArrowLeft, Info, ChevronDown } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import {
     Dialog,
@@ -412,20 +412,37 @@ export default function BillingPage() {
                     </p>
                 </div>
             </div>
-            <p className="-mt-5 mb-8 text-[11px] leading-relaxed text-muted-foreground">
-                {data?.billingAnchored
-                    ? "Paid allowances renew on your billing date each month (monthly and yearly plans alike)."
-                    : "Free allowances reset at the start of each UTC calendar month."}
-                {" "}Existing documents always stay editable, even after a downgrade.
-                {data?.lastUsageReset ? ` Last plan reset: ${PLAN_LABELS[data.lastUsageReset.fromPlan] || data.lastUsageReset.fromPlan} → ${PLAN_LABELS[data.lastUsageReset.toPlan] || data.lastUsageReset.toPlan} at ${formatExactLocal(data.lastUsageReset.effectiveAt)}.` : ""}
-                {usage?.isOverLimit ? " Current document limit reached." : ""} Next reset: {formatExactLocal(data?.usageResetsAt || usage?.periodEndExclusive)}.
-            </p>
+            <details className="group -mt-5 mb-6 text-[10px] text-muted-foreground">
+                <summary className="ml-auto flex w-fit cursor-pointer list-none items-center gap-1 rounded-md px-1.5 py-1 hover:bg-muted/50 hover:text-foreground [&::-webkit-details-marker]:hidden">
+                    <Info className="h-3 w-3" />
+                    Usage reset details
+                    <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="mt-1.5 ml-auto max-w-lg space-y-1 rounded-lg border border-border/50 bg-muted/20 px-3 py-2 leading-relaxed">
+                    <p>
+                        {data?.billingAnchored
+                            ? "Paid allowances renew on your billing date each month (monthly and yearly plans alike)."
+                            : "Free allowances reset at the start of each UTC calendar month."}
+                        {" "}Next reset: {formatExactLocal(data?.usageResetsAt || usage?.periodEndExclusive)}.
+                    </p>
+                    {data?.lastUsageReset && (
+                        <p>Last plan reset: {PLAN_LABELS[data.lastUsageReset.fromPlan] || data.lastUsageReset.fromPlan} → {PLAN_LABELS[data.lastUsageReset.toPlan] || data.lastUsageReset.toPlan} at {formatExactLocal(data.lastUsageReset.effectiveAt)}.</p>
+                    )}
+                    <p>Existing documents always stay editable, even after a downgrade.{usage?.isOverLimit ? " Current document limit reached." : ""}</p>
+                </div>
+            </details>
 
             {/* Payment History */}
             {payments.length > 0 && (
-                <div className="mb-8">
-                    <h2 className="text-base font-semibold mb-3">Payment History</h2>
-                    <div className="rounded-2xl border bg-card divide-y divide-border overflow-hidden">
+                <details className="group mb-8">
+                    <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl px-1 py-2 hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+                        <div>
+                            <h2 className="text-base font-semibold">Payment History</h2>
+                            <p className="text-[11px] text-muted-foreground">{payments.length} {payments.length === 1 ? "payment" : "payments"}</p>
+                        </div>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="mt-2 rounded-2xl border bg-card divide-y divide-border overflow-hidden">
                         {payments.map((payment) => (
                             <div key={payment.id} className="flex items-center gap-3 px-4 py-3">
                                 <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center shrink-0">
@@ -464,7 +481,7 @@ export default function BillingPage() {
                             </div>
                         ))}
                     </div>
-                </div>
+                </details>
             )}
 
             <Dialog open={Boolean(selectedPayment)} onOpenChange={(open) => { if (!open) setSelectedPayment(null) }}>

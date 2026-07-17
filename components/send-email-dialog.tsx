@@ -104,6 +104,10 @@ export function SendEmailDialog({
   const [emailError, setEmailError] = useState<string | null>(null)
   const emailValidationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const emailInputRef = useRef<HTMLInputElement>(null)
+  // Every draft request owns an incrementing id. Manual typing or closing the
+  // dialog invalidates the current id so a late AI response cannot overwrite it.
+  const draftRequestIdRef = useRef(0)
+  const messageEditedRef = useRef(false)
 
   // ── Check payment gateway on mount (invoices only) ───────────────────────────
   useEffect(() => {
@@ -182,8 +186,10 @@ export function SendEmailDialog({
     }
   }, [validateEmail])
 
-  // ── AI message assist (optional) ────────────────────────────────────────────
-  const generateMessage = useCallback(async () => {
+  // ── AI message assist ───────────────────────────────────────────────────────
+  const generateMessage = useCallback(async (force = false) => {
+    const requestId = ++draftRequestIdRef.current
+    if (force) messageEditedRef.current = false
     setIsGenerating(true)
     try {
       const { formatted } = calcTotal(invoiceData)
@@ -198,32 +204,45 @@ export function SendEmailDialog({
           totalAmount: formatted || "",
           currency: invoiceData.currency || "",
           dueDate: invoiceData.dueDate || "",
-          description: invoiceData.description || "",
+          description: invoiceData.projectDescription || invoiceData.description || "",
+          projectName: invoiceData.projectName || "",
           items: invoiceData.items?.slice(0, 5) || [],
         }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        setMessage((data.message || "").slice(0, MAX_MESSAGE_LENGTH))
-      } else {
-        setMessage(localFallback(invoiceData, documentType).slice(0, MAX_MESSAGE_LENGTH))
+      const nextMessage = res.ok
+        ? ((await res.json()).message || localFallback(invoiceData, documentType))
+        : localFallback(invoiceData, documentType)
+      if (draftRequestIdRef.current === requestId && !messageEditedRef.current) {
+        setMessage(String(nextMessage).slice(0, MAX_MESSAGE_LENGTH))
       }
     } catch {
-      setMessage(localFallback(invoiceData, documentType).slice(0, MAX_MESSAGE_LENGTH))
+      if (draftRequestIdRef.current === requestId && !messageEditedRef.current) {
+        setMessage(localFallback(invoiceData, documentType).slice(0, MAX_MESSAGE_LENGTH))
+      }
     } finally {
-      setIsGenerating(false)
+      if (draftRequestIdRef.current === requestId) setIsGenerating(false)
     }
   }, [invoiceData, documentType])
 
-  // ── Reset when dialog opens ──────────────────────────────────────────────────
+  // ── Reset and draft once when the dialog opens ───────────────────────────────
   useEffect(() => {
-    if (open) {
-      setEmail(defaultEmail || invoiceData.toEmail || "")
-      setSubject(generateSubject(invoiceData, documentType))
-      setEmailValid(null)
-      setEmailError(null)
-      setMessage("")
-      setAutoInvoiceOnSign(isContract && isPaidTier)
+    if (!open) {
+      draftRequestIdRef.current += 1
+      setIsGenerating(false)
+      return
+    }
+
+    setEmail(defaultEmail || invoiceData.toEmail || "")
+    setSubject(generateSubject(invoiceData, documentType))
+    setEmailValid(null)
+    setEmailError(null)
+    setMessage("")
+    setAutoInvoiceOnSign(isContract && isPaidTier)
+    messageEditedRef.current = false
+    void generateMessage()
+
+    return () => {
+      draftRequestIdRef.current += 1
     }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -474,21 +493,15 @@ export function SendEmailDialog({
                 Personal message
               </label>
               <div className="flex items-center gap-2">
-                {/* Onboarding forms are a fillable link, not an attached
-                    document — the AI/local fallback message always assumes
-                    a static "please find X attached" body, which is wrong
-                    here and duplicated the invitation's own default greeting. */}
-                {!isOnboardingForm && (
-                  <button
-                    type="button"
-                    onClick={generateMessage}
-                    disabled={isGenerating || isSending}
-                    className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
-                  >
-                    {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                    {isGenerating ? "Writing..." : "Generate with AI"}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => void generateMessage(true)}
+                  disabled={isGenerating || isSending}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                >
+                  {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  {isGenerating ? "Writing..." : "Rewrite with AI"}
+                </button>
                 <span className={cn("text-[11px] tabular-nums", message.length > MAX_MESSAGE_LENGTH ? "text-red-500" : "text-muted-foreground")}>
                   {message.length}/{MAX_MESSAGE_LENGTH}
                 </span>
@@ -498,7 +511,12 @@ export function SendEmailDialog({
               id="email-message"
               aria-label="Personal message"
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => {
+                messageEditedRef.current = true
+                draftRequestIdRef.current += 1
+                setIsGenerating(false)
+                setMessage(e.target.value)
+              }}
               maxLength={MAX_MESSAGE_LENGTH}
               rows={5}
               disabled={isSending}
@@ -787,8 +805,16 @@ function localFallback(invoiceData: InvoiceData, documentType: string): string {
   const { formatted } = calcTotal(invoiceData)
   const greeting = clientName ? `Hi ${clientName},` : "Hi,"
   const dueText = invoiceData.dueDate ? ` due on ${invoiceData.dueDate}` : ""
+  const normalizedType = documentType.toLowerCase().replace(/[\s-]+/g, "_")
 
-  switch (documentType.toLowerCase()) {
+  if (normalizedType === "client_onboarding_form") {
+    const projectText = invoiceData.projectName?.trim()
+      ? ` for ${invoiceData.projectName.trim()}`
+      : ""
+    return `${greeting}\n\nPlease complete the secure onboarding form${projectText} using the link in this email. Your answers and any project files you choose to share will help us prepare for the engagement.\n\nIf you have any questions, please let us know.\n\nBest regards,\n${senderName}`
+  }
+
+  switch (normalizedType) {
     case "invoice":
       return `${greeting}\n\nPlease find your invoice${refText}${formatted ? ` for ${formatted}` : ""}${dueText} attached.\n\nKindly review the details and process the payment at your earliest convenience. Please don't hesitate to reach out if you have any questions.\n\nThank you for your business.\n\nBest regards,\n${senderName}`
     case "quote":

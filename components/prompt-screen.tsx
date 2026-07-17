@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef } from "react"
 import { ArrowLeft, Eye, PenLine, MessageSquare, History as HistoryIcon } from "lucide-react"
 import { EditorPanel } from "@/components/editor-panel"
 import { DocumentPreview } from "@/components/document-preview"
@@ -48,12 +48,13 @@ export function PromptScreen({
   const [showEditor, setShowEditor] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(initialSessionId)
+  const selectedSessionIdRef = useRef<string | undefined>(initialSessionId)
   const [messageCount, setMessageCount] = useState(0)
   // Lock invoice editing after payment link is created (anti-fraud)
   const [invoiceLocked, setInvoiceLocked] = useState(false)
-  // Tracks the current document session status so DocumentPreview can react to
-  // status changes (e.g., clear lock state when document is cancelled — Bug 5 fix)
-  const [documentSessionStatus, setDocumentSessionStatus] = useState("")
+  // Statuses are keyed by session ID so a late callback from a previously
+  // selected session cannot affect the active document's lock/sent state.
+  const [documentSessionStatuses, setDocumentSessionStatuses] = useState<Record<string, string>>({})
   // ── Chat-unlock signal ───────────────────────────────────────────
   // Bumped when the user unlocks via chat. DocumentPreview reads it as
   // `externallyUnlocked` and overrides its internal lock calculation
@@ -62,16 +63,47 @@ export function PromptScreen({
   // Carries the most recently generated onboarding fill link from a manual Send
   // (toolbar) into the chat. Null until a link is created; set once per send.
   const [injectedOnboardLink, setInjectedOnboardLink] = useState<string | null>(null)
+  const documentSessionStatus = selectedSessionId
+    ? documentSessionStatuses[selectedSessionId] ?? ""
+    : ""
+
+  // Clear every piece of session-scoped lock/link state before starting or
+  // selecting another session. Status callbacks remain safe after this reset
+  // because they write to their own session ID key.
+  const resetSessionUiState = useCallback(() => {
+    setInvoiceLocked(false)
+    setChatUnlockNonce(0)
+    setInjectedOnboardLink(null)
+    setDocumentSessionStatuses({})
+  }, [])
 
   // ── Single InvoiceChat: render only for mobile OR desktop, never both ──
   const isDesktop = useMediaQuery("(min-width: 768px)")
   const supabase = useSupabase()
 
+  // Called before InvoiceChat mutates its internal session for a new conversation.
+  const handleSessionTransitionStart = useCallback(() => {
+    resetSessionUiState()
+  }, [resetSessionUiState])
+
   // Called when InvoiceChat starts a new session (new conversation button)
   const handleChatSessionChange = useCallback((sessionId: string) => {
+    // startNewSession updates InvoiceChat before this callback, so also keep this
+    // reset here as a safeguard for every caller of onSessionChange.
+    resetSessionUiState()
+    selectedSessionIdRef.current = sessionId
     setSelectedSessionId(sessionId)
     onSessionChange?.(sessionId)
-  }, [onSessionChange])
+  }, [onSessionChange, resetSessionUiState])
+
+  const setSelectedDocumentStatus = useCallback((status: string) => {
+    if (!selectedSessionId) return
+    setDocumentSessionStatuses(prev => ({ ...prev, [selectedSessionId]: status }))
+  }, [selectedSessionId])
+
+  const handleDocumentStatusChange = useCallback((sessionId: string, status: string) => {
+    setDocumentSessionStatuses(prev => ({ ...prev, [sessionId]: status }))
+  }, [])
   const saveContextRef = useRef<((data: InvoiceData) => Promise<void>) | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -115,6 +147,8 @@ export function PromptScreen({
           .eq("id", sessionId)
           .single()
         if (data?.document_type === "chat") {
+          resetSessionUiState()
+          selectedSessionIdRef.current = sessionId
           onChatSessionSelect(sessionId)
           return
         }
@@ -122,15 +156,15 @@ export function PromptScreen({
         // On error, fall through to normal behavior
       }
     }
-    // Reset data to clean state — the new session's context will be loaded by InvoiceChat
+    // Clear session-scoped UI before selecting the new session, then reset data;
+    // InvoiceChat will load the new session context after the ID changes.
+    resetSessionUiState()
     setData(prev => ({ ...getInitialInvoiceData(), design: prev.design }))
-    setInvoiceLocked(false)
-    setChatUnlockNonce(0)
-    setDocumentSessionStatus("")
+    selectedSessionIdRef.current = sessionId
     setSelectedSessionId(sessionId)
     // Bubble up so AppShell can update the URL
     onSessionChange?.(sessionId)
-  }, [onChatSessionSelect, onSessionChange, supabase])
+  }, [onChatSessionSelect, onSessionChange, resetSessionUiState, supabase])
 
   const [paymentLinkCancelledAt, setPaymentLinkCancelledAt] = useState<number>(0)
   // Stable no-op function for signaling cancellation to InvoiceChat
@@ -157,10 +191,10 @@ export function PromptScreen({
     // Also reset chatUnlockNonce so externallyUnlocked=false — otherwise a prior
     // unlock nonce would keep overriding the new lock state after a resend.
     if (locked) {
-      setDocumentSessionStatus("finalized")
+      setSelectedDocumentStatus("finalized")
       setChatUnlockNonce(0)
     }
-  }, [])
+  }, [setSelectedDocumentStatus])
 
   // ── Chat-unlock signal ───────────────────────────────────────────
   // When the user unlocks via the chat card, bump the nonce. The
@@ -171,32 +205,39 @@ export function PromptScreen({
   // chat — a sibling that owns its own session copy — reflects the cancellation
   // instead of staying on a stale "finalized".
   const handleDocumentCancelled = useCallback(() => {
-    setDocumentSessionStatus("cancelled")
+    setSelectedDocumentStatus("cancelled")
     setInvoiceLocked(false)
     setChatUnlockNonce(0)
+  }, [setSelectedDocumentStatus])
+
+  const handleChatLock = useCallback((sessionId: string) => {
+    if (sessionId !== selectedSessionIdRef.current) return
+    setInvoiceLocked(true)
+    setChatUnlockNonce(0)
+    setDocumentSessionStatuses(prev => ({ ...prev, [sessionId]: "finalized" }))
   }, [])
 
-  const handleChatUnlock = useCallback(() => {
+  const handleChatUnlock = useCallback((sessionId: string) => {
+    if (sessionId !== selectedSessionIdRef.current) return
     setInvoiceLocked(false)
     setChatUnlockNonce(n => n + 1)
     // Reset documentSessionStatus so the AI gets "active" on next message
     // (the DB is also updated by the unlock API)
-    setDocumentSessionStatus("active")
+    setDocumentSessionStatuses(prev => ({ ...prev, [sessionId]: "active" }))
   }, [])
 
   const handleLinkedSessionCreate = useCallback((sessionId: string, docType: string) => {
     const capitalized = docType.charAt(0).toUpperCase() + docType.slice(1)
-    // Preserve current design when creating a linked document
+    // Clear the previous session before rendering the linked document, while
+    // preserving the current design in its fresh data.
+    resetSessionUiState()
     const currentDesign = data.design
     setData(prev => ({ ...getInitialInvoiceData(), documentType: capitalized, design: currentDesign || prev.design }))
+    selectedSessionIdRef.current = sessionId
     setSelectedSessionId(sessionId)
-    // Reset lock — new document has no payment link
-    setInvoiceLocked(false)
-    setChatUnlockNonce(0)
-    setDocumentSessionStatus("")
     // Bubble up so AppShell can update the URL
     onSessionChange?.(sessionId)
-  }, [data.design, onSessionChange])
+  }, [data.design, onSessionChange, resetSessionUiState])
 
   // Translate offset: 0% = chat, -100% = edit, -200% = preview
   const slideOffset = TAB_INDEX[mobileTab] * -100
@@ -206,18 +247,15 @@ export function PromptScreen({
     data,
     onChange: handleChange,
     selectedSessionId,
+    onSessionTransitionStart: handleSessionTransitionStart,
     onSessionChange: handleChatSessionChange,
     onLinkedSessionCreate: handleLinkedSessionCreate,
     onChainSessionSelect: handleSessionSelect,
     onMessageCountChange: setMessageCount,
-    onLockDocument: () => {
-      setInvoiceLocked(true)
-      setDocumentSessionStatus("finalized")
-      setChatUnlockNonce(0) // reset so externallyUnlocked=false on next lock
-    },
+    onLockDocument: handleChatLock,
     onUnlockDocument: handleChatUnlock,
     onPaymentLinkCancelled: paymentLinkCancelledAt > 0 ? cancelledSignal : undefined,
-    onDocumentStatusChange: setDocumentSessionStatus,
+    onDocumentStatusChange: handleDocumentStatusChange,
     // Authoritative status from the parent. The chat reconciles its own session
     // copy to this so EXTERNAL changes (toolbar send/lock, toolbar cancel) are
     // reflected live. Chat-originated changes are no-ops (values already match).

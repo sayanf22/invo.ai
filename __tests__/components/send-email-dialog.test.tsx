@@ -12,8 +12,9 @@
  * Validates: Requirements 4.2, 4.5, 4.7, 8.4
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, fireEvent, act, cleanup, within } from "@testing-library/react"
+import { render, fireEvent, act, cleanup, within, waitFor } from "@testing-library/react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
+import { authFetch } from "@/lib/auth-fetch"
 import { getInitialInvoiceData } from "@/lib/invoice-types"
 
 // Mock authFetch
@@ -40,6 +41,18 @@ const mockInvoiceData = { ...getInitialInvoiceData(), toEmail: "client@example.c
 describe("SendEmailDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(authFetch).mockImplementation(async (url) => {
+      if (String(url) === "/api/emails/generate-message") {
+        return {
+          ok: true,
+          json: async () => ({ message: "Hi Client,\n\nPlease review the invoice.\n\nBest,\nAcme" }),
+        } as Response
+      }
+      if (String(url) === "/api/payments/settings") {
+        return { ok: true, json: async () => ({ settings: {} }) } as Response
+      }
+      return { ok: true, json: async () => ({}) } as Response
+    })
   })
 
   afterEach(() => {
@@ -99,10 +112,6 @@ describe("SendEmailDialog", () => {
   })
 
   it("shows loading state during send", async () => {
-    const { authFetch } = await import("@/lib/auth-fetch")
-    // Return a promise that never resolves (simulates hanging request)
-    vi.mocked(authFetch).mockReturnValue(new Promise(() => {}))
-
     const { container } = render(
       <SendEmailDialog
         open={true}
@@ -114,13 +123,17 @@ describe("SendEmailDialog", () => {
     )
 
     const dialog = within(container)
+    await waitFor(() => expect(dialog.queryByText("Writing...")).toBeNull())
+
+    // The automatic first-open draft has completed. Keep only the send request
+    // pending so the send button's loading state can be asserted independently.
+    vi.mocked(authFetch).mockReturnValue(new Promise(() => {}))
     const sendButton = dialog.getByRole("button", { name: /^send$/i })
 
     await act(async () => {
       fireEvent.click(sendButton)
     })
 
-    // After clicking, button should show "Sending..." and be disabled
     expect(dialog.getByText("Sending...")).toBeTruthy()
     expect((sendButton as HTMLButtonElement).disabled).toBe(true)
   })
@@ -142,5 +155,99 @@ describe("SendEmailDialog", () => {
 
     // "Hello world" is 11 characters
     expect(dialog.getByText("11/500")).toBeTruthy()
+  })
+
+  it("generates the AI message on the first open", async () => {
+    const { container } = render(
+      <SendEmailDialog
+        open={true}
+        onClose={vi.fn()}
+        sessionId="session-1"
+        invoiceData={mockInvoiceData}
+        documentType="invoice"
+      />
+    )
+
+    const textarea = within(container).getByRole("textbox", { name: /personal message/i }) as HTMLTextAreaElement
+    await waitFor(() => expect(textarea.value).toContain("Please review the invoice"))
+    expect(vi.mocked(authFetch).mock.calls.filter(([url]) => String(url) === "/api/emails/generate-message")).toHaveLength(1)
+  })
+
+  it("starts one fresh draft when the dialog is closed and reopened", async () => {
+    let draftNumber = 0
+    vi.mocked(authFetch).mockImplementation(async (url) => {
+      if (String(url) === "/api/emails/generate-message") {
+        draftNumber += 1
+        return { ok: true, json: async () => ({ message: `Draft ${draftNumber}` }) } as Response
+      }
+      return { ok: true, json: async () => ({ settings: {} }) } as Response
+    })
+
+    const props = {
+      onClose: vi.fn(),
+      sessionId: "session-1",
+      invoiceData: mockInvoiceData,
+      documentType: "invoice",
+    }
+    const { container, rerender } = render(<SendEmailDialog {...props} open={true} />)
+    const dialog = within(container)
+    await waitFor(() => expect((dialog.getByRole("textbox", { name: /personal message/i }) as HTMLTextAreaElement).value).toBe("Draft 1"))
+
+    rerender(<SendEmailDialog {...props} open={false} />)
+    rerender(<SendEmailDialog {...props} open={true} />)
+
+    await waitFor(() => expect((dialog.getByRole("textbox", { name: /personal message/i }) as HTMLTextAreaElement).value).toBe("Draft 2"))
+    expect(draftNumber).toBe(2)
+  })
+
+  it("does not let a stale AI response overwrite manual edits", async () => {
+    let resolveDraft!: (value: Response) => void
+    const pendingDraft = new Promise<Response>((resolve) => { resolveDraft = resolve })
+    vi.mocked(authFetch).mockImplementation((url) => {
+      if (String(url) === "/api/emails/generate-message") return pendingDraft
+      return Promise.resolve({ ok: true, json: async () => ({ settings: {} }) } as Response)
+    })
+
+    const { container } = render(
+      <SendEmailDialog
+        open={true}
+        onClose={vi.fn()}
+        sessionId="session-1"
+        invoiceData={mockInvoiceData}
+        documentType="invoice"
+      />
+    )
+    const textarea = within(container).getByRole("textbox", { name: /personal message/i }) as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: "My own client note" } })
+
+    await act(async () => {
+      resolveDraft({ ok: true, json: async () => ({ message: "Late AI copy" }) } as Response)
+      await pendingDraft
+    })
+
+    expect(textarea.value).toBe("My own client note")
+  })
+
+  it("uses link-specific onboarding copy and never claims an attachment", async () => {
+    vi.mocked(authFetch).mockRejectedValue(new Error("AI unavailable"))
+    const onboardingData = {
+      ...mockInvoiceData,
+      projectName: "Website Redesign",
+      toName: "Jordan",
+    }
+    const { container } = render(
+      <SendEmailDialog
+        open={true}
+        onClose={vi.fn()}
+        sessionId="session-1"
+        invoiceData={onboardingData}
+        documentType="client_onboarding_form"
+      />
+    )
+
+    const textarea = within(container).getByRole("textbox", { name: /personal message/i }) as HTMLTextAreaElement
+    await waitFor(() => expect(textarea.value).toContain("secure onboarding form"))
+    expect(textarea.value).toContain("link in this email")
+    expect(textarea.value.toLowerCase()).not.toContain("attached")
   })
 })

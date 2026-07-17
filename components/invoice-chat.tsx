@@ -366,15 +366,18 @@ interface InvoiceChatProps {
     data: InvoiceData
     onChange: (updates: Partial<InvoiceData>) => void
     selectedSessionId?: string
+    /** Called synchronously before InvoiceChat starts mutating to a new session. */
+    onSessionTransitionStart?: () => void
     onSessionChange?: (sessionId: string) => void
     onLinkedSessionCreate?: (sessionId: string, docType: string) => void
     onChainSessionSelect?: (sessionId: string) => void
     onMessageCountChange?: (count: number) => void
-    onLockDocument?: () => void
-    onUnlockDocument?: () => void
+    onLockDocument?: (sessionId: string) => void
+    onUnlockDocument?: (sessionId: string) => void
     onPaymentLinkCancelled?: () => void
-    /** Called whenever the session status changes — allows parent to pass documentStatus to DocumentPreview */
-    onDocumentStatusChange?: (status: string) => void
+    /** Called whenever a session status changes. The session ID prevents stale
+     *  reports from a previous session from affecting the selected document. */
+    onDocumentStatusChange?: (sessionId: string, status: string) => void
     /** Authoritative session status from the parent. The chat reconciles its own
      *  session copy to this so EXTERNAL changes made outside the chat (toolbar
      *  send/lock, toolbar cancel) reflect live — banner + send/resend gating.
@@ -391,8 +394,12 @@ interface InvoiceChatProps {
     injectedOnboardLink?: string | null
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, documentStatus: externalStatus, initialPrompt, onSaveContext, injectedOnboardLink }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransitionStart, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, documentStatus: externalStatus, initialPrompt, onSaveContext, injectedOnboardLink }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
+    const isOnboardingForm = docType.replace(/[\s-]+/g, "_") === "client_onboarding_form"
+    const composerPlaceholder = isOnboardingForm
+        ? "Describe changes or paste a shared Drive/Dropbox folder link with project details and assets..."
+        : "Ask a question or describe a document..."
 
     // Hook handles session init + switching when selectedSessionId changes
     const {
@@ -487,13 +494,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
         onSaveContext(updateSessionContext)
     }, [session?.id, onSaveContext, updateSessionContext]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Notify parent whenever session status changes so DocumentPreview can react
-    // (e.g., clear lock state when status becomes "cancelled")
+    // Notify parent whenever session status changes so DocumentPreview can react.
+    // Include the owning session ID so a delayed effect from the old session
+    // cannot mark the newly selected document as finalized.
     useEffect(() => {
-        if (session?.status !== undefined) {
-            onDocumentStatusChange?.(session.status)
+        if (session?.id && session.status !== undefined) {
+            onDocumentStatusChange?.(session.id, session.status)
         }
-    }, [session?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [session?.id, session?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Inject "payment link cancelled" card when parent signals cancellation
     // Uses a timestamp-based approach: parent sets a timestamp, we detect when it changes
@@ -2319,6 +2327,9 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
 
     // Handle "New" conversation
     const handleNewConversation = useCallback(async () => {
+        // Clear parent-owned lock/status/link state before startNewSession updates
+        // this component's internal session and renders the new conversation.
+        onSessionTransitionStart?.()
         initialPromptSentRef.current = true // prevent re-send of initialPrompt
         lastSyncedSessionRef.current = null
         setWelcomeLoaded(false)
@@ -2330,7 +2341,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
             onSessionChange(newSession.id)
         }
         toast.success("Started new conversation")
-    }, [startNewSession, onSessionChange])
+    }, [startNewSession, onSessionChange, onSessionTransitionStart])
 
     // Handle creating a linked document from the Next Steps bar
     const handleCreateLinked = useCallback(async (parentSessionId: string, targetType: string) => {
@@ -2473,8 +2484,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     onLockDocument={() => {
                                         // Notify parent to lock the document and immediately update
                                         // the DocumentPreview's lock state without waiting for a DB fetch
-                                        onLockDocument?.()
-                                        onDocumentStatusChange?.("finalized")
+                                        onLockDocument?.(session!.id)
+                                        onDocumentStatusChange?.(session!.id, "finalized")
                                         updateSessionStatus("finalized")
                                     }}
                                     onSent={(info) => {
@@ -2508,8 +2519,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                     onDismiss={() => setMessages(prev => prev.filter((_, i) => i !== idx))}
                                     onLockDocument={() => {
                                         // Full sync: update all three state atoms so they agree
-                                        onLockDocument?.()
-                                        onDocumentStatusChange?.("finalized")
+                                        onLockDocument?.(session!.id)
+                                        onDocumentStatusChange?.(session!.id, "finalized")
                                         updateSessionStatus("finalized")
                                     }}
                                 />
@@ -2716,7 +2727,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                                                     ))
                                                                     toast.success("Document unlocked")
                                                                     updateSessionStatus("active")
-                                                                    onUnlockDocument?.()
+                                                                    onUnlockDocument?.(session!.id)
                                                                     // If the API also cancelled a payment link, clear it from
                                                                     // the document data so the PDF strip and toolbar both update.
                                                                     if (result.paymentLinkCancelled) {
@@ -2905,7 +2916,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                             sendMessage(val)
                                         }
                                     }}
-                                    placeholder="Ask a question or describe a document..."
+                                    placeholder={composerPlaceholder}
                                     disabled={sessionLoading || !session}
                                     statusText={isSaving ? "Saving..." : undefined}
                                     showAttachButton={true}
@@ -2934,7 +2945,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionChange
                                         sendMessage(val)
                                     }
                                 }}
-                                placeholder="Ask a question or describe a document..."
+                                placeholder={composerPlaceholder}
                                 disabled={sessionLoading || !session}
                                 statusText={isSaving ? "Saving..." : undefined}
                                 showAttachButton={true}

@@ -19,7 +19,7 @@ import { authFetch } from "@/lib/auth-fetch"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { toMinorUnits, type InvoiceData } from "@/lib/invoice-types"
-import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
+import { getDocumentTypeConfig } from "@/lib/document-type-registry"
 import { SenderSignFirstModal } from "@/components/sender-sign-first-modal"
 import { usePaymentMethods } from "@/hooks/use-payment-methods"
 import { usePublicDocumentLink } from "@/hooks/use-public-document-link"
@@ -41,6 +41,8 @@ interface ChatSendCardProps {
 
 type Step = "compose" | "preview" | "sent"
 type SlideDir = "right" | "left"
+
+const MAX_MESSAGE_LENGTH = 500
 
 function calcTotal(data: InvoiceData): { formatted: string; raw: number } {
   const subtotal = (data.items || []).reduce((sum, item) => {
@@ -69,11 +71,18 @@ function calcTotal(data: InvoiceData): { formatted: string; raw: number } {
 }
 
 function localFallbackMessage(data: InvoiceData, documentType: string): string {
+  const normalizedType = documentType.toLowerCase().replace(/[\s-]+/g, "_")
   const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
   const clientName = data.toName?.trim() || "there"
-  const senderName = data.fromName?.trim() || ""
+  const senderName = data.fromName?.trim() || "our team"
   const ref = data.invoiceNumber || data.referenceNumber || ""
   const refText = ref ? ` ${ref}` : ""
+
+  if (normalizedType === "client_onboarding_form") {
+    const projectText = data.projectName?.trim() ? ` for ${data.projectName.trim()}` : ""
+    return `Hi ${clientName},\n\nPlease complete the secure onboarding form${projectText} using the link in this email. Your answers and any project files you choose to share will help us prepare for the engagement.\n\nIf you have any questions, please let us know.\n\nBest regards,\n${senderName}`
+  }
+
   return `Hi ${clientName},\n\nPlease find your ${docLabel}${refText} attached. Let me know if you have any questions.\n\nThank you,\n${senderName}`
 }
 
@@ -104,6 +113,10 @@ export function ChatSendCard({
   // so the "sent" confirmation shows the link the client can actually fill.
   const [onboardFillUrl, setOnboardFillUrl] = useState<string | null>(null)
   const emailRef = useRef<HTMLInputElement>(null)
+  // Invalidate late draft responses when the user starts typing. This avoids a
+  // slow AI response replacing a personal message after preview has opened.
+  const draftRequestIdRef = useRef(0)
+  const messageEditedRef = useRef(false)
   // Sign-first modal — shown before sending a contract
   const [showSignFirst, setShowSignFirst] = useState(false)
   // Lock confirmation — shown before sending any document (warns it will be locked)
@@ -198,33 +211,39 @@ export function ChatSendCard({
   }, [mounted, step])
 
   const generateMessage = useCallback(async () => {
+    const requestId = ++draftRequestIdRef.current
     setIsGeneratingMsg(true)
     try {
       const res = await authFetch("/api/emails/generate-message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          documentType, clientName: invoiceData.toName || "",
+          documentType,
+          clientName: invoiceData.toName || "",
           senderName: invoiceData.fromName || "",
-          referenceNumber: ref, currency: invoiceData.currency || "USD",
-          dueDate: invoiceData.dueDate || "", description: invoiceData.description || "",
+          referenceNumber: ref,
+          totalAmount: total,
+          currency: invoiceData.currency || "USD",
+          dueDate: invoiceData.dueDate || "",
+          description: invoiceData.projectDescription || invoiceData.description || "",
+          projectName: invoiceData.projectName || "",
+          items: invoiceData.items?.slice(0, 5) || [],
         }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.message) {
-          setMessage(data.message)
-        } else {
-          setMessage(localFallbackMessage(invoiceData, documentType))
-        }
-      } else {
-        setMessage(localFallbackMessage(invoiceData, documentType))
+      const nextMessage = res.ok
+        ? ((await res.json()).message || localFallbackMessage(invoiceData, documentType))
+        : localFallbackMessage(invoiceData, documentType)
+      if (draftRequestIdRef.current === requestId && !messageEditedRef.current) {
+        setMessage(String(nextMessage).slice(0, MAX_MESSAGE_LENGTH))
       }
     } catch {
-      setMessage(localFallbackMessage(invoiceData, documentType))
+      if (draftRequestIdRef.current === requestId && !messageEditedRef.current) {
+        setMessage(localFallbackMessage(invoiceData, documentType).slice(0, MAX_MESSAGE_LENGTH))
+      }
+    } finally {
+      if (draftRequestIdRef.current === requestId) setIsGeneratingMsg(false)
     }
-    finally { setIsGeneratingMsg(false) }
-  }, [documentType, invoiceData, ref])
+  }, [documentType, invoiceData, ref, total])
 
   const goToPreview = useCallback(() => {
     const trimmed = email.trim()
@@ -235,13 +254,11 @@ export function ChatSendCard({
     setError(null)
     setSlideDir("right")
     setStep("preview")
-    // Onboarding forms never have a static "attached" document — they send a
-    // fillable link — so the generic AI/fallback message ("Please find your
-    // ... attached") is factually wrong for this type and duplicates the
-    // invitation email's own built-in greeting. Leave the field blank/optional;
-    // the invitation already has proper default copy when no message is set.
-    if (!message && !isOnboardingForm) generateMessage()
-  }, [email, message, generateMessage, isOnboardingForm])
+    // Draft for every document type, including onboarding forms. The API and
+    // local fallback both understand that onboarding sends a secure link, not
+    // an attachment. Existing/manual copy is always preserved.
+    if (!message && !messageEditedRef.current) void generateMessage()
+  }, [email, message, generateMessage])
 
   const goBackToCompose = useCallback(() => {
     setSlideDir("left")
@@ -604,7 +621,16 @@ export function ChatSendCard({
                   <span className="text-xs text-muted-foreground">Writing message…</span>
                 </div>
               ) : (
-                <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3}
+                <textarea
+                  value={message}
+                  onChange={e => {
+                    messageEditedRef.current = true
+                    draftRequestIdRef.current += 1
+                    setIsGeneratingMsg(false)
+                    setMessage(e.target.value)
+                  }}
+                  maxLength={MAX_MESSAGE_LENGTH}
+                  rows={3}
                   placeholder={isOnboardingForm
                     ? "Add a personal note for your client (optional)…"
                     : "Add a personal message (optional)…"}
