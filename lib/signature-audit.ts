@@ -7,6 +7,8 @@ export type AuditAction =
   | "signature.completed"
   | "signature.expired"
   | "signature.tamper_detected"
+  | "signature.integrity_unavailable"
+  | "signature.certificate_failed"
   | "signature.abuse_detected"
   | "signature.upload_failed"
   | "signature.cancelled"

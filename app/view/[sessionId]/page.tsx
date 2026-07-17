@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback, useMemo } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useSafeBack } from "@/hooks/use-safe-back"
 import { useSupabase, useUser } from "@/components/auth-provider"
 import {
   ArrowLeft, Download, Share2, Loader2, FileText,
-  Copy, Check, MessageCircle, Mail, Link2, QrCode,
+  Copy, Check, MessageCircle, Mail, Link2,
   ZoomIn, ZoomOut, Maximize2, CheckCircle2, XCircle, Edit3, X,
 } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { cleanDataForExport } from "@/lib/invoice-types"
 import { resolveLogoUrl } from "@/lib/resolve-logo-url"
-import { normalizeDocumentType, getDocumentTypeConfig } from "@/lib/document-type-registry"
+import { getDocumentTypeConfig } from "@/lib/document-type-registry"
 import { resolvePdfComponent, resolveDocumentReference } from "@/lib/pdf-export-helpers"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -511,7 +511,13 @@ export default function ViewDocumentPage() {
               ctx.senderSignatureDataUrl = data.senderSignatureDataUrl
               ctx.showSenderSignature = true
             }
+            setIsOwner(false)
             setDocData(ctx)
+            setQuotationClientName(ctx.toName || '')
+            setQuotationClientEmail(ctx.toEmail || '')
+            if (data.quotationResponse) {
+              setQuotationResponse(data.quotationResponse as QuotationResponse)
+            }
             if (data.payment) setPayment(data.payment as PaymentInfo)
             setLoading(false)
             return
@@ -567,15 +573,23 @@ export default function ViewDocumentPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           publicId: sessionId,
-          response: responseType,      // field name the API expects
+          response: responseType,
           clientName: quotationClientName,
           clientEmail: quotationClientEmail,
-          note: reason,               // field name the API expects
+          note: reason,
         }),
       })
       const data = await res.json()
+      const recorded = (data.existingResponse ?? data.response) as QuotationResponse | null
+      if (res.status === 409 && recorded) {
+        setQuotationResponse(recorded)
+        setQuotationDialogOpen(null)
+        toast.info('A response was already recorded for this document')
+        return
+      }
       if (!res.ok) throw new Error(data.error || 'Failed to submit response')
-      setQuotationResponse({ response_type: responseType, responded_at: new Date().toISOString() })
+      if (!recorded) throw new Error('The response could not be confirmed')
+      setQuotationResponse(recorded)
       setQuotationDialogOpen(null)
       toast.success('Response submitted successfully')
     } catch (err) {
@@ -612,6 +626,12 @@ export default function ViewDocumentPage() {
   const docType = docData
     ? (docData.documentType || "document").charAt(0).toUpperCase() + (docData.documentType || "document").slice(1)
     : "Document"
+  const supportsClientResponse = docData
+    ? getDocumentTypeConfig(docData.documentType || '')?.capabilities.supports_client_response === true
+    : false
+  const clientResponseEnabled = supportsClientResponse
+    && docData?.allowClientResponse !== false
+    && docData?.showSignatureFields === false
 
   if (loading) {
     return (
@@ -771,8 +791,9 @@ export default function ViewDocumentPage() {
         </div>
       </div>
 
-      {/* Response buttons — shown below PDF for documents that support client response (quote, proposal) */}
-      {(getDocumentTypeConfig(docData?.documentType ?? '')?.capabilities.supports_client_response === true) && (
+      {/* Recipient decisions are available only on delivered public quote/proposal links.
+          Owners may see the recorded outcome, but cannot submit on the recipient's behalf. */}
+      {supportsClientResponse && (quotationResponse || (!isOwner && clientResponseEnabled)) && (
         <div className="max-w-4xl mx-auto px-2 sm:px-4 py-4">
           {quotationResponse ? (
             <div className={cn(
@@ -787,9 +808,9 @@ export default function ViewDocumentPage() {
               {quotationResponse.response_type === 'declined' && <XCircle className="w-5 h-5 shrink-0" />}
               {quotationResponse.response_type === 'changes_requested' && <Edit3 className="w-5 h-5 shrink-0" />}
               <p className="text-sm font-medium">
-                {quotationResponse.response_type === 'accepted' && `You accepted this ${docType.toLowerCase()} on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
-                {quotationResponse.response_type === 'declined' && `You declined this ${docType.toLowerCase()} on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
-                {quotationResponse.response_type === 'changes_requested' && `You requested changes on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
+                {quotationResponse.response_type === 'accepted' && `${isOwner ? 'The recipient accepted' : 'You accepted'} this ${docType.toLowerCase()} on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
+                {quotationResponse.response_type === 'declined' && `${isOwner ? 'The recipient declined' : 'You declined'} this ${docType.toLowerCase()} on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
+                {quotationResponse.response_type === 'changes_requested' && `${isOwner ? 'The recipient requested changes' : 'You requested changes'} on ${new Date(quotationResponse.responded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
               </p>
             </div>
           ) : (

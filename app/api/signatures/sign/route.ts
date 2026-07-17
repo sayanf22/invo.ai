@@ -29,6 +29,7 @@ import { generateAndStoreCertificate } from "@/lib/certificate-generator"
 import { sendEmail } from "@/lib/mailtrap"
 import { getPublicLogoUrl } from "@/lib/public-logo"
 import type { Database } from "@/lib/database.types"
+import { randomUUID } from "crypto"
 
 const MAX_BODY_SIZE = 500 * 1024
 
@@ -76,10 +77,26 @@ async function triggerAutoInvoice({
     return
   }
 
+  // Completion side effects may be retried. Never create a second invoice for
+  // the same signed parent once an auto-invoice link exists.
+  const { data: existingLink, error: existingLinkError } = await supabase
+    .from("document_links")
+    .select("child_session_id")
+    .eq("parent_session_id", contractSessionId)
+    .eq("relationship", "auto_invoice")
+    .limit(1)
+    .maybeSingle()
+  if (existingLinkError) {
+    throw new Error(`Failed to check auto-invoice idempotency: ${existingLinkError.message}`)
+  }
+  if (existingLink?.child_session_id) return
+
   const parentContext = (contractSession.context ?? {}) as Record<string, any>
 
   // Build invoice context from contract context
   const now = new Date()
+  const invoiceSessionId = randomUUID()
+  const autoInvoiceReference = `INV-${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${invoiceSessionId.slice(0, 8).toUpperCase()}`
   const dueDate = new Date(now)
   dueDate.setDate(dueDate.getDate() + 30) // Net 30 default
 
@@ -103,8 +120,8 @@ async function triggerAutoInvoice({
       quantity: Number(item.quantity) || 1,
       rate: Number(item.rate) || 0,
     })) : [],
-    // Auto-generate invoice number
-    invoiceNumber: `INV-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-AUTO`,
+    // UUID-backed suffix is unique even when several contracts complete together.
+    invoiceNumber: autoInvoiceReference,
     design: parentContext.design,
     notes: `Auto-generated from signed contract. ${parentContext.referenceNumber ? `Contract ref: ${parentContext.referenceNumber}` : ""}`.trim(),
   }
@@ -124,6 +141,7 @@ async function triggerAutoInvoice({
   const { data: invoiceSession, error: createError } = await supabase
     .from("document_sessions")
     .insert({
+      id: invoiceSessionId,
       user_id: contractSession.user_id,
       document_type: "invoice",
       status: "active",
@@ -149,13 +167,50 @@ async function triggerAutoInvoice({
   }
 
   // Create document link
-  await supabase
+  const { error: linkError } = await supabase
     .from("document_links")
     .insert({
       parent_session_id: contractSessionId,
       child_session_id: invoiceSession.id,
       relationship: "auto_invoice",
     })
+  if (linkError) {
+    const { error: releaseError } = await (supabase as any).rpc("release_document_quota", {
+      p_user_id: contractSession.user_id,
+      p_session_id: invoiceSession.id,
+    })
+    if (releaseError) {
+      throw new Error(`Failed to link auto-invoice and release quota: ${releaseError.message}`)
+    }
+    const { error: deleteError } = await supabase
+      .from("document_sessions")
+      .delete()
+      .eq("id", invoiceSession.id)
+    if (deleteError) {
+      throw new Error(`Failed to clean up unlinked auto-invoice: ${deleteError.message}`)
+    }
+    throw new Error(`Failed to link auto-invoice: ${linkError.message}`)
+  }
+
+  // Make the recipient URL valid before invoking the external email provider.
+  // If delivery fails, the finalized draft is removed in the rollback below.
+  const { error: finalizeError } = await supabase
+    .from("document_sessions")
+    .update({
+      status: "finalized",
+      sent_at: now.toISOString(),
+      client_name: invoiceContext.toName || signerName,
+    } as any)
+    .eq("id", invoiceSession.id)
+  if (finalizeError) {
+    await supabase.from("document_links").delete().eq("child_session_id", invoiceSession.id)
+    const { error: releaseError } = await (supabase as any).rpc("release_document_quota", {
+      p_user_id: contractSession.user_id,
+      p_session_id: invoiceSession.id,
+    })
+    if (!releaseError) await supabase.from("document_sessions").delete().eq("id", invoiceSession.id)
+    throw new Error(`Failed to finalize auto-invoice: ${finalizeError.message}`)
+  }
 
   // Quota was reserved atomically before linking and sending.
 
@@ -201,7 +256,31 @@ async function triggerAutoInvoice({
 
   if (!emailResult.success) {
     console.error("[auto-invoice] Email send failed:", emailResult)
-    // Non-fatal — invoice session was created, email failed
+    // The recipient must never be left with an unseen active invoice while the
+    // owner's allowance remains consumed. Undo the link, reservation, and draft.
+    const { error: unlinkError } = await supabase
+      .from("document_links")
+      .delete()
+      .eq("parent_session_id", contractSessionId)
+      .eq("child_session_id", invoiceSession.id)
+    if (unlinkError) {
+      throw new Error(`Invoice delivery failed and link rollback failed: ${unlinkError.message}`)
+    }
+    const { error: releaseError } = await (supabase as any).rpc("release_document_quota", {
+      p_user_id: contractSession.user_id,
+      p_session_id: invoiceSession.id,
+    })
+    if (releaseError) {
+      throw new Error(`Invoice delivery failed and quota rollback failed: ${releaseError.message}`)
+    }
+    const { error: deleteError } = await supabase
+      .from("document_sessions")
+      .delete()
+      .eq("id", invoiceSession.id)
+    if (deleteError) {
+      throw new Error(`Invoice delivery failed and draft cleanup failed: ${deleteError.message}`)
+    }
+    throw new Error("Auto-invoice delivery failed; the draft and quota reservation were rolled back")
   } else {
     // Record the email send
     await (supabase as any)
@@ -216,15 +295,7 @@ async function triggerAutoInvoice({
       })
       .catch(() => {})
 
-    // Finalize the invoice session
-    await supabase
-      .from("document_sessions")
-      .update({
-        status: "finalized",
-        sent_at: now.toISOString(),
-        client_name: invoiceContext.toName || signerName,
-      } as any)
-      .eq("id", invoiceSession.id)
+    // The session was finalized before delivery so the emailed URL is valid.
   }
 
   // Notify the owner
@@ -384,36 +455,75 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Signing link has expired" }, { status: 410 })
     }
 
-    // Sub-task 7.3: Re-compute document fingerprint and compare
-    if (signature.session_id && signature.document_hash) {
+    // Every active signing request must carry the immutable document fingerprint
+    // captured at invitation time. Missing integrity evidence is never optional.
+    if (!signature.document_hash) {
+      await recordAuditEvent(supabase, {
+        action: "signature.integrity_unavailable",
+        signature_id: signature.id,
+        document_id: signature.document_id ?? undefined,
+        session_id: signature.session_id ?? undefined,
+        ip_address: clientIP,
+        user_agent: userAgent,
+        metadata: { reason: "missing_document_hash" },
+      })
+      return NextResponse.json({ error: "Document integrity verification is temporarily unavailable" }, { status: 503 })
+    }
+
+    // A stored fingerprint is a binding integrity requirement. If its source
+    // context cannot be loaded, fail closed rather than silently accepting.
+    if (signature.document_hash) {
+      if (!signature.session_id) {
+        await recordAuditEvent(supabase, {
+          action: "signature.integrity_unavailable",
+          signature_id: signature.id,
+          document_id: signature.document_id ?? undefined,
+          ip_address: clientIP,
+          user_agent: userAgent,
+          metadata: { reason: "missing_session_id" },
+        })
+        return NextResponse.json({ error: "Document integrity verification is temporarily unavailable" }, { status: 503 })
+      }
+
       const { data: session, error: sessionError } = await supabase
         .from("document_sessions")
         .select("context")
         .eq("id", signature.session_id)
         .single()
 
-      if (!sessionError && session?.context) {
-        const recomputedHash = computeDocumentFingerprint(
-          session.context as Record<string, unknown>
+      if (sessionError || !session || !session.context || typeof session.context !== "object") {
+        await recordAuditEvent(supabase, {
+          action: "signature.integrity_unavailable",
+          signature_id: signature.id,
+          document_id: signature.document_id ?? undefined,
+          session_id: signature.session_id,
+          ip_address: clientIP,
+          user_agent: userAgent,
+          metadata: { reason: "document_context_unavailable" },
+        })
+        return NextResponse.json({ error: "Document integrity verification is temporarily unavailable" }, { status: 503 })
+      }
+
+      const recomputedHash = computeDocumentFingerprint(
+        session.context as Record<string, unknown>
+      )
+      if (recomputedHash !== signature.document_hash) {
+        await recordAuditEvent(supabase, {
+          action: "signature.tamper_detected",
+          signature_id: signature.id,
+          document_id: signature.document_id ?? undefined,
+          session_id: signature.session_id,
+          ip_address: clientIP,
+          user_agent: userAgent,
+          metadata: {
+            stored_hash: signature.document_hash,
+            recomputed_hash: recomputedHash,
+          },
+        })
+        return NextResponse.json(
+          { error: "Document integrity check failed" },
+          { status: 409 }
         )
-        if (recomputedHash !== signature.document_hash) {
-          await recordAuditEvent(supabase, {
-            action: "signature.tamper_detected",
-            signature_id: signature.id,
-            document_id: signature.document_id ?? undefined,
-            session_id: signature.session_id,
-            ip_address: clientIP,
-            user_agent: userAgent,
-            metadata: {
-              stored_hash: signature.document_hash,
-              recomputed_hash: recomputedHash,
-            },
-          })
-          return NextResponse.json(
-            { error: "Document integrity check failed" },
-            { status: 409 }
-          )
-        }
       }
     }
 
@@ -538,13 +648,22 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        // Trigger certificate generation (stub — full impl in Task 9)
-        if (signature.document_id) {
-          try {
-            await generateAndStoreCertificate(signature.session_id, signature.document_id)
-          } catch (certErr) {
-            console.error("[sign] certificate generation error:", certErr)
-          }
+        // Generate the durable completion certificate for both saved-document
+        // and session-only signing flows. Failed attempts remain retryable.
+        try {
+          await generateAndStoreCertificate(
+            signature.session_id,
+            signature.document_id,
+            supabase as any
+          )
+        } catch (certErr) {
+          console.error("[sign] certificate generation error:", certErr)
+          await recordAuditEvent(supabase, {
+            action: "signature.certificate_failed",
+            document_id: signature.document_id ?? undefined,
+            session_id: signature.session_id,
+            metadata: { retryable: true },
+          })
         }
 
         // Fetch session details for email/notifications
@@ -713,6 +832,14 @@ export async function POST(request: NextRequest) {
               })
             } catch (autoInvErr) {
               console.error("[sign] auto-invoice error (non-fatal):", autoInvErr)
+              await supabase.from("notifications").insert({
+                user_id: fullSession.user_id,
+                type: "auto_invoice_failed",
+                title: "Automatic invoice needs attention",
+                message: "The contract was signed, but its automatic invoice could not be delivered. Please retry or create the invoice manually.",
+                read: false,
+                metadata: { contract_session_id: signature.session_id },
+              } as any)
             }
           }
         }

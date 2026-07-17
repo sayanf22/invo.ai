@@ -12,11 +12,32 @@ import { NextRequest } from "next/server"
 vi.mock("@/lib/api-auth", () => ({
   authenticateRequest: vi.fn(),
   validateBodySize: vi.fn().mockReturnValue(null),
+  validateOrigin: vi.fn().mockReturnValue(null),
   getClientIP: vi.fn().mockReturnValue("1.2.3.4"),
+}))
+
+vi.mock("@/lib/csrf", () => ({
+  validateCSRFToken: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock("@/lib/public-rate-limit", () => ({
+  checkPublicRateLimit: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock("@/lib/cost-protection", () => ({
+  getUserTier: vi.fn().mockResolvedValue("free"),
+  checkEmailLimit: vi.fn().mockResolvedValue(null),
+  incrementEmailCount: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock("@/lib/document-type-registry", () => ({
+  getDocumentTypeConfig: vi.fn().mockReturnValue({
+    capabilities: { supports_signature: true, supports_client_response: false },
+  }),
 }))
 
 vi.mock("@/lib/mailtrap", () => ({

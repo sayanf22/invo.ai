@@ -35,16 +35,29 @@ function createServiceRoleClient(): SupabaseClient<Database> {
  * Generate a PDF certificate for a completed signing session and upload to R2.
  *
  * @param sessionId   - The document_sessions.id
- * @param documentId  - The documents.id (used for the R2 key)
+ * @param documentId  - Optional documents.id; sessionId is used for session-only signatures
  * @param supabase    - Optional service-role Supabase client; created internally if not provided
  */
 export async function generateAndStoreCertificate(
   sessionId: string,
-  documentId: string,
-  supabase?: SupabaseClient
+  documentId?: string | null,
+  supabase?: SupabaseClient,
+  forceRepair = false
 ): Promise<void> {
   const db = (supabase ?? createServiceRoleClient()) as SupabaseClient<Database>
+  const certificateId = documentId ?? sessionId
 
+  const { data: claimData, error: claimError } = await (db.rpc as any)(
+    "claim_signature_certificate",
+    { p_session_id: sessionId, p_force_repair: forceRepair }
+  )
+  if (claimError) {
+    throw new Error(`[certificate-generator] Failed to claim generation: ${claimError.message}`)
+  }
+  const claimId = typeof claimData === "string" ? claimData : null
+  if (!claimId) return
+
+  try {
   // ── Fetch the completed parent and its active signing cohort ────────────────
   const { data: session, error: sessionError } = await db
     .from("document_sessions")
@@ -118,8 +131,27 @@ export async function generateAndStoreCertificate(
   const pdfBuffer = await renderToBuffer(element as any)
 
   // ── Upload to R2 ───────────────────────────────────────────────────────────
-  const key = buildCertificateKey(documentId)
+  const key = buildCertificateKey(certificateId)
   await uploadToR2(key, pdfBuffer, "application/pdf")
 
+  const { error: finishError } = await (db.rpc as any)("finish_signature_certificate", {
+    p_session_id: sessionId,
+    p_claim_id: claimId,
+    p_certificate_key: key,
+    p_error: null,
+  })
+  if (finishError) {
+    throw new Error(`[certificate-generator] Failed to record completion: ${finishError.message}`)
+  }
   console.log(`[certificate-generator] Certificate stored at R2 key: ${key}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Certificate generation failed"
+    await (db.rpc as any)("finish_signature_certificate", {
+      p_session_id: sessionId,
+      p_claim_id: claimId,
+      p_certificate_key: null,
+      p_error: message,
+    })
+    throw error
+  }
 }

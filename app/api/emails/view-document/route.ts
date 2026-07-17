@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { isPublicDocumentId } from "@/lib/public-capability"
+import { getClientIP } from "@/lib/api-auth"
+import { checkPublicRateLimit } from "@/lib/public-rate-limit"
+
+const PRIVATE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  "Pragma": "no-cache",
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+} as const
+
+function privateJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: PRIVATE_HEADERS })
+}
+
+function addPrivateHeaders(response: NextResponse) {
+  for (const [name, value] of Object.entries(PRIVATE_HEADERS)) {
+    response.headers.set(name, value)
+  }
+  return response
+}
 
 /**
  * GET /api/emails/view-document?sessionId=xxx
@@ -18,14 +38,26 @@ export async function GET(request: NextRequest) {
   const publicId = request.nextUrl.searchParams.get("publicId")
 
   if (!isPublicDocumentId(publicId)) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 400 })
+    return privateJson({ error: "Invalid session" }, 400)
   }
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !serviceKey) {
+      console.error("[view-document] Service credentials are not configured")
+      return privateJson({ error: "Service temporarily unavailable" }, 503)
+    }
+
+    const supabase = createClient(url, serviceKey, { auth: { persistSession: false } })
+    const ipRateError = await checkPublicRateLimit(
+      supabase, getClientIP(request), "document_view_ip", 120, 3600
     )
+    if (ipRateError) return addPrivateHeaders(ipRateError)
+    const capabilityRateError = await checkPublicRateLimit(
+      supabase, publicId, "document_view_capability", 90, 3600
+    )
+    if (capabilityRateError) return addPrivateHeaders(capabilityRateError)
 
     const { data: session, error } = await supabase
       .from("document_sessions")
@@ -34,7 +66,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (error || !session?.context) {
-      return NextResponse.json({ error: "Document not found" }, { status: 404 })
+      return privateJson({ error: "Document not found" }, 404)
     }
     const sessionId = session.id
 
@@ -56,7 +88,7 @@ export async function GET(request: NextRequest) {
         .maybeSingle()
       hasPaymentLink = !!payCheck
       if (!hasPaymentLink) {
-        return NextResponse.json({ error: "Document not found" }, { status: 404 })
+        return privateJson({ error: "Document not found" }, 404)
       }
     }
 
@@ -69,16 +101,16 @@ export async function GET(request: NextRequest) {
     // makes the link null and renders the document unavailable to recipients.
     // Exception: end-states "signed" and "paid" are NEVER revoked (legally binding).
     if (session.status === "cancelled") {
-        return NextResponse.json(
+        return privateJson(
             { error: "This document is no longer available. The owner has cancelled it.", cancelled: true },
-            { status: 410 }
+            410
         )
     }
     if (session.status === "active" && session.sent_at) {
       // Owner unlocked after sending — public link is now dead
-      return NextResponse.json(
+      return privateJson(
         { error: "This document is no longer available. The owner has cancelled the share.", cancelled: true },
-        { status: 410 }
+        410
       )
     }
 
@@ -94,9 +126,9 @@ export async function GET(request: NextRequest) {
         (s as any).signer_action === "cancelled" && !s.signed_at
       )
       if (allCancelled) {
-        return NextResponse.json(
+        return privateJson(
           { error: "This document is no longer available. The owner has cancelled the share.", cancelled: true },
-          { status: 410 }
+          410
         )
       }
     }
@@ -180,16 +212,31 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    let quotationResponse: { response_type: string; responded_at: string } | null = null
+    if (["quote", "quotation", "proposal"].includes(session.document_type || "")) {
+      const { data: recordedResponse, error: responseError } = await supabase
+        .from("quotation_responses")
+        .select("response_type, responded_at")
+        .eq("session_id", sessionId)
+        .maybeSingle()
+      if (responseError) {
+        console.error("[view-document] Failed to load recipient response:", responseError)
+        return privateJson({ error: "Document temporarily unavailable" }, 503)
+      }
+      quotationResponse = recordedResponse
+    }
+
+    return privateJson({
       context: session.context,
       documentType: session.document_type,
       sessionStatus: session.status,
       payment,
+      quotationResponse,
       signatureImages: signatureImages.length > 0 ? signatureImages : undefined,
       senderSignatureDataUrl,
     })
   } catch (err) {
     console.error("View document error:", err)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return privateJson({ error: "Internal server error" }, 500)
   }
 }

@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { createClient } from "@supabase/supabase-js"
+import { generateAndStoreCertificate } from "@/lib/certificate-generator"
 
 function getServiceRoleClient() {
   return createClient(
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
     // Verify ownership
     const { data: session, error: sessionError } = await supabase
       .from("document_sessions")
-      .select("id, document_type, context, user_id, status, active_signature_cohort_id")
+      .select("id, document_id, document_type, context, user_id, status, active_signature_cohort_id, certificate_status")
       .eq("id", sessionId)
       .single()
 
@@ -90,6 +91,16 @@ export async function GET(request: NextRequest) {
 
     if (session.user_id !== auth.user.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+    }
+
+    if (session.status === "signed" && session.certificate_status !== "completed") {
+      try {
+        await generateAndStoreCertificate(session.id, session.document_id, supabase)
+      } catch (error) {
+        // The HTML evidence package below remains available while the durable
+        // PDF generation state records this retryable failure.
+        console.error("[certificate] Durable certificate retry failed:", error)
+      }
     }
 
     // Render only the signer cohort that completed the current envelope.

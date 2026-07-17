@@ -456,6 +456,13 @@ export type Database = {
           active_signature_cohort_id: string | null
           auto_invoice_on_sign: boolean
           business_context: Json | null
+          certificate_attempts: number
+          certificate_claim_id: string | null
+          certificate_generated_at: string | null
+          certificate_key: string | null
+          certificate_last_attempt_at: string | null
+          certificate_last_error: string | null
+          certificate_status: string | null
           chain_id: string | null
           client_name: string | null
           completed_at: string | null
@@ -480,6 +487,13 @@ export type Database = {
           active_signature_cohort_id?: string | null
           auto_invoice_on_sign?: boolean
           business_context?: Json | null
+          certificate_attempts?: number
+          certificate_claim_id?: string | null
+          certificate_generated_at?: string | null
+          certificate_key?: string | null
+          certificate_last_attempt_at?: string | null
+          certificate_last_error?: string | null
+          certificate_status?: string | null
           chain_id?: string | null
           client_name?: string | null
           completed_at?: string | null
@@ -504,6 +518,13 @@ export type Database = {
           active_signature_cohort_id?: string | null
           auto_invoice_on_sign?: boolean
           business_context?: Json | null
+          certificate_attempts?: number
+          certificate_claim_id?: string | null
+          certificate_generated_at?: string | null
+          certificate_key?: string | null
+          certificate_last_attempt_at?: string | null
+          certificate_last_error?: string | null
+          certificate_status?: string | null
           chain_id?: string | null
           client_name?: string | null
           completed_at?: string | null

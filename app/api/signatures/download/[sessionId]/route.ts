@@ -179,7 +179,7 @@ export async function GET(
     // If not found, try to regenerate (may fail in Workers environment)
     if (!certResult) {
       try {
-        await generateAndStoreCertificate(sessionId, documentId, supabase)
+        await generateAndStoreCertificate(sessionId, documentId, supabase, true)
         certResult = await getObject(certKey)
       } catch (certErr) {
         console.warn("[signatures/download] Certificate generation failed (non-fatal):", certErr instanceof Error ? certErr.message : certErr)

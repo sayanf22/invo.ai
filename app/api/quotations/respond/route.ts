@@ -1,35 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { buildQuotationResponseRow, type ResponseType } from "@/lib/quotation-response"
 import { getClientIP, validateBodySize, validateOrigin } from "@/lib/api-auth"
 import { checkPublicRateLimit } from "@/lib/public-rate-limit"
 import { isPublicDocumentId } from "@/lib/public-capability"
+import { VALID_RESPONSE_TYPES, type ResponseType } from "@/lib/quotation-response"
 
-/**
- * POST /api/quotations/respond
- * Public endpoint (no auth required) — called by recipients from the /pay/ page
- * to accept, reject, or request changes on a quotation or proposal.
- *
- * Uses the existing `quotation_responses` table (created in esignature_upgrade.sql).
- * Service role is used to bypass RLS since recipients are not authenticated.
- *
- * Body: {
- *   sessionId: string
- *   response: "accepted" | "declined" | "changes_requested"
- *   clientName?: string
- *   clientEmail?: string
- *   note?: string
- * }
- */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export async function POST(request: NextRequest) {
     const originError = validateOrigin(request)
     if (originError) return originError
+
     let body: {
-        publicId?: string
-        response?: string
-        clientName?: string
-        clientEmail?: string
-        note?: string
+        publicId?: unknown
+        response?: unknown
+        clientName?: unknown
+        clientEmail?: unknown
+        note?: unknown
     }
     try {
         body = await request.json()
@@ -39,138 +26,87 @@ export async function POST(request: NextRequest) {
 
     const sizeError = validateBodySize(body, 8 * 1024)
     if (sizeError) return sizeError
-    const { publicId, response, clientName, clientEmail, note } = body
 
-    if (!publicId || !response) {
-        return NextResponse.json({ error: "publicId and response are required" }, { status: 400 })
-    }
-
-    // Validate response type — use "declined" to match the DB constraint
-    const validResponses = ["accepted", "declined", "changes_requested"]
-    if (!validResponses.includes(response)) {
-        return NextResponse.json(
-            { error: "Invalid response. Must be: accepted, declined, or changes_requested" },
-            { status: 400 }
-        )
-    }
+    const publicId = typeof body.publicId === "string" ? body.publicId : ""
+    const response = typeof body.response === "string" ? body.response : ""
+    const clientName = typeof body.clientName === "string" ? body.clientName.trim() : ""
+    const clientEmail = typeof body.clientEmail === "string" ? body.clientEmail.trim().toLowerCase() : ""
+    const note = typeof body.note === "string" ? body.note.trim() : ""
 
     if (!isPublicDocumentId(publicId)) {
         return NextResponse.json({ error: "Invalid public document capability" }, { status: 400 })
     }
+    if (!VALID_RESPONSE_TYPES.includes(response as ResponseType)) {
+        return NextResponse.json({ error: "Invalid response" }, { status: 400 })
+    }
+    if (!clientName || clientName.length > 200) {
+        return NextResponse.json({ error: "Your name is required and must be 200 characters or less" }, { status: 400 })
+    }
+    if (!EMAIL_PATTERN.test(clientEmail) || clientEmail.length > 254) {
+        return NextResponse.json({ error: "A valid email address is required" }, { status: 400 })
+    }
+    if (note.length > 2000) {
+        return NextResponse.json({ error: "Response note must be 2,000 characters or less" }, { status: 400 })
+    }
+    if (response === "changes_requested" && !note) {
+        return NextResponse.json({ error: "Please describe the changes you need" }, { status: 400 })
+    }
 
-    // Use service role — recipients are not authenticated
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!serviceKey) {
-        console.error("[quotations/respond] SUPABASE_SERVICE_ROLE_KEY not configured")
+    if (!url || !serviceKey) {
+        console.error("[quotations/respond] Service credentials are not configured")
         return NextResponse.json({ error: "Service temporarily unavailable" }, { status: 503 })
     }
 
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        serviceKey,
-        { auth: { persistSession: false } }
+    const supabase = createClient(url, serviceKey, { auth: { persistSession: false } })
+    const ipAddress = getClientIP(request)
+
+    const ipRateError = await checkPublicRateLimit(
+        supabase, ipAddress, "quotation_response_ip", 20, 3600
     )
+    if (ipRateError) return ipRateError
+    const capabilityRateError = await checkPublicRateLimit(
+        supabase, publicId, "quotation_response_capability", 8, 3600
+    )
+    if (capabilityRateError) return capabilityRateError
 
-    const rateError = await checkPublicRateLimit(supabase, getClientIP(request), "quotation_response_ip", 20, 3600)
-    if (rateError) return rateError
+    const { data, error } = await (supabase.rpc as any)("record_quotation_response", {
+        p_public_id: publicId,
+        p_response_type: response,
+        p_client_name: clientName,
+        p_client_email: clientEmail,
+        p_reason: note || null,
+        p_ip_address: ipAddress === "unknown" ? null : ipAddress,
+        p_user_agent: request.headers.get("user-agent") ?? "unknown",
+    })
+    if (error) {
+        console.error("[quotations/respond] Atomic response recording failed:", error)
+        return NextResponse.json({ error: "Response service temporarily unavailable" }, { status: 503 })
+    }
 
-    // Resolve the opaque capability server-side; UUID capabilities are rejected.
-    const { data: session, error: fetchError } = await supabase
-        .from("document_sessions")
-        .select("id, user_id, document_type, client_name, status, context")
-        .eq("public_id", publicId)
-        .single()
+    const result = Array.isArray(data) ? data[0] : data
+    const existingResponse = result?.response_type && result?.responded_at
+        ? { response_type: result.response_type, responded_at: result.responded_at }
+        : null
 
-    if (fetchError || !session) {
+    if (result?.outcome === "recorded") {
+        return NextResponse.json({ success: true, response: existingResponse })
+    }
+    if (result?.outcome === "already_responded") {
+        return NextResponse.json(
+            { error: "A response has already been recorded", existingResponse },
+            { status: 409 }
+        )
+    }
+    if (result?.outcome === "response_disabled" || result?.outcome === "signature_required") {
+        return NextResponse.json({ error: "Client responses are not enabled for this document" }, { status: 403 })
+    }
+    if (result?.outcome === "not_found") {
         return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
-
-    if (!["quotation", "quote", "proposal"].includes(session.document_type)) {
-        return NextResponse.json(
-            { error: "Only quotations and proposals can be accepted or rejected" },
-            { status: 400 }
-        )
+    if (result?.outcome === "not_available") {
+        return NextResponse.json({ error: "This document is not available for responses" }, { status: 409 })
     }
-
-    // Check if client response is allowed (allowClientResponse defaults to true)
-    const context = session.context as any
-    if (context?.allowClientResponse === false) {
-        return NextResponse.json(
-            { error: "Client responses are not enabled for this document" },
-            { status: 403 }
-        )
-    }
-
-    // Extract IP and user agent for audit trail
-    const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-        || request.headers.get("x-real-ip")
-        || "unknown"
-    const userAgent = request.headers.get("user-agent") || "unknown"
-
-    // Resolve client name/email from body or session context
-    const resolvedClientName = clientName?.trim()
-        || session.client_name
-        || (context?.toName as string | undefined)
-        || "Unknown"
-    const resolvedClientEmail = clientEmail?.trim()
-        || (context?.toEmail as string | undefined)
-        || ""
-
-    // Build the row using the exported helper
-    const row = buildQuotationResponseRow(
-        {
-            sessionId: session.id,
-            responseType: response as ResponseType,
-            clientName: resolvedClientName,
-            clientEmail: resolvedClientEmail,
-            reason: note?.trim(),
-        },
-        ipAddress,
-        userAgent
-    )
-
-    // Insert into the existing quotation_responses table
-    const { error: insertError } = await (supabase as any)
-        .from("quotation_responses")
-        .insert(row)
-
-    if (insertError) {
-        console.error("Failed to save quotation response:", insertError)
-        return NextResponse.json({ error: "Failed to save response" }, { status: 500 })
-    }
-
-    // Create a notification for the document owner
-    try {
-        const actionLabel = response === "accepted"
-            ? "accepted"
-            : response === "declined"
-                ? "declined"
-                : "requested changes on"
-
-        const ctx = session.context as any
-        const referenceNumber = (ctx?.referenceNumber as string) || (ctx?.invoiceNumber as string) || ""
-        const docTypeLabel = session.document_type.charAt(0).toUpperCase() + session.document_type.slice(1)
-
-        await (supabase as any).from("notifications").insert({
-            user_id: session.user_id,
-            type: `${session.document_type}_${response}`,
-            title: `${resolvedClientName} ${actionLabel} your ${docTypeLabel}`,
-            message: note?.trim()
-                ? `"${note.trim()}"`
-                : `${resolvedClientName} ${actionLabel} your ${docTypeLabel}${referenceNumber ? ` ${referenceNumber}` : ""}.`,
-            read: false,
-            metadata: {
-                session_id: session.id,
-                response,
-                client_name: resolvedClientName,
-                client_email: resolvedClientEmail,
-                reference_number: referenceNumber,
-                reason: note?.trim() || null,
-            },
-        })
-    } catch {
-        // Non-fatal — notification failure shouldn't block the response
-    }
-
-    return NextResponse.json({ success: true, response })
+    return NextResponse.json({ error: "Invalid response request" }, { status: 400 })
 }

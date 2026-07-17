@@ -8,10 +8,13 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { authenticateRequest, validateBodySize, getClientIP } from "@/lib/api-auth"
+import { authenticateRequest, validateBodySize, getClientIP, validateOrigin } from "@/lib/api-auth"
+import { validateCSRFToken } from "@/lib/csrf"
 import { checkPublicRateLimit } from "@/lib/public-rate-limit"
 import { getPublicDocumentUrl, hashSigningToken, isSigningToken } from "@/lib/public-capability"
 import { checkRateLimit } from "@/lib/rate-limiter"
+import { checkEmailLimit, getUserTier, incrementEmailCount } from "@/lib/cost-protection"
+import { getDocumentTypeConfig } from "@/lib/document-type-registry"
 import { computeDocumentFingerprint } from "@/lib/document-fingerprint"
 import { recordAuditEvent } from "@/lib/signature-audit"
 import { getObject } from "@/lib/r2"
@@ -170,13 +173,22 @@ function buildSigningInvitationEmail(opts: {
 
 // Create a new signature request
 export async function POST(request: NextRequest) {
+    const originError = validateOrigin(request)
+    if (originError) return originError
+
     try {
-        // SECURITY: Authenticate user via standard helper
         const auth = await authenticateRequest(request)
         if (auth.error) return auth.error
 
-        // No rate limiting on signature creation — the email sending is the natural throttle
-        // and we already create the record first (non-blocking email)
+        const csrfError = await validateCSRFToken(request, auth.user.id, auth.supabase)
+        if (csrfError) return csrfError
+
+        const rateLimitError = await checkRateLimit(auth.user.id, "signature", auth.supabase as any)
+        if (rateLimitError) return rateLimitError
+
+        const userTier = await getUserTier(auth.supabase, auth.user.id)
+        const emailLimitError = await checkEmailLimit(auth.supabase, auth.user.id, userTier)
+        if (emailLimitError) return emailLimitError
 
         let body: Record<string, unknown>
         try {
@@ -246,8 +258,25 @@ export async function POST(request: NextRequest) {
         // was never explicitly saved to the documents table. We allow signing
         // without a document_id and use session_id as the primary reference.
 
-        // Sub-task 5.2: Compute document fingerprint
         const context = (session.context ?? {}) as Record<string, unknown>
+        const documentConfig = getDocumentTypeConfig(session.document_type ?? "")
+        if (!documentConfig?.capabilities.supports_signature) {
+            return NextResponse.json(
+                { error: "This document type does not support electronic signatures" },
+                { status: 400 }
+            )
+        }
+        if (
+            documentConfig.capabilities.supports_client_response
+            && context.showSignatureFields !== true
+        ) {
+            return NextResponse.json(
+                { error: "Enable signature fields before sending this document for signature" },
+                { status: 409 }
+            )
+        }
+
+        // Sub-task 5.2: Compute document fingerprint
         const documentHash = computeDocumentFingerprint(context)
 
         // Generate signing token
@@ -295,6 +324,14 @@ export async function POST(request: NextRequest) {
             process.env.SUPABASE_SERVICE_ROLE_KEY!,
             { auth: { persistSession: false } }
         )
+        const recipientRateError = await checkPublicRateLimit(
+            serviceSupabase,
+            `${auth.user.id}:${signerEmail.toLowerCase()}`,
+            "signature_invitation_recipient",
+            5,
+            86400
+        )
+        if (recipientRateError) return recipientRateError
 
         const { data: creationData, error: creationError } = await serviceSupabase.rpc(
             "create_signature_request",
@@ -376,6 +413,8 @@ export async function POST(request: NextRequest) {
                 { status: 500 }
             )
         }
+
+        await incrementEmailCount(auth.supabase, auth.user.id)
 
         const ipAddress = getClientIP(request)
         await recordAuditEvent(serviceSupabase, {
@@ -575,47 +614,19 @@ export async function GET(request: NextRequest) {
                         business = { name: biz.name, logo_url: getPublicLogoUrl(session.user_id, biz.logo_url) }
                     }
 
-                    // Sub-task 6.1: Record signature.viewed audit event (first view only)
-                    const { data: existingViewed } = await serviceSupabase
-                        .from("signature_audit_events" as any)
-                        .select("id")
-                        .eq("signature_id", signature.id)
-                        .eq("action", "signature.viewed")
-                        .limit(1)
-
-                    const alreadyViewed = existingViewed && (existingViewed as any[]).length > 0
-
-                    if (!alreadyViewed) {
-                        const signerName = signature.signer_name ?? "Signer"
-                        const docType = session.document_type
-                            ? session.document_type.charAt(0).toUpperCase() + session.document_type.slice(1)
-                            : "Document"
-
-                        // Record audit event
-                        await recordAuditEvent(serviceSupabase, {
-                            action: "signature.viewed",
-                            signature_id: signature.id,
-                            session_id: sessionId,
-                            actor_email: signature.signer_email,
-                            ip_address: ipAddress,
-                            user_agent: userAgent,
-                            metadata: { viewed_at: new Date().toISOString() },
-                        })
-
-                        // Insert signature_viewed notification for document owner
-                        await serviceSupabase.from("notifications" as any).insert({
-                            user_id: session.user_id,
-                            type: "signature_viewed",
-                            title: "Document Viewed",
-                            message: `${signerName} viewed your ${docType} for signing.`,
-                            read: false,
-                            metadata: {
-                                session_id: sessionId,
-                                signature_id: signature.id,
-                                signer_name: signerName,
-                                document_type: session.document_type,
-                            },
-                        })
+                    // Record audit and notify the owner atomically. The partial
+                    // unique index makes concurrent first views idempotent.
+                    const { error: firstViewError } = await (serviceSupabase.rpc as any)(
+                        "record_signature_first_view",
+                        {
+                            p_signature_id: signature.id,
+                            p_ip_address: ipAddress,
+                            p_user_agent: userAgent ?? "unknown",
+                            p_viewed_at: new Date().toISOString(),
+                        }
+                    )
+                    if (firstViewError) {
+                        console.error("[signatures] Failed to record first view:", firstViewError)
                     }
                 }
             }
