@@ -52,8 +52,10 @@ export interface NovaGenerateResult {
 }
 
 function getApiKey(): string {
-  const key = process.env.amazon_beadrocl_key
-  if (!key) throw new Error("Missing env var: amazon_beadrocl_key")
+  const key = process.env.AWS_BEARER_TOKEN_BEDROCK
+    || process.env.AMAZON_BEDROCK_KEY
+    || process.env.amazon_beadrocl_key
+  if (!key) throw new Error("Missing env var: AWS_BEARER_TOKEN_BEDROCK")
   return key
 }
 

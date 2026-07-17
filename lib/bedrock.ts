@@ -596,3 +596,218 @@ export async function* streamBedrockChatWithHistory(
         clearTimeout(timeoutId)
     }
 }
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Tier-aware Bedrock routing.
+ * Free users keep Kimi K2.5. Paid users use Claude Sonnet 4.6 through the
+ * Bedrock Runtime US inference profile, with Kimi/DeepSeek fallbacks.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+export type BedrockRoutingTier = "free" | "starter" | "pro" | "agency"
+
+export const CLAUDE_SONNET_46_MODEL = "us.anthropic.claude-sonnet-4-6"
+export const TIERED_ORCHESTRATOR_SYSTEM_PROMPT =
+    "You are Clorefy's document generation orchestrator. " +
+    "Review business context, compliance rules, and generated documents. " +
+    "Give precise, actionable instructions. Never greet the user or act as a chatbot. " +
+    "Be direct and specific — use exact numbers, field names, and values."
+
+const CLAUDE_RUNTIME_URL =
+    `https://bedrock-runtime.us-east-1.amazonaws.com/model/${encodeURIComponent(CLAUDE_SONNET_46_MODEL)}/invoke`
+const CLAUDE_REQUEST_TIMEOUT_MS = 90_000
+
+export function resolveBedrockModelForTier(tier: BedrockRoutingTier): {
+    provider: "kimi" | "claude"
+    model: string
+    label: string
+} {
+    return tier === "free"
+        ? { provider: "kimi", model: BEDROCK_MODEL, label: "Kimi K2.5" }
+        : { provider: "claude", model: CLAUDE_SONNET_46_MODEL, label: "Claude Sonnet 4.6" }
+}
+
+async function invokeClaudeSonnet46(
+    systemPrompt: string,
+    messages: BedrockChatMessage[],
+    apiKey: string,
+    maxTokens: number
+): Promise<string | null> {
+    if (!apiKey?.trim() || messages.length === 0) return null
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), CLAUDE_REQUEST_TIMEOUT_MS)
+    try {
+        const response = await fetch(CLAUDE_RUNTIME_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                anthropic_version: "bedrock-2023-05-31",
+                system: systemPrompt,
+                messages,
+                max_tokens: Math.min(Math.max(maxTokens, 1), 12_000),
+                temperature: 0.2,
+            }),
+            signal: controller.signal,
+        })
+
+        if (!response.ok) {
+            console.warn("[Claude Sonnet 4.6] Bedrock Runtime unavailable", {
+                status: response.status,
+            })
+            return null
+        }
+
+        const json = await response.json()
+        const text = Array.isArray(json?.content)
+            ? json.content
+                .filter((part: unknown): part is { type: string; text: string } =>
+                    !!part && typeof part === "object" &&
+                    (part as { type?: unknown }).type === "text" &&
+                    typeof (part as { text?: unknown }).text === "string"
+                )
+                .map((part: { text: string }) => part.text)
+                .join("")
+                .trim()
+            : ""
+        return text || null
+    } catch (error) {
+        console.warn("[Claude Sonnet 4.6] Bedrock Runtime request failed", {
+            reason: error instanceof DOMException && error.name === "AbortError"
+                ? "timeout"
+                : "network_or_parse_error",
+        })
+        return null
+    } finally {
+        clearTimeout(timeoutId)
+    }
+}
+
+export async function callTieredBedrockBrief(
+    systemPrompt: string,
+    userPrompt: string,
+    apiKey: string,
+    maxTokens: number = 100,
+    tier: BedrockRoutingTier = "free"
+): Promise<string | null> {
+    if (resolveBedrockModelForTier(tier).provider === "claude") {
+        const claudeText = await invokeClaudeSonnet46(
+            systemPrompt,
+            [{ role: "user", content: userPrompt }],
+            apiKey,
+            maxTokens
+        )
+        if (claudeText) return claudeText
+    }
+    return callBedrockBrief(systemPrompt, userPrompt, apiKey, maxTokens)
+}
+
+export async function* streamTieredBedrockChat(
+    systemPrompt: string,
+    userPrompt: string,
+    apiKey: string,
+    tier: BedrockRoutingTier = "free"
+): AsyncGenerator<{ type: "chunk" | "complete" | "error"; data: string }> {
+    if (resolveBedrockModelForTier(tier).provider === "claude") {
+        const claudeText = await invokeClaudeSonnet46(
+            systemPrompt,
+            [{ role: "user", content: userPrompt }],
+            apiKey,
+            2_000
+        )
+        if (claudeText) {
+            yield { type: "chunk", data: claudeText }
+            yield { type: "complete", data: claudeText }
+            return
+        }
+    }
+    yield* streamBedrockChat(systemPrompt, userPrompt, apiKey)
+}
+
+export async function* streamTieredBedrockChatWithHistory(
+    systemPrompt: string,
+    messages: BedrockChatMessage[],
+    apiKey: string,
+    maxTokens: number = 1500,
+    tier: BedrockRoutingTier = "free"
+): AsyncGenerator<{ type: "chunk" | "complete" | "error"; data: string }> {
+    if (resolveBedrockModelForTier(tier).provider === "claude") {
+        const claudeText = await invokeClaudeSonnet46(
+            systemPrompt,
+            messages.slice(-20),
+            apiKey,
+            maxTokens
+        )
+        if (claudeText) {
+            yield { type: "chunk", data: claudeText }
+            yield { type: "complete", data: claudeText }
+            return
+        }
+    }
+    yield* streamBedrockChatWithHistory(systemPrompt, messages, apiKey, maxTokens)
+}
+
+export async function* streamTieredDocumentGeneration(
+    request: import("@/lib/deepseek").AIGenerationRequest,
+    tier: BedrockRoutingTier,
+    bedrockKey: string,
+    deepseekKey: string
+): AsyncGenerator<{ type: "chunk" | "complete" | "error" | "reasoning"; data: string }> {
+    if (tier !== "free" && bedrockKey?.trim()) {
+        const { buildPrompt, DUAL_MODE_SYSTEM_PROMPT, stripCodeFences } = await import("@/lib/deepseek")
+        const claudeText = await invokeClaudeSonnet46(
+            DUAL_MODE_SYSTEM_PROMPT,
+            [{ role: "user", content: buildPrompt(request) }],
+            bedrockKey,
+            request.thinkingMode === "thinking" ? 8_000 : 6_000
+        )
+        if (claudeText) {
+            const cleaned = stripCodeFences(claudeText)
+            try {
+                JSON.parse(cleaned)
+                yield { type: "chunk", data: cleaned }
+                yield { type: "complete", data: cleaned }
+                return
+            } catch {
+                console.warn("[Claude Sonnet 4.6] Invalid document JSON; using DeepSeek fallback")
+            }
+        }
+    }
+
+    const { streamGenerateDocument } = await import("@/lib/deepseek")
+    yield* streamGenerateDocument(request, deepseekKey)
+}
+
+export async function decideTieredReferenceRetrieval(
+    apiKey: string,
+    data: {
+        userPrompt: string
+        documentType: string
+        hasExistingDocument: boolean
+        referenceFiles: string[]
+    },
+    tier: BedrockRoutingTier = "free"
+): Promise<{ retrieve: boolean; reason: string } | null> {
+    const raw = await callTieredBedrockBrief(
+        TIERED_ORCHESTRATOR_SYSTEM_PROMPT,
+        REFERENCE_RETRIEVAL_DECISION_PROMPT(data),
+        apiKey,
+        60,
+        tier
+    )
+    if (!raw) return null
+
+    const text = raw.trim()
+    const firstWord = text.split(/\s+/)[0]?.toUpperCase().replace(/[^A-Z]/g, "") ?? ""
+    if (firstWord === "RETRIEVE") {
+        return { retrieve: true, reason: text.split("\n").slice(1).join(" ").trim() || "Reference material is relevant" }
+    }
+    if (firstWord === "SKIP") {
+        return { retrieve: false, reason: text.split("\n").slice(1).join(" ").trim() || "Reference material is not needed" }
+    }
+    return null
+}

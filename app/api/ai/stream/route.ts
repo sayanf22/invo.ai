@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { streamGenerateDocument, buildPrompt, DUAL_MODE_SYSTEM_PROMPT, type AIGenerationRequest } from "@/lib/deepseek"
-import { streamBedrockChat, streamBedrockChatWithHistory, callBedrockBrief, ORCHESTRATOR_SYSTEM_PROMPT, BUSINESS_PROFILE_COMMENTARY_PROMPT, COMPLIANCE_COMMENTARY_PROMPT, RAG_VALIDATION_PROMPT, PRE_GENERATION_BRIEF_PROMPT, CORRECTION_INSTRUCTION_PROMPT, type BedrockChatMessage } from "@/lib/bedrock"
+import { streamTieredBedrockChat, streamTieredBedrockChatWithHistory, callTieredBedrockBrief, streamTieredDocumentGeneration, TIERED_ORCHESTRATOR_SYSTEM_PROMPT as ORCHESTRATOR_SYSTEM_PROMPT, BUSINESS_PROFILE_COMMENTARY_PROMPT, COMPLIANCE_COMMENTARY_PROMPT, RAG_VALIDATION_PROMPT, PRE_GENERATION_BRIEF_PROMPT, CORRECTION_INSTRUCTION_PROMPT, type BedrockChatMessage } from "@/lib/bedrock"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 import { validateCSRFToken } from "@/lib/csrf"
 import { classifyIntent, detectMismatch, type DocumentType as IntentDocumentType } from "@/lib/intent-router"
@@ -48,6 +48,23 @@ export async function POST(request: NextRequest) {
 
         // Fetch user tier from subscriptions table (needed for all limit checks)
         const userTier = await getUserTier(auth.supabase, auth.user.id)
+        const callBedrockBrief = (
+            systemPrompt: string,
+            userPrompt: string,
+            apiKey: string,
+            maxTokens: number = 100
+        ) => callTieredBedrockBrief(systemPrompt, userPrompt, apiKey, maxTokens, userTier)
+        const streamBedrockChat = (
+            systemPrompt: string,
+            userPrompt: string,
+            apiKey: string
+        ) => streamTieredBedrockChat(systemPrompt, userPrompt, apiKey, userTier)
+        const streamBedrockChatWithHistory = (
+            systemPrompt: string,
+            messages: BedrockChatMessage[],
+            apiKey: string,
+            maxTokens: number = 1500
+        ) => streamTieredBedrockChatWithHistory(systemPrompt, messages, apiKey, maxTokens, userTier)
 
         // NOTE: Document-type entitlement is enforced below, AFTER the session is
         // loaded, and ONLY for brand-new documents. Editing an already-created
@@ -201,8 +218,16 @@ export async function POST(request: NextRequest) {
                     })
 
                     // ── Resolve Bedrock key early (needed for orchestration gate) ──
-                    const bedrockKey = process.env.amazon_beadrocl_key
-                        || (typeof globalThis !== "undefined" ? (globalThis as any).amazon_beadrocl_key : "")
+                    const bedrockKey = process.env.AWS_BEARER_TOKEN_BEDROCK
+                        || process.env.AMAZON_BEDROCK_KEY
+                        // Backward compatibility for existing Cloudflare secrets;
+                        // migrate deployments to AWS_BEARER_TOKEN_BEDROCK.
+                        || process.env.amazon_beadrocl_key
+                        || (typeof globalThis !== "undefined"
+                            ? (globalThis as any).AWS_BEARER_TOKEN_BEDROCK
+                                || (globalThis as any).AMAZON_BEDROCK_KEY
+                                || (globalThis as any).amazon_beadrocl_key
+                            : "")
                         || ""
 
                     // ── 0b. Chat-only mode short-circuit ────────────────────────
@@ -510,21 +535,21 @@ export async function POST(request: NextRequest) {
                             const referenceFiles: string[] = (refDocs ?? []).map((d: any) => d.file_name).filter(Boolean)
 
                             if (referenceFiles.length > 0) {
-                                // Decision: Kimi first, heuristic fallback.
+                                // Decision: tier-selected Bedrock model first, heuristic fallback.
                                 let shouldRetrieve = false
                                 let decisionReason = ""
                                 if (bedrockKey && bedrockKey.length > 10) {
                                     sendEvent({ type: "activity", action: "think", label: "Checking your reference documents", detail: "Clorefy" })
-                                    const { decideReferenceRetrieval } = await import("@/lib/bedrock")
-                                    const kimiDecision = await decideReferenceRetrieval(bedrockKey, {
+                                    const { decideTieredReferenceRetrieval } = await import("@/lib/bedrock")
+                                    const modelDecision = await decideTieredReferenceRetrieval(bedrockKey, {
                                         userPrompt: cleanedPrompt,
                                         documentType: docType,
                                         hasExistingDocument,
                                         referenceFiles,
-                                    })
-                                    if (kimiDecision) {
-                                        shouldRetrieve = kimiDecision.retrieve
-                                        decisionReason = kimiDecision.reason
+                                    }, userTier)
+                                    if (modelDecision) {
+                                        shouldRetrieve = modelDecision.retrieve
+                                        decisionReason = modelDecision.reason
                                     } else {
                                         const h = classifyRetrievalIntent(cleanedPrompt, hasExistingDocument)
                                         shouldRetrieve = h.retrieve
@@ -747,7 +772,8 @@ export async function POST(request: NextRequest) {
                     }
 
                     if (isDocGeneration) {
-                        // Use DeepSeek for document generation
+                        // Paid tiers use Claude Sonnet 4.6 through Bedrock Runtime.
+                        // Free and any Claude failure continue through the existing DeepSeek path.
                         const contextParts = [
                             body.businessContext?.name && `Business: ${body.businessContext.name}`,
                             body.businessContext?.country && `Country: ${body.businessContext.country}`,
@@ -757,9 +783,11 @@ export async function POST(request: NextRequest) {
                             body.fileContext ? `File context: included` : null,
                             body.currentData ? `Editing existing document` : `Creating new document`,
                         ].filter(Boolean).join("\n")
-                        const modelDetail = body.thinkingMode === "thinking" ? "Clorefy • Deep Think" : "Clorefy"
+                        const modelDetail = userTier === "free"
+                            ? (body.thinkingMode === "thinking" ? "Clorefy • Deep Think" : "Clorefy")
+                            : "Clorefy • Sonnet 4.6"
                         sendEvent({ type: "activity", action: "generate", label: `Writing ${docTypeLower}`, detail: modelDetail, content: contextParts })
-                        for await (const chunk of streamGenerateDocument(body, deepseekKey)) {
+                        for await (const chunk of streamTieredDocumentGeneration(body, userTier, bedrockKey, deepseekKey)) {
                             sendEvent(chunk)
                             if (chunk.type === "complete") {
                                 completeResponseData = chunk.data as string || null
@@ -935,7 +963,7 @@ export async function POST(request: NextRequest) {
                                         currentData: undefined,
                                     }
                                     let retryData: string | null = null
-                                    for await (const chunk of streamGenerateDocument(retryBody, deepseekKey)) {
+                                    for await (const chunk of streamTieredDocumentGeneration(retryBody, userTier, bedrockKey, deepseekKey)) {
                                         if (chunk.type === "complete") {
                                             retryData = chunk.data as string || null
                                             break
@@ -1063,7 +1091,7 @@ export async function POST(request: NextRequest) {
                                             // progress steps and pollute fullContent). Only send the
                                             // final corrected `complete` event which overrides the original.
                                             let correctedData: string | null = null
-                                            for await (const chunk of streamGenerateDocument(correctionBody, deepseekKey)) {
+                                            for await (const chunk of streamTieredDocumentGeneration(correctionBody, userTier, bedrockKey, deepseekKey)) {
                                                 if (chunk.type === "complete") {
                                                     correctedData = chunk.data as string || null
                                                     break
