@@ -51,9 +51,29 @@ export function ChatShareCard({
 
   const { hasAnyGateway } = usePaymentMethods()
   const isInvoice = documentType.toLowerCase() === "invoice"
+  const isOnboarding = documentType.toLowerCase().replace(/[\s-]+/g, "_") === "client_onboarding_form"
 
-  const docLabel = documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
+  const docLabel = isOnboarding
+    ? "onboarding form"
+    : documentType.charAt(0).toUpperCase() + documentType.slice(1).toLowerCase()
   const { publicUrl: platformLink } = usePublicDocumentLink(sessionId)
+
+  // Onboarding forms are shared ONLY as the fillable /onboard/<token> link — never
+  // the read-only /d/<publicId> preview. Fetch the real fill link on demand.
+  const [onboardFillUrl, setOnboardFillUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!isOnboarding || !sessionId) { setOnboardFillUrl(null); return }
+    let active = true
+    authFetch(`/api/onboarding?sessionId=${sessionId}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (active) setOnboardFillUrl(typeof d?.onboardUrl === "string" ? d.onboardUrl : null) })
+      .catch(() => { if (active) setOnboardFillUrl(null) })
+    return () => { active = false }
+  }, [isOnboarding, sessionId])
+
+  // The link this card shares. Onboarding uses the fill link; everything else
+  // uses the platform preview link.
+  const shareLink = isOnboarding ? onboardFillUrl : platformLink
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setMounted(true))
@@ -64,24 +84,30 @@ export function ChatShareCard({
   useEffect(() => {
     if (pendingAction === "whatsapp") {
       const ref = referenceNumber || ""
-      const linkLine = platformLink ? `\n\n${platformLink}` : ""
-      const msg = `Hi ${clientName || ""},\n\nPlease find the ${docLabel.toLowerCase()} ${ref}.${linkLine}\n\nThank you,\n${fromName || ""}`
+      const linkLine = shareLink ? `\n\n${shareLink}` : ""
+      const msg = isOnboarding
+        ? `Hi ${clientName || ""},\n\nPlease complete your onboarding form using the secure link below.${linkLine}\n\nThank you,\n${fromName || ""}`
+        : `Hi ${clientName || ""},\n\nPlease find the ${docLabel.toLowerCase()} ${ref}.${linkLine}\n\nThank you,\n${fromName || ""}`
       setWhatsappMessage(msg)
     }
-  }, [pendingAction, platformLink, clientName, docLabel, referenceNumber, fromName])
+  }, [pendingAction, shareLink, isOnboarding, clientName, docLabel, referenceNumber, fromName])
 
-  // Lock the document server-side by setting sent_at
+  // Lock the document server-side by setting sent_at. Onboarding forms are
+  // finalized only by POST /api/onboarding (which issues the fill link), so we
+  // never call the generic finalize path for them.
   const lockDocument = async () => {
     setIsLocking(true)
     try {
-      // Mark the session as finalized/sent so it appears in My Documents
-      await authFetch("/api/sessions/finalize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
-      }).catch(() => {
-        // Non-fatal — still lock client-side
-      })
+      if (!isOnboarding) {
+        // Mark the session as finalized/sent so it appears in My Documents
+        await authFetch("/api/sessions/finalize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        }).catch(() => {
+          // Non-fatal — still lock client-side
+        })
+      }
       onLockDocument?.()
     } finally {
       setIsLocking(false)
@@ -99,18 +125,25 @@ export function ChatShareCard({
     }
 
     if (pendingAction === "whatsapp") {
+      if (isOnboarding && !shareLink) {
+        toast.error("Send this form via email first to generate its fillable link.")
+        setPendingAction(null)
+        return
+      }
       await lockDocument()
       setPendingAction(null)
       window.open(`https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`, "_blank")
       return
     }
     if (pendingAction === "link") {
-      if (!platformLink) {
-        toast.error("Public link is still loading. Please try again.")
+      if (!shareLink) {
+        toast.error(isOnboarding
+          ? "Send this form via email first to generate its fillable link."
+          : "Public link is still loading. Please try again.")
         return
       }
       try {
-        await navigator.clipboard.writeText(platformLink)
+        await navigator.clipboard.writeText(shareLink)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
         toast.success("Link copied!")
@@ -241,16 +274,18 @@ export function ChatShareCard({
             </button>
           </div>
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/40 border border-border/30">
-            <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{platformLink}</span>
+            <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{shareLink || "Link unavailable — send via email first"}</span>
             <button
               type="button"
               onClick={async () => {
-                if (!platformLink) {
-                  toast.error("Public link is still loading. Please try again.")
+                if (!shareLink) {
+                  toast.error(isOnboarding
+                    ? "Send this form via email first to generate its fillable link."
+                    : "Public link is still loading. Please try again.")
                   return
                 }
                 try {
-                  await navigator.clipboard.writeText(platformLink)
+                  await navigator.clipboard.writeText(shareLink)
                   setCopied(true)
                   setTimeout(() => setCopied(false), 2000)
                   toast.success("Link copied!")

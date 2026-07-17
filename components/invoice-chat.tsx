@@ -1922,7 +1922,27 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                     // This handles mixed messages like "change the rate to 500 and send it"
                     // where the AI processes the modification and we show the card after.
                     const shareIntentPost = detectShareIntent(userMessage)
-                    if (shareIntentPost.hasShareIntent) {
+                    const sendIntentPost = detectSendIntent(userMessage)
+                    // Onboarding forms are delivered ONLY via the asset-link → Send
+                    // flow (fillable /onboard/<token> link). Never the generic share
+                    // card, which would expose the read-only /d/<publicId> preview.
+                    if (docType === "client_onboarding_form" && (shareIntentPost.hasShareIntent || sendIntentPost.hasSendIntent)) {
+                        const isLockedStatus = ["finalized", "signed", "paid"].includes(session?.status || "")
+                        if (isLockedStatus) {
+                            const lockedMsg = "This onboarding form has already been sent, so it's locked. To send it again, cancel it from the preview panel first — that invalidates the old link — then ask me to resend."
+                            setMessages(prev => [...prev, { role: "assistant", content: lockedMsg }])
+                            await saveMessage("assistant", lockedMsg)
+                        } else {
+                            const cardEmail = sendIntentPost.email || docData.toEmail || ""
+                            const method: "email" | "general" = sendIntentPost.method === "email" ? "email" : "general"
+                            const introMsg = "Before you send — add a link where your client can upload their assets (logo, brand files). This is optional; you can skip it."
+                            setMessages(prev => [...prev,
+                                { role: "assistant", content: introMsg },
+                                { role: "assistant", content: "", assetLinkCard: { method, email: cardEmail } },
+                            ])
+                            await saveMessage("assistant", introMsg, { card: "asset_link", method, email: cardEmail })
+                        }
+                    } else if (shareIntentPost.hasShareIntent) {
                         const shareMsg = shareIntentPost.method === "whatsapp"
                             ? `Sure! Let me help you share your ${docType} on WhatsApp.`
                             : shareIntentPost.method === "link"
@@ -1934,16 +1954,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                         ])
                         await saveMessage("assistant", shareMsg, { card: "share" })
                     } else {
-                        const { hasSendIntent, method: sendMethod, email: detectedEmail } = detectSendIntent(userMessage)
-                        if (hasSendIntent && docType === "client_onboarding_form") {
-                            const cardEmail = detectedEmail || docData.toEmail || ""
-                            const introMsg = "Before you send — add a link where your client can upload their assets (logo, brand files). This is optional; you can skip it."
-                            setMessages(prev => [...prev,
-                                { role: "assistant", content: introMsg },
-                                { role: "assistant", content: "", assetLinkCard: { method: sendMethod === "email" ? "email" : "general", email: cardEmail } },
-                            ])
-                            await saveMessage("assistant", introMsg, { card: "asset_link", method: sendMethod === "email" ? "email" : "general", email: cardEmail })
-                        } else if (hasSendIntent && sendMethod === "email") {
+                        const { hasSendIntent, method: sendMethod, email: detectedEmail } = sendIntentPost
+                        if (hasSendIntent && sendMethod === "email") {
                             const cardEmail = detectedEmail || docData.toEmail || ""
                             setMessages(prev => [...prev, {
                                 role: "assistant",
