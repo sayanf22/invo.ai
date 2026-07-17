@@ -93,12 +93,25 @@ export async function POST(request: NextRequest) {
     // it cannot be re-sent. The owner must cancel it first — which invalidates
     // the previous fill link — and then send again. Defense-in-depth for the
     // same rule enforced in the chat + Share UI.
+    //
+    // Exception: a finalized session that has NEVER issued an onboarding form
+    // (zero rows) was finalized by a different/legacy path and has no fill link.
+    // Blocking it would trap the owner in a cancel loop with no way to send a
+    // working link. In that case we allow the send, which mints the first real
+    // token. Sessions that already have a form still require an explicit cancel.
+    const admin = serviceClient()
     const lockedStatuses = ["finalized", "signed", "paid"]
     if (lockedStatuses.includes((session.status || "").toLowerCase())) {
-      return NextResponse.json(
-        { error: "This form has already been sent. Cancel it first to send again." },
-        { status: 409 },
-      )
+      const { count: existingFormCount } = await admin
+        .from("onboarding_forms")
+        .select("id", { count: "exact", head: true })
+        .eq("session_id", sessionId)
+      if ((existingFormCount ?? 0) > 0) {
+        return NextResponse.json(
+          { error: "This form has already been sent. Cancel it first to send again." },
+          { status: 409 },
+        )
+      }
     }
 
     const context = (session.context ?? {}) as Record<string, unknown>
@@ -174,7 +187,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const admin = serviceClient()
     const { data: form, error: insertErr } = await admin
       .from("onboarding_forms")
       .insert({
