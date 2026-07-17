@@ -151,8 +151,24 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
   // option first collects an optional asset-upload link, then routes to the
   // real send screen. Only active when a send dialog is wired up.
   const isOnboardingForm =
-    (data.documentType || "").toLowerCase().replace(/\s+/g, "_") === "client_onboarding_form"
+    (data.documentType || "").trim().toLowerCase().replace(/[\s-]+/g, "_") === "client_onboarding_form"
   const useOnboardingShareFlow = isOnboardingForm && !!onOpenSendDialog
+
+  // The current fillable /onboard/<token> link for a SENT onboarding form.
+  // Fetched on demand so every share action (copy, WhatsApp, email) uses the
+  // real client fill link — never the read-only /d/<publicId> preview. Re-fetched
+  // when the status changes (e.g. after a send or a cancel+resend) so a stale or
+  // cancelled link is never surfaced.
+  const [onboardingFillUrl, setOnboardingFillUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!isOnboardingForm || !sessionId) { setOnboardingFillUrl(null); return }
+    let active = true
+    authFetch(`/api/onboarding?sessionId=${sessionId}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (active) setOnboardingFillUrl(typeof d?.onboardUrl === "string" ? d.onboardUrl : null) })
+      .catch(() => { if (active) setOnboardingFillUrl(null) })
+    return () => { active = false }
+  }, [isOnboardingForm, sessionId, documentStatus])
 
   useEffect(() => {
     setCanNativeShare(typeof navigator !== "undefined" && !!navigator.share)
@@ -227,15 +243,15 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
     const lines = [
       `Hi ${data.toName || ""},`,
       ``,
-      `${data.fromName || "We"} ${isContract ? "has sent you a contract for review and signature" : isProposal ? "has sent you a proposal" : isQuotation ? "has sent you a quotation" : "has sent you an invoice"}.`,
+      `${data.fromName || "We"} ${isOnboardingForm ? "has sent you an onboarding form to complete" : isContract ? "has sent you a contract for review and signature" : isProposal ? "has sent you a proposal" : isQuotation ? "has sent you a quotation" : "has sent you an invoice"}.`,
     ]
 
-    if (ref) {
+    if (ref && !isOnboardingForm) {
       lines.push(`Reference: ${ref}`)
     }
 
     // For invoices/quotations with amount, show it
-    if (!isContract && !isProposal) {
+    if (!isContract && !isProposal && !isOnboardingForm) {
       const total = data.items?.reduce((s, i) => s + i.quantity * i.rate, 0) ?? 0
       if (total > 0) {
         const currency = data.currency || "INR"
@@ -243,17 +259,20 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
       }
     }
 
-    // Always include the document link when we have a session.
-    // Phrasing adapts to the document type so the recipient knows what to do.
-    if (platformLink) {
-      const verb = isContract
+    // Include the correct link. Onboarding forms use the fillable
+    // /onboard/<token> link (never the read-only /d/<publicId> preview).
+    const shareLink = isOnboardingForm ? onboardingFillUrl : platformLink
+    if (shareLink) {
+      const verb = isOnboardingForm
+        ? "Complete your onboarding form"
+        : isContract
         ? "Review and sign"
         : isProposal
         ? "View proposal"
         : isQuotation
         ? "View quotation"
         : "View invoice"
-      lines.push(``, `${verb}: ${platformLink}`)
+      lines.push(``, `${verb}: ${shareLink}`)
     }
 
     if (hasPaymentLink && data.paymentLink) {
@@ -268,7 +287,7 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
 
     lines.push(``, `Thank you,`, data.fromName || "")
     return lines.join("\n")
-  }, [data, hasPaymentLink, platformLink, signingUrl])
+  }, [data, hasPaymentLink, platformLink, signingUrl, isOnboardingForm, onboardingFillUrl])
 
   // Share PDF (with QR embedded if payment link exists and enabled)
   const handleSharePdf = useCallback(async () => {
@@ -349,17 +368,28 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
   // confirm dialog. If already locked, fire immediately.
   const requestShare = useCallback(
     async (action: PendingShareAction) => {
-      // Onboarding forms: any share option funnels through the asset-link step,
-      // then the real send screen. The payment-link copy (which never applies
-      // to onboarding) is left untouched for safety.
-      if (useOnboardingShareFlow && action !== "copy-payment-link") {
-        // Once sent, an onboarding form is locked. To send it again the owner
-        // must cancel it first (invalidating the old fill link), then resend.
-        if (isLocked) {
-          toast.info("This form has already been sent. Cancel it first to send again.")
+      // Onboarding forms never share the read-only /d/ preview and never use the
+      // generic lock-on-share finalize path. They are sent from the Send screen,
+      // which mints the fillable /onboard/<token> link.
+      if (isOnboardingForm && action !== "copy-payment-link") {
+        if (useOnboardingShareFlow) {
+          // Once sent, an onboarding form is locked. To send it again the owner
+          // must cancel it first (invalidating the old fill link), then resend.
+          if (isLocked) {
+            toast.info("This form has already been sent. Cancel it first to send again.")
+            return
+          }
+          setShowAssetLinkStep(true)
           return
         }
-        setShowAssetLinkStep(true)
+        // No send dialog wired here (e.g. the mobile share shortcut). Share the
+        // existing fill link if the form was already sent; otherwise guide the
+        // owner to Send first. Never finalize or leak the /d/ preview link.
+        if (onboardingFillUrl) {
+          await executeShareAction(action)
+        } else {
+          toast.info("Open this form and tap Send to create a fillable client link.")
+        }
         return
       }
       if (requiresLockConfirm) {
@@ -368,7 +398,7 @@ export function ShareButton({ data, className, sessionId, onOpenSendDialog, sign
       }
       await executeShareAction(action)
     },
-    [useOnboardingShareFlow, isLocked, requiresLockConfirm, executeShareAction]
+    [isOnboardingForm, useOnboardingShareFlow, onboardingFillUrl, isLocked, requiresLockConfirm, executeShareAction]
   )
 
   // Continue/skip from the onboarding asset-link step → open the send screen.

@@ -23,9 +23,13 @@ function openDropdown(trigger: HTMLElement) {
   fireEvent.click(trigger)
 }
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 vi.mock("@react-pdf/renderer", () => ({ pdf: vi.fn() }))
 vi.mock("@/lib/resolve-logo-url", () => ({ resolveLogoUrl: vi.fn().mockResolvedValue(null) }))
+vi.mock("@/lib/auth-fetch", () => ({ authFetch: vi.fn() }))
+vi.mock("@/lib/public-document-link-client", () => ({
+  fetchPublicDocumentLink: vi.fn().mockResolvedValue("https://clorefy.com/d/PUBLICID"),
+}))
 
 const mockData = {
   ...getInitialInvoiceData(),
@@ -75,5 +79,35 @@ describe("ShareButton", () => {
 
     expect(screen.getByText("Open in Email App")).toBeTruthy()
     expect(screen.queryByText("Send via Email")).toBeNull()
+  })
+
+  it("copies the fillable /onboard link for a sent onboarding form, never the /d/ preview", async () => {
+    const { authFetch } = await import("@/lib/auth-fetch")
+    vi.mocked(authFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ onboardUrl: "https://clorefy.com/onboard/onb_abc123", status: "in_progress" }),
+    } as Response)
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    const onboardingData = { ...mockData, documentType: "Client_onboarding_form" }
+    render(
+      <ShareButton
+        data={onboardingData}
+        sessionId="session-123"
+        documentStatus="finalized"
+        onOpenSendDialog={vi.fn()}
+      />
+    )
+
+    const trigger = screen.getByRole("button", { name: /share/i })
+    await act(async () => { openDropdown(trigger) })
+
+    const copyBtn = await screen.findByText("Copy form link")
+    await act(async () => { fireEvent.click(copyBtn) })
+
+    expect(writeText).toHaveBeenCalledWith("https://clorefy.com/onboard/onb_abc123")
+    const copiedValues = writeText.mock.calls.map(c => String(c[0]))
+    expect(copiedValues.some(v => v.includes("/d/"))).toBe(false)
   })
 })

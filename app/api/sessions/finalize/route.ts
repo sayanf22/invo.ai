@@ -47,16 +47,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid sessionId" }, { status: 400 })
   }
 
-  // Fetch existing status so we can block terminal states
+  // Fetch existing status + type so we can block terminal states and route
+  // onboarding forms away from this generic lock-on-share path.
   const { data: existing, error: fetchError } = await auth.supabase
     .from("document_sessions")
-    .select("status")
+    .select("status, document_type")
     .eq("id", sessionId)
     .eq("user_id", auth.user.id)
     .single()
 
   if (fetchError || !existing) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 })
+  }
+
+  // Client onboarding forms must never be finalized through the generic
+  // lock-on-share path. They are sent exclusively via POST /api/onboarding,
+  // which mints a fresh /onboard/<token> fill link and finalizes the session
+  // itself. Finalizing here would mark the form "sent" without a fill link,
+  // leaving the owner to share the read-only /d/<publicId> preview instead.
+  if ((existing.document_type || "").trim().toLowerCase().replace(/[\s-]+/g, "_") === "client_onboarding_form") {
+    return NextResponse.json(
+      { error: "Onboarding forms are sent from the Send screen, which creates the fillable client link. Use Send instead of Share here." },
+      { status: 400 }
+    )
   }
 
   if (existing.status === "paid") {

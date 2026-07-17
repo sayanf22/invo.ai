@@ -2095,6 +2095,25 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                     // Check for share intent first
                     const shareIntent = detectShareIntent(userMessage)
 
+                    // Onboarding forms are shared ONLY as a fillable /onboard/<token>
+                    // link via the Send flow — never the generic share card, which
+                    // finalizes the session and would expose the read-only
+                    // /d/<publicId> preview. Route any share OR send intent through
+                    // the same asset-link → Send screen.
+                    if ((shareIntent.hasShareIntent || detectSendIntent(userMessage).hasSendIntent) && docType === "client_onboarding_form") {
+                        const sIntent = detectSendIntent(userMessage)
+                        const knownEmail = sIntent.email || data.toEmail || ""
+                        const method = sIntent.method === "email" ? "email" : "general"
+                        const introMsg = "Before you send — add a link where your client can upload their assets (logo, brand files). This is optional; you can skip it."
+                        setMessages(prev => [...prev,
+                            { role: "assistant", content: introMsg },
+                            { role: "assistant", content: "", assetLinkCard: { method, email: knownEmail } },
+                        ])
+                        await saveMessage("user", displayText)
+                        await saveMessage("assistant", introMsg, { card: "asset_link", method, email: knownEmail })
+                        return
+                    }
+
                     // Any share intent (general, whatsapp, link) → show multi-option share card
                     // The ChatShareCard has a proper Lock & Share confirmation flow
                     if (shareIntent.hasShareIntent) {

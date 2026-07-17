@@ -463,7 +463,7 @@ export function PromptScreen({
       {/* Mobile floating action buttons — preview tab only */}
       {mobileTab === "preview" && (data.documentType || data.fromName || data.toName) && (
         <div className="md:hidden fixed bottom-6 right-4 z-50 flex items-center gap-2">
-          <ShareButton data={data} className="shadow-lg bg-card" />
+          <ShareButton data={data} sessionId={selectedSessionId} documentStatus={documentSessionStatus} className="shadow-lg bg-card" />
           <PDFDownloadButton data={data} size="default" variant="default" />
         </div>
       )}
