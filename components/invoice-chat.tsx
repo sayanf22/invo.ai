@@ -128,6 +128,7 @@ import { useContextDocuments } from "@/hooks/use-context-documents"
 import { useUserTier, isReferenceContextEnabled } from "@/hooks/use-user-tier"
 import { ContextManagerDialog } from "@/components/context-manager"
 import { ChatAssetLinkCard } from "@/components/chat-asset-link-card"
+import { ChainContextBuilder } from "@/components/chain-context-builder"
 import { fetchPublicDocumentLink } from "@/lib/public-document-link-client"
 import { classifyDeliveryAction, hasDeliveryHint, type DeliveryAction } from "@/lib/delivery-intent-client"
 
@@ -422,7 +423,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; linkCard?: string; recurringCard?: "setup" | "cancel"; assetLinkCard?: { method: "email" | "general"; email: string }; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; linkCard?: string; recurringCard?: "setup" | "cancel"; assetLinkCard?: { method: "email" | "general"; email: string }; chainBuildCard?: { parentType: string; targetType: string }; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [thinkingMode, setThinkingMode] = useState<"fast" | "thinking">("fast")
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
@@ -458,6 +459,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
     const initialPromptSentRef = useRef(false)
     const lastSyncedSessionRef = useRef<string | null>(null)
     const pendingAutoGenerateRef = useRef<string | null>(null)
+    // Rolling chain-context build: when a linked session has no brief yet, we
+    // build it (reading only the immediate parent) BEFORE generating the doc.
+    const pendingContextBuildRef = useRef<string | null>(null)
+    const [chainBuildPhase, setChainBuildPhase] = useState<"building" | "done">("building")
+    // Bumped to trigger the auto-generate effect with a FRESH sendMessage closure
+    // after the rolling context has been merged into the session.
+    const [autoGenSeq, setAutoGenSeq] = useState(0)
     // Track activities accumulated during the current streaming response.
     // This ref is the source of truth for saving to DB — the setMessages
     // callback pattern is async and unreliable for synchronous reads.
@@ -793,11 +801,25 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                     setLinkedDocContext({ parentType, fields: extractedFields })
                 }
 
-                const welcomeMsg = `I've loaded the details from your previous document for ${clientName}. Generating your ${docType} now...`
-                setMessages([{ role: "assistant", content: welcomeMsg }])
-                setWelcomeLoaded(true)
-                // Queue auto-generation (will be picked up by a separate effect that has fresh refs)
-                pendingAutoGenerateRef.current = `Generate a ${docType} using the linked document details for ${clientName}`
+                const autoGenPrompt = `Generate a ${docType} using the linked document details for ${clientName}`
+                // Has the rolling chain brief already been built for this session?
+                const chainCtx = (ctx as any)._chainContext
+                const hasBrief = chainCtx && typeof chainCtx === "object" && typeof chainCtx.summary === "string" && chainCtx.summary.trim()
+
+                if (hasBrief) {
+                    // Context already gathered — generate straight away.
+                    const welcomeMsg = `I've loaded the full context from your previous documents for ${clientName}. Generating your ${docType} now...`
+                    setMessages([{ role: "assistant", content: welcomeMsg }])
+                    setWelcomeLoaded(true)
+                    pendingAutoGenerateRef.current = autoGenPrompt
+                } else {
+                    // Build the rolling context first, then generate. Show the
+                    // clean step-by-step "building context" chain UI meanwhile.
+                    setChainBuildPhase("building")
+                    setMessages([{ role: "assistant", content: "", chainBuildCard: { parentType, targetType: docType } }])
+                    setWelcomeLoaded(true)
+                    pendingContextBuildRef.current = autoGenPrompt
+                }
             } else {
                 // New session with no messages — load welcome
                 setMessages([])
@@ -807,6 +829,55 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
         }
     }, [session, sessionLoading, savedMessages]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Build the rolling chain context for a fresh linked session, THEN queue the
+    // auto-generation. Reads only the immediate parent server-side; the brief it
+    // returns is merged into this session's context so generation is grounded.
+    useEffect(() => {
+        if (!pendingContextBuildRef.current || isLoading || !session) return
+        const autoGenPrompt = pendingContextBuildRef.current
+        pendingContextBuildRef.current = null
+        const sessionId = session.id
+        let cancelled = false
+
+        ;(async () => {
+            try {
+                const res = await authFetch("/api/sessions/build-chain-context", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sessionId }),
+                })
+                const result = await res.json().catch(() => ({}))
+                if (!cancelled && res.ok && typeof result.summary === "string" && result.summary.trim()) {
+                    // Merge the brief into the session context so sendMessage
+                    // includes it in the linked-document grounding block.
+                    const prevChain = ((session.context as any)?._chainContext && typeof (session.context as any)._chainContext === "object")
+                        ? (session.context as any)._chainContext
+                        : {}
+                    await updateSessionContext({ _chainContext: { ...prevChain, summary: result.summary } } as any)
+                }
+            } catch {
+                // Non-fatal — generation still proceeds with deterministic context.
+            } finally {
+                if (!cancelled) {
+                    // Mark the builder card done (fills all checks), then remove
+                    // it and start generation grounded in the fresh context.
+                    setChainBuildPhase("done")
+                    setTimeout(() => {
+                        if (cancelled) return
+                        setMessages(prev => prev.filter(m => !m.chainBuildCard))
+                        // Queue generation and bump the trigger so the
+                        // auto-generate effect runs with a fresh sendMessage
+                        // closure (session now carries the merged summary).
+                        pendingAutoGenerateRef.current = autoGenPrompt
+                        setAutoGenSeq(s => s + 1)
+                    }, 650)
+                }
+            }
+        })()
+
+        return () => { cancelled = true }
+    }, [session, isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+
     // Handle pending auto-generation for linked sessions (separate effect to avoid stale closures)
     useEffect(() => {
         if (!pendingAutoGenerateRef.current || isLoading || !session) return
@@ -814,7 +885,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
         pendingAutoGenerateRef.current = null
         const timer = setTimeout(() => sendMessage(prompt), 300)
         return () => clearTimeout(timer)
-    }, [session, isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [session, isLoading, autoGenSeq]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Load welcome message
     const loadWelcome = useCallback(async () => {
@@ -2450,6 +2521,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                                     />
                                 </div>
                                 ) : null
+                            ) : msg.chainBuildCard ? (
+                                // Rolling chain-context build step for a linked document.
+                                <ChainContextBuilder
+                                    parentType={msg.chainBuildCard.parentType}
+                                    targetType={msg.chainBuildCard.targetType}
+                                    phase={chainBuildPhase}
+                                />
                             ) : msg.assetLinkCard ? (
                                 // Onboarding pre-send step: attach a client asset-upload link.
                                 <ChatAssetLinkCard

@@ -97,6 +97,13 @@ export interface AIGenerationRequest {
             workSummary?: string
             keyDetails?: string[]
             clientNotes?: string
+            /**
+             * Rolling, AI-generated brief covering the ENTIRE document chain
+             * (origin document through the immediate parent). When present it is
+             * the primary grounding source; the structured fields above are the
+             * deterministic fallback used when the brief could not be generated.
+             */
+            summary?: string
         }
     }
     fileContext?: string
@@ -1272,7 +1279,12 @@ BUSINESS PROFILE (use for all "from" fields):
         const financialTarget = ["invoice", "quote", "quotation", "payment_followup"].includes(targetType)
 
         prompt += `\nLINKED DOCUMENT CONTEXT — VERIFIED FACTS (carried from the previous ${parentType} for the SAME client):\n`
-        prompt += `Everything below is confirmed information from the previous document. Treat it as the single source of truth for this client and engagement. It is the ONLY prior context you have — anything not listed here is genuinely unknown.\n`
+        prompt += `Everything below is confirmed information from the previous document(s). Treat it as the single source of truth for this client and engagement. It is the ONLY prior context you have — anything not listed here is genuinely unknown.\n`
+
+        // ── Rolling chain brief (covers the whole chain, newest info wins) ──
+        if (cc?.summary) {
+            prompt += `\nCHAIN HISTORY BRIEF (accumulated across every previous document for this client; where facts conflict, the most recent value is authoritative):\n${cc.summary}\n\n`
+        }
 
         // ── Verified client identity ──
         if (pd.toName) prompt += `- Client Name: ${pd.toName}\n`
