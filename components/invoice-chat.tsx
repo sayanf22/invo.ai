@@ -2448,25 +2448,21 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                                     initialLink={data.assetUploadLink || ""}
                                     onDismiss={() => setMessages(prev => prev.filter((_, i) => i !== idx))}
                                     onSkip={() => {
-                                        const method = msg.assetLinkCard!.method
-                                        const email = msg.assetLinkCard!.email
+                                        // Always land on the multi-option share card. It offers a
+                                        // working Copy Link (mints the fillable /onboard link on
+                                        // demand), WhatsApp, and Email — so onboarding sharing is
+                                        // never forced through the email-only send flow.
                                         setMessages(prev => prev.map((m, i) => i === idx
-                                            ? (method === "email"
-                                                ? { role: "assistant" as const, content: "", sendCard: { email } }
-                                                : { role: "assistant" as const, content: "", shareCard: true })
+                                            ? { role: "assistant" as const, content: "", shareCard: true }
                                             : m))
                                     }}
                                     onContinue={async (link) => {
-                                        const method = msg.assetLinkCard!.method
-                                        const email = msg.assetLinkCard!.email
-                                        // Persist the full context + link BEFORE showing the send card
+                                        // Persist the full context + link BEFORE showing the share card
                                         // (updateSessionContext replaces the context column, so pass all of `data`).
                                         onChange({ assetUploadLink: link })
                                         await updateSessionContext({ ...data, assetUploadLink: link })
                                         setMessages(prev => prev.map((m, i) => i === idx
-                                            ? (method === "email"
-                                                ? { role: "assistant" as const, content: "", sendCard: { email } }
-                                                : { role: "assistant" as const, content: "", shareCard: true })
+                                            ? { role: "assistant" as const, content: "", shareCard: true }
                                             : m))
                                     }}
                                 />
