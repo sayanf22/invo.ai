@@ -315,6 +315,23 @@ export async function GET(request: NextRequest) {
       if (!form) {
         return NextResponse.json({ error: "No active onboarding link found for this document." }, { status: 404 })
       }
+
+      // Only surface a live link when the document is still "sent" (finalized),
+      // or the form is already submitted (owner may reference the completed
+      // record). If the owner cancelled/unlocked, there is no active link —
+      // matching what the client sees on the public page.
+      const { data: ownerSession } = await admin
+        .from("document_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .eq("user_id", auth.user.id)
+        .maybeSingle()
+      const ownerSessionStatus = (ownerSession?.status || "").toLowerCase()
+      const linkIsLive = form.status === "submitted" || ["finalized", "signed"].includes(ownerSessionStatus)
+      if (!linkIsLive) {
+        return NextResponse.json({ error: "No active onboarding link found for this document." }, { status: 404 })
+      }
+
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clorefy.com"
       return NextResponse.json({ onboardUrl: `${appUrl}/onboard/${form.token}`, status: form.status })
     }
@@ -338,6 +355,30 @@ export async function GET(request: NextRequest) {
     // its outstanding links). Submitted forms are never voided this way.
     if (form.status === "expired") {
       return NextResponse.json({ error: "This form link is no longer active." }, { status: 410 })
+    }
+
+    // ── Link liveness is DERIVED FROM THE PARENT SESSION, not just the form row ──
+    // An onboarding link is only fillable while its document is in the "sent"
+    // (finalized) state. If the owner cancelled (session → "cancelled") or
+    // unlocked/edited it (session → "active"), the public link MUST stop working
+    // immediately — even if some code path failed to flip the form row to
+    // "expired". This is the authoritative, future-proof guard against a
+    // cancelled link still serving the fillable page. Submitted forms are exempt
+    // (they always show the read-only thank-you screen regardless of session).
+    if (form.status !== "submitted" && form.session_id) {
+      const { data: parentSession } = await admin
+        .from("document_sessions")
+        .select("status")
+        .eq("id", form.session_id)
+        .maybeSingle()
+      const sessionStatus = (parentSession?.status || "").toLowerCase()
+      const LIVE_SESSION_STATUSES = ["finalized", "signed"]
+      if (!LIVE_SESSION_STATUSES.includes(sessionStatus)) {
+        // Self-heal: mark the orphaned form expired so future lookups are fast
+        // and consistent everywhere (owner "show link", resend, etc.).
+        await admin.from("onboarding_forms").update({ status: "expired" }).eq("id", form.id).then(() => {}, () => {})
+        return NextResponse.json({ error: "This form link is no longer active." }, { status: 410 })
+      }
     }
 
     // Expiry (only when not yet submitted).
