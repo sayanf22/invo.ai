@@ -238,12 +238,32 @@ export async function POST(request: NextRequest) {
                 const deferredByPolicy = isCycleChange || cycle !== currentCycle
 
                 if (!canUpdateInPlace) {
-                    if (!periodEnd) {
+                    // Model B — a same-cycle TIER UPGRADE activates IMMEDIATELY:
+                    // the replacement subscription starts now (Razorpay charges the
+                    // first full cycle right after authorization), which on the
+                    // verified charge flips the plan, resets the billing period to a
+                    // fresh cycle, resets the usage counters (new higher limits from
+                    // 0), and cancels the old mandate — all via the existing verified
+                    // activation path. Cross-cycle switches and cycle changes stay
+                    // DEFERRED to the current period end (avoids losing paid time on a
+                    // cycle boundary and prevents a surprise double annual charge).
+                    const immediate = isUpgrade && !deferredByPolicy
+
+                    // A confirmed current period is only required for deferred changes,
+                    // which must schedule at that boundary. Immediate upgrades start now.
+                    if (!immediate && !periodEnd) {
                         return NextResponse.json({
                             error: "We could not confirm your current billing period. Please contact support before changing plans.",
                         }, { status: 409 })
                     }
-                    const startAt = Math.max(Math.floor(periodEnd.getTime() / 1000), Math.floor(Date.now() / 1000) + 300)
+
+                    const startAt = immediate
+                        ? undefined
+                        : Math.max(Math.floor(periodEnd!.getTime() / 1000), Math.floor(Date.now() / 1000) + 300)
+                    const effectiveAtIso = immediate
+                        ? new Date().toISOString()
+                        : new Date((startAt as number) * 1000).toISOString()
+
                     const replacement = await createRazorpaySubscription(plan as PlanId, cycle, auth.user.id, targetCurrency, startAt)
                     const { data: claimed, error: pendingError } = await svc.from("subscriptions" as any).update({
                         pending_plan: plan,
@@ -251,7 +271,7 @@ export async function POST(request: NextRequest) {
                         pending_provider_plan_id: targetPlanId,
                         pending_razorpay_subscription_id: replacement.id,
                         pending_change_type: changeType,
-                        pending_effective_at: new Date(startAt * 1000).toISOString(),
+                        pending_effective_at: effectiveAtIso,
                         pending_previous_subscription_id: existingId,
                         provider_sync_required: false,
                         updated_at: new Date().toISOString(),
@@ -270,7 +290,7 @@ export async function POST(request: NextRequest) {
                     await logAudit(auth.supabase, {
                         user_id: auth.user.id,
                         action: "payment.subscription_created",
-                        metadata: { razorpay_subscription_id: replacement.id, plan, billing_cycle: cycle, start_at: startAt, replacement_for: existingId } as any,
+                        metadata: { razorpay_subscription_id: replacement.id, plan, billing_cycle: cycle, start_at: startAt ?? "now", immediate, replacement_for: existingId } as any,
                     }, request).catch(() => {})
                     const amount = PLAN_PRICES_BY_CURRENCY[targetCurrency]?.[tier]?.[cycle]
                         ?? PLAN_PRICES_BY_CURRENCY.INR[tier][cycle]
@@ -283,8 +303,10 @@ export async function POST(request: NextRequest) {
                         currency: targetCurrency,
                         amount,
                         reauthorizeUpgrade: true,
-                        scheduledChange: true,
-                        effectiveDate: new Date(startAt * 1000).toISOString(),
+                        // Immediate upgrades are NOT a scheduled/deferred change.
+                        scheduledChange: !immediate,
+                        immediateUpgrade: immediate,
+                        effectiveDate: effectiveAtIso,
                     })
                 }
 

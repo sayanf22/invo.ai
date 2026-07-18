@@ -95,9 +95,9 @@ describe("Razorpay webhook replay and retry security", () => {
   })
 
   it("marks a failed transition retryable and returns 5xx", async () => {
-    mocks.handleSubscription.mockResolvedValue(
-      Response.json({ error: "sync failed" }, { status: 500 }),
-    )
+    // handleRazorpaySubscriptionEvent throws on failure; the webhook route's
+    // outer catch persists "failed" and returns 500 (see webhook/route.ts).
+    mocks.handleSubscription.mockRejectedValue(new Error("sync failed"))
     const { POST } = await import("@/app/api/razorpay/webhook/route")
 
     const response = await POST(request({ eventId: "evt_ABCDEF" }))
