@@ -53,12 +53,34 @@ export async function POST(request: NextRequest) {
             .eq("id", sessionId).eq("user_id", auth.user.id).maybeSingle()
         if (sessionError) throw sessionError
         if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 })
+
+        const isOnboarding = (session.document_type || "").toLowerCase().replace(/\s+/g, "_") === "client_onboarding_form"
+
         if (session.status === "paid") {
             return NextResponse.json({ error: "Paid documents cannot be unlocked", status: "paid" }, { status: 403 })
         }
         if (session.status === "signed") {
             return NextResponse.json({ error: "Signed documents cannot be unlocked", status: "signed" }, { status: 403 })
         }
+
+        // A submitted onboarding form is a permanent record — the client already
+        // filled it. It cannot be reopened/cancelled (mirrors /api/sessions/cancel).
+        if (isOnboarding) {
+            const { data: submittedForm } = await db.from("onboarding_forms")
+                .select("id")
+                .eq("session_id", sessionId)
+                .eq("user_id", auth.user.id)
+                .eq("status", "submitted")
+                .limit(1)
+                .maybeSingle()
+            if (submittedForm) {
+                return NextResponse.json({
+                    error: "Your client has already submitted this onboarding form. It cannot be reopened or cancelled.",
+                    status: "submitted",
+                }, { status: 403 })
+            }
+        }
+
         if (session.status === "active") {
             return NextResponse.json({ success: true, message: "Document is already editable" })
         }
@@ -148,6 +170,21 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Document state changed while unlocking. It remains locked." }, { status: 409 })
         }
 
+        // Invalidate any outstanding onboarding fill link for this session. Chat
+        // "cancel" routes through unlock, so this ensures the public /onboard link
+        // stops working the moment the owner cancels/unlocks — a fresh resend then
+        // mints a new token. Submitted forms are preserved (guarded above).
+        let onboardingLinkVoided = false
+        if (isOnboarding) {
+            const { data: voided } = await db.from("onboarding_forms")
+                .update({ status: "expired" })
+                .eq("session_id", sessionId)
+                .eq("user_id", auth.user.id)
+                .in("status", ["pending", "in_progress"])
+                .select("id")
+            onboardingLinkVoided = Array.isArray(voided) && voided.length > 0
+        }
+
         await logAudit(auth.supabase, {
             user_id: auth.user.id,
             action: "document.unlocked" as any,
@@ -159,9 +196,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             paymentLinkCancelled,
-            message: paymentLinkCancelled
-                ? "Document unlocked. Payment, signing, and reminder links were cancelled."
-                : "Document unlocked. Pending signing links and reminders were cancelled.",
+            onboardingLinkVoided,
+            message: onboardingLinkVoided
+                ? "Form cancelled. The client's fill link no longer works — send again to issue a fresh link."
+                : paymentLinkCancelled
+                    ? "Document unlocked. Payment, signing, and reminder links were cancelled."
+                    : "Document unlocked. Pending signing links and reminders were cancelled.",
         })
     } catch (error) {
         console.error("[sessions/unlock] failed:", error)
