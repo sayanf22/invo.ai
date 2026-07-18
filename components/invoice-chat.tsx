@@ -417,6 +417,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
         saveGeneration,
         startNewSession,
         updateSessionStatus,
+        loadSession,
     } = useDocumentSession(docType, selectedSessionId)
 
     const [inputValue, setInputValue] = useState("")
@@ -463,6 +464,11 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
     // build it (reading only the immediate parent) BEFORE generating the doc.
     const pendingContextBuildRef = useRef<string | null>(null)
     const [chainBuildPhase, setChainBuildPhase] = useState<"building" | "done">("building")
+    // Mobile-background recovery: track the current generation and whether the
+    // app was hidden while a generation was in flight.
+    const lastGenerationIdRef = useRef<string | null>(null)
+    const isLoadingRef = useRef<boolean>(false)
+    const wasHiddenDuringGenRef = useRef<boolean>(false)
     // Bumped to trigger the auto-generate effect with a FRESH sendMessage closure
     // after the rolling context has been merged into the session.
     const [autoGenSeq, setAutoGenSeq] = useState(0)
@@ -626,8 +632,16 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
             // Loaded an existing session with messages
             // Restore activities and special cards from metadata if available
             const restoredMessages: typeof messages = []
+            // De-duplicate assistant messages that were persisted BOTH by the
+            // client and by the server's durable safety net (same generationId).
+            const seenGenerationIds = new Set<string>()
             for (const msg of savedMessages) {
                 const meta = msg.metadata as Record<string, unknown> | undefined
+                const genId = typeof meta?.generationId === "string" ? meta.generationId : null
+                if (genId) {
+                    if (seenGenerationIds.has(genId)) continue
+                    seenGenerationIds.add(genId)
+                }
 
                 // ── Sanitize content on restore ───────────────────────────────────
                 // Messages stored BEFORE the JSON-tail-stripper fix may contain
@@ -886,6 +900,64 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
         const timer = setTimeout(() => sendMessage(prompt), 300)
         return () => clearTimeout(timer)
     }, [session, isLoading, autoGenSeq]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Keep a ref mirror of isLoading for the visibility handler.
+    useEffect(() => { isLoadingRef.current = isLoading }, [isLoading])
+
+    // ── Mobile background recovery ────────────────────────────────────────────
+    // On iOS/Android, switching to another app can freeze the tab and kill the
+    // in-flight streaming connection. The server persists the result durably, so
+    // when the app returns to the foreground we reconcile: reload the session,
+    // apply the persisted document to the preview, restore the assistant message
+    // from the DB, and clear any stuck "thinking" UI. This is gated on the app
+    // actually having been hidden while generating, so it never interferes with
+    // a live desktop stream.
+    useEffect(() => {
+        if (typeof document === "undefined") return
+
+        const reconcile = async () => {
+            const sid = session?.id
+            // If the stream already finished normally, there is nothing to do.
+            if (!sid || !isLoadingRef.current) return
+            try {
+                const reloaded = await loadSession(sid)
+                if (reloaded?.context && typeof reloaded.context === "object" && !Array.isArray(reloaded.context)) {
+                    const { paymentLink: _pl, paymentLinkStatus: _pls, showPaymentLinkInPdf: _spdf, ...clean } = reloaded.context as Record<string, unknown>
+                    onChange(clean as Partial<InvoiceData>)
+                    setDocumentGenerated(true)
+                }
+            } catch {
+                // Non-fatal — reloading messages below still recovers the chat.
+            } finally {
+                // Clear any stuck streaming/thinking state; the restore effect
+                // (keyed on the reloaded messages) rebuilds the chat from the DB.
+                setIsLoading(false)
+                setStreamingContent(null)
+                setMessages(prev => prev.filter(m => !(m.role === "thinking" && m.isWorking)))
+            }
+        }
+
+        const onVisibility = () => {
+            if (document.visibilityState === "hidden") {
+                if (isLoadingRef.current) wasHiddenDuringGenRef.current = true
+                return
+            }
+            // Became visible again.
+            if (wasHiddenDuringGenRef.current) {
+                wasHiddenDuringGenRef.current = false
+                // Give any still-live stream a short grace period to complete on
+                // its own; only reconcile if it's genuinely stuck afterwards.
+                setTimeout(() => { void reconcile() }, 2500)
+            }
+        }
+
+        document.addEventListener("visibilitychange", onVisibility)
+        window.addEventListener("pageshow", onVisibility)
+        return () => {
+            document.removeEventListener("visibilitychange", onVisibility)
+            window.removeEventListener("pageshow", onVisibility)
+        }
+    }, [session, loadSession, onChange]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Load welcome message
     const loadWelcome = useCallback(async () => {
@@ -1401,6 +1473,13 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
         abortControllerRef.current = new AbortController()
         const signal = abortControllerRef.current.signal
 
+        // Unique id for this generation so the server can durably persist the
+        // result (mobile background safety net) without the UI showing duplicates.
+        const generationId = (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+            ? crypto.randomUUID()
+            : `gen-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        lastGenerationIdRef.current = generationId
+
         try {
             const response = await authFetch("/api/ai/stream", {
                 method: "POST",
@@ -1410,6 +1489,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                     documentType: docType,
                     sessionId: session.id,
                     thinkingMode,
+                    generationId,
                     // Send currentData if this is a follow-up, a linked session, OR a client was pre-selected
                     currentData: (messages.length > 1 || session.chain_id || selectedClientRef.current) ? data : undefined,
                     conversationHistory: messages.length > 1 ? messages.slice(-20) : [],
@@ -1973,9 +2053,10 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                     const displayMsg = aiMessage || "✅ Document generated! Check the preview. Need changes? Just tell me."
                     setMessages(prev => [...prev, { role: "assistant", content: displayMsg }])
                     await saveMessage("user", displayText)
-                    // Save activities from the ref (synchronous, reliable)
+                    // Save activities from the ref (synchronous, reliable).
+                    // Tag with generationId so the server's durable copy de-duplicates.
                     const savedActivities = [...currentActivitiesRef.current]
-                    await saveMessage("assistant", displayMsg, savedActivities.length > 0 ? { activities: savedActivities } : undefined)
+                    await saveMessage("assistant", displayMsg, { generationId, ...(savedActivities.length > 0 ? { activities: savedActivities } : {}) })
                     toast.success("Document updated!")
 
                     // ── Send/share intent detection ─────────────────────────────────────

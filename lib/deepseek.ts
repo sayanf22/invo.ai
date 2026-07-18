@@ -55,6 +55,13 @@ export function stripCodeFences(content: string): string {
 export interface AIGenerationRequest {
     prompt: string
     documentType: string
+    /**
+     * Client-generated id for this generation. Lets the server persist the
+     * result durably (so a mobile client that gets backgrounded/frozen mid-
+     * generation doesn't lose it) while de-duplicating against the client's own
+     * persisted message.
+     */
+    generationId?: string
     businessContext?: {
         name: string
         address?: Record<string, string> | string

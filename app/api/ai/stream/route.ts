@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { streamGenerateDocument, buildPrompt, DUAL_MODE_SYSTEM_PROMPT, type AIGenerationRequest } from "@/lib/deepseek"
+import { streamGenerateDocument, buildPrompt, DUAL_MODE_SYSTEM_PROMPT, stripCodeFences, type AIGenerationRequest } from "@/lib/deepseek"
 import { streamTieredBedrockChat, streamTieredBedrockChatWithHistory, callTieredBedrockBrief, streamTieredDocumentGeneration, TIERED_ORCHESTRATOR_SYSTEM_PROMPT as ORCHESTRATOR_SYSTEM_PROMPT, BUSINESS_PROFILE_COMMENTARY_PROMPT, COMPLIANCE_COMMENTARY_PROMPT, RAG_VALIDATION_PROMPT, PRE_GENERATION_BRIEF_PROMPT, CORRECTION_INSTRUCTION_PROMPT, type BedrockChatMessage } from "@/lib/bedrock"
 import { authenticateRequest, validateBodySize, sanitizeError, validateOrigin } from "@/lib/api-auth"
 import { validateCSRFToken } from "@/lib/csrf"
@@ -25,6 +25,34 @@ export const dynamic = "force-dynamic"
 // if anyone ever deploys to Vercel as well — keeps the streaming route alive
 // past the default 10s edge limit.
 export const maxDuration = 120
+
+/**
+ * Tolerantly extract the document object and assistant message from a completed
+ * AI response string. Used for DURABLE server-side persistence so a mobile
+ * client that gets frozen/backgrounded mid-generation never loses the result.
+ * Returns null when the payload can't be parsed (server persistence is then
+ * simply skipped — the normal client path is unaffected).
+ */
+function extractGeneratedResult(raw: string): { doc: Record<string, any>; message: string } | null {
+    try {
+        const parsed = JSON.parse(stripCodeFences(raw).trim())
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null
+        const message = typeof parsed.message === "string" ? parsed.message : ""
+        // Response may be { document, message } or the document object directly.
+        const doc = (parsed.document && typeof parsed.document === "object" && !Array.isArray(parsed.document))
+            ? parsed.document as Record<string, any>
+            : parsed as Record<string, any>
+        // Guard: only treat as a document if it carries document-like fields.
+        const looksLikeDoc = ["documentType", "items", "toName", "fromName", "referenceNumber", "invoiceNumber", "projectName", "parties"]
+            .some((k) => k in doc)
+        if (!looksLikeDoc) return null
+        // Never persist the transient message field inside the document context.
+        const { message: _m, ...docNoMessage } = doc as Record<string, any>
+        return { doc: docNoMessage, message }
+    } catch {
+        return null
+    }
+}
 
 export async function POST(request: NextRequest) {
     try {
@@ -1158,6 +1186,61 @@ export async function POST(request: NextRequest) {
                             0.00094,
                             request
                         )
+
+                        // ── Durable server-side persistence (mobile safety net) ──
+                        // If the client is backgrounded/frozen on mobile and misses
+                        // the live 'complete' event, the result would otherwise be
+                        // lost. Persist the generated document into the session and
+                        // record a de-duplicated assistant message so the UI can
+                        // recover the full result when the app returns to foreground.
+                        if (isDocGeneration && completeResponseData) {
+                            try {
+                                const extracted = extractGeneratedResult(completeResponseData)
+                                if (extracted) {
+                                    const { data: cur } = await auth.supabase
+                                        .from("document_sessions")
+                                        .select("context")
+                                        .eq("id", sessionId)
+                                        .eq("user_id", auth.user.id)
+                                        .maybeSingle()
+                                    const prevCtx = (cur?.context && typeof cur.context === "object" && !Array.isArray(cur.context))
+                                        ? cur.context as Record<string, any>
+                                        : {}
+                                    // Merge so client-only fields (design, logo,
+                                    // _chainContext, payment link) are preserved.
+                                    const mergedCtx = { ...prevCtx, ...extracted.doc }
+                                    await auth.supabase
+                                        .from("document_sessions")
+                                        .update({ context: mergedCtx as never, updated_at: new Date().toISOString() })
+                                        .eq("id", sessionId)
+                                        .eq("user_id", auth.user.id)
+
+                                    // De-duplicated assistant message (keyed by the
+                                    // client's generationId). If the client already
+                                    // saved it, skip; otherwise this is the durable copy.
+                                    const genId = typeof body.generationId === "string" ? body.generationId : null
+                                    if (genId) {
+                                        const { data: existing } = await auth.supabase
+                                            .from("chat_messages")
+                                            .select("id")
+                                            .eq("session_id", sessionId)
+                                            .contains("metadata", { generationId: genId })
+                                            .maybeSingle()
+                                        if (!existing) {
+                                            await auth.supabase.from("chat_messages").insert({
+                                                session_id: sessionId,
+                                                role: "assistant",
+                                                content: extracted.message || "Document generated.",
+                                                metadata: { generationId: genId, serverPersisted: true } as never,
+                                            })
+                                        }
+                                    }
+                                }
+                            } catch (persistErr) {
+                                console.error("Durable generation persistence failed:", persistErr instanceof Error ? persistErr.message : persistErr)
+                                // Non-fatal — the client path still persists on the happy path.
+                            }
+                        }
                     }
                 } catch (error) {
                     const errorData = `data: ${JSON.stringify({
