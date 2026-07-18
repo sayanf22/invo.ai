@@ -105,6 +105,99 @@ function mapParentContext(parentContext: Record<string, any>, targetType: string
     return mapped
 }
 
+// Trim a string to a bounded length so a long document chain can never blow up
+// the context that gets fed to the model.
+function truncate(value: unknown, max: number): string {
+    const t = typeof value === "string" ? value.trim() : ""
+    return t.length > max ? `${t.slice(0, max).trimEnd()}…` : t
+}
+
+/**
+ * Build a bounded, FACTUAL summary of the parent document to carry into the new
+ * linked document. This is deterministic (no LLM), so it can never introduce
+ * hallucinated details — it only extracts concrete facts that actually exist in
+ * the parent's finalized context. The AI uses this as its single grounding
+ * source when generating the linked document, which stops it from inventing
+ * client details, scope, and amounts for cross-type links.
+ *
+ * Kept small and capped so context does not accumulate down a long chain.
+ */
+function buildChainContext(
+    parentContext: Record<string, any>,
+    parentType: string,
+    parentReference: string,
+): Record<string, any> {
+    const projectName = [
+        parentContext.projectName,
+        parentContext.projectTitle,
+        parentContext.title,
+        parentContext.subject,
+    ].find((v) => typeof v === "string" && v.trim()) || ""
+
+    // Work summary: prefer an explicit scope/description field; otherwise derive
+    // it from the parent's line-item descriptions (what the engagement is about).
+    let workSummary = [
+        parentContext.scopeOfWork,
+        parentContext.serviceDescription,
+        parentContext.projectDescription,
+        parentContext.description,
+        parentContext.summary,
+    ].find((v) => typeof v === "string" && v.trim()) || ""
+
+    if (!workSummary && Array.isArray(parentContext.items) && parentContext.items.length > 0) {
+        workSummary = parentContext.items
+            .slice(0, 25)
+            .map((it: any) => (typeof it?.description === "string" ? it.description.trim() : ""))
+            .filter(Boolean)
+            .join("; ")
+    }
+
+    // Onboarding forms hold the substance as answered questions — fold the
+    // answered Q&A into the work summary so proposals/contracts derived from an
+    // onboarding form are grounded in the client's own words.
+    if (Array.isArray(parentContext.customQuestions)) {
+        const qa = (parentContext.customQuestions as Array<{ question?: unknown; answer?: unknown }>)
+            .map((q) => {
+                const question = typeof q?.question === "string" ? q.question.trim() : ""
+                const answer = typeof q?.answer === "string" ? q.answer.trim() : ""
+                return question && answer ? `${question}: ${answer}` : ""
+            })
+            .filter(Boolean)
+            .join("; ")
+        if (qa) workSummary = workSummary ? `${workSummary}; ${qa}` : qa
+    }
+
+    const keyDetails: string[] = []
+    if (parentContext.currency) keyDetails.push(`Currency: ${parentContext.currency}`)
+    if (parentContext.total != null && parentContext.total !== "") {
+        keyDetails.push(`Previous ${parentType} total: ${parentContext.total}`)
+    }
+    if (parentContext.paymentTerms) keyDetails.push(`Payment terms: ${parentContext.paymentTerms}`)
+
+    // Free-text notes from the parent, minus uploaded-file reference lines.
+    let clientNotes = ""
+    if (typeof parentContext.notes === "string" && parentContext.notes.trim()) {
+        clientNotes = parentContext.notes
+            .split("\n")
+            .map((l: string) => l.trim())
+            .filter((l: string) => l && !/^client-uploaded files:/i.test(l))
+            .join("\n")
+            .trim()
+    }
+
+    const ctx: Record<string, any> = { parentType }
+    const ref = truncate(parentReference, 60)
+    if (ref) ctx.parentReference = ref
+    const pName = truncate(projectName, 200)
+    if (pName) ctx.projectName = pName
+    const work = truncate(workSummary, 800)
+    if (work) ctx.workSummary = work
+    if (keyDetails.length > 0) ctx.keyDetails = keyDetails.slice(0, 8)
+    const notes = truncate(clientNotes, 800)
+    if (notes) ctx.clientNotes = notes
+    return ctx
+}
+
 // Extract client name from document context
 function extractClientName(context: Record<string, any>): string | null {
     return context.toName
@@ -309,6 +402,19 @@ export async function POST(request: NextRequest) {
         // Store the parent's document type so the AI knows the chain origin
         // This is used in the stream route to correctly label the "Context from previous [type]" block
         seedContext._parentDocumentType = (parent.document_type || parentContext.documentType || "document").toLowerCase()
+
+        // ── Bounded, factual chain summary ─────────────────────────────────────
+        // Deterministically capture the substance of the parent document (project,
+        // scope of work, key terms, notes) so the AI grounds the linked document in
+        // real context instead of hallucinating it. Stored as an internal marker;
+        // the stream route surfaces it cleanly and the prompt builder strips it
+        // from the raw document-data dump.
+        const parentReference = parentContext.referenceNumber || parentContext.invoiceNumber || ""
+        seedContext._chainContext = buildChainContext(
+            parentContext,
+            seedContext._parentDocumentType,
+            parentReference,
+        )
 
         // ── Parent document reference for SOW, Change Order, Payment Follow-up ──
         const typesWithParentRef = ["sow", "change_order", "payment_followup"]

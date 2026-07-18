@@ -85,6 +85,19 @@ export interface AIGenerationRequest {
     parentContext?: {
         documentType: string
         data: Record<string, any>
+        /**
+         * Bounded, factual summary carried from the parent document so the AI
+         * grounds a linked document in real context instead of inventing it.
+         * Built deterministically at linked-doc creation time (create-linked route).
+         */
+        chainContext?: {
+            parentType?: string
+            parentReference?: string
+            projectName?: string
+            workSummary?: string
+            keyDetails?: string[]
+            clientNotes?: string
+        }
     }
     fileContext?: string
     complianceContext?: string
@@ -1206,6 +1219,9 @@ BUSINESS PROFILE (use for all "from" fields):
             recipientSignatureDataUrl, showRecipientSignature,
             signatureFields,
             paymentLink, paymentLinkStatus, showPaymentLinkInPdf,
+            // Internal chain markers — never dump these as raw document data.
+            // They are surfaced cleanly through the LINKED DOCUMENT CONTEXT block.
+            _chainContext, _parentDocumentType, parent_document_id,
             ...safeData 
         } = request.currentData as any
         if (Object.keys(safeData).length > 0) {
@@ -1242,54 +1258,79 @@ BUSINESS PROFILE (use for all "from" fields):
         prompt += `\nDOCUMENT STATUS: ACTIVE (draft)\nThe document has NOT been sent. There is no lock state. Do NOT say "I've unlocked", "I've unsent", or "I've cancelled the send" — none of those apply. NEVER emit [ACTION:UNLOCK_DOCUMENT].\n`
     }
 
-    // Parent document context (for linked document generation)
+    // Parent document context (for linked document generation).
+    // This block is the ONLY grounding the AI gets about the previous document.
+    // It renders bounded, VERIFIED facts and forbids inventing anything beyond them.
     if (request.parentContext) {
         const pd = request.parentContext.data
         const parentType = request.parentContext.documentType
-        prompt += `\nCONTEXT FROM PREVIOUS DOCUMENT:\nThe user previously created a [${parentType}] with the following details. This data is available for you to use — if the user asks about any of these fields (e.g. "add email from previous document", "use the same client"), apply them directly:\n`
+        const cc = request.parentContext.chainContext
+        const targetType = (request.documentType || "").toLowerCase().replace(/[\s-]+/g, "_")
+        // Line items and monetary totals only belong on a financial document.
+        // Carrying them into a contract/proposal/NDA/etc. is a top source of
+        // hallucination, so they are gated to financial targets only.
+        const financialTarget = ["invoice", "quote", "quotation", "payment_followup"].includes(targetType)
+
+        prompt += `\nLINKED DOCUMENT CONTEXT — VERIFIED FACTS (carried from the previous ${parentType} for the SAME client):\n`
+        prompt += `Everything below is confirmed information from the previous document. Treat it as the single source of truth for this client and engagement. It is the ONLY prior context you have — anything not listed here is genuinely unknown.\n`
+
+        // ── Verified client identity ──
         if (pd.toName) prompt += `- Client Name: ${pd.toName}\n`
         if (pd.toEmail) prompt += `- Client Email: ${pd.toEmail}\n`
         if (pd.toAddress) prompt += `- Client Address: ${pd.toAddress}\n`
         if (pd.toPhone) prompt += `- Client Phone: ${pd.toPhone}\n`
-        if (Array.isArray(pd.items) && pd.items.length > 0) {
-            prompt += `- Items:\n`
+        if (pd.currency) prompt += `- Currency: ${pd.currency}\n`
+
+        // ── Verified engagement / scope (what the work is actually about) ──
+        if (cc?.projectName) prompt += `- Project / Subject: ${cc.projectName}\n`
+        if (cc?.workSummary) prompt += `- Scope of work from the previous ${parentType}: ${cc.workSummary}\n`
+        if (Array.isArray(cc?.keyDetails)) {
+            for (const detail of cc.keyDetails) prompt += `- ${detail}\n`
+        }
+        if (cc?.clientNotes) prompt += `- Notes from the previous document: ${cc.clientNotes}\n`
+        if (cc?.parentReference) prompt += `- Previous document reference: ${cc.parentReference}\n`
+
+        // ── Line items — only when the NEW document is financial ──
+        if (financialTarget && Array.isArray(pd.items) && pd.items.length > 0) {
+            prompt += `- Line items from the previous ${parentType}:\n`
             for (const item of pd.items) {
                 prompt += `  • ${item.description} (qty: ${item.quantity}, rate: ${item.rate})\n`
             }
-        }
-        if (pd.currency) prompt += `- Currency: ${pd.currency}\n`
-        if (pd.total != null) prompt += `- Total: ${pd.total}\n`
-        if (pd.paymentTerms) prompt += `- Payment Terms: ${pd.paymentTerms}\n`
-        if (pd.notes) prompt += `- Notes: ${pd.notes}\n`
-
-        // Document linking context — pass parent document IDs for new document types
-        // These fields allow the AI to populate parentContractId, parentDocumentId, linkedInvoiceId etc.
-        const parentDocId = pd.id || pd.sessionId || pd.documentId
-        if (parentDocId) {
-            prompt += `- Parent Document ID: ${parentDocId}\n`
-        }
-        // For SOW — parent contract reference
-        if (parentType === "contract") {
-            const parentRef = pd.referenceNumber || pd.invoiceNumber || ""
-            prompt += `\nDOCUMENT LINKING — SOW: Set parentContractId to "${parentDocId || ""}" in the generated SOW. Include reference "${parentRef}" in the notes field.\n`
-        }
-        // For Change Order — parent SOW or contract reference
-        if (parentType === "sow" || parentType === "contract") {
-            const parentRef = pd.referenceNumber || ""
-            prompt += `\nDOCUMENT LINKING — CHANGE ORDER: Set parentDocumentId to "${parentDocId || ""}" and parentDocumentType to "${parentType}" in the generated Change Order. Set parentReferenceNumber to "${parentRef}" (this is the human-readable reference printed on the document — never the raw ID). Reference "${parentRef}" in the description.\n`
-        }
-        // For Payment Follow-up — parent invoice reference
-        if (parentType === "invoice") {
-            const invoiceNum = pd.invoiceNumber || pd.referenceNumber || ""
-            const invoiceAmount = pd.total || pd.invoiceAmount || 0
-            const invoiceCurrency = pd.currency || "USD"
-            const dueDate = pd.dueDate || ""
-            const paymentLink = pd.paymentLink || pd.paymentLinkUrl || ""
-            prompt += `\nDOCUMENT LINKING — PAYMENT FOLLOW-UP: Set linkedInvoiceId to "${parentDocId || ""}", invoiceNumber to "${invoiceNum}", invoiceAmount to ${invoiceAmount}, invoiceCurrency to "${invoiceCurrency}", dueDate to "${dueDate}", paymentLinkUrl to "${paymentLink}" in the generated Payment Follow-up.\n`
+            if (pd.total != null) prompt += `- Previous total: ${pd.total}\n`
+            if (pd.paymentTerms) prompt += `- Payment Terms: ${pd.paymentTerms}\n`
+        } else if (pd.paymentTerms) {
+            prompt += `- Payment Terms: ${pd.paymentTerms}\n`
         }
 
-        prompt += `\nIMPORTANT: If the user asks to "add email from previous document", "use the same email", or similar — use the Client Email above (${pd.toEmail || "not available"}) and set it as toEmail in the document. Do NOT ask the user for the email if it is already provided above.\n`
-        prompt += `\nNow generate a [${request.documentType}] based on this information. Use the same client details, items, and amounts unless the user specifies changes.\n`
+        // ── Anti-hallucination grounding (the core fix) ──
+        prompt += `\nGROUNDING RULES FOR THIS LINKED ${request.documentType.toUpperCase()} (STRICT — follow exactly):\n`
+        prompt += `1. Use ONLY the verified facts above plus what the user explicitly states in their message. Do NOT invent, assume, or "fill in" client names, contact details, amounts, dates, quantities, deliverables, timelines, or scope that are not provided.\n`
+        prompt += `2. If a field this ${request.documentType} normally needs is not in the verified facts and the user did not provide it, leave it as an empty string "" — never fabricate a plausible-sounding value.\n`
+        prompt += `3. Base the actual substance of this ${request.documentType} on the "Project / Subject", "Scope of work" and "Notes" above. Do NOT introduce services, products, clauses, or terms that were never mentioned.\n`
+        if (financialTarget) {
+            prompt += `4. Reuse the same client details, currency, line items, and amounts from the previous document unless the user asks to change them.\n`
+        } else {
+            prompt += `4. This is a DIFFERENT document type from the previous one. Do NOT copy line items or monetary totals into it. Keep the client identity identical, and use the scope/project context to write appropriate ${request.documentType} content.\n`
+        }
+
+        // ── Document-linking fields — gated to the correct TARGET type ──
+        // The parent's IDs/reference numbers are seeded directly into the
+        // document context by the create-linked route, so we only need to tell
+        // the AI to preserve/print the human-readable reference here.
+        if (targetType === "sow" && parentType === "contract") {
+            const parentRef = cc?.parentReference || ""
+            prompt += `\nDOCUMENT LINKING — SOW: This SOW is derived from the parent contract. If a reference is available ("${parentRef}"), cite it in the notes field. Do NOT invent a contract reference if none is provided.\n`
+        }
+        if (targetType === "change_order" && (parentType === "sow" || parentType === "contract")) {
+            const parentRef = cc?.parentReference || ""
+            prompt += `\nDOCUMENT LINKING — CHANGE ORDER: Set parentDocumentType to "${parentType}". If a reference is available ("${parentRef}"), set parentReferenceNumber to it and cite it in the description. Never print a raw database ID, and never invent a reference.\n`
+        }
+        if (targetType === "payment_followup" && parentType === "invoice") {
+            prompt += `\nDOCUMENT LINKING — PAYMENT FOLLOW-UP: This reminder refers to the previous invoice. Use the invoice number, amount, currency and due date already present in the document data — do NOT invent any of these values if they are missing.\n`
+        }
+
+        prompt += `\nIMPORTANT: If the user asks to "use the same client", "add the email from the previous document", or similar — apply the verified client details above directly. Do NOT ask for details that are already listed.\n`
+        prompt += `\nNow generate the ${request.documentType} for this client, grounded strictly in the verified context above.\n`
     }
 
     prompt += `\nUSER'S MESSAGE: "${request.prompt}"`

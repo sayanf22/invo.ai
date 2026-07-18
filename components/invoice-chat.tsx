@@ -1358,13 +1358,21 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                             for (const field of clientFields) {
                                 if (ctx[field] != null && ctx[field] !== "") safeParentData[field] = ctx[field]
                             }
-                            // Always inject for linked sessions — even if only name is available
-                            if (!safeParentData.toName && !safeParentData.toEmail) return {}
+                            // Bounded, factual summary of the parent document (project,
+                            // scope, key terms). Built deterministically at link time so
+                            // the AI is grounded and does not hallucinate scope/details.
+                            const chainContext = ctx._chainContext && typeof ctx._chainContext === "object" && !Array.isArray(ctx._chainContext)
+                                ? ctx._chainContext as Record<string, any>
+                                : undefined
+                            // Inject for linked sessions when we have EITHER verified client
+                            // identity OR a factual chain summary to ground generation.
+                            if (!safeParentData.toName && !safeParentData.toEmail && !chainContext) return {}
                             return {
                                 parentContext: {
                                     // Use the stored parent document type, not the current session's type
                                     documentType: ctx._parentDocumentType || "document",
                                     data: safeParentData,
+                                    ...(chainContext ? { chainContext } : {}),
                                 }
                             }
                         })()
