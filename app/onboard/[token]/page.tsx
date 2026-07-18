@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
   Loader2, CheckCircle2, AlertTriangle, FileText, ImageIcon, X, Clock, CloudUpload, ExternalLink,
-  ArrowLeft, ArrowRight, List, Rows,
+  ArrowLeft, ArrowRight, List, Rows, Ban,
 } from "lucide-react"
 import { pdf } from "@react-pdf/renderer"
 import { compressImage } from "@/lib/compress-image"
@@ -51,7 +51,7 @@ interface OnboardFormData {
 }
 interface Business { name: string; logoUrl: string | null }
 
-type Screen = "loading" | "active" | "submitted" | "expired" | "error"
+type Screen = "loading" | "active" | "submitted" | "expired" | "cancelled" | "error"
 
 export default function OnboardFillPage() {
   const params = useParams<{ token: string }>()
@@ -85,7 +85,13 @@ export default function OnboardFillPage() {
       try {
         const res = await fetch(`/api/onboarding?token=${encodeURIComponent(token)}`)
         if (cancelled) return
-        if (res.status === 410) { setScreen("expired"); return }
+        if (res.status === 410) {
+          // 410 = link no longer accepting responses. Distinguish the reason so
+          // the client sees professional, accurate wording.
+          const gone = await res.json().catch(() => ({}))
+          setScreen(gone?.reason === "cancelled" ? "cancelled" : "expired")
+          return
+        }
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
           setErrorMsg(d.error || "This form link is invalid.")
@@ -213,7 +219,19 @@ export default function OnboardFillPage() {
           <Clock className="w-6 h-6 text-amber-600 dark:text-amber-400" />
         </div>
         <h1 className="text-lg font-semibold text-foreground">This form link has expired</h1>
-        <p className="text-sm text-muted-foreground max-w-sm">Please contact the sender to request a new link.</p>
+        <p className="text-sm text-muted-foreground max-w-sm">This onboarding form is no longer accepting responses because its link has expired. Please contact the sender to request a new link.</p>
+      </Centered>
+    )
+  }
+
+  if (screen === "cancelled") {
+    return (
+      <Centered>
+        <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-950/40 flex items-center justify-center">
+          <Ban className="w-6 h-6 text-rose-600 dark:text-rose-400" />
+        </div>
+        <h1 className="text-lg font-semibold text-foreground">This form is no longer available</h1>
+        <p className="text-sm text-muted-foreground max-w-sm">The sender has cancelled this onboarding form, so it can no longer be completed. If you still need to provide your details, please contact them to request a new form.</p>
       </Centered>
     )
   }

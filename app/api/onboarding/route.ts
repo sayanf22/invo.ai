@@ -351,42 +351,41 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid or expired form link." }, { status: 404 })
     }
 
-    // Explicitly voided (e.g. the owner cancelled the document, which expires
-    // its outstanding links). Submitted forms are never voided this way.
-    if (form.status === "expired") {
-      return NextResponse.json({ error: "This form link is no longer active." }, { status: 410 })
-    }
-
-    // ── Link liveness is DERIVED FROM THE PARENT SESSION, not just the form row ──
-    // An onboarding link is only fillable while its document is in the "sent"
-    // (finalized) state. If the owner cancelled (session → "cancelled") or
-    // unlocked/edited it (session → "active"), the public link MUST stop working
-    // immediately — even if some code path failed to flip the form row to
-    // "expired". This is the authoritative, future-proof guard against a
-    // cancelled link still serving the fillable page. Submitted forms are exempt
-    // (they always show the read-only thank-you screen regardless of session).
-    if (form.status !== "submitted" && form.session_id) {
-      const { data: parentSession } = await admin
-        .from("document_sessions")
-        .select("status")
-        .eq("id", form.session_id)
-        .maybeSingle()
-      const sessionStatus = (parentSession?.status || "").toLowerCase()
-      const LIVE_SESSION_STATUSES = ["finalized", "signed"]
-      if (!LIVE_SESSION_STATUSES.includes(sessionStatus)) {
-        // Self-heal: mark the orphaned form expired so future lookups are fast
-        // and consistent everywhere (owner "show link", resend, etc.).
-        await admin.from("onboarding_forms").update({ status: "expired" }).eq("id", form.id).then(() => {}, () => {})
-        return NextResponse.json({ error: "This form link is no longer active." }, { status: 410 })
+    // ── Determine link availability + a precise, client-facing reason ──────────
+    // A non-submitted onboarding link is only fillable while its document is in
+    // the "sent" (finalized) state. Availability is DERIVED FROM THE PARENT
+    // SESSION (authoritative, future-proof against any cancel path), and we
+    // distinguish two outcomes for professional client-facing messaging:
+    //   • "cancelled" — the owner cancelled/withdrew the document
+    //   • "expired"   — the link passed its time limit (or was otherwise retired)
+    // Submitted forms are exempt (they always show the thank-you screen).
+    if (form.status !== "submitted") {
+      let sessionStatus = ""
+      if (form.session_id) {
+        const { data: parentSession } = await admin
+          .from("document_sessions")
+          .select("status")
+          .eq("id", form.session_id)
+          .maybeSingle()
+        sessionStatus = (parentSession?.status || "").toLowerCase()
       }
-    }
+      const sessionLive = ["finalized", "signed"].includes(sessionStatus)
+      const cancelledByOwner = !!form.session_id && !sessionLive
+      const timeExpired = !!form.expires_at && new Date(form.expires_at) < new Date()
 
-    // Expiry (only when not yet submitted).
-    if (form.status !== "submitted" && form.expires_at && new Date(form.expires_at) < new Date()) {
-      if (form.status !== "expired") {
-        await admin.from("onboarding_forms").update({ status: "expired" }).eq("id", form.id)
+      if (cancelledByOwner || form.status === "expired" || timeExpired) {
+        // Self-heal the form row so every surface stays consistent.
+        if (form.status !== "expired") {
+          await admin.from("onboarding_forms").update({ status: "expired" }).eq("id", form.id).then(() => {}, () => {})
+        }
+        // "cancelled" (owner withdrew) is more specific than a time expiry, so
+        // it takes precedence when both could apply.
+        const reason: "cancelled" | "expired" = cancelledByOwner ? "cancelled" : "expired"
+        const error = reason === "cancelled"
+          ? "This onboarding form has been cancelled by the sender and is no longer accepting responses."
+          : "This onboarding form link has expired and is no longer accepting responses."
+        return NextResponse.json({ error, reason }, { status: 410 })
       }
-      return NextResponse.json({ error: "This form link has expired." }, { status: 410 })
     }
 
     const { data: business } = await admin
