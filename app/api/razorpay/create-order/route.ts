@@ -236,18 +236,23 @@ export async function POST(request: NextRequest) {
                 const periodEnd = liveEnd && liveEnd.getTime() > Date.now() ? liveEnd : localEnd
                 const changeType = isCycleChange ? "cycle_change" : "upgrade"
                 const deferredByPolicy = isCycleChange || cycle !== currentCycle
+                // Model B — a same-cycle TIER UPGRADE activates IMMEDIATELY and is
+                // provisioned the SAME WAY for every payment method: a fresh
+                // replacement subscription that starts now. Razorpay charges the
+                // first FULL cycle right after authorization, which on the verified
+                // charge flips the plan, resets the billing period to a fresh cycle,
+                // resets the usage counters (new higher limits from 0), and cancels
+                // the old mandate — all via the existing verified activation path.
+                // We deliberately do NOT use Razorpay's in-place prorated "now"
+                // update for card here: proration keeps the old cycle end and only
+                // charges the difference, which contradicts the "charge full + fresh
+                // 30 days for everyone" policy. Cross-cycle switches and cycle
+                // changes stay DEFERRED to the current period end (avoids losing paid
+                // time on a cycle boundary and prevents a surprise double annual
+                // charge); those still use the in-place cycle-end update for cards.
+                const immediate = isUpgrade && !deferredByPolicy
 
-                if (!canUpdateInPlace) {
-                    // Model B — a same-cycle TIER UPGRADE activates IMMEDIATELY:
-                    // the replacement subscription starts now (Razorpay charges the
-                    // first full cycle right after authorization), which on the
-                    // verified charge flips the plan, resets the billing period to a
-                    // fresh cycle, resets the usage counters (new higher limits from
-                    // 0), and cancels the old mandate — all via the existing verified
-                    // activation path. Cross-cycle switches and cycle changes stay
-                    // DEFERRED to the current period end (avoids losing paid time on a
-                    // cycle boundary and prevents a surprise double annual charge).
-                    const immediate = isUpgrade && !deferredByPolicy
+                if (!canUpdateInPlace || immediate) {
 
                     // A confirmed current period is only required for deferred changes,
                     // which must schedule at that boundary. Immediate upgrades start now.

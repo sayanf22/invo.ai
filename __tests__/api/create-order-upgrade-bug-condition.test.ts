@@ -220,7 +220,7 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
   ] as const
 
   for (const { currentPlan, targetPlan, label } of scopedUpgradeCases) {
-    it(`${label} (CARD): should update the SAME existing Razorpay subscription and NOT create a new one`, async () => {
+    it(`${label} (CARD): immediate same-cycle upgrade provisions a fresh replacement subscription (Model B — full charge), NOT an in-place prorated update`, async () => {
       vi.mocked(authenticateRequest).mockResolvedValue({
         error: null,
         user: mockUser as any,
@@ -229,22 +229,26 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
 
       const { POST } = await import("@/app/api/razorpay/create-order/route")
       const response = await POST(makeRequest({ plan: targetPlan, billingCycle: "monthly" }))
-      // Consume the body so any unexpected route errors surface in test output.
-      await response.json().catch(() => undefined)
+      const body = await response.json()
 
-      // EXPECTED (fixed) behavior — per Property 5 / Requirement 2.2:
-      // a Razorpay "update subscription" call is made with the target
-      // tier's plan_id and schedule_change_at: "now" on the SAME
-      // existing subscription (sub_ABC).
-      expect(mockUpdateRazorpaySubscriptionPlan).toHaveBeenCalledWith(
-        EXISTING_SUBSCRIPTION_ID,
-        expect.any(String),
-        "now"
-      )
+      // Model B (Option A): a same-cycle tier upgrade is provisioned the SAME
+      // way for EVERY payment method — a fresh replacement subscription that
+      // starts now and charges the full new-plan price. The in-place prorated
+      // "now" update is deliberately NOT used for card upgrades (proration
+      // keeps the old cycle end and only charges the difference).
+      expect(mockCreateRazorpaySubscription).toHaveBeenCalledTimes(1)
+      expect(mockUpdateRazorpaySubscriptionPlan).not.toHaveBeenCalled()
 
-      // EXPECTED (fixed) behavior — no brand-new, independent subscription
-      // is created; the old subscription is not left running unreferenced.
-      expect(mockCreateRazorpaySubscription).not.toHaveBeenCalled()
+      // The client receives the standard Checkout shape so it opens Checkout
+      // for re-authorization; the upgrade is immediate (not a deferred/
+      // scheduled change) and activates only after the verified charge.
+      expect(response.status).toBe(200)
+      expect(body.subscriptionId).toBeDefined()
+      expect(body.keyId).toBeDefined()
+      expect(body.reauthorizeUpgrade).toBe(true)
+      expect(body.immediateUpgrade).toBe(true)
+      expect(body.scheduledChange).toBe(false)
+      expect(body.upgraded).toBeUndefined()
     })
   }
 
@@ -345,7 +349,7 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
     expect(mockUpdateRazorpaySubscriptionPlan).not.toHaveBeenCalled()
   })
 
-  it("keeps an immediate card upgrade pending when no new paid invoice is verified", async () => {
+  it("does not charge or activate an immediate card upgrade synchronously — it defers to the verified-charge path after Checkout", async () => {
     mockPlanIdToPlan.mockReturnValue("starter")
     mockPlanIdToCycle.mockReturnValue("monthly")
     vi.mocked(authenticateRequest).mockResolvedValue({
@@ -358,13 +362,16 @@ describe("Bug Condition Exploration: create-order upgrade must update existing R
     const response = await POST(makeRequest({ plan: "pro", billingCycle: "monthly" }))
     const body = await response.json()
 
-    expect(response.status).toBe(202)
-    expect(body).toMatchObject({
-      upgraded: true, pending: true, plan: "starter", targetPlan: "pro", chargePending: true,
-    })
-    expect(mockGetVerifiedSubscriptionCharge).toHaveBeenCalledWith(
-      EXISTING_SUBSCRIPTION_ID, undefined, expect.any(Number),
-    )
-    expect(mockCreateRazorpaySubscription).not.toHaveBeenCalled()
+    // Under Model B (Option A) the card upgrade is a fresh replacement
+    // subscription authorized via Checkout — create-order NEVER flips the plan
+    // or verifies a charge itself. Activation happens strictly later in the
+    // /verify (or reconcile/webhook) path once the captured charge is proven.
+    expect(response.status).toBe(200)
+    expect(mockCreateRazorpaySubscription).toHaveBeenCalledTimes(1)
+    expect(mockUpdateRazorpaySubscriptionPlan).not.toHaveBeenCalled()
+    expect(mockGetVerifiedSubscriptionCharge).not.toHaveBeenCalled()
+    expect(body.upgraded).toBeUndefined()
+    expect(body.reauthorizeUpgrade).toBe(true)
+    expect(body.immediateUpgrade).toBe(true)
   })
 })
