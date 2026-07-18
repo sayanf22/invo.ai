@@ -572,6 +572,21 @@ function SubmittedScreen({ business, form, token }: {
   const preview = form?.preview as any
   const clientFiles = form?.clientFiles ?? []
 
+  // Everything the client actually filled — built from the field definitions +
+  // their submitted answers, so ALL responses are shown (not just a subset).
+  // File fields are shown in the uploads section; the owner-provided asset link
+  // (external_link) is not a client answer, so both are excluded here.
+  const submittedAnswers = form?.answers ?? {}
+  const answeredFields = (form?.fields ?? [])
+    .filter((f) => f.type !== "file" && f.type !== "external_link")
+    .map((f) => ({
+      id: f.id,
+      label: f.label,
+      value: typeof submittedAnswers[f.id] === "string" ? (submittedAnswers[f.id] as string).trim() : "",
+    }))
+    .filter((f) => f.value.length > 0)
+  const hasResponses = answeredFields.length > 0
+
   return (
     <div className="min-h-dvh bg-muted/30">
       <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
@@ -585,39 +600,61 @@ function SubmittedScreen({ business, form, token }: {
           </p>
         </div>
 
-        {/* Document preview */}
-        {preview && (
+        {/* What the client submitted — full set of their responses + download */}
+        {(preview || hasResponses) && (
           <div className="rounded-2xl border border-border bg-card shadow-sm p-5 sm:p-6 mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Your submitted form</p>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                disabled={downloading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                {downloading ? "Preparing…" : "Download PDF"}
-              </button>
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Your submitted details</p>
+              {preview && (
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={downloading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0"
+                >
+                  {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                  {downloading ? "Preparing…" : "Download PDF"}
+                </button>
+              )}
             </div>
             {downloadError && <p className="text-xs text-destructive mb-3">{downloadError}</p>}
 
             <div className="space-y-3">
-              {preview.projectName && (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">Project</p>
-                  <p className="text-sm text-foreground font-medium">{preview.projectName}</p>
+              {/* Who submitted */}
+              {(form?.clientName || form?.clientEmail) && (
+                <div className="pb-2.5 border-b border-border/60">
+                  {form?.clientName && <p className="text-sm text-foreground font-medium">{form.clientName}</p>}
+                  {form?.clientEmail && <p className="text-xs text-muted-foreground">{form.clientEmail}</p>}
                 </div>
               )}
-              {Array.isArray(preview.customQuestions) && preview.customQuestions.length > 0 && (
+              {/* Project header (if any) */}
+              {preview?.projectName && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">Project</p>
+                  <p className="text-sm text-foreground font-medium">{String(preview.projectName)}</p>
+                </div>
+              )}
+              {/* Every response the client filled */}
+              {hasResponses ? (
                 <div className="space-y-2.5 pt-1">
-                  {preview.customQuestions.map((qa: { question: string; answer: string }, i: number) => (
-                    <div key={i} className="border-t border-border/60 pt-2.5 first:border-t-0 first:pt-0">
-                      <p className="text-xs font-medium text-foreground">{qa.question}</p>
-                      <p className="text-sm text-muted-foreground mt-0.5">{qa.answer || "—"}</p>
+                  {answeredFields.map((f) => (
+                    <div key={f.id} className="border-t border-border/60 pt-2.5 first:border-t-0 first:pt-0">
+                      <p className="text-xs font-medium text-foreground">{f.label}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5 whitespace-pre-wrap break-words">{f.value}</p>
                     </div>
                   ))}
                 </div>
+              ) : (
+                Array.isArray(preview?.customQuestions) && preview.customQuestions.length > 0 && (
+                  <div className="space-y-2.5 pt-1">
+                    {preview.customQuestions.map((qa: { question: string; answer: string }, i: number) => (
+                      <div key={i} className="border-t border-border/60 pt-2.5 first:border-t-0 first:pt-0">
+                        <p className="text-xs font-medium text-foreground">{qa.question}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 whitespace-pre-wrap break-words">{qa.answer || "—"}</p>
+                      </div>
+                    ))}
+                  </div>
+                )
               )}
             </div>
           </div>
