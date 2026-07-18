@@ -1218,7 +1218,12 @@ export async function POST(request: NextRequest) {
                                     // De-duplicated assistant message (keyed by the
                                     // client's generationId). If the client already
                                     // saved it, skip; otherwise this is the durable copy.
-                                    const genId = typeof body.generationId === "string" ? body.generationId : null
+                                    // Validate the client-provided id (defense-in-depth):
+                                    // bounded, safe charset only — it is stored and used in a
+                                    // metadata containment query.
+                                    const genId = typeof body.generationId === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(body.generationId)
+                                        ? body.generationId
+                                        : null
                                     if (genId) {
                                         const { data: existing } = await auth.supabase
                                             .from("chat_messages")
