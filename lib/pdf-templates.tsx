@@ -118,6 +118,33 @@ function fmt(amount: number, currency: string = "USD"): string {
     return `${s} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+// Whole-number currency formatting (no decimals) — used for price RANGES where
+// two-decimal precision is meaningless and would make the range string too long.
+function fmtWhole(amount: number, currency: string = "USD"): string {
+    const symbols: Record<string, string> = {
+        USD: "$", EUR: "EUR", GBP: "GBP", INR: "Rs.", JPY: "JPY",
+        AUD: "A$", CAD: "C$", SGD: "S$", AED: "AED", PHP: "PHP",
+        CHF: "CHF", CNY: "CNY", BRL: "R$", SAR: "SAR", ZAR: "R",
+        MXN: "MX$", KRW: "KRW", TRY: "TRY", NGN: "NGN",
+    }
+    const s = symbols[currency] || currency + " "
+    return `${s} ${Math.round(amount).toLocaleString("en-US")}`
+}
+
+/** True when the document expresses its price as a min–max range. */
+function hasPriceRange(data: InvoiceData): boolean {
+    const min = (data as { priceRangeMin?: number }).priceRangeMin
+    const max = (data as { priceRangeMax?: number }).priceRangeMax
+    return typeof min === "number" && typeof max === "number" && min > 0 && max > 0 && max >= min
+}
+
+/** Format the price range as "Rs. 200,000 – Rs. 500,000" (en dash). */
+function fmtPriceRange(data: InvoiceData): string {
+    const min = (data as { priceRangeMin?: number }).priceRangeMin || 0
+    const max = (data as { priceRangeMax?: number }).priceRangeMax || 0
+    return `${fmtWhole(min, data.currency)} \u2013 ${fmtWhole(max, data.currency)}`
+}
+
 // Currency font style â€” no special font needed since we use ASCII-safe symbols.
 // These are empty objects so the spread (...CF / ...CFB) is a no-op and the
 // Text element inherits the template's own font family.
@@ -1674,9 +1701,9 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                     {/* Table header */}
                     <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
                         <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
-                        <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
-                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Rate</Text></View>
-                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
+                        <View style={{ width: 40, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
+                        <View style={{ width: 88, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Rate</Text></View>
+                        <View style={{ width: 96, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
                     </View>
                     {/* Rows */}
                     {data.items.map((item, i) => {
@@ -1686,17 +1713,17 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                         const lineTotal = gross - discAmt
                         return (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, backgroundColor: i % 2 === 1 ? c.bg : "#fff", ...bBottom(1, c.bdr), ...bNone(), ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} wrap={false}>
-                                <View style={{ flex: 1, ...bNone() }}>{renderItemDescription(item.description, c, `Item ${i + 1}`)}</View>
-                                <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
-                                <View style={{ width: 80, ...bNone() }}>
+                                <View style={{ flex: 1, paddingRight: 8, ...bNone() }}>{renderItemDescription(item.description, c, `Item ${i + 1}`)}</View>
+                                <View style={{ width: 40, ...bNone() }}><Text style={{ fontSize: 9.5, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+                                <View style={{ width: 88, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 9, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
+                                <View style={{ width: 96, paddingLeft: 8, ...bNone() }}>
                                     {hasDisc ? (
                                         <>
-                                            <Text style={{ fontSize: 8, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
-                                            <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                            <Text style={{ fontSize: 7.5, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
+                                            <Text style={{ fontSize: 9, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
                                         </>
                                     ) : (
-                                        <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(gross, data.currency)}</Text>
+                                        <Text style={{ fontSize: 9, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(gross, data.currency)}</Text>
                                     )}
                                 </View>
                             </View>
@@ -2013,6 +2040,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
+    const isRange = hasPriceRange(data)
     const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
 
     // Right-side content: validity callout
@@ -2081,9 +2109,9 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                 <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
                     <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
                         <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Item / Service</Text></View>
-                        <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
-                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Unit Price</Text></View>
-                        <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
+                        <View style={{ width: 40, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
+                        <View style={{ width: 88, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Unit Price</Text></View>
+                        <View style={{ width: 96, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "right" }}>Amount</Text></View>
                     </View>
                     {data.items.map((item, i) => {
                         const gross = item.quantity * item.rate
@@ -2092,17 +2120,17 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                         const lineTotal = gross - discAmt
                         return (
                             <View key={i} style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, ...bNone(), borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}) }} wrap={false}>
-                                <View style={{ flex: 1, ...bNone() }}>{renderItemDescription(item.description, c, `Item ${i + 1}`)}</View>
-                                <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-                                <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
-                                <View style={{ width: 80, ...bNone() }}>
+                                <View style={{ flex: 1, paddingRight: 8, ...bNone() }}>{renderItemDescription(item.description, c, `Item ${i + 1}`)}</View>
+                                <View style={{ width: 40, ...bNone() }}><Text style={{ fontSize: 9.5, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+                                <View style={{ width: 88, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 9, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
+                                <View style={{ width: 96, paddingLeft: 8, ...bNone() }}>
                                     {hasDisc ? (
                                         <>
-                                            <Text style={{ fontSize: 8, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
-                                            <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                            <Text style={{ fontSize: 7.5, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
+                                            <Text style={{ fontSize: 9, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
                                         </>
                                     ) : (
-                                        <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                        <Text style={{ fontSize: 9, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
                                     )}
                                 </View>
                             </View>
@@ -2111,6 +2139,14 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                 </View>
 
                 {/* â”€â”€ TOTALS â”€â”€ */}
+                {isRange ? (
+                    <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                        <View style={{ backgroundColor: c.pri, ...r(8), paddingVertical: 14, paddingHorizontal: 18, ...bNone() }}>
+                            <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.85)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, textAlign: "right" }}>Estimated Range</Text>
+                            <Text style={{ fontSize: 16, color: "#fff", fontWeight: 700, textAlign: "right" }}>{fmtPriceRange(data)}</Text>
+                        </View>
+                    </View>
+                ) : !(data as { hideTotals?: boolean }).hideTotals && (
                 <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                     <View style={{ width: 240, ...bNone() }}>
                         {sub > 0 && <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
@@ -2135,6 +2171,7 @@ export function QuotationPDF({ data, logoUrl }: Props) {
                         </View>
                     </View>
                 </View>
+                )}
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 {data.showSignatureFields !== false && (
@@ -2223,10 +2260,18 @@ function renderProposalSections(notes: string | undefined, c: ReturnType<typeof 
             return <Text key={li} style={{fontSize:9.5,color:c.txt,lineHeight:1.7,marginBottom:2}}>{t}</Text>
         })
         return (
-            <View key={si} style={{ marginHorizontal: 48, marginBottom: 14, ...bNone() }}>
-                {/* minPresenceAhead ensures the heading doesn't render alone at the very
-                    bottom of a page with its content pushed to the next page. */}
-                {sec.name ? <Text minPresenceAhead={24} style={{ fontSize: 9, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{sec.name}</Text> : null}
+            <View key={si} style={{ marginHorizontal: 48, marginBottom: 18, ...bNone() }}>
+                {/* Section heading: a coloured accent bar + larger mixed-case
+                    title gives clear visual hierarchy and separation between
+                    sections (cleaner + more modern than flat uppercase labels).
+                    minPresenceAhead keeps the heading from stranding at a page
+                    bottom while its content flows to the next page. */}
+                {sec.name ? (
+                    <View minPresenceAhead={30} style={{ flexDirection: "row", alignItems: "center", marginBottom: 8, ...bNone() }}>
+                        <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
+                        <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>{sec.name}</Text>
+                    </View>
+                ) : null}
                 {lineViews}
             </View>
         )
@@ -2281,6 +2326,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
+    const isRange = hasPriceRange(data)
     const hasItems = data.items.some(i => i.description.trim().length > 0 || i.rate > 0)
     const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
     // Estimates reuse this proposal layout but are titled "ESTIMATE" and use the
@@ -2345,7 +2391,10 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 {/* â”€â”€ EXECUTIVE SUMMARY â”€â”€ */}
                 {data.description && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Executive Summary</Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, ...bNone() }}>
+                            <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
+                            <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>Executive Summary</Text>
+                        </View>
                         <View style={{ padding: 16, backgroundColor: c.bg, ...r(8), ...bNone(), borderLeftWidth: 4, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }}>
                             <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.7 }}>{data.description}</Text>
                         </View>
@@ -2357,13 +2406,16 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 {hasItems && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
                         <View wrap={false}>
-                            <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Budget Breakdown</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8, ...bNone() }}>
+                                <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
+                                <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>{isRange ? "Scope & Deliverables" : "Budget Breakdown"}</Text>
+                            </View>
                             <View style={{ flexDirection: "row", backgroundColor: c.acc, borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, paddingVertical: 9, paddingHorizontal: 14, ...bNone(), borderBottomWidth: 2, borderBottomColor: c.pri, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }}>
-                                <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Service / Deliverable</Text></View>
-                                <View style={{ width: 36, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" }}>Qty</Text></View>
-                                <View style={{ width: 76, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Rate</Text></View>
-                                {!(data as any).hideTotals && (
-                                    <View style={{ width: 76, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Amount</Text></View>
+                                <View style={{ flex: 1, paddingRight: 8, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Service / Deliverable</Text></View>
+                                <View style={{ width: 30, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" }}>Qty</Text></View>
+                                <View style={{ width: 92, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Rate</Text></View>
+                                {!(data as any).hideTotals && !isRange && (
+                                    <View style={{ width: 96, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Amount</Text></View>
                                 )}
                             </View>
                         </View>
@@ -2395,17 +2447,17 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                                             </View>
                                         ))}
                                     </View>
-                                    <View style={{ width: 36, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-                                    <View style={{ width: 76, ...bNone() }}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
-                                    {!(data as any).hideTotals && (
-                                        <View style={{ width: 76, ...bNone() }}>
+                                    <View style={{ width: 30, ...bNone() }}><Text style={{ fontSize: 9.5, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+                                    <View style={{ width: 92, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 9, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
+                                    {!(data as any).hideTotals && !isRange && (
+                                        <View style={{ width: 96, paddingLeft: 8, ...bNone() }}>
                                             {hasDisc ? (
                                                 <>
-                                                    <Text style={{ fontSize: 8, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
-                                                    <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                                    <Text style={{ fontSize: 7.5, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
+                                                    <Text style={{ fontSize: 9, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
                                                 </>
                                             ) : (
-                                                <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(gross, data.currency)}</Text>
+                                                <Text style={{ fontSize: 9, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(gross, data.currency)}</Text>
                                             )}
                                         </View>
                                     )}
@@ -2416,8 +2468,18 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
+                {/* ESTIMATED RANGE — headline range instead of a fake precise total */}
+                {isRange && (
+                    <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
+                        <View style={{ backgroundColor: c.pri, borderTopLeftRadius: 8, borderTopRightRadius: 8, borderBottomLeftRadius: 8, borderBottomRightRadius: 8, paddingVertical: 14, paddingHorizontal: 18, ...bNone() }}>
+                            <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.85)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, textAlign: "right" }}>{isEstimate ? "Estimated Investment" : "Investment Range"}</Text>
+                            <Text style={{ fontSize: 16, color: "#fff", fontWeight: 700, textAlign: "right" }}>{fmtPriceRange(data)}</Text>
+                        </View>
+                    </View>
+                )}
+
                 {/* TOTAL INVESTMENT */}
-                {total > 0 && !(data as any).hideTotals && (
+                {total > 0 && !(data as any).hideTotals && !isRange && (
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                         <View style={{ width: 280, ...bNone() }}>
                             {sub > 0 && data.items.length > 1 && (

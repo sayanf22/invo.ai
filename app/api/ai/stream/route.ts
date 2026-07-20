@@ -728,11 +728,10 @@ export async function POST(request: NextRequest) {
                     // specific instructions that get injected into DeepSeek's prompt.
                     // This is the core orchestration: Kimi GUIDES DeepSeek on what to do.
                     let kimiInstructionBrief: string | null = null
-                    // FAST mode skips this extra Kimi round-trip entirely and goes
-                    // straight to DeepSeek (which already has business + compliance
-                    // context) — this is the main latency win for quick creation.
-                    // The pre-generation brief runs ONLY in Thinking mode.
-                    if (orchestrateInThinkingMode && isDocGeneration) {
+                    // Kimi plans BOTH fast and thinking mode (restored per user
+                    // request). Fast mode uses a lighter token budget (see
+                    // briefMaxTokens below); thinking mode gets a deeper plan.
+                    if (shouldOrchestrate && isDocGeneration) {
                         try {
                             sendEvent({ type: "activity", action: "think", label: "Planning document generation" })
 

@@ -84,6 +84,15 @@ export interface InvoiceData {
   discountValue: number
   shippingFee: number
 
+  // Price range (estimates / proposals / quotes).
+  // When BOTH are set (major units, document currency), the document renders a
+  // headline "Estimated Investment: <min> – <max>" range instead of a single
+  // precise total, and the per-item Amount column + computed grand total are
+  // suppressed. Use this when the price is a ballpark/range rather than a firm
+  // figure. Leave both undefined for a normal single-figure document.
+  priceRangeMin?: number
+  priceRangeMax?: number
+
   // Payment
   paymentInstructions: string
   paymentMethod: string

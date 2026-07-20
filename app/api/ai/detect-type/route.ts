@@ -100,6 +100,38 @@ export async function POST(request: NextRequest) {
             ? sanitizeText(body.fileSummary).slice(0, 4000)
             : undefined
 
+        // ── FAST PATH: unambiguous explicit request → answer instantly ──
+        // When the keyword classifier is confident this is an explicit
+        // document-creation request with a SINGLE clear type (e.g. "create an
+        // invoice for Acme", "write an estimate for the website") and there is
+        // no attached file, we skip the Kimi round-trip entirely. This keeps
+        // obvious requests snappy. Ambiguous prompts, questions, and anything
+        // with an attached file still fall through to Kimi's semantic judgment.
+        const fastSuggestions = intent.suggestions ?? []
+        if (
+            !fileSummary &&
+            intent.route === "document-explicit" &&
+            intent.suggestedType &&
+            fastSuggestions.length <= 1
+        ) {
+            return NextResponse.json({
+                success: true,
+                type: intent.suggestedType,
+                confidence: intent.confidence,
+                reasoning: detection.reasoning,
+                message: `I'll help you create a ${typeLabel(intent.suggestedType)}.`,
+                route: "direct-create",
+                intent: {
+                    route: intent.route,
+                    suggestedType: intent.suggestedType,
+                    confidence: intent.confidence,
+                    suggestions: intent.suggestions,
+                },
+                mismatch: undefined,
+                classifier: "keyword-fast",
+            })
+        }
+
         // ── PRIMARY: Kimi semantic classification ──
         // Kimi reads the request (and any attached-file summary) and decides the
         // type + whether the user wants to CREATE now vs. chat. This replaces
