@@ -430,7 +430,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; linkCard?: string; recurringCard?: "setup" | "cancel"; assetLinkCard?: { method: "email" | "general"; email: string }; chainBuildCard?: { parentType: string; targetType: string }; linkedDocCard?: { targetType: string; targetLabel: string; currentLabel: string }; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; linkCard?: string; recurringCard?: "setup" | "cancel"; assetLinkCard?: { method: "email" | "general"; email: string }; chainBuildCard?: { parentType: string; targetType: string; resultText?: string }; linkedDocCard?: { targetType: string; targetLabel: string; currentLabel: string }; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [thinkingMode, setThinkingMode] = useState<"fast" | "thinking">("fast")
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
@@ -865,6 +865,14 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                         ? (session.context as any)._chainContext
                         : {}
                     await updateSessionContext({ _chainContext: { ...prevChain, summary: result.summary } } as any)
+                    // Surface the real brief on the builder card so the user can
+                    // expand "Finalizing accurate context" and see exactly what
+                    // was gathered — never a black box.
+                    if (!cancelled) {
+                        setMessages(prev => prev.map(m => m.chainBuildCard
+                            ? { ...m, chainBuildCard: { ...m.chainBuildCard, resultText: result.summary } }
+                            : m))
+                    }
                 }
             } catch {
                 // Non-fatal — generation still proceeds with deterministic context.
@@ -881,7 +889,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                         // closure (session now carries the merged summary).
                         pendingAutoGenerateRef.current = autoGenPrompt
                         setAutoGenSeq(s => s + 1)
-                    }, 650)
+                    }, 2200) // Linger long enough for the user to expand and read the finalized brief before it's replaced by generation
                 }
             }
         })()
@@ -2607,6 +2615,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                                     parentType={msg.chainBuildCard.parentType}
                                     targetType={msg.chainBuildCard.targetType}
                                     phase={chainBuildPhase}
+                                    resultText={msg.chainBuildCard.resultText}
                                 />
                             ) : msg.assetLinkCard ? (
                                 // Onboarding pre-send step: attach a client asset-upload link.

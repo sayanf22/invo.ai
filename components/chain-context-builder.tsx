@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react"
-import { Check, Loader2, Link2, FileText, Layers, Sparkles } from "lucide-react"
+import { Check, Loader2, Link2, FileText, Layers, Sparkles, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ChainContextBuilderProps {
@@ -19,6 +19,12 @@ interface ChainContextBuilderProps {
   targetType: string
   /** "building" while the brief is being generated, "done" once it's ready. */
   phase: "building" | "done"
+  /**
+   * The actual context brief once it's been built (visible to the user by
+   * expanding the "Finalizing accurate context" step) — lets the user see
+   * what the AI actually gathered instead of a purely cosmetic progress bar.
+   */
+  resultText?: string | null
 }
 
 const STEPS = [
@@ -33,10 +39,14 @@ function titleCase(t: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-export function ChainContextBuilder({ parentType, targetType, phase }: ChainContextBuilderProps) {
+export function ChainContextBuilder({ parentType, targetType, phase, resultText }: ChainContextBuilderProps) {
   // Progressively light up the first N-1 steps on a timer while building; the
   // final step only completes when the parent flips phase to "done".
   const [activeStep, setActiveStep] = useState(0)
+  // The "Finalizing accurate context" step is expandable once we have a
+  // result — clicking it reveals exactly what the AI gathered, so this is
+  // never a black box even though it looks like a simple progress card.
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     if (phase === "done") {
@@ -78,31 +88,61 @@ export function ChainContextBuilder({ parentType, targetType, phase }: ChainCont
           {STEPS.map((step, i) => {
             const isDone = i < activeStep
             const isActive = i === activeStep && phase === "building"
+            const isFinalizeStep = step.key === "finalize"
+            const canExpand = isFinalizeStep && !!resultText
             const Icon = step.icon
             return (
-              <div key={step.key} className="flex items-center gap-3">
-                <div
+              <div key={step.key}>
+                <button
+                  type="button"
+                  onClick={() => canExpand && setExpanded(v => !v)}
+                  disabled={!canExpand}
                   className={cn(
-                    "w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-200",
-                    isDone ? "bg-emerald-500/15" : isActive ? "bg-primary/10" : "bg-muted/50",
+                    "w-full flex items-center gap-3 text-left",
+                    canExpand && "cursor-pointer",
+                    !canExpand && "cursor-default",
                   )}
                 >
-                  {isDone ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                  ) : isActive ? (
-                    <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
-                  ) : (
-                    <Icon className="w-3.5 h-3.5 text-muted-foreground/50" />
+                  <div
+                    className={cn(
+                      "w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-200",
+                      isDone ? "bg-emerald-500/15" : isActive ? "bg-primary/10" : "bg-muted/50",
+                    )}
+                  >
+                    {isDone ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    ) : isActive ? (
+                      <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
+                    ) : (
+                      <Icon className="w-3.5 h-3.5 text-muted-foreground/50" />
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      "flex-1 text-[13px] transition-colors duration-200",
+                      isDone ? "text-foreground/70" : isActive ? "text-foreground font-medium" : "text-muted-foreground/60",
+                    )}
+                  >
+                    {step.label}
+                  </span>
+                  {canExpand && (
+                    <ChevronRight
+                      className={cn(
+                        "w-3.5 h-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-200",
+                        expanded && "rotate-90",
+                      )}
+                    />
                   )}
-                </div>
-                <span
-                  className={cn(
-                    "text-[13px] transition-colors duration-200",
-                    isDone ? "text-foreground/70" : isActive ? "text-foreground font-medium" : "text-muted-foreground/60",
-                  )}
-                >
-                  {step.label}
-                </span>
+                </button>
+                {/* Expanded content: the actual context brief the AI gathered
+                    — so this step is never a black box. */}
+                {isFinalizeStep && expanded && resultText && (
+                  <div className="mt-2 ml-9 mr-1 rounded-lg bg-muted/40 border border-border/40 px-3 py-2.5">
+                    <p className="text-[11.5px] text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                      {resultText}
+                    </p>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -110,7 +150,9 @@ export function ChainContextBuilder({ parentType, targetType, phase }: ChainCont
 
         <div className="px-4 pb-3.5">
           <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
-            Gathering everything from your previous documents so this one is accurate and consistent. Your document will be generated as soon as this finishes.
+            {resultText
+              ? "Tap \u201cFinalizing accurate context\u201d above to see what was gathered."
+              : "Gathering everything from your previous documents so this one is accurate and consistent. Your document will be generated as soon as this finishes."}
           </p>
         </div>
       </div>
