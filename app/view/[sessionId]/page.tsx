@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useSafeBack } from "@/hooks/use-safe-back"
-import { useSupabase, useUser } from "@/components/auth-provider"
+import { useSupabase, useUser, useAuth } from "@/components/auth-provider"
 import {
   ArrowLeft, Download, Share2, Loader2, FileText,
   Copy, Check, MessageCircle, Mail, Link2,
@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { DocumentPreviewSkeleton } from "@/components/ui/skeletons"
 import { isPublicDocumentId } from "@/lib/public-capability"
 import { usePublicDocumentLink } from "@/hooks/use-public-document-link"
+import { OnboardingClientUploads } from "@/components/onboarding-client-uploads"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -323,11 +324,16 @@ export default function ViewDocumentPage() {
   const goBack = useSafeBack("/")
   const supabase = useSupabase()
   const user = useUser()
+  const { isLoading: authLoading } = useAuth()
 
   const [docData, setDocData] = useState<InvoiceData | null>(null)
   const [payment, setPayment] = useState<PaymentInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelled, setCancelled] = useState(false)
+  // Owner-side lifecycle status of the session (e.g. "finalized", "active",
+  // "cancelled"). Used only to show a non-blocking banner to the owner.
+  const [ownerStatus, setOwnerStatus] = useState<string | null>(null)
+  const [cancelReason, setCancelReason] = useState<"cancelled" | "expired">("cancelled")
   // True only when the viewer is the authenticated owner of this document.
   // Recipients (clients) get a stripped-down view: no Share button, no toolbar
   // controls that imply ownership. Mirrors DocuSign/Adobe Sign best practice.
@@ -360,6 +366,12 @@ export default function ViewDocumentPage() {
   // Load session data — works for both logged-in users and public email recipients
   useEffect(() => {
     if (!sessionId) return
+    // Wait for auth to settle before deciding anything. Without this, the first
+    // render (user still null while the auth provider hydrates) would fall
+    // through to the public fallback and wrongly show "Document not found" +
+    // redirect — even for the owner's own document. The effect re-runs when
+    // `authLoading` flips to false (and again if `user` resolves).
+    if (authLoading) return
     const load = async () => {
       setLoading(true)
       try {
@@ -373,23 +385,13 @@ export default function ViewDocumentPage() {
             .maybeSingle()
 
           if (session?.context) {
-            // Cancellation guard for owner-side viewing too: if the session
-            // was unlocked/cancelled after sending, treat the share link as
-            // dead (the owner explicitly chose to cancel pending shares).
-            // Also block explicit "cancelled" status — both end up the same.
-            if ((session as any).status === "cancelled") {
-              setCancelled(true)
-              setLoading(false)
-              return
-            }
-            if ((session as any).status === "active" && (session as any).sent_at) {
-              setCancelled(true)
-              setLoading(false)
-              return
-            }
-
-            // Authenticated owner view — show full toolbar (Share, etc.)
+            // The owner always sees their OWN document (read-only), regardless
+            // of cancelled/expired/unlocked state — those states only gate the
+            // PUBLIC share link (handled by the 410 path below / the onboard
+            // token page). Hiding the owner's own record here was a bug: the
+            // user explicitly wants to review cancelled/expired documents.
             setIsOwner(true)
+            setOwnerStatus(((session as any).status || "").toLowerCase() || null)
             setDocData(session.context as unknown as InvoiceData)
 
             // Load payment info — only active/paid (not cancelled/expired)
@@ -491,8 +493,12 @@ export default function ViewDocumentPage() {
         }
         const res = await fetch(`/api/emails/view-document?publicId=${sessionId}`)
 
-        // 410 Gone = the owner cancelled the share after sending
+        // 410 Gone = the share link is no longer accepting views. Distinguish
+        // "cancelled" (owner withdrew) from "expired" (time limit) so the
+        // recipient sees accurate, professional wording.
         if (res.status === 410) {
+          const gone = await res.json().catch(() => ({}))
+          setCancelReason(gone?.reason === "expired" ? "expired" : "cancelled")
           setCancelled(true)
           setLoading(false)
           return
@@ -535,7 +541,7 @@ export default function ViewDocumentPage() {
       }
     }
     load()
-  }, [user, sessionId, supabase, router])
+  }, [user, sessionId, supabase, router, authLoading])
 
   // Render PDF bytes whenever docData changes
   useEffect(() => {
@@ -649,6 +655,7 @@ export default function ViewDocumentPage() {
   }
 
   if (cancelled) {
+    const expired = cancelReason === "expired"
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-background">
         <div className="w-full max-w-md text-center space-y-4">
@@ -657,10 +664,12 @@ export default function ViewDocumentPage() {
           </div>
           <div className="space-y-2">
             <h1 className="text-xl font-semibold text-foreground">
-              Document no longer available
+              {expired ? "This link has expired" : "Document no longer available"}
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              The owner has cancelled this document. The link is no longer valid.
+              {expired
+                ? "This document link has passed its time limit and is no longer available to view."
+                : "The sender has cancelled this document. The link is no longer valid."}
             </p>
             <p className="text-xs text-muted-foreground/70 pt-2">
               If you believe this is an error, please contact the sender directly.
@@ -786,6 +795,16 @@ export default function ViewDocumentPage() {
           {pdfBytes && (
             <div className={cn("transition-opacity duration-300", rendering ? "opacity-60" : "opacity-100")}>
               <PdfViewer pdfBytes={pdfBytes} zoom={zoom} />
+            </div>
+          )}
+
+          {/* Onboarding forms: show the files the client uploaded natively, with
+              a one-click "Download all" (owner only). The form questions/answers
+              already render inside the PDF above; this surfaces the attachments
+              that can't live in the PDF. */}
+          {isOwner && (docData.documentType || "").toLowerCase() === "client_onboarding_form" && (
+            <div className="mt-4">
+              <OnboardingClientUploads sessionId={sessionId} alwaysShow />
             </div>
           )}
         </div>

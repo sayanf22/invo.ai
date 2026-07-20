@@ -137,6 +137,8 @@ interface DocSession {
   quotationResponse?: { response_type: string } | null
   recurring?: RecurringRecord | null
   signatures?: SignatureRecord[]
+  /** Derived lifecycle state for client_onboarding_form documents. */
+  onboardingStatus?: "submitted" | "awaiting" | "cancelled" | "expired" | null
   chainCount?: number                 // number of linked documents in the chain
   /** True when any client interaction prevents deletion (signed, submitted
    *  onboarding, accepted/declined/changes_requested quote/proposal). The
@@ -823,36 +825,17 @@ function DocCard({
     <div className="rounded-2xl border border-border/40 bg-card overflow-hidden group">
       {/* Main row */}
       <div className="px-4 py-3.5">
-        {/* Header row: type pill + title + actions */}
-        <div className="flex items-start gap-3">
-          {/* Type badge — uses registry color/bg */}
-          <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5", typeBgColor, typeColor)}>
-            <TypeIcon size={11} />
-            {typeLabel}
+        {/* Row 1: type badge (left) + action icons (right). Keeping the badge on
+            its own row prevents long labels like "Client Onboarding Form" from
+            squeezing the title into a single-character column on narrow phones. */}
+        <div className="flex items-center gap-2">
+          <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider min-w-0 max-w-full", typeBgColor, typeColor)}>
+            <TypeIcon size={11} className="shrink-0" />
+            <span className="truncate">{typeLabel}</span>
           </span>
-          
-          {/* Title and metadata */}
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm text-foreground leading-tight truncate">{title}</p>
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-1 flex-wrap">
-              {session.client_name && session.client_name !== title && (
-                <span className="truncate max-w-[120px]">{session.client_name}</span>
-              )}
-              {session.client_name && session.client_name !== title && (
-                <span className="text-muted-foreground/40">·</span>
-              )}
-              <span>{format(new Date(session.created_at), "MMM d, yyyy")}</span>
-              {total && (
-                <>
-                  <span className="text-muted-foreground/40">·</span>
-                  <span className="font-medium text-foreground">{total}</span>
-                </>
-              )}
-            </div>
-          </div>
-          
-          {/* Action icons */}
-          <div className="flex items-center gap-0.5 shrink-0">
+
+          {/* Action icons — pushed to the right */}
+          <div className="flex items-center gap-0.5 shrink-0 ml-auto">
             <a
               href={`/view/${session.id}`}
               className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
@@ -897,6 +880,27 @@ function DocCard({
               >
                 <Trash2 size={14} />
               </button>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2: title + metadata — full width so the client name, date and
+            total never get squeezed or wrap awkwardly on small screens. */}
+        <div className="mt-2 min-w-0">
+          <p className="font-semibold text-sm text-foreground leading-tight truncate">{title}</p>
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-1 flex-wrap">
+            {session.client_name && session.client_name !== title && (
+              <>
+                <span className="truncate max-w-[160px]">{session.client_name}</span>
+                <span className="text-muted-foreground/40">·</span>
+              </>
+            )}
+            <span className="whitespace-nowrap">{format(new Date(session.created_at), "MMM d, yyyy")}</span>
+            {total && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="font-medium text-foreground whitespace-nowrap">{total}</span>
+              </>
             )}
           </div>
         </div>
@@ -1041,6 +1045,25 @@ function DocCard({
               {session.recurring.frequency}
             </button>
           )}
+
+          {/* Onboarding lifecycle status pill — onboarding forms only */}
+          {isOnboardingForm && session.onboardingStatus && (() => {
+            const st = session.onboardingStatus
+            const label = st === "submitted" ? "\u2713 Submitted"
+              : st === "cancelled" ? "\u2717 Cancelled"
+              : st === "expired" ? "\u23f1 Expired"
+              : "\u23f3 Awaiting response"
+            const style = st === "submitted"
+              ? "bg-foreground/5 text-foreground border-foreground/20"
+              : st === "awaiting"
+                ? "bg-transparent text-muted-foreground border-border/50"
+                : "bg-muted text-muted-foreground border-border/50"
+            return (
+              <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border", style)}>
+                {label}
+              </span>
+            )
+          })()}
 
           {/* Client uploads pill — onboarding forms only */}
           {isOnboardingForm && (
@@ -1577,6 +1600,42 @@ export default function MyDocumentsPage() {
         }
       }
 
+      // Fetch onboarding form lifecycle for client_onboarding_form sessions so
+      // the card can show an accurate Submitted / Awaiting / Cancelled / Expired
+      // status (the form's real state lives in onboarding_forms, not the session).
+      const onboardingSessionIds = withContent
+        .filter((s: any) => (s.document_type || "").toLowerCase() === "client_onboarding_form")
+        .map((s: any) => s.id)
+
+      let onboardingStatusMap: Record<string, "submitted" | "awaiting" | "cancelled" | "expired"> = {}
+      if (onboardingSessionIds.length > 0) {
+        const { data: forms } = await (supabase as any)
+          .from("onboarding_forms")
+          .select("session_id, status, submitted_at, expires_at, created_at")
+          .in("session_id", onboardingSessionIds)
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+
+        const sessionStatusById: Record<string, string> = {}
+        for (const s of withContent as any[]) sessionStatusById[s.id] = (s.status || "").toLowerCase()
+
+        for (const f of (forms || [])) {
+          // Keep only the most recent form per session (first seen — desc order).
+          if (onboardingStatusMap[f.session_id]) continue
+          const sessionLive = ["finalized", "signed"].includes(sessionStatusById[f.session_id] || "")
+          const timeExpired = !!f.expires_at && new Date(f.expires_at) < new Date()
+          if (f.status === "submitted") {
+            onboardingStatusMap[f.session_id] = "submitted"
+          } else if (!sessionLive) {
+            onboardingStatusMap[f.session_id] = "cancelled"
+          } else if (f.status === "expired" || timeExpired) {
+            onboardingStatusMap[f.session_id] = "expired"
+          } else {
+            onboardingStatusMap[f.session_id] = "awaiting"
+          }
+        }
+      }
+
       // Compute chain counts — how many documents share the same chain_id
       const chainCountMap: Record<string, number> = {}
       for (const s of withContent as any[]) {
@@ -1603,6 +1662,7 @@ export default function MyDocumentsPage() {
           ...s,
           recurring: recurringMap[s.id] ?? null,
           signatures: sigs,
+          onboardingStatus: onboardingStatusMap[s.id] ?? null,
           chainCount: s.chain_id ? (chainCountMap[s.chain_id] || 1) : undefined,
           hasClientInteraction,
         }

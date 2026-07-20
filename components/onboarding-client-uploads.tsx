@@ -8,7 +8,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react"
-import { FileText, ImageIcon, Download, Loader2 } from "lucide-react"
+import { FileText, ImageIcon, Download, Loader2, DownloadCloud } from "lucide-react"
+import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 
 interface UploadedFile {
@@ -29,6 +30,7 @@ export function OnboardingClientUploads({ sessionId, alwaysShow }: { sessionId?:
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [loading, setLoading] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadingAll, setDownloadingAll] = useState(false)
 
   useEffect(() => {
     if (!sessionId) return
@@ -63,14 +65,56 @@ export function OnboardingClientUploads({ sessionId, alwaysShow }: { sessionId?:
     }
   }, [])
 
+  // Fetch every file and bundle them into a single ZIP so the owner can grab
+  // all client uploads in one click instead of downloading them one by one.
+  const downloadAll = useCallback(async () => {
+    if (files.length === 0 || downloadingAll) return
+    setDownloadingAll(true)
+    try {
+      const { downloadEntriesAsZip } = await import("@/lib/download-bundle")
+      const entries: { name: string; bytes: Uint8Array }[] = []
+      for (const file of files) {
+        const res = await authFetch(`/api/onboarding/files?fileId=${encodeURIComponent(file.id)}`)
+        if (!res.ok) continue
+        const buf = await res.arrayBuffer()
+        entries.push({ name: file.fileName || "file", bytes: new Uint8Array(buf) })
+      }
+      if (entries.length === 0) {
+        toast.error("Could not download the files. Please try again.")
+        return
+      }
+      downloadEntriesAsZip(entries, "client-uploads.zip")
+      if (entries.length < files.length) {
+        toast.warning(`Downloaded ${entries.length} of ${files.length} files; some were unavailable.`)
+      }
+    } catch {
+      toast.error("Could not build the download. Please try again.")
+    } finally {
+      setDownloadingAll(false)
+    }
+  }, [files, downloadingAll])
+
   if (!sessionId) return null
   if (!alwaysShow && !loading && files.length === 0) return null
 
   return (
     <div className="border border-border rounded-2xl bg-card shadow-sm p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-        Client uploads {files.length > 0 && `(${files.length})`}
-      </p>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Client uploads {files.length > 0 && `(${files.length})`}
+        </p>
+        {files.length > 1 && (
+          <button
+            type="button"
+            onClick={downloadAll}
+            disabled={downloadingAll}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-border/60 bg-background text-muted-foreground hover:text-foreground hover:border-border transition-colors disabled:opacity-50"
+          >
+            {downloadingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <DownloadCloud className="w-3.5 h-3.5" />}
+            {downloadingAll ? "Preparing…" : "Download all"}
+          </button>
+        )}
+      </div>
       {loading ? (
         <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
           <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…
