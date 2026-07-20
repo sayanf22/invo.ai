@@ -139,6 +139,8 @@ interface DocSession {
   signatures?: SignatureRecord[]
   /** Derived lifecycle state for client_onboarding_form documents. */
   onboardingStatus?: "submitted" | "awaiting" | "cancelled" | "expired" | null
+  /** When the client submitted an onboarding form (drives top-of-list ordering). */
+  onboardingSubmittedAt?: string | null
   chainCount?: number                 // number of linked documents in the chain
   /** True when any client interaction prevents deletion (signed, submitted
    *  onboarding, accepted/declined/changes_requested quote/proposal). The
@@ -704,9 +706,15 @@ function ChainGroupCard({
   const latestSession = sessions[0]
   const latestCtx = latestSession.context || {}
   const latestRef = latestCtx.invoiceNumber || latestCtx.referenceNumber || ""
+  // Surface a client submission on the collapsed group header so the owner can
+  // see there's something to review without expanding the chain.
+  const submittedCount = sessions.filter(s => s.onboardingStatus === "submitted").length
 
   return (
-    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
+    <div className={cn(
+      "rounded-2xl border bg-card overflow-hidden",
+      submittedCount > 0 ? "border-foreground/30 bg-foreground/[0.02]" : "border-border/40",
+    )}>
       {/* Group header — clean monochromatic */}
       <button
         onClick={() => setExpanded(v => !v)}
@@ -721,6 +729,11 @@ function ChainGroupCard({
             {sessions.length} documents · {docTypes.join(", ")}
           </p>
         </div>
+        {submittedCount > 0 && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-foreground/5 text-foreground border border-foreground/20 shrink-0">
+            ✓ {submittedCount} submitted
+          </span>
+        )}
         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
           {expanded ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
         </div>
@@ -813,6 +826,11 @@ function DocCard({
   const hasRecurring = docType === "invoice" // show recurring option for all invoices
   const hasSignatures = !!(session.signatures && session.signatures.length > 0)
   const isOnboardingForm = docType === "client_onboarding_form"
+  // A completed client submission is the highest-signal state on the list — the
+  // owner needs to notice and review it. Give the card a subtle (monochromatic,
+  // on-brand) emphasis so it reads as "new/actionable" without breaking the
+  // clean look. It's also sorted to the top of the list.
+  const isSubmittedOnboarding = isOnboardingForm && session.onboardingStatus === "submitted"
 
   // Determine if this invoice is manually paid (no gateway)
   const isManuallyPaid = payment?.is_manual === true || payment?.gateway === "manual"
@@ -822,7 +840,10 @@ function DocCard({
   const showManualPaidBadge = docType === "invoice" && (isManuallyPaid || localStatus === "paid") && !isGatewayPaid
 
   return (
-    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden group">
+    <div className={cn(
+      "rounded-2xl border bg-card overflow-hidden group",
+      isSubmittedOnboarding ? "border-foreground/30 bg-foreground/[0.02]" : "border-border/40",
+    )}>
       {/* Main row */}
       <div className="px-4 py-3.5">
         {/* Row 1: type badge (left) + action icons (right). Keeping the badge on
@@ -1608,6 +1629,7 @@ export default function MyDocumentsPage() {
         .map((s: any) => s.id)
 
       let onboardingStatusMap: Record<string, "submitted" | "awaiting" | "cancelled" | "expired"> = {}
+      let onboardingSubmittedAtMap: Record<string, string> = {}
       if (onboardingSessionIds.length > 0) {
         const { data: forms } = await (supabase as any)
           .from("onboarding_forms")
@@ -1626,6 +1648,7 @@ export default function MyDocumentsPage() {
           const timeExpired = !!f.expires_at && new Date(f.expires_at) < new Date()
           if (f.status === "submitted") {
             onboardingStatusMap[f.session_id] = "submitted"
+            if (f.submitted_at) onboardingSubmittedAtMap[f.session_id] = f.submitted_at
           } else if (!sessionLive) {
             onboardingStatusMap[f.session_id] = "cancelled"
           } else if (f.status === "expired" || timeExpired) {
@@ -1663,6 +1686,7 @@ export default function MyDocumentsPage() {
           recurring: recurringMap[s.id] ?? null,
           signatures: sigs,
           onboardingStatus: onboardingStatusMap[s.id] ?? null,
+          onboardingSubmittedAt: onboardingSubmittedAtMap[s.id] ?? null,
           chainCount: s.chain_id ? (chainCountMap[s.chain_id] || 1) : undefined,
           hasClientInteraction,
         }
@@ -1875,6 +1899,19 @@ export default function MyDocumentsPage() {
     return true
   })
 
+  // Sort key: the most recent MEANINGFUL activity for a document. A client's
+  // onboarding submission is the latest event on that document, so submitted
+  // forms naturally rise to the top of the list (their submitted_at is always
+  // >= created_at). Everything else keeps its creation-time position.
+  const activityTime = useCallback((s: DocSession): number => {
+    const created = new Date(s.created_at).getTime()
+    if (s.onboardingStatus === "submitted" && s.onboardingSubmittedAt) {
+      const submitted = new Date(s.onboardingSubmittedAt).getTime()
+      if (Number.isFinite(submitted)) return Math.max(submitted, created)
+    }
+    return created
+  }, [])
+
   // Group filtered sessions by chain_id
   const grouped: Array<{ chainId: string | null; clientName: string | null; sessions: DocSession[] }> = (() => {
     const chainMap = new Map<string, DocSession[]>()
@@ -1890,15 +1927,18 @@ export default function MyDocumentsPage() {
     }
     const result: Array<{ chainId: string | null; clientName: string | null; sessions: DocSession[] }> = []
     for (const [chainId, chainSessions] of chainMap) {
-      chainSessions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      chainSessions.sort((a, b) => activityTime(b) - activityTime(a))
       const clientName = chainSessions.find(s => s.client_name)?.client_name || null
       result.push({ chainId, clientName, sessions: chainSessions })
     }
     for (const s of standalone) {
       result.push({ chainId: null, clientName: s.client_name || null, sessions: [s] })
     }
-    // Sort groups by most recent session
-    result.sort((a, b) => new Date(b.sessions[0].created_at).getTime() - new Date(a.sessions[0].created_at).getTime())
+    // Sort groups by the most recent activity across their sessions, so a chain
+    // with a just-submitted onboarding form surfaces at the top.
+    const groupActivity = (g: { sessions: DocSession[] }) =>
+      Math.max(...g.sessions.map(activityTime))
+    result.sort((a, b) => groupActivity(b) - groupActivity(a))
     return result
   })()
 
