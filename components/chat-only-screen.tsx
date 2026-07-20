@@ -60,13 +60,14 @@ function isConfirmation(text: string): boolean {
 // "create invoice for X", "make a contract for Y", etc. — these should
 // short-circuit the suggest/confirm dance and immediately surface a create card.
 const EXPLICIT_CREATE_REGEX =
-    /\b(create|generate|make|draft|prepare|build|new)\b.{0,30}\b(invoice|contract|quotation|quote|proposal|bill)\b/i
+    /\b(create|generate|make|draft|prepare|build|new)\b.{0,30}\b(invoice|contract|quotation|quote|estimate|proposal|bill)\b/i
 
-function detectExplicitCreate(text: string): "invoice" | "contract" | "quote" | "proposal" | null {
+function detectExplicitCreate(text: string): "invoice" | "contract" | "quote" | "estimate" | "proposal" | null {
     const lower = text.toLowerCase()
     if (!EXPLICIT_CREATE_REGEX.test(lower)) return null
     if (/\b(invoice|bill)\b/.test(lower)) return "invoice"
     if (/\b(contract|agreement)\b/.test(lower)) return "contract"
+    if (/\b(estimate|ballpark)\b/.test(lower)) return "estimate"
     if (/\b(quotation|quote)\b/.test(lower)) return "quote"
     if (/\b(proposal)\b/.test(lower)) return "proposal"
     return null

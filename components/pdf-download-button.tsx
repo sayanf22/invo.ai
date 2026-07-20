@@ -104,6 +104,14 @@ export function PDFDownloadButton({
                     ).toBlob()
                     break
 
+                case "estimate":
+                    // Estimates reuse the proposal layout (titled ESTIMATE).
+                    nameSegment = cleanedData.referenceNumber || cleanedData.invoiceNumber || "estimate"
+                    blob = await pdf(
+                        <templates.ProposalPDF data={cleanedData} logoUrl={logoUrl} paymentQrCode={paymentQrCode} />
+                    ).toBlob()
+                    break
+
                 case "receipt":
                     nameSegment = cleanedData.invoiceNumber || "receipt"
                     blob = await pdf(

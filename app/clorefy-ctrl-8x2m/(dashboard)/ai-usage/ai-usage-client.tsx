@@ -235,6 +235,7 @@ export default function AIUsageClient() {
             <option value="contract">Contract</option>
             <option value="quote">Quote</option>
             <option value="quotation">Quotation (legacy)</option>
+            <option value="estimate">Estimate</option>
             <option value="proposal">Proposal</option>
             <option value="sow">SOW</option>
             <option value="change_order">Change Order</option>

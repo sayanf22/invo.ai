@@ -47,6 +47,11 @@ export async function generateDocumentImage(
       element = React.createElement(templates.ProposalPDF, { data: cleanedData, logoUrl })
       break
 
+    case "estimate":
+      // Estimates reuse the proposal layout (ProposalPDF renders "ESTIMATE").
+      element = React.createElement(templates.ProposalPDF, { data: cleanedData, logoUrl })
+      break
+
     case "receipt":
       element = React.createElement(templates.ReceiptPDF, { data: cleanedData, logoUrl })
       break

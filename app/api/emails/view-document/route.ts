@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
 
     // Also check: if all signature requests for this session are cancelled,
     // treat the public view as cancelled too (defence in depth).
-    if (["contract", "sow", "nda", "change_order", "quotation", "quote", "proposal"].includes(session.document_type || "")) {
+    if (["contract", "sow", "nda", "change_order", "quotation", "quote", "estimate", "proposal"].includes(session.document_type || "")) {
       const { data: sigs } = await supabase
         .from("signatures")
         .select("signer_action, signed_at")
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
     // Returns base64 data URLs so the PDF template can embed them
     let signatureImages: Array<{ signerName: string; party: string; imageDataUrl: string; signedAt: string }> = []
     let senderSignatureDataUrl: string | undefined = undefined
-    if (["contract", "sow", "nda", "change_order", "quotation", "quote", "proposal"].includes(session.document_type || "")) {
+    if (["contract", "sow", "nda", "change_order", "quotation", "quote", "estimate", "proposal"].includes(session.document_type || "")) {
       const { data: sigs } = await supabase
         .from("signatures")
         .select("signer_name, party, signed_at, signature_image_url")
@@ -213,7 +213,7 @@ export async function GET(request: NextRequest) {
     }
 
     let quotationResponse: { response_type: string; responded_at: string } | null = null
-    if (["quote", "quotation", "proposal"].includes(session.document_type || "")) {
+    if (["quote", "quotation", "estimate", "proposal"].includes(session.document_type || "")) {
       const { data: recordedResponse, error: responseError } = await supabase
         .from("quotation_responses")
         .select("response_type, responded_at")

@@ -1527,9 +1527,9 @@ export async function getActivityInsights(): Promise<ActivityInsights> {
 
   // Daily trend — include all doc types dynamically so no type is hardcoded
   const allDailyTypes = [
-    "invoice", "contract", "quote", "proposal",
+    "invoice", "contract", "quote", "estimate", "proposal",
     "sow", "change_order", "nda", "client_onboarding_form", "payment_followup",
-    ...Object.keys(typeHourly).filter(t => !["invoice","contract","quote","proposal","sow","change_order","nda","client_onboarding_form","payment_followup"].includes(t) && t !== "unknown")
+    ...Object.keys(typeHourly).filter(t => !["invoice","contract","quote","estimate","proposal","sow","change_order","nda","client_onboarding_form","payment_followup"].includes(t) && t !== "unknown")
   ]
   const dailyTrend = Object.entries(dailyMap)
     .map(([date, counts]) => {

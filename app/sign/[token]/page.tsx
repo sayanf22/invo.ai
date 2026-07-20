@@ -145,6 +145,7 @@ function SigningDocumentPreview({ context, documentType }: { context: any; docum
                     case "quote":
                     case "quotation": PdfComponent = templates.QuotationPDF; break
                     case "proposal": PdfComponent = templates.ProposalPDF; break
+                    case "estimate": PdfComponent = templates.ProposalPDF; break
                     // Previously fell through to InvoicePDF, which rendered the
                     // WRONG document (and its blank/nonexistent signature block)
                     // on the public signing page for every one of these types.

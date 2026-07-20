@@ -185,6 +185,11 @@ function LivePDFPreview({ data, zoom, onPageCount, locked = false, lockReason }:
         case "proposal":
           PdfComponent = templates.ProposalPDF
           break
+        case "estimate":
+          // Estimates reuse the proposal layout (ProposalPDF renders the
+          // "ESTIMATE" title when data.documentType is "estimate").
+          PdfComponent = templates.ProposalPDF
+          break
         case "receipt":
           PdfComponent = templates.ReceiptPDF
           break
@@ -879,6 +884,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
         case "quote":
         case "quotation": PdfComponent = templates.QuotationPDF; break
         case "proposal": PdfComponent = templates.ProposalPDF; break
+        case "estimate": PdfComponent = templates.ProposalPDF; break
         case "receipt": PdfComponent = templates.ReceiptPDF; break
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         case "sow": PdfComponent = templates.SOWPDF as any; break
@@ -1171,6 +1177,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                     case "quote":
                     case "quotation": PdfComponent = templates.QuotationPDF; break
                     case "proposal": PdfComponent = templates.ProposalPDF; break
+                    case "estimate": PdfComponent = templates.ProposalPDF; break
                     case "receipt": PdfComponent = templates.ReceiptPDF; break
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     case "sow": PdfComponent = templates.SOWPDF as any; break
@@ -1286,6 +1293,7 @@ export function DocumentPreview({ data, onChange, onToggleEditor, showEditor, se
                       case "quote":
                       case "quotation": PdfComponent = templates.QuotationPDF; break
                       case "proposal": PdfComponent = templates.ProposalPDF; break
+                      case "estimate": PdfComponent = templates.ProposalPDF; break
                       case "receipt": PdfComponent = templates.ReceiptPDF; break
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       case "sow": PdfComponent = templates.SOWPDF as any; break

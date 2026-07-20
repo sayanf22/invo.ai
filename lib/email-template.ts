@@ -27,6 +27,7 @@ function getDocLabel(documentType: string): string {
     case "contract":              return "Contract"
     case "quote":
     case "quotation":             return "Quote"
+    case "estimate":              return "Estimate"
     case "proposal":              return "Proposal"
     case "sow":                   return "Statement of Work"
     case "change_order":          return "Change Order"
@@ -58,6 +59,8 @@ export function generateEmailSubject(
     case "quote":
     case "quotation":
       return `Quote ${referenceNumber} from ${businessName}`
+    case "estimate":
+      return `Estimate ${referenceNumber} from ${businessName}`
     case "payment_followup":
       return `Payment reminder: Invoice ${referenceNumber} from ${businessName}`
     case "contract":
@@ -116,6 +119,7 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
   const isInvoice = t === "invoice"
   const isContract = t === "contract"
   const isQuote = t === "quote" || t === "quotation"
+  const isEstimate = t === "estimate"
   const isProposal = t === "proposal"
   const isSow = t === "sow"
   const isChangeOrder = t === "change_order"
@@ -125,8 +129,8 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
 
   const docLabel = getDocLabel(documentType)
 
-  // Show monetary amount for types that track a total: invoice, quote, payment follow-up
-  const showAmount = (isInvoice || isQuote || isPaymentFollowup) && totalAmount != null && totalAmount !== ""
+  // Show monetary amount for types that track a total: invoice, quote, estimate, payment follow-up
+  const showAmount = (isInvoice || isQuote || isEstimate || isPaymentFollowup) && totalAmount != null && totalAmount !== ""
 
   // For contracts/SOWs/NDAs/Change Orders: the "description" is the legal body — far too long for an email card.
   // For proposals/onboarding/payment follow-ups: a short excerpt is helpful.
@@ -134,7 +138,7 @@ export function renderEmailTemplate(data: EmailTemplateData): string {
   const rawDescription = !isLongFormBody && description != null && description !== ""
     ? description
     : null
-  const showDescription = rawDescription !== null && (isProposal || isOnboarding || isPaymentFollowup)
+  const showDescription = rawDescription !== null && (isProposal || isEstimate || isOnboarding || isPaymentFollowup)
   const truncatedDescription = rawDescription
     ? rawDescription.length > 200 ? rawDescription.slice(0, 197) + "…" : rawDescription
     : null
