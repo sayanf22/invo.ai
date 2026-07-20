@@ -1494,9 +1494,9 @@ export async function getActivityInsights(): Promise<ActivityInsights> {
     }
   }
 
-  // All 9 supported document types from the registry
+  // All supported document types from the registry
   const docTypes = [
-    "invoice", "contract", "quote", "proposal",
+    "invoice", "contract", "quote", "estimate", "proposal",
     "sow", "change_order", "nda", "client_onboarding_form", "payment_followup"
   ]
 

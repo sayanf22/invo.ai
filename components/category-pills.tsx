@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import {
   FileText, ScrollText, FileQuestion, Presentation,
   ClipboardList, Shield, GitMerge, ClipboardCheck,
-  Bell, ChevronRight, Lock,
+  Bell, ChevronRight, Lock, Calculator,
 } from "lucide-react"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { useTier } from "@/hooks/use-tier"
@@ -24,6 +24,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   GitMerge,
   ClipboardCheck,
   Bell,
+  Calculator,
 }
 
 // ── Example prompts for each document type ────────────────────────────────────
@@ -48,6 +49,11 @@ const ALL_PROMPTS: PillPrompt[] = [
     type: "quote",
     shortLabel: "Quote for 50 branded t-shirts",
     fullPrompt: "Quote for 50 branded t-shirts for a corporate event",
+  },
+  {
+    type: "estimate",
+    shortLabel: "Estimate for a kitchen remodel",
+    fullPrompt: "Rough cost estimate for a kitchen remodel project",
   },
   {
     type: "proposal",

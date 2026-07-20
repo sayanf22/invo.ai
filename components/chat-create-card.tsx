@@ -1,11 +1,11 @@
 "use client"
 
-import { FileText, ScrollText, ClipboardList, Lightbulb, Loader2, FileCheck, Shield, ClipboardCheck, Bell, GitMerge, Repeat } from "lucide-react"
+import { FileText, ScrollText, ClipboardList, Lightbulb, Loader2, FileCheck, Shield, ClipboardCheck, Bell, GitMerge, Repeat, Calculator } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getDocumentTypeLabel, normalizeDocumentType } from "@/lib/document-type-registry"
 
-// Accept all 10 canonical types (plus legacy "quotation" which is normalized to "quote").
-type CreateCardDocType = "invoice" | "contract" | "quote" | "quotation" | "proposal" | "sow" | "change_order" | "nda" | "client_onboarding_form" | "payment_followup" | "recurring_invoice"
+// Accept all canonical types (plus legacy "quotation" which is normalized to "quote").
+type CreateCardDocType = "invoice" | "contract" | "quote" | "quotation" | "estimate" | "proposal" | "sow" | "change_order" | "nda" | "client_onboarding_form" | "payment_followup" | "recurring_invoice"
 
 interface ChatCreateCardProps {
     documentType: CreateCardDocType
@@ -20,6 +20,7 @@ const DOC_ICON: Record<string, React.ElementType> = {
     contract: ScrollText,
     quote: ClipboardList,
     quotation: ClipboardList,
+    estimate: Calculator,
     proposal: Lightbulb,
     sow: ClipboardCheck,
     change_order: GitMerge,

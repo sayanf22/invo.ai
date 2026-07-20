@@ -68,6 +68,7 @@ export type DocumentType =
   | "invoice"
   | "contract"
   | "quote"
+  | "estimate"
   | "proposal"
   | "sow"
   | "change_order"
@@ -145,8 +146,16 @@ const TYPE_KEYWORDS: Array<{ type: DocumentType; pattern: RegExp }> = [
   },
   {
     type: "quote",
-    // "quotation" and "quote" both map here (Req 3.2, 16.x)
-    pattern: /\b(quotation|quote|price quote|pricing|estimate|cost estimate|bid)\b/i,
+    // "quotation" and "quote" both map here (Req 3.2, 16.x). A firm/binding
+    // price offer — the approximate "estimate" keywords now route to the
+    // dedicated `estimate` type below.
+    pattern: /\b(quotation|quote|price quote|pricing|bid)\b/i,
+  },
+  {
+    type: "estimate",
+    // Non-binding, approximate cost projection. Kept AFTER quote so a prompt
+    // mentioning both a firm "quote" and "estimate" resolves to quote on ties.
+    pattern: /\b(estimate|cost estimate|estimated cost|ballpark|rough cost|approximate cost|cost projection|budget estimate|ballpark figure)\b/i,
   },
   {
     type: "contract",
@@ -457,6 +466,12 @@ export const MISMATCH_RULES: readonly MismatchRule[] = [
     triggerPattern: /\b(already agreed|final price|payment due|collect payment|invoice for)\b/i,
     suggestedType: "invoice",
     reason: "If the work is already agreed and you need to collect payment, use an invoice.",
+  },
+  {
+    requestedType: "estimate",
+    triggerPattern: /\b(final price|binding|firm price|fixed price|guaranteed price|already agreed)\b/i,
+    suggestedType: "quote",
+    reason: "For a firm, binding price the client can rely on, use a Quote. An Estimate is only an approximate projection that can change.",
   },
 ] as const
 

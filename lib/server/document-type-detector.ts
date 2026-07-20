@@ -7,6 +7,7 @@ export type DocumentType =
   | "invoice"
   | "contract"
   | "quote"
+  | "estimate"
   | "proposal"
   | "sow"
   | "change_order"
@@ -39,9 +40,17 @@ export function detectDocumentType(prompt: string): DetectionResult {
     },
     quote: {
       keywords: [
-        "quotation", "quote", "price quote", "pricing", "estimate",
-        "cost estimate", "price list", "rate card", "bid",
+        "quotation", "quote", "price quote", "pricing",
+        "price list", "rate card", "bid",
         "price breakdown", "quoted price"
+      ],
+      weight: 1.2
+    },
+    estimate: {
+      keywords: [
+        "estimate", "cost estimate", "estimated cost", "ballpark",
+        "rough cost", "approximate cost", "cost projection",
+        "budget estimate", "ballpark figure", "rough estimate"
       ],
       weight: 1.2
     },
@@ -116,6 +125,7 @@ export function detectDocumentType(prompt: string): DetectionResult {
     invoice: 0,
     contract: 0,
     quote: 0,
+    estimate: 0,
     proposal: 0,
     sow: 0,
     change_order: 0,

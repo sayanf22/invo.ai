@@ -45,11 +45,11 @@ FREE — $0/month
   • Every country worldwide (150+ countries, tax & compliance)
   ✗ No DOCX / image export
   ✗ No auto follow-up reminders
-  ✗ No Proposals, SOWs, NDAs, Change Orders, Onboarding Forms, Payment Follow-ups
+  ✗ No Estimates, Proposals, SOWs, NDAs, Change Orders, Onboarding Forms, Payment Follow-ups
 
 STARTER — $9/month (or $7/month billed yearly)
   • 50 documents / month
-  • All 9 document types (Invoice, Contract, Quote, Proposal, SOW, NDA, Change Order, Client Onboarding Form, Payment Follow-up)
+  • All 10 document types (Invoice, Contract, Quote, Estimate, Proposal, SOW, NDA, Change Order, Client Onboarding Form, Payment Follow-up)
   • 30 messages per session
   • All 9 templates
   • 100 email sends / month
@@ -63,7 +63,7 @@ STARTER — $9/month (or $7/month billed yearly)
 
 PRO — $24/month (or $19/month billed yearly) — Most Popular
   • 150 documents / month
-  • All 9 document types
+  • All 10 document types
   • 50 messages per session
   • All 9 templates
   • 250 email sends / month
@@ -76,7 +76,7 @@ PRO — $24/month (or $19/month billed yearly) — Most Popular
 
 AGENCY — $59/month (or $47/month billed yearly) — Coming Soon
   • Unlimited documents
-  • All 9 document types
+  • All 10 document types
   • Unlimited messages per session
   • All 9 templates
   • Unlimited email sends
@@ -90,14 +90,14 @@ AGENCY — $59/month (or $47/month billed yearly) — Coming Soon
 
 KEY FACTS:
 - Digital e-signatures are available on ALL plans including Free
-- All 9 document types are available on Starter, Pro, and Agency (not Free — Free is invoice + contract + quote only)
+- All 10 document types are available on Starter, Pro, and Agency (not Free — Free is invoice + contract + quote only)
 - Auto follow-up email reminders for invoices are available on Starter, Pro, and Agency (not Free)
 - DOCX export is available on Starter, Pro, and Agency (not Free)
 - Image export (PNG/JPG) is available on Pro and Agency only
 - Free plan: 5 docs/month, 3 types, PDF only, 5 emails/month, 10 messages/session
-- Starter plan ($9/mo): 50 docs/month, all 9 types, PDF+DOCX, 100 emails/month, 30 messages/session, auto-reminders
-- Pro plan ($24/mo): 150 docs/month, all 9 types, PDF+DOCX+Image, 250 emails/month, 50 messages/session, auto-reminders
-- Agency plan ($59/mo, coming soon): unlimited everything, all 9 types, all exports, team members, priority support
+- Starter plan ($9/mo): 50 docs/month, all 10 types, PDF+DOCX, 100 emails/month, 30 messages/session, auto-reminders
+- Pro plan ($24/mo): 150 docs/month, all 10 types, PDF+DOCX+Image, 250 emails/month, 50 messages/session, auto-reminders
+- Agency plan ($59/mo, coming soon): unlimited everything, all 10 types, all exports, team members, priority support
 - Yearly billing saves ~20% vs monthly
 - Paid plans are charged at secure checkout; there is no paid-plan free trial
 - Same-cycle card upgrades can activate immediately with a prorated difference charge
@@ -107,9 +107,9 @@ KEY FACTS:
     // The user's specific current plan context
     const USER_PLAN_MAP: Record<string, string> = {
         free:    "The user is currently on the FREE plan ($0/month). They have 5 documents/month, invoice+contract+quote only, PDF export, and e-signatures.",
-        starter: "The user is currently on the STARTER plan ($9/month). They have 50 documents/month, all 9 doc types, PDF+DOCX export, e-signatures, and auto-reminders.",
-        pro:     "The user is currently on the PRO plan ($24/month). They have 150 documents/month, all 9 doc types, all export formats (PDF+DOCX+Image), e-signatures, and auto-reminders.",
-        agency:  "The user is currently on the AGENCY plan ($59/month). They have unlimited documents, all 9 doc types, all export formats, e-signatures, auto-reminders, team members, and priority support.",
+        starter: "The user is currently on the STARTER plan ($9/month). They have 50 documents/month, all 10 doc types, PDF+DOCX export, e-signatures, and auto-reminders.",
+        pro:     "The user is currently on the PRO plan ($24/month). They have 150 documents/month, all 10 doc types, all export formats (PDF+DOCX+Image), e-signatures, and auto-reminders.",
+        agency:  "The user is currently on the AGENCY plan ($59/month). They have unlimited documents, all 10 doc types, all export formats, e-signatures, auto-reminders, team members, and priority support.",
     }
     const userPlanContext = USER_PLAN_MAP[tier] ?? USER_PLAN_MAP.free
 
@@ -146,11 +146,12 @@ PLATFORM CAPABILITIES (authoritative — use these when users ask about features
 - Every country worldwide: 150+ countries with tax and compliance rules built in.
 
 
-Clorefy supports 9 document types. Choose the best one based on the user's situation:
+Clorefy supports 10 document types. Choose the best one based on the user's situation:
 
 - invoice: Bill a client for completed work. Includes line items, taxes, payment terms, and due date. Use when work is done and you need to collect payment. Invoices can also be set up to recur weekly, monthly, quarterly, etc. for retainers and subscriptions — that's a setting on the invoice, not a separate document type.
 - contract: A formal service or work agreement with legal terms. Use when starting a new client engagement that needs binding obligations.
-- quote: A binding price offer for specific work, with line items, totals, and a validity period. Use before work begins to agree on cost. (Legacy alias: "quotation".)
+- quote: A binding price offer for specific work, with line items, totals, and a validity period. Use before work begins to agree on a firm cost. (Legacy alias: "quotation".)
+- estimate: A non-binding, approximate cost projection for planning early in a deal. Line items and an estimated total that are clearly subject to change. Use for a ballpark/rough number before scope is locked — unlike a quote, it isn't a firm price. The client can Accept, Decline, or Request Changes.
 - proposal: A pitch to win new work. Showcases your approach, capabilities, and value. Use when competing for a project or presenting a business case.
 - sow: Statement of Work — a detailed breakdown of project scope, deliverables, milestones, and timelines. Use when a project needs more detail than a simple contract can cover, especially to define what "done" looks like.
 - change_order: An amendment to an existing SOW or contract. Use when the agreed scope, cost, or timeline needs to change after an agreement is already in place.
@@ -224,7 +225,7 @@ Remember: you are suggesting, not creating. The user clicks a button to actually
  * The inner object must contain only `type` and `summary` fields.
  */
 export const CREATE_CARD_SIGNAL_REGEX =
-    /\[CREATE_CARD:(\{\s*"type"\s*:\s*"(?:invoice|contract|quote|proposal|sow|change_order|nda|client_onboarding_form|payment_followup|recurring_invoice)"\s*,\s*"summary"\s*:\s*"[^"]{1,200}"\s*\})\]/
+    /\[CREATE_CARD:(\{\s*"type"\s*:\s*"(?:invoice|contract|quote|estimate|proposal|sow|change_order|nda|client_onboarding_form|payment_followup|recurring_invoice)"\s*,\s*"summary"\s*:\s*"[^"]{1,200}"\s*\})\]/
 
 /**
  * Regex used to STRIP the CREATE_CARD signal from the user-visible message
@@ -233,7 +234,7 @@ export const CREATE_CARD_SIGNAL_REGEX =
 export const CREATE_CARD_STRIP_REGEX = /\n?\[CREATE_CARD:\{[^}]*\}\]\s*$/
 
 export interface ParsedCreateCard {
-    type: "invoice" | "contract" | "quote" | "proposal" | "sow" | "change_order" | "nda" | "client_onboarding_form" | "payment_followup" | "recurring_invoice"
+    type: "invoice" | "contract" | "quote" | "estimate" | "proposal" | "sow" | "change_order" | "nda" | "client_onboarding_form" | "payment_followup" | "recurring_invoice"
     summary: string
 }
 
@@ -253,6 +254,7 @@ export function parseCreateCardSignal(text: string): ParsedCreateCard | null {
             (parsed.type === "invoice" ||
                 parsed.type === "contract" ||
                 parsed.type === "quote" ||
+                parsed.type === "estimate" ||
                 parsed.type === "proposal" ||
                 parsed.type === "sow" ||
                 parsed.type === "change_order" ||

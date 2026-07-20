@@ -631,6 +631,34 @@ export function getDocumentConfig(documentType: string): DocumentConfig {
                 hasNextStepsCTA: true,
                 skipEmptyItems: true,
             }
+        case "estimate":
+            // Estimate mirrors the proposal config (summary + budget breakdown +
+            // next steps) but is titled ESTIMATE with an EST- reference and an
+            // "estimated total" label to signal it's approximate/non-binding.
+            return {
+                title: "ESTIMATE",
+                refPrefix: "EST",
+                showStatusBadge: false,
+                dateFields: [
+                    { label: "Estimate Date", getValue: (d) => fmtDate(d.invoiceDate), required: true },
+                    { label: "Valid Until", getValue: (d) => fmtDate(d.dueDate), required: false },
+                    { label: "Payment", getValue: (d) => d.paymentTerms || "", required: false },
+                ],
+                fromLabel: "Prepared By",
+                toLabel: "Prepared For",
+                tableSectionTitle: "Estimated Costs",
+                tableColumns: { desc: "Item / Service", qty: "Qty", rate: "Est. Rate", amount: "Est. Amount" },
+                tableHeaderUsesAccent: true,
+                grandTotalLabel: "Estimated Total",
+                hasPaymentInfo: false,
+                hasPaymentSection: false,
+                hasSignatureRow: true,
+                hasScopeSection: false,
+                hasDescriptionBox: false,
+                hasExecutiveSummary: true,
+                hasNextStepsCTA: true,
+                skipEmptyItems: true,
+            }
         case "invoice":
         default:
             return {
@@ -2255,6 +2283,12 @@ export function ProposalPDF({ data, logoUrl }: Props) {
     const { sub, disc, tax, total } = calc(data)
     const hasItems = data.items.some(i => i.description.trim().length > 0 || i.rate > 0)
     const onDark = tpl !== "classic" && tpl !== "minimal" && tpl !== "warm" && tpl !== "elegant"
+    // Estimates reuse this proposal layout but are titled "ESTIMATE" and use the
+    // EST- reference prefix. Everything else (summary, budget breakdown, next
+    // steps) renders identically so an estimate "works like a proposal".
+    const isEstimate = (data.documentType || "").toLowerCase() === "estimate"
+    const docTitle = isEstimate ? "ESTIMATE" : "PROPOSAL"
+    const refDefault = isEstimate ? "EST-0000" : "PROP-0000"
 
     // Right-side content: prepared for + dates
     const headerRight = (
@@ -2277,8 +2311,18 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 {/* â”€â”€ HEADER (theme-specific layout) â”€â”€ */}
                 {/* Cancels the page's paddingTop so page 1 stays flush; continuation pages (which never re-render this once-only header) keep the padding as top breathing room. */}
                 <View style={{ marginTop: -40, ...bNone() }}>
-                    <DocHeader tpl={tpl} c={c} title="PROPOSAL" refNum={data.referenceNumber || data.invoiceNumber || "PROP-0000"} logoUrl={logoUrl} data={data} rightContent={headerRight} />
+                    <DocHeader tpl={tpl} c={c} title={docTitle} refNum={data.referenceNumber || data.invoiceNumber || refDefault} logoUrl={logoUrl} data={data} rightContent={headerRight} />
                 </View>
+
+                {/* Estimate disclaimer — legally important: an estimate is a
+                    non-binding projection, not a final bill. */}
+                {isEstimate && (
+                    <View style={{ marginHorizontal: 48, marginBottom: 14, padding: 10, backgroundColor: c.bg, ...r(6), ...bNone() }} wrap={false}>
+                        <Text style={{ fontSize: 8.5, color: c.mut, lineHeight: 1.5 }}>
+                            This is an estimate provided for planning purposes only. Costs are approximate and may change once the scope is finalized. It is not a final invoice or a binding quote.
+                        </Text>
+                    </View>
+                )}
 
                 {/* â”€â”€ PREPARED BY / FOR â”€â”€ */}
                 <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>

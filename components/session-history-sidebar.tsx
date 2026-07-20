@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import {
     FileText, Trash2, Loader2, Link2, ChevronRight, ChevronDown, Pencil, Check, X, RefreshCw, MessageSquare,
-    FileCheck, FileQuestion, Presentation, ClipboardList, GitMerge, Shield, ClipboardCheck, Bell,
+    FileCheck, FileQuestion, Presentation, ClipboardList, GitMerge, Shield, ClipboardCheck, Bell, Calculator,
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSupabase, useUser } from "@/components/auth-provider"
@@ -23,6 +23,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string; strokeW
     ClipboardCheck,
     Bell,
     RefreshCw,
+    Calculator,
 }
 
 /** Resolve a registry icon name to the Lucide component; fallback to FileText. */
@@ -65,8 +66,8 @@ interface SessionHistorySidebarProps {
 
 // ─── Filter configuration ──────────────────────────────────────────────────────
 
-/** Primary visible filter pills (top 6 doc types + All + Chat) */
-const PRIMARY_FILTER_TYPES = ["invoice", "contract", "quote", "proposal", "sow", "nda"] as const
+/** Primary visible filter pills (top doc types + All + Chat) */
+const PRIMARY_FILTER_TYPES = ["invoice", "contract", "quote", "estimate", "proposal", "sow", "nda"] as const
 
 /** "More" overflow types */
 const MORE_FILTER_TYPES = ["change_order", "client_onboarding_form", "payment_followup"] as const

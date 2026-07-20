@@ -37,7 +37,8 @@ Works globally with country-aware compliance. Particularly well-tested for India
 
 - Invoices (with country-specific tax compliance)
 - Contracts (service agreements, employment contracts)
-- Quotes (price quotes, estimates, bids)
+- Quotes (firm, binding price offers)
+- Estimates (non-binding, approximate cost projections — client can accept/decline/request changes)
 - Proposals (business proposals, project proposals, pitches)
 - Statements of Work (project scope, deliverables, milestones)
 - Change Orders (scope amendments to contracts/SOWs)

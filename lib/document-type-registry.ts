@@ -17,6 +17,7 @@ export const ALL_DOCUMENT_TYPES = [
   "invoice",
   "contract",
   "quote",
+  "estimate",
   "proposal",
   "sow",
   "change_order",
@@ -156,6 +157,29 @@ export const DOCUMENT_TYPE_REGISTRY: Record<DocumentType, DocumentTypeConfig> = 
       supports_client_response: true,
       supports_payment_link: false,
       supports_linking: false,
+      supports_recurring: false,
+    },
+    validParentTypes: [],
+  },
+
+  estimate: {
+    type: "estimate",
+    label: "Estimate",
+    description:
+      "A non-binding, approximate cost projection for planning early in a deal. Line items and an estimated total, clearly subject to change before a firm quote or invoice.",
+    icon: "Calculator",
+    color: "text-fuchsia-600",
+    bgColor: "bg-fuchsia-50",
+    prefix: "EST",
+    capabilities: {
+      // Estimates behave like proposals: the recipient can Accept / Decline /
+      // Request Changes (soft approval of the ballpark), and the sender can
+      // optionally turn on a signature block. They are NOT payment documents —
+      // an estimate is informational until it's converted to a quote/invoice.
+      supports_signature: true,
+      supports_client_response: true,
+      supports_payment_link: false,
+      supports_linking: true,
       supports_recurring: false,
     },
     validParentTypes: [],

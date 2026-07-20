@@ -75,7 +75,7 @@ function detectExplicitCreate(text: string): "invoice" | "contract" | "quote" | 
 // ── Types ──
 
 /** Canonical document types supported in chat-only flow (legacy "quotation" is normalized to "quote"). */
-type DocType = "invoice" | "contract" | "quote" | "proposal" | "sow" | "change_order" | "nda" | "client_onboarding_form" | "payment_followup" | "recurring_invoice"
+type DocType = "invoice" | "contract" | "quote" | "estimate" | "proposal" | "sow" | "change_order" | "nda" | "client_onboarding_form" | "payment_followup" | "recurring_invoice"
 
 interface ChatMessage {
     id: string

@@ -29,6 +29,7 @@ const EXPECTED_VALID_PARENTS: Record<DocumentType, DocumentType[]> = {
   invoice: [],
   contract: [],
   quote: [],
+  estimate: [],
   proposal: [],
   sow: [],
   change_order: [],
@@ -115,14 +116,15 @@ const SIGNATURE_SUPPORTED_TYPES = new Set<DocumentType>([
   "change_order",
   "quote",
   "proposal",
+  "estimate",
 ])
 
 describe("Property 8: Signature capability correctness", () => {
   /**
    * Property-based: for any type in ALL_DOCUMENT_TYPES,
-   * supports_signature must be true iff type ∈ {contract, nda, sow, change_order, quote, proposal}.
+   * supports_signature must be true iff type ∈ {contract, nda, sow, change_order, quote, proposal, estimate}.
    */
-  it("supports_signature is true iff type is in {contract, nda, sow, change_order, quote, proposal}", () => {
+  it("supports_signature is true iff type is in {contract, nda, sow, change_order, quote, proposal, estimate}", () => {
     fc.assert(
       fc.property(anyDocumentType, (docType) => {
         const config = getDocumentTypeConfig(docType)
@@ -147,6 +149,7 @@ describe("Property 8: Signature capability correctness", () => {
     "change_order",
     "quote",
     "proposal",
+    "estimate",
   ] as DocumentType[])(
     "%s has supports_signature = true",
     (docType) => {

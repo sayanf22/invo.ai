@@ -9,7 +9,7 @@ import {
   RefreshCw, ChevronDown, ChevronUp, CreditCard, Mail,
   BellOff, Repeat2, Bell, PenLine, Trash2, Search, CalendarDays, X,
   FileCheck, FileQuestion, Presentation, ClipboardList, GitMerge,
-  Shield, ClipboardCheck, Paperclip, type LucideIcon,
+  Shield, ClipboardCheck, Paperclip, Calculator, type LucideIcon,
 } from "lucide-react"
 import { getDocumentTypeConfig, normalizeDocumentType, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 import { resolvePdfComponent, resolveDocumentReference } from "@/lib/pdf-export-helpers"
@@ -39,6 +39,7 @@ const DOC_TYPE_ICON_MAP: Record<string, LucideIcon> = {
   ClipboardCheck,
   Bell,
   RefreshCw,
+  Calculator,
 }
 
 const containerVariants = {

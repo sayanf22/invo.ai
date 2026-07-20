@@ -76,6 +76,11 @@ export function resolvePdfTemplateKey(documentType: string, data: InvoiceData): 
       return "QuotationPDF"
     case "proposal":
       return "ProposalPDF"
+    case "estimate":
+      // Estimates reuse the proposal layout (executive summary + budget
+      // breakdown + next steps). ProposalPDF renders the "ESTIMATE" title when
+      // data.documentType is "estimate".
+      return "ProposalPDF"
     case "receipt":
       return "ReceiptPDF"
     case "sow":
@@ -117,6 +122,7 @@ const REFERENCE_TYPE_DEFAULT: Record<string, string> = {
   invoice: "invoice",
   contract: "contract",
   quote: "quote",
+  estimate: "estimate",
   proposal: "proposal",
   receipt: "receipt",
   sow: "sow",
@@ -151,6 +157,7 @@ export function resolveDocumentReference(data: InvoiceData, documentType: string
       return data.invoiceNumber || data.referenceNumber || typeDefault
     case "contract":
     case "quote":
+    case "estimate":
     case "proposal":
     case "sow":
     case "change_order":

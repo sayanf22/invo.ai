@@ -4,14 +4,14 @@ import { useState } from "react"
 import {
   FileText, ScrollText, ClipboardList, Lightbulb, Loader2,
   ChevronDown, FilePlus, Lock, GitMerge, Shield, Bell,
-  ClipboardCheck,
+  ClipboardCheck, Calculator,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { InvoiceData } from "@/lib/invoice-types"
 import { useTier } from "@/hooks/use-tier"
 import { getDocumentTypeConfig, normalizeDocumentType } from "@/lib/document-type-registry"
 
-// All 9 document types with icons and tier requirements
+// All document types with icons and tier requirements
 const ALL_DOC_OPTIONS: Array<{
   type: string
   label: string
@@ -21,6 +21,7 @@ const ALL_DOC_OPTIONS: Array<{
   { type: "invoice",               label: "Invoice",              icon: FileText,      requiredTier: "free" },
   { type: "contract",              label: "Contract",             icon: ScrollText,    requiredTier: "free" },
   { type: "quote",                 label: "Quote",                icon: ClipboardList, requiredTier: "free" },
+  { type: "estimate",              label: "Estimate",             icon: Calculator,    requiredTier: "starter" },
   { type: "proposal",              label: "Proposal",             icon: Lightbulb,     requiredTier: "starter" },
   { type: "sow",                   label: "SOW",                  icon: GitMerge,      requiredTier: "starter" },
   { type: "nda",                   label: "NDA",                  icon: Shield,        requiredTier: "starter" },

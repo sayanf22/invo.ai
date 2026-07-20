@@ -964,6 +964,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
         const docTypeLabel = docType === "invoice" ? "Invoice"
             : docType === "contract" ? "Contract"
             : docType === "quote" || docType === "quotation" ? "Quote"
+            : docType === "estimate" ? "Estimate"
             : docType === "proposal" ? "Proposal"
             : docType === "sow" ? "Statement of Work"
             : docType === "change_order" ? "Change Order"
@@ -1186,7 +1187,8 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
         const DOC_TYPE_KEYWORDS: Record<string, string[]> = {
             invoice:               ["invoice", "invoices"],
             contract:              ["contract", "contracts", "agreement", "agreements"],
-            quote:                 ["quotation", "quotations", "quote", "quotes", "estimate", "estimates"],
+            quote:                 ["quotation", "quotations", "quote", "quotes"],
+            estimate:              ["estimate", "estimates", "cost estimate", "ballpark"],
             proposal:              ["proposal", "proposals", "pitch", "pitches"],
             sow:                   ["statement of work", "sow", "scope of work"],
             change_order:          ["change order", "change orders", "amendment", "amendments"],
@@ -1883,6 +1885,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                         docData.documentType = t === "invoice" ? "Invoice"
                             : t === "contract" ? "Contract"
                             : t === "quotation" || t === "quote" ? "Quote"
+                            : t === "estimate" ? "estimate"
                             : t === "proposal" ? "Proposal"
                             : t === "sow" ? "Sow"
                             : t === "change_order" ? "Change_order"

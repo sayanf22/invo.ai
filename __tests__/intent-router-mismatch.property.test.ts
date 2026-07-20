@@ -270,14 +270,15 @@ describe(
       )
     })
 
-    // ── Structural check: MISMATCH_RULES contains all 9 expected rules ────────
+    // ── Structural check: MISMATCH_RULES contains all 10 expected rules ───────
 
-    it("MISMATCH_RULES array contains exactly 9 rules with all required fields", () => {
+    it("MISMATCH_RULES array contains exactly 10 rules with all required fields", () => {
       /**
        * Validates that the rule table has the expected number of entries
-       * and that each rule contains the required fields.
+       * and that each rule contains the required fields. (10th rule added for
+       * the estimate → quote firm-price redirect.)
        */
-      expect(MISMATCH_RULES.length).toBe(9)
+      expect(MISMATCH_RULES.length).toBe(10)
 
       for (const rule of MISMATCH_RULES) {
         expect(typeof rule.requestedType).toBe("string")

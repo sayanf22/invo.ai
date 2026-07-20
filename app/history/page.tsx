@@ -7,7 +7,7 @@ import { ClorefyLogo } from "@/components/clorefy-logo"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import {
   History, FileText, FileCheck, FileQuestion, Presentation, ClipboardList,
-  GitMerge, Shield, ClipboardCheck, Bell, RefreshCw,
+  GitMerge, Shield, ClipboardCheck, Bell, RefreshCw, Calculator,
   Link2, ChevronRight, ArrowRight, ChevronDown, ArrowLeft, Trash2, MessageSquare
 } from "lucide-react"
 import { toast } from "sonner"
@@ -23,7 +23,7 @@ import { PageHeaderSkeleton, FilterPillsSkeleton, ListItemSkeleton } from "@/com
 // ── Icon lookup map (icon name string → Lucide component) ─────────────────────
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
   FileText, FileCheck, FileQuestion, Presentation, ClipboardList,
-  GitMerge, Shield, ClipboardCheck, Bell, RefreshCw,
+  GitMerge, Shield, ClipboardCheck, Bell, RefreshCw, Calculator,
 }
 
 // ── Doc config helper ─────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ function getDocCfg(type: string) {
 }
 
 // ── Filter definitions ────────────────────────────────────────────────────────
-const PRIMARY_FILTER_TYPES = ["invoice", "contract", "quote", "proposal", "sow"] as const
+const PRIMARY_FILTER_TYPES = ["invoice", "contract", "quote", "estimate", "proposal", "sow"] as const
 const MORE_FILTER_TYPES    = ["nda", "change_order", "client_onboarding_form", "payment_followup"] as const
 
 type DocTypeFilter = typeof PRIMARY_FILTER_TYPES[number] | typeof MORE_FILTER_TYPES[number]

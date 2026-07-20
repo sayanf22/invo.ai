@@ -6,6 +6,7 @@ import {
   ScrollText,
   ClipboardList,
   Lightbulb,
+  Calculator,
   Paperclip,
   Sparkles,
   Check,
@@ -210,7 +211,8 @@ function formatZodErrors(error: z.ZodError): string[] {
 const documentTypes = [
   { label: "Invoice", icon: FileText, description: "Bills & payment requests" },
   { label: "Contract", icon: ScrollText, description: "Legal agreements" },
-  { label: "Quote", icon: ClipboardList, description: "Price quotes & estimates" },
+  { label: "Quote", icon: ClipboardList, description: "Firm price offers" },
+  { label: "Estimate", icon: Calculator, description: "Approximate cost projections" },
   { label: "Proposal", icon: Lightbulb, description: "Business proposals" },
 ]
 
@@ -593,10 +595,11 @@ function SignatureStep({
         />
       </div>
 
-      {/* Client response toggle — quotes and proposals only */}
+      {/* Client response toggle — any type that supports client responses
+          (quote, estimate, proposal), driven by the registry capability. */}
       {(() => {
         const _normType = normalizeDocumentType(data.documentType ?? "")
-        return _normType === "quote" || _normType === "proposal"
+        return _normType ? getDocumentTypeConfig(_normType)?.capabilities.supports_client_response === true : false
       })() && (
         <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-border bg-muted/20">
           <div className="flex items-center gap-2">
