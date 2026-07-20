@@ -450,8 +450,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
     // Send dialog state (opened from chat card "Customize" button)
     const [sendDialogOpen, setSendDialogOpen] = useState(false)
     const [sendDialogEmail, setSendDialogEmail] = useState("")
-    // Linked document context — fields extracted from parent document
-    const [linkedDocContext, setLinkedDocContext] = useState<{ parentType: string; fields: Array<{ label: string; value: string }> } | null>(null)
 
     // Payment methods hook — to check if any gateway is connected
     const { hasAnyGateway } = usePaymentMethods()
@@ -616,7 +614,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
         setMessageLimitReached(false)
         setDocumentLimitReached(false)
         setLimitInfo(null)
-        setLinkedDocContext(null)
         setWelcomeLoaded(false)
         // Drop the auto-gen queue from the previous session — the new session
         // will set its own pendingAutoGenerateRef inside the sync effect below.
@@ -814,19 +811,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                 const { paymentLink: _pl, paymentLinkStatus: _pls, showPaymentLinkInPdf: _spdf, ...cleanCtx } = ctx as any
                 onChange(cleanCtx as Partial<InvoiceData>)
                 const clientName = (ctx as any).toName || "the client"
-
-                // Build linked doc context banner — show what was extracted from parent
                 const parentType = ((ctx as any)._parentDocumentType || "document") as string
-                const extractedFields: Array<{ label: string; value: string }> = []
-                if ((ctx as any).toName) extractedFields.push({ label: "Client", value: (ctx as any).toName })
-                if ((ctx as any).toEmail) extractedFields.push({ label: "Email", value: (ctx as any).toEmail })
-                if ((ctx as any).toAddress) extractedFields.push({ label: "Address", value: (ctx as any).toAddress })
-                if ((ctx as any).toPhone) extractedFields.push({ label: "Phone", value: (ctx as any).toPhone })
-                if ((ctx as any).currency) extractedFields.push({ label: "Currency", value: (ctx as any).currency })
-                if (extractedFields.length > 0) {
-                    setLinkedDocContext({ parentType, fields: extractedFields })
-                }
-
                 const autoGenPrompt = `Generate a ${docType} using the linked document details for ${clientName}`
                 // Has the rolling chain brief already been built for this session?
                 const chainCtx = (ctx as any)._chainContext
@@ -2556,35 +2541,6 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                     <p className="text-xs text-muted-foreground leading-snug">
                         This document has been cancelled. Its links and reminders are no longer active — you can edit it or send it again.
                     </p>
-                </div>
-            )}
-
-            {/* Linked doc context banner — shows what data was pulled from the parent document */}
-            {linkedDocContext && linkedDocContext.fields.length > 0 && (
-                <div className="shrink-0 px-4 py-2.5 bg-blue-50 dark:bg-blue-950/20 border-b border-blue-200 dark:border-blue-800/40">
-                    <div className="flex items-start gap-2">
-                        <span className="text-blue-500 dark:text-blue-400 text-sm shrink-0 mt-0.5">🔗</span>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 mb-1">
-                                Data from {linkedDocContext.parentType}
-                            </p>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                                {linkedDocContext.fields.map(f => (
-                                    <span key={f.label} className="text-[10px] text-blue-600 dark:text-blue-400">
-                                        <span className="font-medium">{f.label}:</span> {f.value}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setLinkedDocContext(null)}
-                            className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 shrink-0 text-xs leading-none mt-0.5"
-                            aria-label="Dismiss"
-                        >
-                            ✕
-                        </button>
-                    </div>
                 </div>
             )}
 
