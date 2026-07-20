@@ -20,18 +20,18 @@ const tabs: TabData[] = [
 const tabContent: Record<string, TabContentData> = {
     generate: {
         title: "AI document generation",
-        desc: "Describe what you need in plain language. Clorefy generates invoices, contracts, proposals, NDAs, SOWs, change orders, and all 9 document types in seconds.",
+        desc: "Describe what you need in plain language. Clorefy generates invoices, contracts, quotes, estimates, proposals, NDAs, SOWs, change orders, and every document type in seconds.",
         features: [
-            { icon: "Wand2", name: "9 document types", detail: "Invoice, Contract, Quote, Proposal, SOW, NDA, Change Order, Client Onboarding Form, Payment Follow-up" },
+            { icon: "Wand2", name: "Every document type", detail: "Invoice, Contract, Quote, Estimate, Proposal, SOW, NDA, Change Order, Client Onboarding Form, Payment Follow-up" },
             { icon: "FileText", name: "Smart AI drafting", detail: "Turn a few sentences into a complete, formatted document — your business details auto-filled" },
             { icon: "Globe", name: "Global tax compliance", detail: "GST, VAT, HST, Sales Tax — calculated automatically based on your country and registration status" },
         ]
     },
     customize: {
         title: "Make every document yours",
-        desc: "Your logo, your colors, your fonts. Choose from 9 PDF templates and customize them to match your brand.",
+        desc: "Your logo, your colors, your fonts. Choose from a library of PDF templates and customize them to match your brand.",
         features: [
-            { icon: "Palette", name: "9 PDF templates", detail: "Modern, Classic, Bold, Minimal, Elegant, Corporate, Creative, Warm, Geometric" },
+            { icon: "Palette", name: "Premium PDF templates", detail: "Modern, Classic, Bold, Minimal, Elegant, Corporate, Creative, Warm, Geometric" },
             { icon: "PenTool", name: "Custom logo & branding", detail: "Upload your logo — it appears on every document you generate" },
             { icon: "FileText", name: "Editable after generation", detail: "Edit any field after the AI generates it — full manual control in the editor" },
         ]
@@ -67,7 +67,7 @@ const tabContent: Record<string, TabContentData> = {
 
 const featureGrid = [
     { icon: Wand2, name: "AI Generation", desc: "Natural language to documents" },
-    { icon: Palette, name: "Custom Branding", desc: "Your logo, colors, and 9 templates" },
+    { icon: Palette, name: "Custom Branding", desc: "Your logo, colors, and premium templates" },
     { icon: Calculator, name: "Auto Tax", desc: "GST, VAT, sales tax calculated" },
     { icon: Globe, name: "Multi-Currency", desc: "Generate in any currency" },
     { icon: Bell, name: "Payment Reminders", desc: "Auto follow-up until paid" },
@@ -99,7 +99,7 @@ export default function FeaturesPage() {
                                 <span className="font-serif italic text-[var(--landing-amber)]">get with Clorefy</span>
                             </h1>
                             <p className="text-xl sm:text-2xl text-[var(--landing-text-muted)] max-w-2xl mx-auto mb-10">
-                                9 document types. Global tax compliance. Email, payment links, and reminders. No separate tools needed.
+                                Every document type. Global tax compliance. Email, payment links, and reminders. No separate tools needed.
                             </p>
                         </AnimatedCard>
 

@@ -35,11 +35,11 @@ const plans = [
     },
     {
         id: "starter", name: "Starter", popular: true,
-        features: ["50 documents/month", "All 9 document types", "All 9 PDF templates", "Every country worldwide", "PDF + DOCX export", "100 email sends/month", "Custom logo & branding"],
+        features: ["50 documents/month", "All document types", "All PDF templates", "Every country worldwide", "PDF + DOCX export", "100 email sends/month", "Custom logo & branding"],
     },
     {
         id: "pro", name: "Pro",
-        features: ["150 documents/month", "All 9 document types", "All 9 PDF templates", "Every country worldwide", "PDF + DOCX + Image export", "250 email sends/month", "E-signatures", "Custom logo & branding"],
+        features: ["150 documents/month", "All document types", "All PDF templates", "Every country worldwide", "PDF + DOCX + Image export", "250 email sends/month", "E-signatures", "Custom logo & branding"],
     },
     {
         id: "agency", name: "Agency", comingSoon: true,

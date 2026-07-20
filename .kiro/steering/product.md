@@ -1,6 +1,6 @@
 # Product Overview
 
-Invo.ai is an AI-powered platform that generates compliant invoices, contracts, quotations, and proposals for businesses globally through conversational prompts.
+Invo.ai is an AI document generation platform for freelancers, agencies, and service businesses that generates compliant business documents — invoices, contracts, quotes, estimates, proposals and more — globally through conversational prompts.
 
 ## Core User Flow
 
@@ -25,7 +25,7 @@ Works globally with country-aware compliance. Particularly well-tested for India
 **Two-Layer Architecture with Template-Enhanced Generation:**
 
 1. **Onboarding Flow** - DeepSeek V3 Chat: Extract structured business data from conversations
-2. **Document Generation** - DeepSeek V3 Chat: Generate invoices, contracts, quotations, and proposals using business profile data + country-specific compliance templates
+2. **Document Generation** - DeepSeek V3 Chat: Generate any supported business document (invoices, contracts, quotes, estimates, proposals, and more) using business profile data + country-specific compliance templates
 
 **Template System:**
 - Templates cover a wide range of countries × document type combinations

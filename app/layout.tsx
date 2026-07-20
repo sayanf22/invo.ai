@@ -29,11 +29,11 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Clorefy — AI Invoice & Document Generator",
+    default: "Clorefy — AI Document Generation Platform",
     template: "%s | Clorefy",
   },
   description:
-    "Create invoices, contracts, proposals, NDAs and more with AI in seconds. Auto-emails clients, attaches payment links, and chases overdue bills. Global tax compliance. Free plan.",
+    "AI document generation platform for freelancers, agencies, and service businesses. Create invoices, contracts, quotes, estimates, proposals, NDAs and more in seconds — with auto-emails, payment links, and global tax compliance. Free plan.",
   keywords: [
     // Core intent keywords — match what people actually search
     "invoice generator", "free invoice generator", "online invoice generator",
@@ -99,9 +99,9 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   openGraph: {
-    title: "Clorefy — AI Invoice & Document Generator",
+    title: "Clorefy — AI Document Generation Platform",
     description:
-      "Create invoices, contracts, proposals, NDAs and more with AI in seconds. Auto-emails clients, attaches payment links, and chases overdue bills. Free plan.",
+      "AI document generation platform for freelancers, agencies, and service businesses. Create invoices, contracts, quotes, estimates, proposals, NDAs and more in seconds. Free plan.",
     url: "https://clorefy.com",
     siteName: "Clorefy",
     locale: "en_US",
@@ -117,9 +117,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Clorefy — AI Invoice & Document Generator",
+    title: "Clorefy — AI Document Generation Platform",
     description:
-      "Create invoices, contracts, proposals, NDAs with AI. Auto-emails, payment links, reminders. Free plan.",
+      "AI document generation platform for freelancers, agencies & service businesses. Invoices, contracts, quotes, estimates, proposals, NDAs & more. Free plan.",
     images: ["/favicon.png"],
   },
   robots: {
@@ -264,12 +264,13 @@ export default function RootLayout({
                 "AI contract generation",
                 "AI proposal generation",
                 "AI quotation / quote generation",
+                "AI estimate generation",
                 "AI NDA generation",
                 "AI Statement of Work (SOW) generation",
                 "AI Change Order generation",
                 "AI Client Onboarding Form generation",
                 "AI Payment Follow-up generation",
-                "9 document types from one platform",
+                "Every document type from one platform",
                 "Global country support (150+ countries)",
                 "GST compliance for India",
                 "VAT compliance for UK and EU",
@@ -348,7 +349,7 @@ export default function RootLayout({
                   "name": "What document types does Clorefy support?",
                   "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Clorefy supports 9 document types: Invoice, Contract, Quote, Proposal, Statement of Work (SOW), Change Order, NDA (Non-Disclosure Agreement), Client Onboarding Form, and Payment Follow-up. The free plan includes Invoice, Contract, and Quote. Starter, Pro, and Agency plans include all 9 types."
+                    "text": "Clorefy supports a full range of business documents: Invoice, Contract, Quote, Estimate, Proposal, Statement of Work (SOW), Change Order, NDA (Non-Disclosure Agreement), Client Onboarding Form, and Payment Follow-up. The free plan includes Invoice, Contract, and Quote. Starter, Pro, and Agency plans include all document types."
                   }
                 },
                 {

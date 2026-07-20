@@ -141,11 +141,11 @@ export async function POST(request: NextRequest) {
 
         // SECURITY: Validate document type against whitelist
         // 'chat' is a valid pseudo-type for chat-only advisory mode.
-        // All 9 canonical document types + legacy 'quotation' alias + 'chat' are valid.
+        // All canonical document types + legacy 'quotation' alias + 'chat' are valid.
         const VALID_DOC_TYPES = [
-            "invoice", "contract", "quote", "quotation", "proposal",
+            "invoice", "contract", "quote", "quotation", "estimate", "proposal",
             "sow", "change_order", "nda", "client_onboarding_form",
-            "payment_followup", "chat",
+            "payment_followup", "recurring_invoice", "chat",
         ]
         const normalizedDocType = body.documentType.toLowerCase().trim()
         if (!VALID_DOC_TYPES.includes(normalizedDocType)) {

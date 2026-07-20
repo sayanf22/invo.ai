@@ -910,7 +910,7 @@ export function ChatOnlyScreen({
                                 Hi, I can help you figure out the right document.
                             </div>
                             <div className="text-sm max-w-md leading-relaxed">
-                                Ask anything about invoices, contracts, quotations, or proposals. I&apos;ll suggest the right one and you can decide when to create it.
+                                Ask anything about your business documents — invoices, contracts, quotes, estimates, proposals and more. I&apos;ll suggest the right one and you can decide when to create it.
                             </div>
                         </div>
                     )}

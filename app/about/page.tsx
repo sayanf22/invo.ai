@@ -36,7 +36,7 @@ const howItWorks = [
 ]
 
 const whatWeActuallyBuild = [
-    { icon: FileText, label: "9 document types", detail: "Invoice, Contract, Quote, Proposal, SOW, NDA, Change Order, Onboarding Form, Payment Follow-up" },
+    { icon: FileText, label: "Every document type", detail: "Invoice, Contract, Quote, Estimate, Proposal, SOW, NDA, Change Order, Onboarding Form, Payment Follow-up" },
     { icon: Globe, label: "Global tax compliance", detail: "GST (India), VAT (UK/EU/UAE), HST/GST (Canada), Sales Tax (USA), and more" },
     { icon: Zap, label: "AI from plain language", detail: "No forms to fill — just describe what you need and the document is generated" },
     { icon: CreditCard, label: "Payment links", detail: "Razorpay, Stripe, and Cashfree — clients pay directly from the document" },

@@ -34,7 +34,7 @@ export function HeroSection() {
                         transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
                         className="font-display text-[2.5rem] xs:text-[2.75rem] sm:text-5xl md:text-6xl lg:text-[6.5rem] font-semibold tracking-tighter leading-[1.02] text-[#1C1A17] mb-5 sm:mb-8"
                     >
-                        <span className="sr-only">Clorefy — AI Invoice, Contract &amp; Proposal Generator.</span>
+                        <span className="sr-only">Clorefy — AI document generation platform for freelancers, agencies &amp; service businesses.</span>
 
                         {/* "Create" with subtle text shadow */}
                         <span
@@ -48,12 +48,16 @@ export function HeroSection() {
                         {/* Fixed-height row — prevents layout shift during word swap */}
                         <span className="block relative" style={{ minHeight: "1.15em" }} aria-hidden>
                             <FlipWords
-                                words={["invoices", "contracts", "proposals", "NDAs", "SOWs"]}
+                                words={["invoices", "contracts", "quotes", "estimates", "proposals", "NDAs", "SOWs"]}
                                 gradients={[
                                     // Invoices — warm amber → terracotta (matches brand)
                                     "linear-gradient(120deg, #d97757 0%, #e07b39 45%, #b8421c 100%)",
                                     // Contracts — deep indigo → slate (professional, high contrast)
                                     "linear-gradient(120deg, #1e3a8a 0%, #3730a3 50%, #0f172a 100%)",
+                                    // Quotes — warm gold → bronze (value, pricing)
+                                    "linear-gradient(120deg, #b45309 0%, #d97706 50%, #78350f 100%)",
+                                    // Estimates — magenta → plum (approximate, distinct from quotes)
+                                    "linear-gradient(120deg, #a21caf 0%, #c026d3 50%, #701a75 100%)",
                                     // Proposals — forest emerald → deep teal (rich, editorial)
                                     "linear-gradient(120deg, #065f46 0%, #047857 50%, #134e4a 100%)",
                                     // NDAs — burgundy → warm rose (elegant, warm)

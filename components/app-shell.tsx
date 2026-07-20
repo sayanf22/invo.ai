@@ -375,7 +375,7 @@ export function AppShell() {
         const effectiveLower = effectiveCategory.toLowerCase()
         if (!tierLoading && !allowedDocTypes.includes(effectiveLower)) {
           toast.error(`${effectiveCategory}s require a paid plan`, {
-            description: `Your Free plan includes invoices and contracts. Upgrade to Starter for all document types.`,
+            description: `Your Free plan includes invoices, contracts and quotes. Upgrade to Starter for all document types.`,
             action: { label: "See plans", onClick: () => router.push("/billing") },
             duration: 8000,
           })
@@ -499,7 +499,7 @@ export function AppShell() {
         setDetectingType(false)
         setDetectedRoute(null)
         toast.error(`${detectedCategory}s require a paid plan`, {
-          description: `Your Free plan includes invoices and contracts. Upgrade to Starter for all document types.`,
+          description: `Your Free plan includes invoices, contracts and quotes. Upgrade to Starter for all document types.`,
           action: {
             label: "See plans",
             onClick: () => router.push("/billing"),

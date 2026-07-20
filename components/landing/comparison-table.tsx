@@ -150,7 +150,7 @@ const SECTIONS: Section[] = [
       { label: "PDF export", clorefy: true, freshbooks: true, quickbooks: true, bonsai: true },
       { label: "Word (.docx) export", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false },
       { label: "Image export (PNG / JPG)", clorefy: true, freshbooks: false, quickbooks: false, bonsai: false },
-      { label: "Templates", clorefy: "9 designs", freshbooks: "Limited", quickbooks: "Limited", bonsai: "Limited" },
+      { label: "Templates", clorefy: "Full library", freshbooks: "Limited", quickbooks: "Limited", bonsai: "Limited" },
       { label: "Custom logo & branding", clorefy: true, freshbooks: true, quickbooks: true, bonsai: true },
       { label: "Digital e-signatures", clorefy: true, freshbooks: "partial", quickbooks: false, bonsai: true },
     ],

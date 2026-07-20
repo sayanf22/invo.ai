@@ -241,7 +241,7 @@ export default function AlternativeSpellingsPage() {
               },
               {
                 q: "Is Clorefy free to use?",
-                a: "Yes. Clorefy has a free plan with 5 documents per month. No credit card required. Paid plans start at $9/month for 50 documents and all 9 document types.",
+                a: "Yes. Clorefy has a free plan with 5 documents per month. No credit card required. Paid plans start at $9/month for 50 documents and all document types.",
               },
               {
                 q: "What countries does Clorefy support?",

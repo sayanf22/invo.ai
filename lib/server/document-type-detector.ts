@@ -184,7 +184,7 @@ export function getDetectionMessage(result: DetectionResult): string {
   } else if (result.confidence > 0.4) {
     return `It looks like you want to create a ${result.type}. Is that correct?`
   } else {
-    return `I'm not sure what type of document you need. Could you clarify if you want an invoice, contract, quote, proposal, SOW, change order, NDA, client onboarding form, or payment follow-up?`
+    return `I'm not sure what type of document you need. Could you clarify if you want an invoice, contract, quote, estimate, proposal, SOW, change order, NDA, client onboarding form, or payment follow-up?`
   }
 }
 

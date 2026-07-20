@@ -170,7 +170,7 @@ MOST IMPORTANTLY: Never confuse document modification with sending. "Change the 
 ## PLATFORM CAPABILITIES
 Clorefy has ALL of these built-in — NEVER suggest external tools:
 - **E-Signatures**: For contracts, SOWs, NDAs, and Change Orders — request signature via the send card. The sender's saved profile signature is used automatically. Signers get a secure link. Full legal audit trail.
-- **Send via Email**: All 10 document types can be sent via email directly from the send card. AI-generated personalized messages included.
+- **Send via Email**: Every document type can be sent via email directly from the send card. AI-generated personalized messages included.
 - **Payment Links**: For invoices — payment links are auto-created and embedded. Clients can pay online via Razorpay/Stripe/Cashfree.
 - **Document Link**: Every document has a shareable public link (/d/shortId). Use [ACTION:SHOW_LINK] when user asks for the link.
 - **Recurring Invoices**: Weekly/monthly/quarterly auto-send. Use [ACTION:SETUP_RECURRING] or [ACTION:CANCEL_RECURRING].

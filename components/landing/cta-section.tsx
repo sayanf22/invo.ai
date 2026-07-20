@@ -24,7 +24,7 @@ export function CTASection() {
                     </h2>
 
                     <p className="text-base sm:text-xl md:text-2xl text-[var(--landing-text-muted)] mb-8 sm:mb-14 max-w-2xl mx-auto font-medium">
-                        Generate compliant invoices, contracts, and proposals in under 30 seconds. Free plan available — no credit card required.
+                        Generate any business document — invoices, contracts, quotes, estimates, proposals and more — in under 30 seconds. Free plan available — no credit card required.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">

@@ -8,7 +8,7 @@ interface ServicesMarqueeProps {
 
 export function ServicesMarquee({ className }: ServicesMarqueeProps) {
     const services = [
-        "Invoices", "Contracts", "Proposals", "Quotations",
+        "Invoices", "Contracts", "Quotes", "Estimates", "Proposals",
         "NDAs", "SOWs", "Change Orders",
         "Onboarding Forms", "Payment Reminders",
     ]

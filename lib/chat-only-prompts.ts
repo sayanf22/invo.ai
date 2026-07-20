@@ -35,7 +35,7 @@ CLOREFY PLANS (authoritative — use ONLY these facts, never guess):
 
 FREE — $0/month
   • 5 documents / month
-  • Document types: Invoice, Contract, Quote (3 types only)
+  • Document types: Invoice, Contract, Quote
   • 10 messages per session
   • 3 templates (Modern, Classic, Minimal)
   • 5 email sends / month
@@ -49,9 +49,9 @@ FREE — $0/month
 
 STARTER — $9/month (or $7/month billed yearly)
   • 50 documents / month
-  • All 10 document types (Invoice, Contract, Quote, Estimate, Proposal, SOW, NDA, Change Order, Client Onboarding Form, Payment Follow-up)
+  • All document types (Invoice, Contract, Quote, Estimate, Proposal, SOW, NDA, Change Order, Client Onboarding Form, Payment Follow-up)
   • 30 messages per session
-  • All 9 templates
+  • All templates
   • 100 email sends / month
   • PDF + DOCX export
   • Digital e-signatures ✓
@@ -63,9 +63,9 @@ STARTER — $9/month (or $7/month billed yearly)
 
 PRO — $24/month (or $19/month billed yearly) — Most Popular
   • 150 documents / month
-  • All 10 document types
+  • All document types
   • 50 messages per session
-  • All 9 templates
+  • All templates
   • 250 email sends / month
   • PDF + DOCX + Image export
   • Digital e-signatures ✓
@@ -76,9 +76,9 @@ PRO — $24/month (or $19/month billed yearly) — Most Popular
 
 AGENCY — $59/month (or $47/month billed yearly) — Coming Soon
   • Unlimited documents
-  • All 10 document types
+  • All document types
   • Unlimited messages per session
-  • All 9 templates
+  • All templates
   • Unlimited email sends
   • All export formats (PDF + DOCX + Image)
   • Digital e-signatures ✓
@@ -90,14 +90,14 @@ AGENCY — $59/month (or $47/month billed yearly) — Coming Soon
 
 KEY FACTS:
 - Digital e-signatures are available on ALL plans including Free
-- All 10 document types are available on Starter, Pro, and Agency (not Free — Free is invoice + contract + quote only)
+- All document types are available on Starter, Pro, and Agency (not Free — Free is invoice + contract + quote only)
 - Auto follow-up email reminders for invoices are available on Starter, Pro, and Agency (not Free)
 - DOCX export is available on Starter, Pro, and Agency (not Free)
 - Image export (PNG/JPG) is available on Pro and Agency only
-- Free plan: 5 docs/month, 3 types, PDF only, 5 emails/month, 10 messages/session
-- Starter plan ($9/mo): 50 docs/month, all 10 types, PDF+DOCX, 100 emails/month, 30 messages/session, auto-reminders
-- Pro plan ($24/mo): 150 docs/month, all 10 types, PDF+DOCX+Image, 250 emails/month, 50 messages/session, auto-reminders
-- Agency plan ($59/mo, coming soon): unlimited everything, all 10 types, all exports, team members, priority support
+- Free plan: 5 docs/month, invoice + contract + quote, PDF only, 5 emails/month, 10 messages/session
+- Starter plan ($9/mo): 50 docs/month, all document types, PDF+DOCX, 100 emails/month, 30 messages/session, auto-reminders
+- Pro plan ($24/mo): 150 docs/month, all document types, PDF+DOCX+Image, 250 emails/month, 50 messages/session, auto-reminders
+- Agency plan ($59/mo, coming soon): unlimited everything, all document types, all exports, team members, priority support
 - Yearly billing saves ~20% vs monthly
 - Paid plans are charged at secure checkout; there is no paid-plan free trial
 - Same-cycle card upgrades can activate immediately with a prorated difference charge
@@ -107,9 +107,9 @@ KEY FACTS:
     // The user's specific current plan context
     const USER_PLAN_MAP: Record<string, string> = {
         free:    "The user is currently on the FREE plan ($0/month). They have 5 documents/month, invoice+contract+quote only, PDF export, and e-signatures.",
-        starter: "The user is currently on the STARTER plan ($9/month). They have 50 documents/month, all 10 doc types, PDF+DOCX export, e-signatures, and auto-reminders.",
-        pro:     "The user is currently on the PRO plan ($24/month). They have 150 documents/month, all 10 doc types, all export formats (PDF+DOCX+Image), e-signatures, and auto-reminders.",
-        agency:  "The user is currently on the AGENCY plan ($59/month). They have unlimited documents, all 10 doc types, all export formats, e-signatures, auto-reminders, team members, and priority support.",
+        starter: "The user is currently on the STARTER plan ($9/month). They have 50 documents/month, all document types, PDF+DOCX export, e-signatures, and auto-reminders.",
+        pro:     "The user is currently on the PRO plan ($24/month). They have 150 documents/month, all document types, all export formats (PDF+DOCX+Image), e-signatures, and auto-reminders.",
+        agency:  "The user is currently on the AGENCY plan ($59/month). They have unlimited documents, all document types, all export formats, e-signatures, auto-reminders, team members, and priority support.",
     }
     const userPlanContext = USER_PLAN_MAP[tier] ?? USER_PLAN_MAP.free
 
@@ -146,7 +146,7 @@ PLATFORM CAPABILITIES (authoritative — use these when users ask about features
 - Every country worldwide: 150+ countries with tax and compliance rules built in.
 
 
-Clorefy supports 10 document types. Choose the best one based on the user's situation:
+Clorefy supports the following document types. Choose the best one based on the user's situation:
 
 - invoice: Bill a client for completed work. Includes line items, taxes, payment terms, and due date. Use when work is done and you need to collect payment. Invoices can also be set up to recur weekly, monthly, quarterly, etc. for retainers and subscriptions — that's a setting on the invoice, not a separate document type.
 - contract: A formal service or work agreement with legal terms. Use when starting a new client engagement that needs binding obligations.

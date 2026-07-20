@@ -29,6 +29,7 @@ const DOC_COLORS: Record<string, string> = {
   contract:             '#6366F1',
   quote:                '#22C55E',
   quotation:            '#22C55E', // legacy alias
+  estimate:             '#D946EF',
   proposal:             '#F59E0B',
   sow:                  '#06B6D4',
   change_order:         '#F97316',
@@ -37,9 +38,9 @@ const DOC_COLORS: Record<string, string> = {
   payment_followup:     '#EF4444',
 }
 
-// All 9 canonical types in display order
+// All canonical types in display order
 const ALL_DOC_TYPES = [
-  "invoice", "contract", "quote", "proposal",
+  "invoice", "contract", "quote", "estimate", "proposal",
   "sow", "change_order", "nda", "client_onboarding_form", "payment_followup"
 ]
 
@@ -47,7 +48,7 @@ const ALL_DOC_TYPES = [
 function docTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     invoice: "Invoice", contract: "Contract", quote: "Quote", quotation: "Quote",
-    proposal: "Proposal", sow: "SOW", change_order: "Change Order",
+    estimate: "Estimate", proposal: "Proposal", sow: "SOW", change_order: "Change Order",
     nda: "NDA", client_onboarding_form: "Onboarding Form", payment_followup: "Payment Reminder",
   }
   return labels[type] ?? type.charAt(0).toUpperCase() + type.slice(1)

@@ -29,8 +29,8 @@ const features = [
         className: "md:col-span-2 bg-[var(--landing-cream-deep)] border border-stone-100 shadow-xl"
     },
     {
-        title: "9 Document Types",
-        desc: "Invoices, contracts, proposals, quotations, NDAs, SOWs, change orders, client onboarding forms, and payment follow-ups — all from one platform.",
+        title: "Every Document Type",
+        desc: "Invoices, contracts, quotes, estimates, proposals, NDAs, SOWs, change orders, onboarding forms, and payment follow-ups — all from one platform.",
         icon: FileText,
         className: "md:col-span-1 bg-white border border-stone-100 shadow-xl"
     },
