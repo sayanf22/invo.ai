@@ -342,7 +342,7 @@ export async function POST(request: NextRequest) {
                     // redirect message.
                     if (intentType === "document") {
                         const requestedType = (body.documentType || "invoice").toLowerCase() as IntentDocumentType
-                        if (requestedType === "invoice" || requestedType === "contract" || requestedType === "quote" || requestedType === "proposal") {
+                        if (requestedType === "invoice" || requestedType === "contract" || requestedType === "quote" || requestedType === "estimate" || requestedType === "proposal") {
                             const mismatch = detectMismatch(cleanedPrompt, requestedType)
                             if (mismatch) {
                                 const initialMessage = `I see you want to create a ${mismatch.requestedType} here, but ${mismatch.reason} Want me to create a ${mismatch.suggestedType} instead?\n\n[CREATE_CARD:{"type":"${mismatch.suggestedType}","summary":"Suggested ${mismatch.suggestedType} based on your request"}]`
