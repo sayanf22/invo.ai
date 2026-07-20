@@ -81,6 +81,28 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // A quote/proposal the client has formally responded to (accepted,
+        // declined, or changes requested) is part of the record — the owner
+        // cannot void it by unlocking/cancelling from chat. Mirrors the
+        // identical guard in /api/sessions/cancel so both cancel paths agree.
+        if (["quotation", "quote", "proposal"].includes((session.document_type || "").toLowerCase())) {
+            const { data: clientResponses } = await db.from("quotation_responses")
+                .select("response_type")
+                .eq("session_id", sessionId)
+                .limit(1)
+            if (Array.isArray(clientResponses) && clientResponses.length > 0) {
+                const responseType = clientResponses[0].response_type
+                const human = responseType === "accepted" ? "accepted this document"
+                    : responseType === "declined" ? "declined this document"
+                    : "requested changes"
+                return NextResponse.json({
+                    error: `Your client has already ${human}. This document cannot be reopened or cancelled.`,
+                    status: "responded",
+                    responseType,
+                }, { status: 403 })
+            }
+        }
+
         if (session.status === "active") {
             return NextResponse.json({ success: true, message: "Document is already editable" })
         }
