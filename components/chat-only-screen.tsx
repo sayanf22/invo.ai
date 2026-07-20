@@ -662,11 +662,15 @@ export function ChatOnlyScreen({
                     return
                 }
 
-                // Success — bubble up to AppShell which will switch to split-screen
+                // Success — bubble up to AppShell which will switch to split-screen.
+                // Prefer the Kimi-distilled chat brief (full conversation context,
+                // compact) over the short CREATE_CARD summary.
                 onPromote({
                     sessionId,
                     documentType: card.type,
-                    initialPrompt: card.summary,
+                    initialPrompt: (typeof data.chatBrief === "string" && data.chatBrief.trim())
+                        ? data.chatBrief.trim()
+                        : card.summary,
                 })
             } catch (err) {
                 console.error("Promote error:", err)

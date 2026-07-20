@@ -28,8 +28,66 @@ import {
 import {
     ALL_DOCUMENT_TYPES,
     normalizeDocumentType,
+    getDocumentTypeLabel,
     type DocumentType,
 } from "@/lib/document-type-registry"
+import { callBedrockBrief, resolveBedrockKey } from "@/lib/bedrock"
+
+/**
+ * Summarize the chat conversation into a compact brief (≤6 lines, ≤700 chars)
+ * for the document generator. Kimi reads the transcript and distills what the
+ * user wants built — this carries the chat context into the new document
+ * WITHOUT dumping the entire conversation. Returns "" on any failure so the
+ * caller falls back to the CREATE_CARD summary.
+ */
+async function buildChatBrief(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase: any,
+    sessionId: string,
+    userId: string,
+    targetType: string
+): Promise<string> {
+    try {
+        const bedrockKey = resolveBedrockKey()
+        if (!bedrockKey) return ""
+
+        const { data: msgs } = await supabase
+            .from("chat_messages")
+            .select("role, content")
+            .eq("session_id", sessionId)
+            .order("created_at", { ascending: true })
+            .limit(40)
+        if (!Array.isArray(msgs) || msgs.length === 0) return ""
+
+        const transcript = msgs
+            .filter((m: { role: string; content: string }) => m.content && m.content.trim())
+            .map((m: { role: string; content: string }) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content.trim()}`)
+            .join("\n")
+            .slice(0, 6000)
+        if (!transcript) return ""
+
+        const label = getDocumentTypeLabel(targetType)
+        const system =
+            "You distill a chat conversation into a short brief for a document generator. " +
+            "Be concise and factual. No preamble, no greetings."
+        const user =
+            `The user has been chatting and now wants to create a ${label}. ` +
+            `Summarize what to build in AT MOST 6 short lines and AT MOST 700 characters total. ` +
+            `Capture: the document's purpose, the client/recipient, key items/services with amounts, ` +
+            `any dates/terms, and specifics the user mentioned. Write it as direct instructions to the generator.\n\n` +
+            `CONVERSATION:\n${transcript}`
+
+        const raw = await callBedrockBrief(system, user, bedrockKey, 320)
+        if (!raw) return ""
+
+        // Enforce the ≤6 lines / ≤700 chars ceiling defensively.
+        let brief = raw.trim().split("\n").filter(l => l.trim()).slice(0, 6).join("\n")
+        if (brief.length > 700) brief = brief.slice(0, 700).trim()
+        return brief
+    } catch {
+        return ""
+    }
+}
 
 /**
  * Valid promotion targets. Includes:
@@ -159,8 +217,14 @@ export async function POST(request: NextRequest) {
         // The monthly slot is reserved by /api/ai/stream when the promoted
         // session first generates a document.
 
+        // Distill the chat into a compact brief (≤6 lines / ≤700 chars) so the
+        // new document is generated with the full conversation context — not the
+        // raw transcript. Best-effort: empty string on failure.
+        const chatBrief = await buildChatBrief(auth.supabase, body.sessionId, auth.user.id, normalizedTargetType)
+
         return NextResponse.json({
             success: true,
+            chatBrief,
             session: {
                 id: updated.id,
                 documentType: updated.document_type,
