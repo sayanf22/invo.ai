@@ -139,17 +139,11 @@ export default function HistoryPage() {
     } finally { setLoading(false) }
   }
 
-  // A locked/sent document is a finished record — open it in the document
-  // viewer (read-only PDF UI), the same as clicking it in My Documents. Drafts
-  // and chat sessions still reopen the chat/editor so they can be continued.
-  const openSession = (session: Session) => {
-    const locked = ["finalized", "signed", "paid"].includes((session.status || "").toLowerCase())
-    if (session.document_type !== "chat" && locked) {
-      router.push(`/view/${session.id}`)
-    } else {
-      router.push(`/?sessionId=${session.id}`)
-    }
-  }
+  // Always reopen in the chat/editor panel. A locked/sent document opens there
+  // too — the editor shows it as locked (read-only with a "sent" lock state)
+  // rather than routing to a stripped-down viewer, so the owner keeps full
+  // access to the editor panel and can see the lock.
+  const openSession = (session: Session) => router.push(`/?sessionId=${session.id}`)
 
   /**
    * Called when user clicks the trash icon.
