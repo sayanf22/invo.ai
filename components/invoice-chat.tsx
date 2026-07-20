@@ -107,6 +107,7 @@ import { cn } from "@/lib/utils"
 import { AIInputWithLoading } from "@/components/ui/ai-input-with-loading"
 import { toast } from "sonner"
 import type { InvoiceData } from "@/lib/invoice-types"
+import { getDocumentTypeLabel as documentTypeLabel } from "@/lib/document-type-registry"
 import { useDocumentSession } from "@/hooks/use-document-session"
 import { MarkdownMessage } from "@/components/markdown-message"
 import { NextStepsBar } from "@/components/next-steps-bar"
@@ -387,6 +388,11 @@ interface InvoiceChatProps {
      *  Chat-originated changes are no-ops (the value already matches). */
     documentStatus?: string
     initialPrompt?: string
+    /** Hidden reference context (Kimi vision analysis) for a file attached on
+     *  the home screen. Fed to the generator; never shown as raw text. */
+    initialFileContext?: string
+    /** File name for the attachment chip shown alongside the first message. */
+    initialFileName?: string
     /** Called once the session is ready with a function to persist context to DB */
     onSaveContext?: (saveFn: (data: InvoiceData) => Promise<void>) => void
     /** When non-null, the parent is notifying the chat that a fillable onboarding
@@ -397,7 +403,7 @@ interface InvoiceChatProps {
     injectedOnboardLink?: string | null
 }
 
-export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransitionStart, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, documentStatus: externalStatus, initialPrompt, onSaveContext, injectedOnboardLink }: InvoiceChatProps) {
+export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransitionStart, onSessionChange, onLinkedSessionCreate, onChainSessionSelect, onMessageCountChange, onLockDocument, onUnlockDocument, onPaymentLinkCancelled, onDocumentStatusChange, documentStatus: externalStatus, initialPrompt, initialFileContext, initialFileName, onSaveContext, injectedOnboardLink }: InvoiceChatProps) {
     const docType = data.documentType?.toLowerCase() || "invoice"
     const isOnboardingForm = docType.replace(/[\s-]+/g, "_") === "client_onboarding_form"
     const composerPlaceholder = isOnboardingForm
@@ -424,12 +430,18 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
     const [isLoading, setIsLoading] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [stagedFile, setStagedFile] = useState<File | null>(null)
-    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; linkCard?: string; recurringCard?: "setup" | "cancel"; assetLinkCard?: { method: "email" | "general"; email: string }; chainBuildCard?: { parentType: string; targetType: string }; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
+    const [messages, setMessages] = useState<Array<{ role: "user" | "assistant" | "thinking"; content: string; sendCard?: { email: string }; shareCard?: boolean; paymentCard?: boolean; cancelledCard?: boolean; cancelPaymentCard?: { razorpayId: string; amount: string }; unlockCard?: boolean; linkCard?: string; recurringCard?: "setup" | "cancel"; assetLinkCard?: { method: "email" | "general"; email: string }; chainBuildCard?: { parentType: string; targetType: string }; linkedDocCard?: { targetType: string; targetLabel: string; currentLabel: string }; activities?: ActivityItem[]; isWorking?: boolean; reasoningText?: string; isThinking?: boolean; thinkingStartTime?: number }>>([])
     const [streamingContent, setStreamingContent] = useState<string | null>(null)
     const [thinkingMode, setThinkingMode] = useState<"fast" | "thinking">("fast")
     const [welcomeLoaded, setWelcomeLoaded] = useState(false)
     const [documentGenerated, setDocumentGenerated] = useState(false)
     const [fileContext, setFileContext] = useState<string | null>(null)
+    // Mirror of fileContext readable synchronously by sendMessage — avoids the
+    // stale-closure gap when we set context and send in the same tick (e.g. a
+    // file attached on the home screen, applied on mount just before auto-send).
+    const fileContextRef = useRef<string | null>(null)
+    // Option A: tracks the in-flight "create linked doc of the right type" action.
+    const [creatingLinkedType, setCreatingLinkedType] = useState<string | null>(null)
     const [messageLimitReached, setMessageLimitReached] = useState(false)
     const [limitInfo, setLimitInfo] = useState<{ currentMessages: number; limit: number; tier: string } | null>(null)
     const [documentLimitReached, setDocumentLimitReached] = useState(false)
@@ -1202,18 +1214,18 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
             for (const [targetType, keywords] of Object.entries(DOC_TYPE_KEYWORDS)) {
                 if (targetType === docType) continue // same type — fine
                 if (keywords.some(kw => new RegExp(`\\b${kw}\\b`, "i").test(msgLower))) {
-                    const targetLabel = targetType.charAt(0).toUpperCase() + targetType.slice(1)
-                    const currentLabel = docType.charAt(0).toUpperCase() + docType.slice(1)
+                    const targetLabel = documentTypeLabel(targetType)
+                    const currentLabel = documentTypeLabel(docType)
 
-                    // Check if the target type is allowed for this user's tier
-                    // We check the upgrade info from the session context
-                    const isRestrictedType = upgradeInfo?.errorType === "type_restriction" ||
-                        (targetType === "quote" || targetType === "proposal")
-
-                    // We'll let the server enforce — but give a helpful message
-                    const guidanceMsg = `This is a **${currentLabel}** session — I can only generate ${currentLabel}s here.\n\n**To create a ${targetLabel}:**\n1. Click the **New Doc** button below (after generating a document) or the **+** button in the top bar\n2. Select **${targetLabel}** as the document type\n3. Ask me the same thing there\n\nYour ${currentLabel} is safe and unchanged. 👍`
+                    // Option A: keep this session's document intact and offer a
+                    // one-tap card to create the requested type as a LINKED
+                    // document (never converts or overwrites a signed/paid doc).
+                    const guidanceMsg = `Looks like you want a **${targetLabel}**, but this is your **${currentLabel}**. I'll keep this one exactly as it is — tap below to create a **${targetLabel}** as a linked document (your client details carry over).`
                     setInputValue("")
-                    setMessages(prev => [...prev, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: guidanceMsg }])
+                    setMessages(prev => [...prev,
+                        { role: "user" as const, content: userMessage },
+                        { role: "assistant" as const, content: guidanceMsg, linkedDocCard: { targetType, targetLabel, currentLabel } },
+                    ])
                     await saveMessage("user", userMessage)
                     await saveMessage("assistant", guidanceMsg)
                     return
@@ -1495,7 +1507,7 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                     // Send currentData if this is a follow-up, a linked session, OR a client was pre-selected
                     currentData: (messages.length > 1 || session.chain_id || selectedClientRef.current) ? data : undefined,
                     conversationHistory: messages.length > 1 ? messages.slice(-20) : [],
-                    ...(fileContext ? { fileContext } : {}),
+                    ...(fileContextRef.current ? { fileContext: fileContextRef.current } : {}),
                     // Pass pre-selected client context so AI preserves those fields
                     ...(selectedClientRef.current ? { clientContext: selectedClientRef.current } : {}),
                     // Pass parent context for linked sessions so AI knows the client details
@@ -2002,10 +2014,12 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                     const typeChanged = generatedType && generatedType !== currentSessionType
 
                     if (typeChanged) {
-                        const generatedLabel = docData.documentType || generatedType
-                        const currentLabel = currentSessionType.charAt(0).toUpperCase() + currentSessionType.slice(1)
-                        const guidanceMsg = `I generated a **${generatedLabel}** for you, but this is a **${currentLabel}** session — I can't apply it here because it would overwrite your ${currentLabel}.\n\n**To create a ${generatedLabel}:**\n1. Click the **New Doc** button below or the **+** button in the top bar\n2. Select **${generatedLabel}** as the document type\n3. Ask me the same thing there\n\nYour ${currentLabel} is safe and unchanged. 👍`
-                        setMessages(prev => [...prev, { role: "assistant", content: guidanceMsg }])
+                        const targetLabel = documentTypeLabel(generatedType)
+                        const currentLabel = documentTypeLabel(currentSessionType)
+                        // Option A: never overwrite the current document. Offer a
+                        // one-tap card to create the requested type as a linked doc.
+                        const guidanceMsg = `That reads like a **${targetLabel}**, but this is your **${currentLabel}**. I've left this one untouched — tap below to create a **${targetLabel}** as a linked document (your client details carry over).`
+                        setMessages(prev => [...prev, { role: "assistant", content: guidanceMsg, linkedDocCard: { targetType: generatedType, targetLabel, currentLabel } }])
                         await saveMessage("user", displayText)
                         await saveMessage("assistant", guidanceMsg)
                         setIsLoading(false)
@@ -2406,58 +2420,43 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
         setMessages(prev => [...prev, { role: "assistant", content: "Reading your document..." }])
 
         try {
-            const formData = new FormData()
-            formData.append("file", file)
-            formData.append("mode", "extract") // ALWAYS extract — never let GPT generate
-            formData.append("documentType", docType)
-            if (userText) formData.append("message", userText)
+            // Business context lets Kimi use the sender profile as "Bill From".
+            const businessContext = (data.fromName || data.fromEmail)
+                ? [data.fromName, data.fromEmail, data.fromPhone, data.fromAddress].filter(Boolean).join(", ")
+                : undefined
 
-            // Pass business context so GPT can use it as the sender
-            if (data.fromName || data.fromEmail) {
-                const ctx = [data.fromName, data.fromEmail, data.fromPhone, data.fromAddress].filter(Boolean).join(", ")
-                formData.append("businessContext", ctx)
+            // Kimi vision (images direct; PDFs rasterized client-side). Extract
+            // structured context only — never let the model generate here.
+            const { analyzeAttachment } = await import("@/lib/attachment-analysis")
+            const result = await analyzeAttachment({ file, message: userText, mode: "extract", documentType: docType, businessContext })
+
+            if (!result.ok) {
+                throw new Error(result.error || "Failed to process file")
             }
-
-            const supabase = createClient()
-            const { data: { session: authSession } } = await supabase.auth.getSession()
-            const accessToken = authSession?.access_token
-
-            const res = await fetch("/api/ai/analyze-file", {
-                method: "POST",
-                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-                body: formData,
-            })
-
-            if (!res.ok) {
-                const err = await res.json()
-                throw new Error(err.error || "Failed to process file")
-            }
-
-            const result = await res.json()
             const summary = result.summary || ""
-
             if (!summary) {
                 throw new Error("Could not extract content from the file")
             }
 
-            // Store the extracted content as file context
+            // Store the extracted content as HIDDEN file context (ref for the
+            // same-tick generation below; state for subsequent turns).
+            fileContextRef.current = summary
             setFileContext(summary)
 
             // Remove the "Reading your document..." placeholder
             setMessages(prev => prev.filter(m => m.content !== "Reading your document..."))
 
             // Determine if user wants to generate a document from this file
-            const generationKeywords = /\b(create|generate|make|build|invoice|quotation|contract|proposal)\b/i
+            const generationKeywords = /\b(create|generate|make|build|invoice|quotation|contract|proposal|estimate|quote)\b/i
             const isGenerationRequest = userText ? generationKeywords.test(userText) : false
 
             if (isGenerationRequest) {
                 // User wants a document — route through the full stream pipeline.
-                // Inject the extracted file content into the prompt so the stream
-                // endpoint (Kimi orchestration → DeepSeek) has full context.
-                const enrichedPrompt = `${userText || `Create a ${docType} from this file`}\n\n[CLIENT DETAILS FROM ATTACHED FILE]\n${summary}`
+                // The file analysis rides along as HIDDEN fileContext (via the
+                // stream body) — it is NOT embedded in the visible prompt.
                 setIsUploading(false)
                 // sendMessage goes through /api/ai/stream → business profile → compliance → Kimi → DeepSeek
-                await sendMessage(enrichedPrompt)
+                await sendMessage(userText || `Create a ${docType} from this file`)
             } else {
                 // User just uploaded a file without a generation request — store context
                 const assistantMsg = "I've read your file. You can ask me questions about it or say \"create an invoice from this\" to generate a document."
@@ -2478,13 +2477,28 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
         }
     }, [session, docType, data, onChange, saveMessage, updateSessionContext, saveGeneration, updateClientName, sendMessage])
 
+    // Keep the synchronous ref in sync with the fileContext state.
+    useEffect(() => { fileContextRef.current = fileContext }, [fileContext])
+
     // Auto-send initial prompt ONCE
     useEffect(() => {
         if (initialPrompt && session && !sessionLoading && !initialPromptSentRef.current && welcomeLoaded) {
             initialPromptSentRef.current = true
+            // A file attached on the home screen arrives as hidden reference
+            // context + a chip. Apply the context synchronously (ref) so the
+            // first generation includes it, and show a clean attachment chip
+            // instead of dumping the file's text into the prompt bubble.
+            if (initialFileContext) {
+                fileContextRef.current = initialFileContext
+                setFileContext(initialFileContext)
+                if (initialFileName) {
+                    setMessages(prev => [...prev, { role: "user", content: `📎 ${initialFileName}` }])
+                    saveMessage("user", `📎 ${initialFileName}`).catch(() => {})
+                }
+            }
             sendMessage(initialPrompt.trim())
         }
-    }, [initialPrompt, session, sessionLoading, welcomeLoaded, sendMessage])
+    }, [initialPrompt, initialFileContext, initialFileName, session, sessionLoading, welcomeLoaded, sendMessage, saveMessage])
 
     // Handle "New" conversation
     const handleNewConversation = useCallback(async () => {
@@ -2605,6 +2619,46 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                                     />
                                 </div>
                                 ) : null
+                            ) : msg.linkedDocCard ? (
+                                // Option A: one-tap card to create the requested
+                                // document type as a LINKED doc, leaving the
+                                // current (possibly sent/signed/paid) doc intact.
+                                <div className="w-full max-w-[88%] rounded-2xl bg-card border border-border/50 overflow-hidden">
+                                    {msg.content ? (
+                                        <div className="px-4 pt-3 pb-1 text-sm text-foreground/90">
+                                            <MarkdownMessage content={msg.content} />
+                                        </div>
+                                    ) : null}
+                                    <div className="px-4 py-3">
+                                        <button
+                                            type="button"
+                                            disabled={!!creatingLinkedType || !session}
+                                            onClick={async () => {
+                                                if (!session) return
+                                                setCreatingLinkedType(msg.linkedDocCard!.targetType)
+                                                try {
+                                                    await handleCreateLinked(session.id, msg.linkedDocCard!.targetType)
+                                                } finally {
+                                                    setCreatingLinkedType(null)
+                                                }
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.98] disabled:opacity-60"
+                                            style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}
+                                        >
+                                            {creatingLinkedType === msg.linkedDocCard.targetType ? (
+                                                <>
+                                                    <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                                    Creating…
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                    Create {msg.linkedDocCard.targetLabel}
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
                             ) : msg.chainBuildCard ? (
                                 // Rolling chain-context build step for a linked document.
                                 <ChainContextBuilder

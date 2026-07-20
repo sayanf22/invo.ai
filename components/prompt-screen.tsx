@@ -26,6 +26,10 @@ interface PromptScreenProps {
   onChatSessionSelect?: (sessionId: string) => void
   initialCategory?: string
   initialPrompt?: string
+  /** Hidden reference context from a file attached on the home screen. */
+  initialFileContext?: string
+  /** File name for the attachment chip shown in the first chat message. */
+  initialFileName?: string
   selectedSessionId?: string
   isAnimating?: boolean
 }
@@ -36,6 +40,8 @@ export function PromptScreen({
   onChatSessionSelect,
   initialCategory,
   initialPrompt,
+  initialFileContext,
+  initialFileName,
   selectedSessionId: initialSessionId,
   isAnimating,
 }: PromptScreenProps) {
@@ -263,6 +269,8 @@ export function PromptScreen({
     injectedOnboardLink,
     onSaveContext: handleSaveContextReady,
     initialPrompt,
+    initialFileContext,
+    initialFileName,
   } as const
 
   return (

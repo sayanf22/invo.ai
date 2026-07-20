@@ -251,6 +251,11 @@ export function AppShell() {
   const [view, setView] = useState<View>("start")
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined)
   const [initialPrompt, setInitialPrompt] = useState<string | undefined>(undefined)
+  // Hidden reference context + chip label for a file attached on the home screen.
+  // Passed to the split-screen so the file's analysis informs generation WITHOUT
+  // dumping raw file text into the visible chat prompt.
+  const [initialFileContext, setInitialFileContext] = useState<string | undefined>(undefined)
+  const [initialFileName, setInitialFileName] = useState<string | undefined>(undefined)
   const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(undefined)
   const [promptKey, setPromptKey] = useState(0)
   const [setupIncomplete, setSetupIncomplete] = useState(false)
@@ -350,6 +355,21 @@ export function AppShell() {
     router.push("/onboarding")
   }, [router])
 
+  // Helper: analyze an attached file with Kimi vision (images direct, PDFs
+  // rasterized client-side). Returns the structured summary as HIDDEN reference
+  // context — it is NEVER concatenated into the visible prompt. The chat shows
+  // an attachment chip + the user's typed prompt instead of a raw text dump.
+  const analyzeAttachedFile = useCallback(async (file: File, prompt: string): Promise<string | null> => {
+    try {
+      const { analyzeAttachment } = await import("@/lib/attachment-analysis")
+      const result = await analyzeAttachment({ file, message: prompt, mode: "extract" })
+      if (result.ok && result.summary) return result.summary
+    } catch (err) {
+      console.error("File analysis error:", err)
+    }
+    return null
+  }, [])
+
   const handlePromptSubmit = useCallback(async (prompt: string, file?: File) => {
     setSelectedSessionId(undefined)
     setDetectedRoute(null)
@@ -387,14 +407,21 @@ export function AppShell() {
       // Even with a category selected, check the route — questions/mismatches go to chat-only
       setDetectingType(true)
       try {
-        let enrichedPrompt = prompt
+        // Analyze any attached file into HIDDEN reference context (Kimi vision).
+        // The visible prompt stays exactly as the user typed it.
+        let fileSummary: string | null = null
         if (file) {
-          enrichedPrompt = await handleFileEnrichment(file, prompt)
+          fileSummary = await analyzeAttachedFile(file, prompt)
+          setInitialFileContext(fileSummary || undefined)
+          setInitialFileName(file.name)
+        } else {
+          setInitialFileContext(undefined)
+          setInitialFileName(undefined)
         }
         try {
           const response = await authFetch("/api/ai/detect-type", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: enrichedPrompt }),
+            body: JSON.stringify({ prompt, ...(fileSummary ? { fileSummary } : {}) }),
           })
           if (response.ok) {
             const detection = await response.json()
@@ -402,13 +429,13 @@ export function AppShell() {
               // Skeleton stays as chat-only, then transition
               setDetectedRoute("chat-only")
               await new Promise(r => setTimeout(r, 200))
-              setChatOnlyPrompt(enrichedPrompt)
+              setChatOnlyPrompt(prompt)
               setChatOnlySessionId(undefined)
               setChatOnlyMismatch(detection.mismatch ? {
                 requestedType: detection.mismatch.requestedType,
                 suggestedType: detection.mismatch.suggestedType,
                 reason: detection.mismatch.reason,
-                initialMessage: enrichedPrompt,
+                initialMessage: prompt,
               } : undefined)
               // Set disambiguation when 2+ suggestions and no mismatch (Req 3.3a)
               const suggestions: IntentSuggestion[] = detection.intent?.suggestions ?? []
@@ -429,7 +456,7 @@ export function AppShell() {
         // Direct create — morph skeleton to split-screen first
         setDetectedRoute("direct-create")
         await new Promise(r => setTimeout(r, 380))
-        setInitialPrompt(enrichedPrompt)
+        setInitialPrompt(prompt)
         setPromptKey(prev => prev + 1)
         setDetectingType(false)
         setDetectedRoute(null)
@@ -445,10 +472,18 @@ export function AppShell() {
     setDetectingType(true)
 
     try {
-      let enrichedPrompt = prompt
-
+      // Analyze any attached file into HIDDEN reference context (Kimi vision).
+      // The visible prompt stays exactly as the user typed it; the file summary
+      // is used only to (a) inform type detection and (b) travel to the builder
+      // as hidden context — never dumped into the chat bubble.
+      let fileSummary: string | null = null
       if (file) {
-        enrichedPrompt = await handleFileEnrichment(file, prompt)
+        fileSummary = await analyzeAttachedFile(file, prompt)
+        setInitialFileContext(fileSummary || undefined)
+        setInitialFileName(file.name)
+      } else {
+        setInitialFileContext(undefined)
+        setInitialFileName(undefined)
       }
 
       // Detect document type from the user's prompt
@@ -456,7 +491,7 @@ export function AppShell() {
       try {
         const response = await authFetch("/api/ai/detect-type", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: enrichedPrompt }),
+          body: JSON.stringify({ prompt, ...(fileSummary ? { fileSummary } : {}) }),
         })
         if (response.ok) {
           const detection = await response.json()
@@ -467,13 +502,13 @@ export function AppShell() {
           if (detection.route === "chat-only" || detection.mismatch) {
             setDetectedRoute("chat-only")
             await new Promise(r => setTimeout(r, 200))
-            setChatOnlyPrompt(enrichedPrompt)
+            setChatOnlyPrompt(prompt)
             setChatOnlySessionId(undefined)
             setChatOnlyMismatch(detection.mismatch ? {
               requestedType: detection.mismatch.requestedType,
               suggestedType: detection.mismatch.suggestedType,
               reason: detection.mismatch.reason,
-              initialMessage: enrichedPrompt,
+              initialMessage: prompt,
             } : undefined)
             // Set disambiguation when 2+ suggestions and no mismatch (Req 3.3a)
             const suggestions2: IntentSuggestion[] = detection.intent?.suggestions ?? []
@@ -513,7 +548,7 @@ export function AppShell() {
       setDetectedRoute("direct-create")
       await new Promise(r => setTimeout(r, 380))
       setSelectedCategory(detectedCategory)
-      setInitialPrompt(enrichedPrompt)
+      setInitialPrompt(prompt)
       setPromptKey(prev => prev + 1)
       setDetectingType(false)
       setDetectedRoute(null)
@@ -528,61 +563,7 @@ export function AppShell() {
       setDetectedRoute(null)
       setView("prompt")
     }
-  }, [selectedCategory, allowedDocTypes, tierLoading, router])
-
-  // Helper: enrich prompt with file data
-  const handleFileEnrichment = useCallback(async (file: File, prompt: string): Promise<string> => {
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
-      if (prompt) formData.append("message", prompt)
-
-      const { createClient } = await import("@/lib/supabase")
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const accessToken = session?.access_token
-
-      const res = await fetch("/api/ai/analyze-file", {
-        method: "POST",
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-        body: formData,
-      })
-
-      if (res.ok) {
-        const result = await res.json()
-        const extracted = result.extracted
-        if (extracted) {
-          const parts: string[] = []
-          if (extracted.businessName) parts.push(`Client: ${extracted.businessName}`)
-          if (extracted.ownerName) parts.push(`Contact: ${extracted.ownerName}`)
-          if (extracted.email) parts.push(`Email: ${extracted.email}`)
-          if (extracted.phone) parts.push(`Phone: ${extracted.phone}`)
-          if (extracted.address) {
-            const a = extracted.address
-            const addr = [a.street, a.city, a.state, a.postalCode].filter(Boolean).join(", ")
-            if (addr) parts.push(`Address: ${addr}`)
-          }
-          if (extracted.taxId) parts.push(`Tax ID: ${extracted.taxId}`)
-          if (extracted.services) {
-            const svc = typeof extracted.services === "string" ? extracted.services : JSON.stringify(extracted.services)
-            parts.push(`Services: ${svc}`)
-          }
-          if (extracted.projectDescription) parts.push(`Project: ${extracted.projectDescription}`)
-          if (extracted.additionalContext) {
-            const ctx = typeof extracted.additionalContext === "string" ? extracted.additionalContext : JSON.stringify(extracted.additionalContext)
-            parts.push(`Context: ${ctx}`)
-          }
-          const clientDetails = parts.join("\n")
-          return prompt
-            ? `${prompt}\n\n[CLIENT DETAILS FROM ATTACHED FILE - use as Bill To recipient]\n${clientDetails}`
-            : `Generate a document using the attached file details as the client.\n\n[CLIENT DETAILS FROM ATTACHED FILE - use as Bill To recipient]\n${clientDetails}`
-        }
-      }
-    } catch (err) {
-      console.error("File analysis error:", err)
-    }
-    return prompt
-  }, [])
+  }, [selectedCategory, allowedDocTypes, tierLoading, router, analyzeAttachedFile])
 
   // Example-prompt pills fill the input box (do NOT auto-send).
   // The user reviews/edits the prompt and presses Enter to submit.
@@ -620,6 +601,8 @@ export function AppShell() {
     setView("start")
     setSelectedCategory(undefined)
     setInitialPrompt(undefined)
+    setInitialFileContext(undefined)
+    setInitialFileName(undefined)
     setPromptKey(0)
     setChatOnlyPrompt("")
     setChatOnlySessionId(undefined)
@@ -641,6 +624,9 @@ export function AppShell() {
     setSelectedSessionId(sessionId)
     setSelectedCategory(capitalized)
     setInitialPrompt(promptText)
+    // Promotions from chat-only carry their own summary; no home-screen file.
+    setInitialFileContext(undefined)
+    setInitialFileName(undefined)
     setPromptKey(prev => prev + 1)
     setIsAnimating(true)
     setView("prompt")
@@ -704,6 +690,8 @@ export function AppShell() {
           }}
           initialCategory={selectedCategory}
           initialPrompt={initialPrompt}
+          initialFileContext={initialFileContext}
+          initialFileName={initialFileName}
           selectedSessionId={selectedSessionId}
           isAnimating={isAnimating}
         />

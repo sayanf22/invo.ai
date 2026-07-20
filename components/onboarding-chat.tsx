@@ -333,51 +333,25 @@ export function OnboardingChat({ onComplete, userEmail, initialData }: Onboardin
         }])
 
         try {
-            const formData = new FormData()
-            formData.append("file", file)
-            if (userText) formData.append("message", userText)
+            // Kimi vision (images direct; PDFs rasterized client-side). One retry
+            // on transient rate limits (429) before falling back to manual entry.
+            const { analyzeAttachment } = await import("@/lib/attachment-analysis")
+            let result = await analyzeAttachment({ file, message: userText, mode: "extract" })
 
-            const { createClient } = await import("@/lib/supabase")
-            const supabase = createClient()
-            const { data: { session: authSession } } = await supabase.auth.getSession()
-            const accessToken = authSession?.access_token || ""
-
-            const res = await fetch("/api/ai/analyze-file", {
-                method: "POST",
-                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-                body: formData,
-            })
-
-            if (!res.ok) {
-                if (res.status === 429) {
-                    setMessages(prev => {
-                        const filtered = prev.filter(m => m.content !== "Analyzing your document... This may take a moment.")
-                        return [...filtered, { role: "assistant", content: "Processing... please wait a moment." }]
-                    })
-                    await new Promise(resolve => setTimeout(resolve, 5000))
-                    const retryRes = await fetch("/api/ai/analyze-file", {
-                        method: "POST",
-                        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-                        body: formData,
-                    })
-                    if (!retryRes.ok) {
-                        throw new Error("Please wait a minute and try uploading again.")
-                    }
-                    const retryResult = await retryRes.json()
-                    if (retryResult.extracted) {
-                        processExtraction(retryResult.extracted, retryResult.fieldsFound || 0)
-                        setIsUploading(false)
-                        return
-                    }
-                    throw new Error("Could not analyze the file. Please try again.")
-                }
-                const err = await res.json()
-                throw new Error(err.error || "Failed to analyze file")
+            if (!result.ok && result.status === 429) {
+                setMessages(prev => {
+                    const filtered = prev.filter(m => m.content !== "Analyzing your document... This may take a moment.")
+                    return [...filtered, { role: "assistant", content: "Processing... please wait a moment." }]
+                })
+                await new Promise(resolve => setTimeout(resolve, 5000))
+                result = await analyzeAttachment({ file, message: userText, mode: "extract" })
             }
 
-            const result = await res.json()
+            if (!result.ok) {
+                throw new Error(result.error || "Failed to analyze file")
+            }
             if (result.extracted) {
-                processExtraction(result.extracted, result.fieldsFound || 0)
+                processExtraction(result.extracted, Object.entries(result.extracted).filter(([, v]) => v !== null && v !== "").length)
             }
         } catch (err: any) {
             const errMsg = err.message || ""

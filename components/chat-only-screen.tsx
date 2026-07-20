@@ -287,64 +287,21 @@ export function ChatOnlyScreen({
         []
     )
 
-    // ── Analyze an attached file via GPT vision, return enriched context string ──
+    // ── Analyze an attached file via Kimi vision, return enriched context string ──
+    // Images go directly; PDFs are rasterized to images client-side (Kimi can't
+    // read PDFs natively). The raw content is used only as HIDDEN AI context —
+    // the visible chat shows just an attachment chip + the user's typed text.
     const analyzeFile = useCallback(async (file: File, userText: string): Promise<string> => {
         try {
-            // Client-side image compression for images > 1MB
-            let fileToUpload = file
-            if (file.type.startsWith("image/") && file.size > 1_000_000) {
-                try {
-                    const imageCompression = (await import("browser-image-compression")).default
-                    fileToUpload = await imageCompression(file, {
-                        maxSizeMB: 1,
-                        maxWidthOrHeight: 1920,
-                        useWebWorker: true,
-                    })
-                } catch {
-                    // Compression failed — use original
-                }
-            }
+            const { analyzeAttachment } = await import("@/lib/attachment-analysis")
+            const result = await analyzeAttachment({ file, message: userText, mode: "extract" })
+            if (!result.ok || !result.summary) return userText
 
-            const formData = new FormData()
-            formData.append("file", fileToUpload)
-            if (userText) formData.append("message", userText)
-
-            const res = await authFetch("/api/ai/analyze-file", {
-                method: "POST",
-                body: formData,
-            })
-
-            if (!res.ok) return userText
-
-            const result = await res.json()
-            const extracted = result.extracted
-            if (!extracted) return userText
-
-            const parts: string[] = []
-            if (extracted.businessName) parts.push(`Business: ${extracted.businessName}`)
-            if (extracted.ownerName) parts.push(`Contact: ${extracted.ownerName}`)
-            if (extracted.email) parts.push(`Email: ${extracted.email}`)
-            if (extracted.phone) parts.push(`Phone: ${extracted.phone}`)
-            if (extracted.address) {
-                const a = extracted.address
-                const addr = [a.street, a.city, a.state, a.postalCode].filter(Boolean).join(", ")
-                if (addr) parts.push(`Address: ${addr}`)
-            }
-            if (extracted.taxId) parts.push(`Tax ID: ${extracted.taxId}`)
-            if (extracted.services) parts.push(`Services: ${extracted.services}`)
-            if (extracted.pricing) parts.push(`Pricing: ${extracted.pricing}`)
-            if (extracted.projectDescription) parts.push(`Project: ${extracted.projectDescription}`)
-            if (extracted.additionalContext) parts.push(`Context: ${extracted.additionalContext}`)
-
-            if (parts.length === 0) return userText
-
-            const fileContext = parts.join("\n")
             const fileName = file.name
             const fileType = file.type.startsWith("image/") ? "image" : "document"
-
             return userText
-                ? `${userText}\n\n[ATTACHED ${fileType.toUpperCase()}: ${fileName}]\n${fileContext}`
-                : `I've attached a ${fileType} (${fileName}). Here's what it contains:\n${fileContext}\n\nWhat document should I create from this?`
+                ? `${userText}\n\n[ATTACHED ${fileType.toUpperCase()}: ${fileName}]\n${result.summary}`
+                : `I've attached a ${fileType} (${fileName}). Here's what it contains:\n${result.summary}\n\nWhat document should I create from this?`
         } catch (err) {
             console.error("File analysis error:", err)
             return userText

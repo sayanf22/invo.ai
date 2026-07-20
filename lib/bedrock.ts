@@ -811,3 +811,201 @@ export async function decideTieredReferenceRetrieval(
     }
     return null
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Centralized Bedrock key resolution.
+ *
+ * Reads the Bedrock Mantle bearer token from the environment (with the legacy
+ * alias names kept for backward compatibility with older Cloudflare secrets).
+ * Returns "" when no key is configured so callers can gracefully fall back.
+ * ───────────────────────────────────────────────────────────────────────────── */
+export function resolveBedrockKey(): string {
+    return (
+        process.env.AWS_BEARER_TOKEN_BEDROCK ||
+        process.env.AMAZON_BEDROCK_KEY ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (process.env as any).amazon_beadrocl_key ||
+        (typeof globalThis !== "undefined"
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ? ((globalThis as any).AWS_BEARER_TOKEN_BEDROCK ||
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (globalThis as any).AMAZON_BEDROCK_KEY ||
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (globalThis as any).amazon_beadrocl_key)
+            : "") ||
+        ""
+    )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Kimi-driven document-type classification (semantic, not keyword).
+ *
+ * Kimi reads the user's request (and an optional attached-file summary) and
+ * decides BOTH the best document type AND whether the user is explicitly asking
+ * to create a document now vs. just chatting. This replaces brittle keyword
+ * matching so e.g. "put together a rough cost projection" is understood as an
+ * ESTIMATE and "what's the difference between a quote and estimate?" is chat.
+ *
+ * Returns null on any failure so the caller falls back to the keyword detector.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/** Canonical document types the classifier may return. */
+export const KIMI_CLASSIFIER_TYPES = [
+    "invoice", "quote", "estimate", "proposal", "contract",
+    "sow", "change_order", "nda", "client_onboarding_form",
+    "payment_followup", "receipt",
+] as const
+
+export type KimiClassifiedType = (typeof KIMI_CLASSIFIER_TYPES)[number]
+
+export interface KimiTypeClassification {
+    type: KimiClassifiedType
+    intent: "create" | "chat"
+    confidence: number
+    reasoning: string
+}
+
+const TYPE_CLASSIFIER_SYSTEM_PROMPT =
+    "You are a precise document-type classifier for an AI document-generation " +
+    "platform. You understand the MEANING and INTENT of a request — never match " +
+    "on a single keyword. Return ONLY strict JSON, no markdown, no prose."
+
+function buildTypeClassifierPrompt(prompt: string, fileSummary?: string): string {
+    return (
+        `Classify the user request below. Decide (1) the single best document TYPE and ` +
+        `(2) whether the user is explicitly asking to CREATE/generate a document right now, ` +
+        `or is just chatting / asking a question.\n\n` +
+        `DOCUMENT TYPES (pick exactly one "type"):\n` +
+        `- invoice — a bill requesting payment for goods/services agreed or delivered\n` +
+        `- quote — a FIRM, binding price offer for prospective work\n` +
+        `- estimate — an APPROXIMATE, NON-binding cost projection (client may accept/decline/request changes)\n` +
+        `- proposal — a persuasive business/project proposal or pitch\n` +
+        `- contract — a legally binding agreement (service agreement, employment, etc.)\n` +
+        `- sow — statement of work: scope, deliverables, milestones\n` +
+        `- change_order — an amendment changing scope/price of an existing contract or SOW\n` +
+        `- nda — non-disclosure / confidentiality agreement\n` +
+        `- client_onboarding_form — intake form to collect a new client's details/requirements\n` +
+        `- payment_followup — a reminder chasing an unpaid invoice\n` +
+        `- receipt — proof of a payment already made\n\n` +
+        `INTENT:\n` +
+        `- "create" — the user wants a document produced now (e.g. "make an estimate for...", "I need an invoice for 5 hours of design").\n` +
+        `- "chat" — the user is asking a question, exploring, or the request is too vague to build a document (e.g. "what's the difference between a quote and an estimate?", "help me think about pricing").\n\n` +
+        `IMPORTANT — distinguish estimate vs quote by MEANING: an ESTIMATE is approximate/non-binding ("rough cost", "ballpark", "estimate", "projection"); a QUOTE is a firm/binding price ("quote", "quotation", "firm price"). Do not confuse either with an invoice unless the user is billing for work.\n\n` +
+        `USER REQUEST:\n"""\n${prompt}\n"""\n` +
+        (fileSummary ? `\nATTACHED FILE SUMMARY (context the user is referencing):\n"""\n${fileSummary.slice(0, 2000)}\n"""\n` : "") +
+        `\nRespond with ONLY this JSON (no markdown fences):\n` +
+        `{"type":"<one type>","intent":"create|chat","confidence":0.0-1.0,"reasoning":"<=12 words"}`
+    )
+}
+
+/**
+ * Classify a user request into a document type + create/chat intent using Kimi.
+ * @param apiKey Bedrock Mantle bearer token (use resolveBedrockKey()).
+ * @returns Parsed classification, or null on any failure (caller should fall back).
+ */
+export async function classifyDocumentTypeWithKimi(
+    prompt: string,
+    apiKey: string,
+    fileSummary?: string
+): Promise<KimiTypeClassification | null> {
+    if (!apiKey || apiKey.trim().length < 10 || !prompt || !prompt.trim()) return null
+
+    const raw = await callBedrockBrief(
+        TYPE_CLASSIFIER_SYSTEM_PROMPT,
+        buildTypeClassifierPrompt(prompt, fileSummary),
+        apiKey,
+        160
+    )
+    if (!raw) return null
+
+    try {
+        const cleaned = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim()
+        const start = cleaned.indexOf("{")
+        const end = cleaned.lastIndexOf("}")
+        if (start === -1 || end === -1) return null
+        const parsed = JSON.parse(cleaned.slice(start, end + 1))
+
+        const type = String(parsed.type || "").toLowerCase().trim()
+        const intent = String(parsed.intent || "").toLowerCase().trim()
+        if (!KIMI_CLASSIFIER_TYPES.includes(type as KimiClassifiedType)) return null
+        if (intent !== "create" && intent !== "chat") return null
+
+        const confidence = typeof parsed.confidence === "number"
+            ? Math.max(0, Math.min(1, parsed.confidence))
+            : 0.75
+
+        return {
+            type: type as KimiClassifiedType,
+            intent: intent as "create" | "chat",
+            confidence,
+            reasoning: typeof parsed.reasoning === "string" ? parsed.reasoning.slice(0, 120) : "",
+        }
+    } catch {
+        return null
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Kimi vision — analyze attached IMAGES (A-to-Z).
+ *
+ * Kimi K2.5 via Bedrock Mantle accepts raster images (PNG/JPEG/WebP/GIF) as
+ * OpenAI-style `image_url` content parts. It does NOT accept PDFs natively —
+ * callers must rasterize PDF pages to images (client-side pdf.js) before calling
+ * this function. Pass one or more image data URLs.
+ *
+ * Returns the model's full text analysis, or null on failure.
+ * ───────────────────────────────────────────────────────────────────────────── */
+export async function analyzeImagesWithKimiVision(
+    imageDataUrls: string[],
+    instruction: string,
+    apiKey: string,
+    maxTokens: number = 1200
+): Promise<string | null> {
+    if (!apiKey || apiKey.trim().length < 10) return null
+    if (!Array.isArray(imageDataUrls) || imageDataUrls.length === 0) return null
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 55_000)
+
+    try {
+        const content: Array<Record<string, unknown>> = [
+            { type: "text", text: instruction },
+            ...imageDataUrls.slice(0, 8).map((url) => ({
+                type: "image_url",
+                image_url: { url },
+            })),
+        ]
+
+        const response = await fetch(BEDROCK_MANTLE_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: BEDROCK_MODEL,
+                messages: [{ role: "user", content }],
+                max_tokens: maxTokens,
+                temperature: 0.1,
+                stream: false,
+            }),
+            signal: controller.signal,
+        })
+
+        if (!response.ok) {
+            console.error("[Kimi vision] HTTP error", { status: response.status })
+            return null
+        }
+
+        const json = await response.json()
+        const text = json.choices?.[0]?.message?.content
+        return typeof text === "string" && text.trim().length > 0 ? text.trim() : null
+    } catch (error) {
+        console.error("[Kimi vision] request failed", {
+            reason: error instanceof DOMException && error.name === "AbortError" ? "timeout" : "network_or_parse_error",
+        })
+        return null
+    } finally {
+        clearTimeout(timeoutId)
+    }
+}

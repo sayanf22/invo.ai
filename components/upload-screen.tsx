@@ -306,55 +306,30 @@ export function UploadScreen({ onContinue, onSkip }: UploadScreenProps) {
                     : f
             ))
 
-            // Step 2: Analyze via /api/ai/analyze-file (unchanged)
-            const analyzeFormData = new FormData()
-            analyzeFormData.append("file", uploadedFile.file)
-
-            let res = await authFetch("/api/ai/analyze-file", {
-                method: "POST",
-                body: analyzeFormData,
-            })
-
-            // A 429 can mean two different things, and only one of them is worth
-            // retrying quickly:
-            //  - OpenAI-side transient rate limit (no `code` field) — genuinely
-            //    clears within seconds, so one quick retry is worth it.
-            //  - Our OWN app-level throttle (`code: "app_rate_limit"`) — the window
-            //    is a full 60s and a short retry will just fail again with the same
-            //    error. Don't retry; show the server's friendly message immediately.
-            if (res.status === 429) {
-                const retryBody = await res.clone().json().catch(() => ({} as any))
-                if (retryBody?.code !== "app_rate_limit") {
-                    const retryAfterSec = Math.min(Number(retryBody?.retryAfter) || 8, 20)
-                    await new Promise(resolve => setTimeout(resolve, retryAfterSec * 1000))
-                    res = await authFetch("/api/ai/analyze-file", {
-                        method: "POST",
-                        body: analyzeFormData,
-                    })
-                }
+            // Step 2: Analyze via Kimi vision (images direct; PDFs rasterized
+            // client-side). One quick retry on transient rate limits (429).
+            const { analyzeAttachment } = await import("@/lib/attachment-analysis")
+            let result = await analyzeAttachment({ file: uploadedFile.file, mode: "extract" })
+            if (!result.ok && result.status === 429) {
+                await new Promise(resolve => setTimeout(resolve, 8000))
+                result = await analyzeAttachment({ file: uploadedFile.file, mode: "extract" })
             }
 
-            if (!res.ok) {
-                // Surface the server's actual message — it now tells the user
-                // precisely what to do (e.g. "type your details in the chat").
-                const errBody = await res.json().catch(() => ({} as any))
-                // Log the real status + server error to the console so failures are
-                // debuggable instead of a silent generic banner with nothing behind it.
-                console.error("[upload-screen] analyze-file failed:", res.status, errBody)
-                const fallback = res.status === 429
+            if (!result.ok) {
+                console.error("[upload-screen] analyze-file failed:", result.status, result.error)
+                const fallback = result.status === 429
                     ? "Service is busy right now. You can continue to the chat and type your details."
                     : "Couldn't analyze this file. You can continue to the chat and type your details."
                 setFiles(prev => prev.map(f =>
                     f.id === uploadedFile.id
-                        ? { ...f, status: "failed" as const, error: errBody?.error || fallback }
+                        ? { ...f, status: "failed" as const, error: result.error || fallback }
                         : f
                 ))
                 return
             }
 
-            const result = await res.json()
-            const extracted = result.extracted || {}
-            const fieldsFound = result.fieldsFound || 0
+            const extracted = (result.extracted || {}) as Record<string, unknown>
+            const fieldsFound = Object.entries(extracted).filter(([, v]) => v !== null && v !== "").length
 
             // Step 3: Merge extracted data (last-write-wins)
             setMergedData(prev => mergeExtractedData(prev, extracted))

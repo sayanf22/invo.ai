@@ -306,26 +306,14 @@ export function ProfileUpdateChat({
         setMessages(prev => [...prev, { role: "assistant", content: "Analyzing your document..." }])
 
         try {
-            const formData = new FormData()
-            formData.append("file", file)
-            if (userText) formData.append("message", userText)
+            // Kimi vision (images direct; PDFs rasterized client-side).
+            const { analyzeAttachment } = await import("@/lib/attachment-analysis")
+            const result = await analyzeAttachment({ file, message: userText, mode: "extract" })
 
-            const supabase = createClient()
-            const { data: { session } } = await supabase.auth.getSession()
-            const accessToken = session?.access_token
-
-            const res = await fetch("/api/ai/analyze-file", {
-                method: "POST",
-                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-                body: formData,
-            })
-
-            if (!res.ok) {
-                const err = await res.json()
-                throw new Error(err.error || "Failed to analyze file")
+            if (!result.ok) {
+                throw new Error(result.error || "Failed to analyze file")
             }
 
-            const result = await res.json()
             const extracted = result.extracted
 
             if (extracted) {

@@ -4,17 +4,23 @@ import { getSecret } from "@/lib/secrets"
 import { sanitizeText } from "@/lib/sanitize"
 import { checkCostLimit, trackUsage, getUserTier } from "@/lib/cost-protection"
 import { checkRateLimit } from "@/lib/rate-limiter"
+import { analyzeImagesWithKimiVision, resolveBedrockKey } from "@/lib/bedrock"
 
 /**
  * POST /api/ai/analyze-file
- * Analyzes uploaded files (images, PDFs) using OpenAI GPT-5.4 mini to extract business information.
- * 
+ * Analyzes uploaded files (images, PDFs) to extract business information.
+ *
  * MODEL ROUTING STRATEGY:
- * - This endpoint uses GPT (OpenAI) EXCLUSIVELY for file analysis/extraction
- * - GPT is ONLY called when a file is physically attached by the user
+ * - PREFERRED: Kimi K2.5 vision (via Bedrock Mantle). Clients send pre-rasterized
+ *   IMAGES as JSON `{ images: string[] }` — PDFs are rendered to images
+ *   client-side (pdf.js) because Kimi cannot read PDFs natively. See
+ *   `lib/attachment-analysis.ts`. This path uses NO OpenAI/GPT.
+ * - LEGACY FALLBACK: the multipart `file` path still uses OpenAI GPT vision for
+ *   backward compatibility; once all callers use the Kimi helper it is unused.
+ * - GPT/Kimi are ONLY called when a file is physically attached by the user.
  * - All text-only chat messages use DeepSeek (via /api/ai/stream, /api/ai/onboarding, /api/ai/profile-update)
- * - After file extraction, the extracted data is passed back to the client,
- *   which then sends it as text context to a DeepSeek endpoint for generation/chat
+ * - After extraction, the structured data is passed back to the client, which
+ *   sends it as HIDDEN reference context to DeepSeek for generation/chat.
  * 
  * SECURITY:
  * - Requires authentication (no anonymous access)
@@ -115,6 +121,141 @@ function buildFileContextSummary(extracted: any): string {
     return parts.join('\n')
 }
 
+/** Build the "generate a full document from the file" instruction (shared). */
+function buildGeneratePrompt(docType: string, userMessage: string | null, businessContext: string | null): string {
+    const businessInfo = businessContext
+        ? `\n\nSENDER BUSINESS PROFILE (use as "Bill From"):\n${businessContext}`
+        : ""
+    const prefix = docType === "invoice" ? "INV" : docType === "quote" || docType === "quotation" ? "QUO"
+        : docType === "estimate" ? "EST" : docType === "contract" ? "CTR" : "PROP"
+    return `You are a professional document generator. Analyze the attached document image(s) and generate a complete ${docType}.
+
+The attached document contains CLIENT/RECIPIENT information. Extract their details and use them as the "Bill To" / recipient.${businessInfo}
+
+${userMessage ? `User's instruction: "${userMessage}"` : `Generate a ${docType} based on the information in the attached document.`}
+
+Return ONLY valid JSON in this exact format:
+{
+  "document": {
+    "documentType": "${docType.charAt(0).toUpperCase() + docType.slice(1)}",
+    "referenceNumber": "${prefix}-${Date.now().toString().slice(-6)}",
+    "date": "${new Date().toISOString().split("T")[0]}",
+    "dueDate": "",
+    "fromName": "", "fromEmail": "", "fromPhone": "", "fromAddress": "",
+    "toName": "CLIENT NAME FROM DOCUMENT",
+    "toEmail": "CLIENT EMAIL FROM DOCUMENT",
+    "toPhone": "",
+    "toAddress": "CLIENT ADDRESS FROM DOCUMENT",
+    "items": [{"id": "1", "description": "SERVICE FROM DOCUMENT", "quantity": 1, "rate": 0}],
+    "taxRate": 0, "discountValue": 0, "discountType": "percent", "shippingFee": 0,
+    "notes": "", "terms": "", "currency": "INR"
+  },
+  "message": "Brief message about what was generated"
+}
+
+RULES:
+- Extract client name, email, phone, address from the document for the "to" fields
+- Extract services/items with prices from the document for the "items" array
+- Every item MUST have id, description, quantity, and rate
+- Do NOT compute totals — the system calculates them
+- Return ONLY valid JSON, no markdown`
+}
+
+/** Recursively strip HTML tags from all string values. */
+function sanitizeParsed(val: unknown): unknown {
+    if (typeof val === "string") return val.replace(/<[^>]*>/g, "").trim()
+    if (Array.isArray(val)) return val.map(sanitizeParsed)
+    if (typeof val === "object" && val !== null) {
+        const clean: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(val)) clean[k] = sanitizeParsed(v)
+        return clean
+    }
+    return val
+}
+
+/**
+ * Analyze pre-rasterized images with Kimi K2.5 vision. Expects a JSON body:
+ * { images: string[] (data URLs), message?, mode?, documentType?, businessContext? }
+ */
+async function analyzeWithKimi(
+    request: Request,
+    auth: { user: { id: string }; supabase: unknown }
+): Promise<Response> {
+    const body = await request.json().catch(() => null) as {
+        images?: unknown; message?: unknown; mode?: unknown
+        documentType?: unknown; businessContext?: unknown
+    } | null
+    if (!body) return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+
+    const images = Array.isArray(body.images)
+        ? body.images.filter((u): u is string => typeof u === "string" && u.startsWith("data:image/"))
+        : []
+    if (images.length === 0) {
+        return NextResponse.json({ error: "No readable image content provided" }, { status: 400 })
+    }
+    // SECURITY: bound the payload — max 8 images, ~8MB total base64.
+    const boundedImages = images.slice(0, 8)
+    const totalBytes = boundedImages.reduce((n, u) => n + u.length, 0)
+    if (totalBytes > 12 * 1024 * 1024) {
+        return NextResponse.json({ error: "Attachment too large. Try a smaller file." }, { status: 413 })
+    }
+
+    const userMessage = typeof body.message === "string" ? sanitizeText(body.message).slice(0, 10_000) : null
+    const mode = body.mode === "generate" ? "generate" : "extract"
+    const documentType = typeof body.documentType === "string" && body.documentType.trim()
+        ? body.documentType.toLowerCase().trim()
+        : "invoice"
+    const businessContext = typeof body.businessContext === "string"
+        ? sanitizeText(body.businessContext).slice(0, 5_000)
+        : null
+
+    const bedrockKey = resolveBedrockKey()
+    if (!bedrockKey) {
+        return NextResponse.json({ error: "Document analysis is temporarily unavailable. Please type your details in the chat instead." }, { status: 503 })
+    }
+
+    const instruction = mode === "generate"
+        ? buildGeneratePrompt(documentType, userMessage, businessContext)
+        : (userMessage ? `${EXTRACTION_PROMPT}\n\nAdditional context from the user: "${userMessage}"` : EXTRACTION_PROMPT)
+
+    const content = await analyzeImagesWithKimiVision(boundedImages, instruction, bedrockKey, mode === "generate" ? 2500 : 1800)
+    if (!content) {
+        return NextResponse.json({ error: "AI service temporarily unavailable. Please try again." }, { status: 502 })
+    }
+
+    let parsed: Record<string, unknown> | null = null
+    try {
+        const cleaned = content.replace(/```json\s*/gi, "").replace(/```/g, "").trim()
+        const start = cleaned.indexOf("{")
+        const end = cleaned.lastIndexOf("}")
+        parsed = JSON.parse(start !== -1 && end !== -1 ? cleaned.slice(start, end + 1) : cleaned)
+    } catch {
+        return NextResponse.json({ error: "Could not process the file" }, { status: 422 })
+    }
+
+    const sanitized = sanitizeParsed(parsed) as Record<string, unknown>
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await trackUsage(auth.supabase as any, auth.user.id, "generation", 0)
+
+    if (mode === "generate") {
+        return NextResponse.json({
+            success: true,
+            mode: "generate",
+            document: (sanitized.document as Record<string, unknown>) || sanitized,
+            message: (sanitized.message as string) || "Document generated from file.",
+        })
+    }
+
+    return NextResponse.json({
+        success: true,
+        mode: "extract",
+        extracted: sanitized,
+        summary: buildFileContextSummary(sanitized),
+        fieldsFound: Object.entries(sanitized).filter(([, v]) => v !== null && v !== "").length,
+    })
+}
+
 export async function POST(request: Request) {
     // SECURITY: Reject cross-origin / CSRF requests before doing any work. This
     // is a state-changing POST that calls a paid OpenAI vision API, so it MUST
@@ -139,6 +280,21 @@ export async function POST(request: Request) {
 
     const costError = await checkCostLimit(auth.supabase, auth.user.id, "generation", userTier)
     if (costError) return costError
+
+    // ── Kimi vision path (preferred) ──────────────────────────────────────────
+    // Clients send pre-rasterized IMAGES as JSON (PDFs are rendered to images
+    // client-side via pdf.js, since Kimi cannot read PDFs natively). This path
+    // uses Kimi K2.5 vision exclusively — no OpenAI/GPT.
+    const contentType = request.headers.get("content-type") || ""
+    if (contentType.includes("application/json")) {
+        try {
+            const kimiResult = await analyzeWithKimi(request, auth)
+            return kimiResult
+        } catch (error: unknown) {
+            console.error("Kimi analyze-file error:", error instanceof Error ? error.message : error)
+            return NextResponse.json({ error: "Could not analyze the file. Please try again or type the details." }, { status: 502 })
+        }
+    }
 
     try {
         const formData = await request.formData()

@@ -17,11 +17,29 @@ import { sanitizeText } from "@/lib/sanitize"
 import { detectDocumentType, getDetectionMessage } from "@/lib/server/document-type-detector"
 import { classifyIntentFull, detectMismatch, type DocumentType } from "@/lib/intent-router"
 import { checkCostLimit, resolveEffectiveTier, type UserTier, getUserTier } from "@/lib/cost-protection"
+import { classifyDocumentTypeWithKimi, resolveBedrockKey } from "@/lib/bedrock"
 
 interface DetectTypeRequest {
     prompt: string
     /** Currently-selected category pill (e.g., "Invoice"), if any. */
     selectedCategory?: string
+    /**
+     * Optional summary of an attached file (produced by Kimi vision on the
+     * client). Lets the classifier factor in the document the user attached
+     * without dumping raw file text into the prompt.
+     */
+    fileSummary?: string
+}
+
+/** Human-friendly label for a canonical type, used in the detection message. */
+function typeLabel(type: string): string {
+    const map: Record<string, string> = {
+        invoice: "invoice", quote: "quote", estimate: "estimate", proposal: "proposal",
+        contract: "contract", sow: "statement of work", change_order: "change order",
+        nda: "NDA", client_onboarding_form: "client onboarding form",
+        payment_followup: "payment follow-up", receipt: "receipt",
+    }
+    return map[type] ?? type
 }
 
 export async function POST(request: NextRequest) {
@@ -73,11 +91,58 @@ export async function POST(request: NextRequest) {
         // ── Core classification ──
         // Keep the legacy detector for backward compatibility (returns type + confidence + reasoning).
         const detection = detectDocumentType(detectionPrompt)
-        const message = getDetectionMessage(detection)
 
-        // The new full classifier decides the route and picks a suggested type
-        // using both the prompt text and the selected category pill.
+        // The keyword classifier is retained as a fallback + for disambiguation.
         const intent = classifyIntentFull(detectionPrompt, selectedCategory)
+
+        // Optional attached-file summary (Kimi vision output from the client).
+        const fileSummary = typeof body.fileSummary === "string"
+            ? sanitizeText(body.fileSummary).slice(0, 4000)
+            : undefined
+
+        // ── PRIMARY: Kimi semantic classification ──
+        // Kimi reads the request (and any attached-file summary) and decides the
+        // type + whether the user wants to CREATE now vs. chat. This replaces
+        // brittle keyword matching (e.g. "rough cost projection" → estimate).
+        // A selected category pill is a strong explicit signal, so when the user
+        // has already picked a type we trust the keyword path and skip Kimi.
+        let kimi = null as Awaited<ReturnType<typeof classifyDocumentTypeWithKimi>>
+        if (!selectedCategory) {
+            try {
+                kimi = await classifyDocumentTypeWithKimi(detectionPrompt, resolveBedrockKey(), fileSummary)
+            } catch {
+                kimi = null
+            }
+        }
+
+        // Use Kimi's decision when it is confident enough; otherwise fall back to
+        // the keyword classifier so the disambiguation UX still works.
+        if (kimi && kimi.confidence >= 0.5) {
+            const finalType = kimi.type
+            const route: "direct-create" | "chat-only" =
+                kimi.intent === "create" ? "direct-create" : "chat-only"
+            return NextResponse.json({
+                success: true,
+                type: finalType,
+                confidence: kimi.confidence,
+                reasoning: kimi.reasoning,
+                message: kimi.intent === "create"
+                    ? `I'll help you create a ${typeLabel(finalType)}.`
+                    : `Let's talk through what you need for your ${typeLabel(finalType)}.`,
+                route,
+                intent: {
+                    route: kimi.intent === "create" ? "document-explicit" : "chat",
+                    suggestedType: finalType,
+                    confidence: kimi.confidence,
+                    suggestions: [],
+                },
+                mismatch: undefined,
+                classifier: "kimi",
+            })
+        }
+
+        // ── FALLBACK: keyword classifier ──
+        const message = getDetectionMessage(detection)
 
         // Resolve the final type: prefer the full classifier's suggestion when
         // present, else fall back to the legacy detector.
@@ -113,6 +178,7 @@ export async function POST(request: NextRequest) {
                       reason: mismatch.reason,
                   }
                 : undefined,
+            classifier: "keyword",
         })
     } catch (error) {
         console.error("Document type detection error:", error)
