@@ -333,6 +333,33 @@ function bNone() {
     return { ...bw(0, 0, 0, 0), ...bc("transparent", "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
 }
 
+// ─── Shared typographic hierarchy ────────────────────────────────────────────
+// Consistent heading system used across ALL document templates so every PDF has
+// the same clean, modern visual rhythm:
+//   • SectionHeading  (H2) — major section titles: coloured accent bar + 11.5pt
+//                             bold, mixed-case, dark text. Clear + prominent.
+//   • MicroLabel      (H4) — small field labels (From / Bill To / Date): 7.5pt
+//                             uppercase, muted primary, letter-spaced.
+// Body copy stays 9.5–10pt. This gives the H1 (title, 28–36pt in DocHeader) →
+// H2 (section) → H3/body → H4 (labels) ladder the user asked for.
+
+/** H2 — major section heading with a coloured accent bar. */
+function SectionHeading({ title, c, mt = 0 }: { title: string; c: ReturnType<typeof getTheme>; mt?: number }) {
+    return (
+        <View minPresenceAhead={30} style={{ flexDirection: "row", alignItems: "center", marginTop: mt, marginBottom: 9, ...bNone() }}>
+            <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
+            <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>{title}</Text>
+        </View>
+    )
+}
+
+/** H4 — small uppercase field label (From / Bill To / Date). */
+function MicroLabel({ children, c, mb = 8, onDark = false }: { children: string; c: ReturnType<typeof getTheme>; mb?: number; onDark?: boolean }) {
+    return (
+        <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.7)" : c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: mb, fontWeight: 700 }}>{children}</Text>
+    )
+}
+
 /**
  * Sanitize terms/notes text to respect the signature toggle.
  *
@@ -1765,7 +1792,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                 {/* â”€â”€ PAYMENT INFO â”€â”€ */}
                 {(data.paymentInstructions || data.paymentMethod) && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: c.bg, ...r(8), ...bNone() }} wrap={false}>
-                        <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>Payment Information</Text>
+                        <SectionHeading title="Payment Information" c={c} />
                         {data.paymentMethod ? <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>Method: {data.paymentMethod}</Text> : null}
                         {data.paymentInstructions ? <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.paymentInstructions}</Text> : null}
                     </View>
@@ -1911,18 +1938,20 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     if (blocks.length === 0) return null
                     return (
                         <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, fontWeight: 700 }}>Scope & Terms</Text>
+                            <SectionHeading title="Scope & Terms" c={c} />
                             {blocks.map((block, idx) => {
                                 if (block.kind === "heading") {
+                                    // H3 sub-heading within the contract body — a
+                                    // coloured, slightly larger label above its clause.
                                     return (
                                         <Text
                                             key={idx}
                                             style={{
                                                 fontSize: 10.5,
-                                                color: c.txt,
+                                                color: c.pri,
                                                 fontWeight: 700,
-                                                marginTop: idx === 0 ? 0 : 12,
-                                                marginBottom: 4,
+                                                marginTop: idx === 0 ? 2 : 14,
+                                                marginBottom: 5,
                                                 lineHeight: 1.4,
                                             }}
                                         >
@@ -1965,7 +1994,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                 {/* â”€â”€ DELIVERABLES TABLE â”€â”€ */}
                 {hasItems && (
                     <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Deliverables & Pricing</Text>
+                        <SectionHeading title="Deliverables & Pricing" c={c} />
                         <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
                             <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Deliverable</Text></View>
                             <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
@@ -2310,8 +2339,11 @@ function renderTermsBlock(terms: string | undefined, showSig: boolean | undefine
         )
     })
     return (
-        <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-            <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase" as any, letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Terms {"&"} Conditions</Text>
+        <View style={{ marginHorizontal: 48, marginBottom: 14, ...bNone() }}>
+            <View minPresenceAhead={30} style={{ flexDirection: "row", alignItems: "center", marginBottom: 9, ...bNone() }}>
+                <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
+                <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>Terms {"&"} Conditions</Text>
+            </View>
             {clauseViews}
         </View>
     )
@@ -3136,7 +3168,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ PROJECT OVERVIEW â”€â”€ */}
                 {data.projectOverview && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Project Overview</Text>
+                        <SectionHeading title="Project Overview" c={c} />
                         <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.projectOverview}</Text>
                     </View>
                 )}
@@ -3144,7 +3176,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ SCOPE OF WORK â”€â”€ */}
                 {(data.scopeItems || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Scope of Work</Text>
+                        <SectionHeading title="Scope of Work" c={c} />
 
                         {includedItems.length > 0 && (
                             <View style={{ marginBottom: 12, ...bNone() }}>
@@ -3184,7 +3216,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ DELIVERABLES â”€â”€ */}
                 {(data.deliverables || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Deliverables</Text>
+                        <SectionHeading title="Deliverables" c={c} />
                         <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                             <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
                             <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Due Date</Text></View>
@@ -3203,7 +3235,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ MILESTONES â”€â”€ */}
                 {(data.milestones || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Milestones</Text>
+                        <SectionHeading title="Milestones" c={c} />
                         <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                             <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Milestone</Text></View>
                             <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Date</Text></View>
@@ -3222,7 +3254,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ ASSUMPTIONS â”€â”€ */}
                 {(data.assumptions || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Assumptions</Text>
+                        <SectionHeading title="Assumptions" c={c} />
                         {(data.assumptions || []).map((a, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>{"\u2022"}</Text>
@@ -3360,7 +3392,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
 
                 {/* â”€â”€ DESCRIPTION â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Description of Change</Text>
+                    <SectionHeading title="Description of Change" c={c} />
                     <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.description}</Text>
                 </View>
 
@@ -3401,7 +3433,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                 {/* â”€â”€ MODIFICATIONS â”€â”€ */}
                 {(data.modifications || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Modifications</Text>
+                        <SectionHeading title="Modifications" c={c} />
                         <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                             <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Original</Text></View>
                             <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Revised</Text></View>
@@ -3423,7 +3455,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                 {data.costImpact && (
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                         <View style={{ width: 260, ...bNone() }}>
-                            <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Cost Impact Summary</Text>
+                            <SectionHeading title="Cost Impact Summary" c={c} />
                             <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
                                 <Text style={{ fontSize: 10, color: mut }}>Original Total</Text>
                                 <Text style={{ fontSize: 10, color: txt, fontWeight: 700 }}>{fmt(data.costImpact.originalTotal, currency)}</Text>
@@ -3516,7 +3548,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 
                 {/* ── PARTIES TABLE ── */}
                 <View style={{ marginHorizontal: 48, marginTop: 14, marginBottom: 20, ...bNone() }}>
-                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Parties</Text>
+                    <SectionHeading title="Parties" c={c} />
                     <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                         <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Name</Text></View>
                         <View style={{ width: 90, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Role</Text></View>
@@ -3542,14 +3574,14 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 
                 {/* â”€â”€ CONFIDENTIAL INFORMATION DEFINITION â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Definition of Confidential Information</Text>
+                    <SectionHeading title="Definition of Confidential Information" c={c} />
                     <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.confidentialInfoDefinition}</Text>
                 </View>
 
                 {/* â”€â”€ OBLIGATIONS â”€â”€ */}
                 {(data.obligations || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Obligations</Text>
+                        <SectionHeading title="Obligations" c={c} />
                         {(data.obligations || []).map((o, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 5, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7, fontWeight: 700 }}>{i + 1}.</Text>
@@ -3562,7 +3594,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                 {/* â”€â”€ EXCLUSIONS â”€â”€ */}
                 {(data.exclusions || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Exclusions</Text>
+                        <SectionHeading title="Exclusions" c={c} />
                         {(data.exclusions || []).map((e, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>{"\u2022"}</Text>
@@ -3574,7 +3606,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 
                 {/* â”€â”€ TERM & DURATION â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
-                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Term & Duration</Text>
+                    <SectionHeading title="Term & Duration" c={c} />
                     <View style={{ flexDirection: "row", ...bNone() }}>
                         <View style={{ flex: 1, ...bNone() }}>
                             <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Start Date</Text>
@@ -3594,7 +3626,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                 {/* â”€â”€ REMEDIES â”€â”€ */}
                 {data.remedies && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Remedies</Text>
+                        <SectionHeading title="Remedies" c={c} />
                         <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.remedies}</Text>
                     </View>
                 )}
@@ -3658,7 +3690,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
 
                 {/* â”€â”€ CLIENT DETAILS â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 16, padding: 16, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
-                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, fontWeight: 700 }}>Client Details</Text>
+                    <SectionHeading title="Client Details" c={c} />
                     <View style={{ flexDirection: "row", flexWrap: "wrap", ...bNone() }}>
                         {[
                             { label: "Name", value: data.clientName },
@@ -3676,7 +3708,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
 
                 {/* â”€â”€ PROJECT DETAILS â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
-                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, fontWeight: 700 }}>Project Details</Text>
+                    <SectionHeading title="Project Details" c={c} />
                     <View style={{ marginBottom: 10, ...bNone() }}>
                         <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4, fontWeight: 700 }}>Project Name</Text>
                         <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{data.projectName}</Text>
@@ -3706,7 +3738,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                 {/* â”€â”€ REQUIREMENTS â”€â”€ */}
                 {(data.requirements || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Requirements</Text>
+                        <SectionHeading title="Requirements" c={c} />
                         {(data.requirements || []).map((req, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 5, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7, fontWeight: 700 }}>{i + 1}.</Text>
@@ -3719,7 +3751,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                 {/* â”€â”€ CUSTOM Q&A â”€â”€ */}
                 {(data.customQuestions || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Additional Information</Text>
+                        <SectionHeading title="Additional Information" c={c} />
                         {(data.customQuestions || []).map((qa, i) => {
                             const hasAnswer = qa.answer && qa.answer.trim().length > 0
                             return (
@@ -3854,7 +3886,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
 
                 {/* â”€â”€ INVOICE REFERENCE â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginTop: 16, marginBottom: 16, padding: 14, backgroundColor: bg, ...r(8), ...bNone() }} wrap={false}>
-                    <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Invoice Reference</Text>
+                    <SectionHeading title="Invoice Reference" c={c} />
                     <View style={{ flexDirection: "row", ...bNone() }}>
                         <View style={{ flex: 1, ...bNone() }}>
                             <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Invoice Number</Text>
@@ -3890,7 +3922,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                 {/* â”€â”€ MESSAGE â”€â”€ */}
                 {data.customMessage && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 16, backgroundColor: bg, ...r(8), ...bNone() }}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Message</Text>
+                        <SectionHeading title="Message" c={c} />
                         <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.customMessage}</Text>
                     </View>
                 )}
@@ -3898,7 +3930,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                 {/* â”€â”€ PAYMENT LINK â”€â”€ */}
                 {data.paymentLinkUrl && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 14, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
-                        <Text style={{ fontSize: 9, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Pay Online</Text>
+                        <SectionHeading title="Pay Online" c={c} />
                         <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.4, marginBottom: 8 }}>
                             Click the link below to pay securely online.
                         </Text>
