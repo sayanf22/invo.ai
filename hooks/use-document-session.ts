@@ -211,6 +211,17 @@ export function useDocumentSession(documentType: string = "invoice", externalSes
                     const isInvoiceLike = sessionDocType === "invoice"
                     if (isInvoiceLike) {
                         safeContext.invoiceNumber = coerceReferenceNumber(safeContext.invoiceNumber, sessionDocType) ?? safeContext.invoiceNumber
+                    } else if (sessionDocType !== "payment_followup" && sessionDocType !== "sow" && sessionDocType !== "change_order") {
+                        // BUG FIX: PDF headers fall back to `invoiceNumber` when
+                        // `referenceNumber` is empty (e.g. `data.referenceNumber ||
+                        // data.invoiceNumber || "EST-0000"`). For every non-invoice
+                        // type that does NOT deliberately carry a parent invoice's
+                        // number, a stray invoiceNumber value (AI mistake or leftover
+                        // from an earlier doc type) leaked through with the WRONG
+                        // prefix — e.g. "INV-2350" printed under an ESTIMATE title.
+                        // Clear it so the correct referenceNumber (already coerced
+                        // above) is what actually renders.
+                        delete (safeContext as Record<string, unknown>).invoiceNumber
                     }
                 }
             }
