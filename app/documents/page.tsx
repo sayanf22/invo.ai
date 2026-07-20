@@ -705,7 +705,12 @@ function ChainGroupCard({
   onDelete?: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const docTypes = [...new Set(sessions.map(s => s.document_type))].map(t => t.charAt(0).toUpperCase() + t.slice(1))
+  // Proper human-readable labels from the registry (e.g. "Client Onboarding
+  // Form" instead of the raw "Client_onboarding_form" slug).
+  const docTypeLabels = [...new Set(sessions.map(s => {
+    const cfg = getDocumentTypeConfig(normalizeDocumentType(s.document_type) ?? "")
+    return cfg?.label ?? (s.document_type.charAt(0).toUpperCase() + s.document_type.slice(1))
+  }))]
   const latestSession = sessions[0]
   const latestCtx = latestSession.context || {}
   const latestRef = latestCtx.invoiceNumber || latestCtx.referenceNumber || ""
@@ -715,28 +720,32 @@ function ChainGroupCard({
 
   return (
     <div className={cn(
-      "rounded-2xl border bg-card overflow-hidden",
-      submittedCount > 0 ? "border-foreground/30 bg-foreground/[0.02]" : "border-border/40",
+      "rounded-2xl border bg-card overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04),0_5px_14px_-6px_rgba(0,0,0,0.12)]",
+      submittedCount > 0 ? "border-foreground/30 bg-foreground/[0.02]" : "border-border/50",
     )}>
       {/* Group header — clean monochromatic */}
       <button
         onClick={() => setExpanded(v => !v)}
         className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/20 transition-colors active:bg-muted/30"
       >
-        <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center shrink-0">
-          <Link2 size={15} className="text-muted-foreground" />
+        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Link2 size={15} className="text-primary" strokeWidth={1.75} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm text-foreground truncate">{clientName || latestRef || "Linked Documents"}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            {sessions.length} documents · {docTypes.join(", ")}
+          {/* Top line: client name + submitted badge (badge lives here so it
+              never overlaps the wrapping doc-types line below). */}
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-sm text-foreground truncate flex-1 min-w-0">{clientName || latestRef || "Linked Documents"}</p>
+            {submittedCount > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-foreground/5 text-foreground border border-foreground/20 shrink-0">
+                ✓ {submittedCount} submitted
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+            {sessions.length} documents · {docTypeLabels.join(", ")}
           </p>
         </div>
-        {submittedCount > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-foreground/5 text-foreground border border-foreground/20 shrink-0">
-            ✓ {submittedCount} submitted
-          </span>
-        )}
         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
           {expanded ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
         </div>
@@ -844,8 +853,8 @@ function DocCard({
 
   return (
     <div className={cn(
-      "rounded-2xl border bg-card overflow-hidden group",
-      isSubmittedOnboarding ? "border-foreground/30 bg-foreground/[0.02]" : "border-border/40",
+      "rounded-2xl border bg-card overflow-hidden group shadow-[0_1px_2px_rgba(0,0,0,0.04),0_5px_14px_-6px_rgba(0,0,0,0.12)]",
+      isSubmittedOnboarding ? "border-foreground/30 bg-foreground/[0.02]" : "border-border/50",
     )}>
       {/* Main row */}
       <div className="px-4 py-3.5">

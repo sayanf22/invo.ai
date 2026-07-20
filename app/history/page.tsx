@@ -139,7 +139,17 @@ export default function HistoryPage() {
     } finally { setLoading(false) }
   }
 
-  const openSession = (session: Session) => router.push(`/?sessionId=${session.id}`)
+  // A locked/sent document is a finished record — open it in the document
+  // viewer (read-only PDF UI), the same as clicking it in My Documents. Drafts
+  // and chat sessions still reopen the chat/editor so they can be continued.
+  const openSession = (session: Session) => {
+    const locked = ["finalized", "signed", "paid"].includes((session.status || "").toLowerCase())
+    if (session.document_type !== "chat" && locked) {
+      router.push(`/view/${session.id}`)
+    } else {
+      router.push(`/?sessionId=${session.id}`)
+    }
+  }
 
   /**
    * Called when user clicks the trash icon.
@@ -411,15 +421,15 @@ function ChainGroup({ group, onOpen, onRequestDelete }: {
   const docTypeLabels = [...new Set(group.sessions.map(s => getDocCfg(s.document_type).label))]
 
   return (
-    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
+    <div className="rounded-2xl border border-border/50 bg-card overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04),0_5px_14px_-6px_rgba(0,0,0,0.12)]">
       {/* Group header — clean monochromatic (mirrors My Documents) */}
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/20 transition-colors active:bg-muted/30"
       >
-        <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center shrink-0">
-          <Link2 size={15} className="text-muted-foreground" strokeWidth={1.5} />
+        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Link2 size={15} className="text-primary" strokeWidth={1.75} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm text-foreground truncate">{group.clientName || "Linked Documents"}</p>
@@ -509,7 +519,7 @@ function SingleCard({ session, clientName, onOpen, onRequestDelete }: {
   const isProtected = session.status === "paid" || session.status === "signed"
 
   return (
-    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden group">
+    <div className="rounded-2xl border border-border/50 bg-card overflow-hidden group shadow-[0_1px_2px_rgba(0,0,0,0.04),0_5px_14px_-6px_rgba(0,0,0,0.12)]">
       <div className="px-4 py-3.5">
         {/* Row 1: type badge (left) + open/delete actions (right) — mirrors the
             My Documents card so long type labels never squeeze the title. */}
