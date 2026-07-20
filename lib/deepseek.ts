@@ -1232,10 +1232,10 @@ BUSINESS PROFILE (use for all "from" fields):
         prompt += `\nCRITICAL INSTRUCTION: The user has pre-selected this client from their saved client list. You MUST set toName="${c.name}"${c.email ? `, toEmail="${c.email}"` : ""}${c.address ? `, toAddress="${c.address}"` : ""}${c.phone ? `, toPhone="${c.phone}"` : ""}${c.taxId ? `, toTaxId="${c.taxId}"` : ""} in the generated document. Do NOT ask for client details — they are already provided above. Do NOT invent or change any of these values.\n`
     }
 
-    // File context (previously uploaded file contents)
+    // File context (attached-file analysis) — SECONDARY reference only.
     if (request.fileContext) {
-        prompt += `\nFILE CONTEXT (previously uploaded file contents):\n${request.fileContext}\n`
-        prompt += `Use this context to answer questions about the file. If the user asks to generate a document from this, use the details as client/project information.\n`
+        prompt += `\nATTACHED FILE — REFERENCE MATERIAL (SECONDARY):\n${request.fileContext}\n`
+        prompt += `PRIORITY: The user's typed instruction above is the PRIMARY intent and OVERRIDES this file. Use the file ONLY as supporting reference (client/project details, services, pricing). If the user's instruction conflicts with the file — for example they ask for a DIFFERENT document type than the file is (an estimate when the file is a proposal), or different amounts/terms — FOLLOW THE USER'S INSTRUCTION, never the file's original type or wording. Do not copy the file's document type; produce exactly what the user asked for.\n`
     }
 
     // Conversation history (limited to last 20 messages = 10 pairs)

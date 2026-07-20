@@ -1192,47 +1192,15 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
 
         const userMessage = messageText.trim()
 
-        // ── Pre-flight document type switch guard ──────────────────────────────
-        // When the user asks to "create a contract" inside an invoice session, block it
-        // and guide them to start a new session. Uses registry-driven type list so
-        // adding a new doc type doesn't require touching this guard.
-        const DOC_TYPE_KEYWORDS: Record<string, string[]> = {
-            invoice:               ["invoice", "invoices"],
-            contract:              ["contract", "contracts", "agreement", "agreements"],
-            quote:                 ["quotation", "quotations", "quote", "quotes"],
-            estimate:              ["estimate", "estimates", "cost estimate", "ballpark"],
-            proposal:              ["proposal", "proposals", "pitch", "pitches"],
-            sow:                   ["statement of work", "sow", "scope of work"],
-            change_order:          ["change order", "change orders", "amendment", "amendments"],
-            nda:                   ["nda", "non-disclosure", "nondisclosure", "confidentiality agreement"],
-            client_onboarding_form:["onboarding form", "client form", "intake form", "client intake"],
-            payment_followup:      ["payment follow-up", "payment followup", "payment reminder", "follow-up letter"],
-        }
-        const CREATE_VERBS = /\b(create|make|generate|build|write|draft|produce|give me|i need|i want)\b/i
-        const msgLower = userMessage.toLowerCase()
-        if (CREATE_VERBS.test(msgLower)) {
-            for (const [targetType, keywords] of Object.entries(DOC_TYPE_KEYWORDS)) {
-                if (targetType === docType) continue // same type — fine
-                if (keywords.some(kw => new RegExp(`\\b${kw}\\b`, "i").test(msgLower))) {
-                    const targetLabel = documentTypeLabel(targetType)
-                    const currentLabel = documentTypeLabel(docType)
-
-                    // Option A: keep this session's document intact and offer a
-                    // one-tap card to create the requested type as a LINKED
-                    // document (never converts or overwrites a signed/paid doc).
-                    const guidanceMsg = `Looks like you want a **${targetLabel}**, but this is your **${currentLabel}**. I'll keep this one exactly as it is — tap below to create a **${targetLabel}** as a linked document (your client details carry over).`
-                    setInputValue("")
-                    setMessages(prev => [...prev,
-                        { role: "user" as const, content: userMessage },
-                        { role: "assistant" as const, content: guidanceMsg, linkedDocCard: { targetType, targetLabel, currentLabel } },
-                    ])
-                    await saveMessage("user", userMessage)
-                    await saveMessage("assistant", guidanceMsg)
-                    return
-                }
-            }
-        }
-        // ── End pre-flight guard ───────────────────────────────────────────────
+        // NOTE: We intentionally do NOT keyword-guard cross-type requests here.
+        // Keyword matching produced false positives — e.g. "create an ESTIMATE,
+        // it's a proposal, change it to estimate" wrongly triggered a "create
+        // Proposal" card just because the word "proposal" appeared. The user's
+        // typed instruction is PRIMARY: the AI reads the full prompt and decides
+        // the type. If the AI genuinely produces a DIFFERENT type than this
+        // session, the post-generation isolation guard below offers the Option A
+        // "create as linked document" card — based on what was actually
+        // generated, not on a stray keyword.
 
         // ── Payment intent guard — show card if no gateway connected ──────────
         if (docType === "invoice" && detectPaymentIntent(userMessage) && !hasAnyGateway) {

@@ -14,6 +14,7 @@ import { useTier } from "@/hooks/use-tier"
 import { toast } from "sonner"
 import { ChatOnlyScreen } from "@/components/chat-only-screen"
 import { cn } from "@/lib/utils"
+import { FileText } from "lucide-react"
 import type { IntentSuggestion } from "@/lib/intent-router"
 
 type View = "start" | "chat-only" | "prompt"
@@ -91,7 +92,9 @@ export function StartScreenSkeleton({ route }: { route: "chat-only" | "direct-cr
       {/* ── Body ── */}
       <div className="flex-1 flex overflow-hidden min-h-0">
 
-        {/* ── Chat panel ── */}
+        {/* ── Chat panel — matches the real chat: a single AI bubble that's
+             actively "typing", pinned to the bottom like a live conversation.
+             No fake filler bubbles. ── */}
         <div
           className="flex flex-col bg-card shrink-0 transition-all duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)]"
           style={{
@@ -100,67 +103,35 @@ export function StartScreenSkeleton({ route }: { route: "chat-only" | "direct-cr
             boxShadow: isSplit ? "2px 0 20px -4px rgba(0,0,0,0.08)" : "none",
           }}
         >
-          {/* Messages */}
-          <div className="flex-1 overflow-hidden px-4 lg:px-6 py-5 space-y-5">
-
-            {/* AI bubble 1 — greeting */}
-            <div className="flex items-end gap-2.5 max-w-[78%]">
-              <div className="w-7 h-7 rounded-full bg-muted/80 border border-border/40 shrink-0 mb-0.5" />
-              <div className="flex flex-col gap-1.5 flex-1">
-                <div className="bg-card border border-border/50 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm space-y-2">
-                  <Shimmer className="h-3.5 w-[88%]" />
-                  <Shimmer className="h-3.5 w-[72%]" />
-                  <Shimmer className="h-3.5 w-[55%]" />
-                </div>
+          {/* Messages — content sits at the bottom, matching the live chat */}
+          <div className="flex-1 flex flex-col justify-end overflow-hidden px-4 lg:px-6 py-5">
+            {/* AI typing bubble — identical styling to the real chat indicator */}
+            <div className="flex items-end gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 shrink-0 mb-0.5 flex items-center justify-center overflow-hidden">
+                <ClorefyLogo size={16} />
               </div>
-            </div>
-
-            {/* User bubble */}
-            <div className="flex justify-end">
-              <div className="bg-foreground/90 rounded-2xl rounded-br-sm px-4 py-3 shadow-sm max-w-[60%] space-y-2">
-                <Shimmer className="h-3.5 w-[90%] bg-background/20" />
-                <Shimmer className="h-3.5 w-[65%] bg-background/20" />
-              </div>
-            </div>
-
-            {/* AI bubble 2 — response */}
-            <div className="flex items-end gap-2.5 max-w-[82%]">
-              <div className="w-7 h-7 rounded-full bg-muted/80 border border-border/40 shrink-0 mb-0.5" />
-              <div className="flex flex-col gap-1.5 flex-1">
-                <div className="bg-card border border-border/50 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm space-y-2">
-                  <Shimmer className="h-3.5 w-[92%]" />
-                  <Shimmer className="h-3.5 w-[78%]" />
-                </div>
-              </div>
-            </div>
-
-            {/* Typing indicator */}
-            <div className="flex items-end gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-muted/80 border border-border/40 shrink-0 mb-0.5" />
               <div className="bg-card border border-border/50 rounded-2xl rounded-bl-sm px-4 py-3.5 shadow-sm flex items-center gap-1.5">
                 <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
                 <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
                 <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" />
               </div>
             </div>
+
+            {/* Status label */}
+            <div className="mt-3 pl-9 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" />
+              <span className="text-[11px] text-muted-foreground/70 font-medium">
+                {isSplit ? "Preparing your document…" : "Understanding your request…"}
+              </span>
+            </div>
           </div>
 
-          {/* Status label */}
-          <div className="px-4 lg:px-6 pb-1 flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" />
-            <span className="text-[11px] text-muted-foreground/60 font-medium">
-              {isSplit ? "Preparing your document…" : "Analyzing your request…"}
-            </span>
-          </div>
-
-          {/* Input skeleton */}
+          {/* Input skeleton — same shape/rounding as the real composer */}
           <div className="shrink-0 border-t border-border/50 px-4 lg:px-6 py-3">
             <div className="relative">
-              <Shimmer className="h-12 w-full rounded-2xl" />
-              {/* Paperclip icon placeholder */}
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-lg bg-muted/80" />
-              {/* Send button placeholder */}
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-muted/80" />
+              <div className="h-12 w-full rounded-2xl border border-border/60 bg-muted/30" />
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-lg bg-muted/70" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-primary/20" />
             </div>
           </div>
         </div>
@@ -173,68 +144,16 @@ export function StartScreenSkeleton({ route }: { route: "chat-only" | "direct-cr
             transform: isSplit ? "translateX(0)" : "translateX(48px)",
           }}
         >
-          {/* Paper document card */}
-          <div className="flex-1 flex items-start justify-center px-8 py-8 overflow-hidden">
-            <div
-              className="w-full max-w-[520px] bg-card rounded-2xl border border-border/60 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.1)] overflow-hidden"
-            >
-              {/* Document top bar */}
-              <div className="px-6 pt-6 pb-4 border-b border-border/40 flex items-start justify-between gap-4">
-                <div className="space-y-2 flex-1">
-                  <Shimmer className="h-5 w-28 rounded-md" />
-                  <Shimmer className="h-3.5 w-20 rounded-md" />
-                </div>
-                <Shimmer className="h-14 w-14 rounded-xl shrink-0" />
+          {/* Calm page silhouette — not a fake filled invoice */}
+          <div className="flex-1 flex items-center justify-center px-8 py-8 overflow-hidden">
+            <div className="w-full max-w-[520px] aspect-[1/1.294] bg-card rounded-2xl border border-border/60 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.1)] overflow-hidden flex flex-col items-center justify-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center animate-pulse">
+                <FileText className="w-8 h-8 text-primary/50" />
               </div>
-
-              {/* From / To section */}
-              <div className="px-6 py-4 grid grid-cols-2 gap-6 border-b border-border/40">
-                <div className="space-y-2">
-                  <Shimmer className="h-3 w-12 rounded-md" />
-                  <Shimmer className="h-3.5 w-[80%] rounded-md" />
-                  <Shimmer className="h-3 w-[60%] rounded-md" />
-                  <Shimmer className="h-3 w-[70%] rounded-md" />
-                </div>
-                <div className="space-y-2">
-                  <Shimmer className="h-3 w-10 rounded-md" />
-                  <Shimmer className="h-3.5 w-[75%] rounded-md" />
-                  <Shimmer className="h-3 w-[55%] rounded-md" />
-                  <Shimmer className="h-3 w-[65%] rounded-md" />
-                </div>
-              </div>
-
-              {/* Line items table */}
-              <div className="px-6 py-4 space-y-3 border-b border-border/40">
-                {/* Table header */}
-                <div className="grid grid-cols-4 gap-3">
-                  <Shimmer className="h-3 w-full col-span-2 rounded-md" />
-                  <Shimmer className="h-3 w-full rounded-md" />
-                  <Shimmer className="h-3 w-full rounded-md" />
-                </div>
-                {/* Rows */}
-                {[0.9, 0.7, 0.8].map((w, i) => (
-                  <div key={i} className="grid grid-cols-4 gap-3">
-                    <Shimmer className="h-3 rounded-md col-span-2" style={{ width: `${w * 100}%` }} />
-                    <Shimmer className="h-3 w-full rounded-md" />
-                    <Shimmer className="h-3 w-full rounded-md" />
-                  </div>
-                ))}
-              </div>
-
-              {/* Totals */}
-              <div className="px-6 py-4 flex flex-col items-end gap-2">
-                <div className="flex items-center gap-8">
-                  <Shimmer className="h-3 w-16 rounded-md" />
-                  <Shimmer className="h-3 w-20 rounded-md" />
-                </div>
-                <div className="flex items-center gap-8">
-                  <Shimmer className="h-3 w-12 rounded-md" />
-                  <Shimmer className="h-3 w-16 rounded-md" />
-                </div>
-                <div className="flex items-center gap-8 mt-1">
-                  <Shimmer className="h-4 w-14 rounded-md" />
-                  <Shimmer className="h-4 w-24 rounded-md" />
-                </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" />
               </div>
             </div>
           </div>
