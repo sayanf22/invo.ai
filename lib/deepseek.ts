@@ -584,9 +584,10 @@ Required fields:
 - items: [{ id, description, quantity, rate }] — the estimated line items. These are APPROXIMATE figures.
 - taxRate, taxLabel, currency
 - notes: use [SECTION:name] blocks like the proposal (e.g. Our Understanding, What's Included, Assumptions, What Could Change The Price, Next Steps). ALWAYS include an "Assumptions" and a "What Could Change The Price" section — this is what makes it an estimate, not a quote.
-- terms: 4-6 labelled clauses (double-newline separated). MUST include a clause stating the figures are estimates only, not a binding quote or final invoice, and are subject to change once scope is confirmed.
+- terms: 3-5 SHORT labelled clauses (double-newline separated), written for a NON-BINDING estimate. Use ONLY these estimate-appropriate clauses: "Estimate Validity" (how long the ballpark holds, e.g. 30 days), "Approximate Pricing" (a clause stating the figures are estimates only, NOT a binding quote or final invoice, and are subject to change once scope is confirmed), "Payment" (high-level note that payment terms will be finalised if the project proceeds), and optionally "Next Steps" (how to move forward). 
+- CRITICAL — an estimate is NOT a contract. NEVER include binding-contract clauses in an estimate's terms: NO "Intellectual Property" / ownership-transfer clause, NO "Termination" clause, NO "Governing Law" / jurisdiction clause, NO "Liability" / "Indemnity" / "Confidentiality" clause, NO revision-limit clause. Those belong in a Contract or SOW. NEVER use the word "agreement" or imply the parties are bound — this is a planning estimate, not a signed agreement.
 - design: template object
-NEVER present an estimate as a final bill. NEVER call it a quote. Keep language like "estimated", "approximately", "subject to change".
+NEVER present an estimate as a final bill. NEVER call it a quote. NEVER frame it as a binding agreement. Keep language like "estimated", "approximately", "subject to change", "for planning purposes".
 
 ### TERMS & CONDITIONS: SIGNATURE AWARENESS (applies to ALL document types)
 When writing the "terms" field, DO NOT include any language that references physical or electronic signatures UNLESS showSignatureFields is explicitly true. This applies to:
