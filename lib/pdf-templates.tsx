@@ -2348,7 +2348,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                                 </View>
                             )}
                             <View style={{ backgroundColor: c.pri, borderTopLeftRadius: 8, borderTopRightRadius: 8, borderBottomLeftRadius: 8, borderBottomRightRadius: 8, padding: 14, marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...bNone() }}>
-                                <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>Total Investment</Text>
+                                <Text style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{isEstimate ? "Estimated Total" : "Total Investment"}</Text>
                                 <Text style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>{fmt(total, data.currency)}</Text>
                             </View>
                         </View>
