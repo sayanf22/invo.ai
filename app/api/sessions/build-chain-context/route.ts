@@ -18,8 +18,11 @@ import { summarizeChainContext } from "@/lib/chain-summary"
 import { normalizeDocumentType } from "@/lib/document-type-registry"
 
 export const dynamic = "force-dynamic"
-// Context building runs a thinking model to completion; give it ample wall-clock.
-export const maxDuration = 120
+// Kimi (primary) is capped at 20s; Claude (optional upgrade, tried only if
+// Kimi fails) and DeepSeek (final fallback) each add at most ~20s more. 90s
+// comfortably covers the worst case without the multi-minute waits the old
+// Claude-first ordering could cause.
+export const maxDuration = 90
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

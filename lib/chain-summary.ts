@@ -23,20 +23,26 @@ const BEDROCK_MANTLE_URL = "https://bedrock-mantle.us-east-1.api.aws/v1/chat/com
 const BEDROCK_RUNTIME_BASE = "https://bedrock-runtime.us-east-1.amazonaws.com/model"
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
-// Generous ceiling that a normal summary never reaches — it exists only to stop
-// a genuinely stuck socket from hanging forever (which would itself be an error).
-const HARD_CEILING_MS = 110_000
+// Per-call ceiling. Kimi (the primary, proven-working model) gets a realistic
+// budget for a short summarization call — this used to be 110s per model with
+// Claude tried FIRST, and since Claude Sonnet 5/4.6 are not yet authorized on
+// this AWS account, every chain-build wasted minutes failing against Claude
+// before ever reaching Kimi. Kimi now goes first with a tight, fast ceiling;
+// Claude (when authorized) is attempted only as a secondary upgrade.
+const KIMI_CEILING_MS = 20_000
+const CLAUDE_CEILING_MS = 20_000
 const MAX_CONTEXT_JSON_CHARS = 9_000
 const MAX_TRANSCRIPT_CHARS = 7_000
 const MAX_EXISTING_BRIEF_CHARS = 6_000
 const MAX_MESSAGES = 60
 const MAX_OUTPUT_CHARS = 4_500
 
-// Thinking model preference order. Claude ids auto-upgrade the moment the AWS
-// account is authorized for them; until then the calls fail and we fall through
-// to Kimi automatically.
-const CLAUDE_MODELS = ["us.anthropic.claude-sonnet-5", "us.anthropic.claude-sonnet-4-6"]
+// Kimi K2.5 is PRIMARY — proven working on this account via Bedrock Mantle.
+// Claude ids are attempted AFTER Kimi as an optional upgrade; they auto-engage
+// the moment the AWS account is authorized for them, and simply fail fast
+// (no wasted wall-clock) until then.
 const KIMI_MODEL = "moonshotai.kimi-k2.5"
+const CLAUDE_MODELS = ["us.anthropic.claude-sonnet-5", "us.anthropic.claude-sonnet-4-6"]
 
 const EXCLUDED_CONTEXT_FIELDS = new Set([
   "fromLogo", "showLogo", "logoShape", "logoSize",
@@ -200,9 +206,9 @@ function buildUserPrompt(input: ChainSummaryInput): string {
   )
 }
 
-async function withCeiling<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+async function withCeiling<T>(fn: (signal: AbortSignal) => Promise<T>, ceilingMs: number): Promise<T> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), HARD_CEILING_MS)
+  const timer = setTimeout(() => controller.abort(), ceilingMs)
   try {
     return await fn(controller.signal)
   } finally {
@@ -242,13 +248,13 @@ async function callClaude(modelId: string, userPrompt: string, key: string): Pro
             .trim()
         : ""
       return text || null
-    })
+    }, CLAUDE_CEILING_MS)
   } catch {
     return null
   }
 }
 
-// ── Kimi K2.5 via Bedrock Mantle (OpenAI-compatible) ─────────────────────────
+// ── Kimi K2.5 via Bedrock Mantle (OpenAI-compatible) — PRIMARY ───────────────
 async function callKimi(userPrompt: string, key: string): Promise<string | null> {
   try {
     return await withCeiling(async (signal) => {
@@ -271,7 +277,7 @@ async function callKimi(userPrompt: string, key: string): Promise<string | null>
       const json = await res.json().catch(() => null)
       const text = json?.choices?.[0]?.message?.content
       return typeof text === "string" && text.trim() ? text.trim() : null
-    })
+    }, KIMI_CEILING_MS)
   } catch {
     return null
   }
@@ -301,7 +307,7 @@ async function callDeepSeek(userPrompt: string): Promise<string | null> {
       const json = await res.json().catch(() => null)
       const text = json?.choices?.[0]?.message?.content
       return typeof text === "string" && text.trim() ? text.trim() : null
-    })
+    }, KIMI_CEILING_MS)
   } catch {
     return null
   }
@@ -343,12 +349,18 @@ export async function summarizeChainContext(input: ChainSummaryInput): Promise<s
   const key = bedrockKey()
 
   if (key) {
+    // Kimi K2.5 is PRIMARY — proven working on this account, fast ceiling.
+    const kimi = await callKimi(userPrompt, key)
+    if (kimi) return sanitizeBrief(kimi)
+
+    // Claude is an OPTIONAL upgrade, tried only if Kimi fails. It auto-engages
+    // the moment the AWS account is authorized for these models; until then
+    // each call fails fast (short ceiling) so it never meaningfully delays
+    // the response — Kimi already had first crack at it.
     for (const model of CLAUDE_MODELS) {
       const out = await callClaude(model, userPrompt, key)
       if (out) return sanitizeBrief(out)
     }
-    const kimi = await callKimi(userPrompt, key)
-    if (kimi) return sanitizeBrief(kimi)
   }
 
   const ds = await callDeepSeek(userPrompt)
