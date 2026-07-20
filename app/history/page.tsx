@@ -120,7 +120,8 @@ export default function HistoryPage() {
 
       const grouped: SessionGroup[] = []
       for (const [chainId, chainSessions] of chainMap) {
-        chainSessions.sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime())
+        // Newest first — consistent with the My Documents linked-docs ordering.
+        chainSessions.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
         const clientName = chainSessions.find(s => s.client_name)?.client_name || null
         const latestDate = chainSessions.reduce((l, s) => { const d = s.updated_at || s.created_at || ""; return d > l ? d : l }, "")
         grouped.push({ chainId, clientName, sessions: chainSessions, latestDate })
@@ -346,7 +347,7 @@ export default function HistoryPage() {
         ) : (
           <div className="space-y-2.5">
             {filteredGroups.map((group, gi) => (
-              <div key={group.chainId || `s-${gi}`} className="animate-in fade-in slide-in-from-bottom-1 duration-300" style={{ animationDelay: `${gi * 30}ms` }}>
+              <div key={group.chainId || `s-${gi}`} className="animate-in fade-in duration-200">
                 {group.sessions.length > 1 ? (
                   <ChainGroup group={group} onOpen={openSession} onRequestDelete={handleRequestDelete} />
                 ) : (
@@ -404,96 +405,87 @@ function ChainGroup({ group, onOpen, onRequestDelete }: {
   onRequestDelete: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const docTypes = [...new Set(group.sessions.map(s => s.document_type))]
-
-  // Get dominant type for accent
-  const dominantType = group.sessions[0]?.document_type || "invoice"
-  const chainAccentMap: Record<string, string> = {
-    invoice: "#2563eb", contract: "#059669", quote: "#d97706",
-    quotation: "#d97706", proposal: "#7c3aed", sow: "#0891b2",
-    change_order: "#ea580c", nda: "#475569",
-    client_onboarding_form: "#0d9488", payment_followup: "#e11d48",
-  }
-  const chainAccentColor = chainAccentMap[dominantType] ?? "#9ca3af"
+  // Distinct human-readable type labels for the header sub-line (plain muted
+  // text — matches the My Documents chain design and avoids the overflowing
+  // row of coloured badges that looked broken on multi-type chains).
+  const docTypeLabels = [...new Set(group.sessions.map(s => getDocCfg(s.document_type).label))]
 
   return (
-    <div
-      className="rounded-2xl border border-border bg-card overflow-hidden"
-      style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 16px -4px rgba(0,0,0,0.08)" }}
-    >
-      {/* Thin top accent line for chain groups */}
-      <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: chainAccentColor }} />
-
+    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
+      {/* Group header — clean monochromatic (mirrors My Documents) */}
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-3 w-full px-4 py-3.5 text-left hover:bg-secondary/30 transition-colors active:bg-secondary/50"
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/20 transition-colors active:bg-muted/30"
       >
-        <div className="w-9 h-9 rounded-xl bg-primary/8 flex items-center justify-center shrink-0">
-          <Link2 className="w-4 h-4 text-primary" strokeWidth={1.5} />
+        <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center shrink-0">
+          <Link2 size={15} className="text-muted-foreground" strokeWidth={1.5} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate">{group.clientName || "Linked Documents"}</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(group.latestDate), { addSuffix: true })}
-            </span>
-            <span className="text-muted-foreground/30 text-xs">·</span>
-            <span className="text-xs text-muted-foreground">{group.sessions.length} docs</span>
-            <div className="flex items-center gap-0.5 ml-0.5">
-              {docTypes.map(t => {
-                const cfg = getDocCfg(t)
-                return <span key={t} className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>{cfg.label}</span>
-              })}
-            </div>
-          </div>
+          <p className="font-semibold text-sm text-foreground truncate">{group.clientName || "Linked Documents"}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+            {group.sessions.length} documents · {docTypeLabels.join(", ")}
+          </p>
         </div>
-        <ChevronDown className={cn("w-4 h-4 text-muted-foreground/50 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] shrink-0", expanded && "rotate-180")} />
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
+          <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]", expanded && "rotate-180")} />
+        </div>
       </button>
 
+      {/* Expandable thread-connected list — mirrors My Documents linked docs */}
       <div
         className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
         style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
       >
-        <div className="overflow-hidden">
-          <div className={cn("transition-opacity duration-200 border-t border-border/50", expanded ? "opacity-100" : "opacity-0")}>
-            {group.sessions.map((session) => {
-              const cfg = getDocCfg(session.document_type)
-              const Icon = cfg.icon
-              const isProtected = session.status === "paid" || session.status === "signed"
-
-              return (
-                <div key={session.id} className="flex items-center border-b border-border/30 last:border-0 group">
-                  <button
-                    type="button"
-                    onClick={() => onOpen(session)}
-                    className="flex items-center gap-3 flex-1 min-w-0 px-4 py-3 hover:bg-secondary/30 transition-colors text-left"
-                  >
-                    <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0", cfg.bg)}>
-                      <Icon className={cn("w-4 h-4", cfg.color)} strokeWidth={1.5} />
+        <div className="min-h-0 overflow-hidden">
+          <div className="relative pl-3 pr-3 pb-3 pt-1">
+            {/* Vertical thread line */}
+            <div className="absolute left-[22px] top-0 bottom-3 w-px bg-border/50" />
+            <div className="space-y-2">
+              {group.sessions.map((session) => {
+                const cfg = getDocCfg(session.document_type)
+                const Icon = cfg.icon
+                const isProtected = session.status === "paid" || session.status === "signed"
+                const rowTitle = session.context?.toName || session.client_name || session.title || "Untitled"
+                return (
+                  <div key={session.id} className="relative pl-5">
+                    {/* Connector + dot on the thread line */}
+                    <div className="absolute left-0 top-[22px] w-5 h-px bg-border/50" />
+                    <div className="absolute left-[-3px] top-[18px] w-[7px] h-[7px] rounded-full bg-muted-foreground/30 border-2 border-card" />
+                    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden group">
+                      <div className="flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => onOpen(session)}
+                          className="flex items-center gap-3 flex-1 min-w-0 px-3.5 py-3 text-left hover:bg-muted/20 transition-colors"
+                        >
+                          <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0", cfg.bg, cfg.color)}>
+                            <Icon size={11} className="shrink-0" strokeWidth={1.75} />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{rowTitle}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                              {cfg.label} · {session.created_at ? format(new Date(session.created_at), "MMM d, h:mm a") : ""}
+                            </p>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
+                        </button>
+                        {!isProtected && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onRequestDelete(session.id) }}
+                            className="w-9 h-9 flex items-center justify-center mr-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/60 transition-colors shrink-0"
+                            aria-label="Delete document"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{session.context?.toName || session.client_name || session.title || "Untitled"}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {cfg.label} · {session.created_at ? format(new Date(session.created_at), "MMM dd, h:mm a") : ""}
-                      </p>
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0" />
-                  </button>
-
-                  {!isProtected && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onRequestDelete(session.id) }}
-                      className="w-9 h-9 flex items-center justify-center mr-2 rounded-xl text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-all [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
-                      aria-label="Delete document"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              )
-            })}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -516,73 +508,63 @@ function SingleCard({ session, clientName, onOpen, onRequestDelete }: {
   const date = session.updated_at || session.created_at
   const isProtected = session.status === "paid" || session.status === "signed"
 
-  // Get accent color hex for left border from registry
-  const accentColorMap: Record<string, string> = {
-    invoice: "#2563eb", contract: "#059669", quote: "#d97706",
-    quotation: "#d97706", proposal: "#7c3aed", sow: "#0891b2",
-    change_order: "#ea580c", nda: "#475569",
-    client_onboarding_form: "#0d9488", payment_followup: "#e11d48",
-    chat: "#9ca3af",
-  }
-  const accentColor = accentColorMap[session.document_type] ?? "#9ca3af"
-
   return (
-    <div
-      className="flex items-stretch rounded-2xl border border-border bg-card overflow-hidden group"
-      style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 12px -4px rgba(0,0,0,0.07)" }}
-    >
-      {/* Left accent bar */}
-      <div className="w-[3px] shrink-0 rounded-l-2xl" style={{ backgroundColor: accentColor }} />
+    <div className="rounded-2xl border border-border/40 bg-card overflow-hidden group">
+      <div className="px-4 py-3.5">
+        {/* Row 1: type badge (left) + open/delete actions (right) — mirrors the
+            My Documents card so long type labels never squeeze the title. */}
+        <div className="flex items-center gap-2">
+          <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider min-w-0 max-w-full", cfg.bg, cfg.color)}>
+            <Icon size={11} className="shrink-0" strokeWidth={1.75} />
+            <span className="truncate">{cfg.label}</span>
+          </span>
 
-      <button
-        type="button"
-        onClick={() => onOpen(session)}
-        className="flex items-center gap-3.5 flex-1 min-w-0 px-4 py-3.5 text-left active:scale-[0.99] transition-all duration-150 hover:bg-secondary/20"
-      >
-        {/* Icon badge */}
-        <div
-          className={cn("w-10 h-10 rounded-2xl flex items-center justify-center shrink-0", cfg.bg)}
-          style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}
-        >
-          <Icon className={cn("w-5 h-5", cfg.color)} strokeWidth={1.5} />
-        </div>
+          {/* Status chip */}
+          {(session.status === "signed" || session.status === "paid") && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-foreground/5 text-foreground border border-foreground/20 shrink-0">
+              {session.status === "signed" ? "✓ Signed" : "✓ Paid"}
+            </span>
+          )}
+          {session.status === "finalized" && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium text-muted-foreground border border-border/50 shrink-0">
+              Sent
+            </span>
+          )}
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{title}</p>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            {/* Type badge — colored */}
-            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>
-              {cfg.label}
-            </span>
-            {/* Status badge for special states */}
-            {(session.status === "signed" || session.status === "paid") && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-foreground/8 text-foreground">
-                {session.status === "signed" ? "✓ Signed" : "✓ Paid"}
-              </span>
+          <div className="flex items-center gap-0.5 shrink-0 ml-auto">
+            <button
+              type="button"
+              onClick={() => onOpen(session)}
+              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
+              aria-label="Open"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            {!isProtected && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onRequestDelete(session.id) }}
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/60 transition-colors [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                aria-label="Delete document"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             )}
-            {session.status === "finalized" && (
-              <span className="text-[10px] font-medium text-muted-foreground">Sent</span>
-            )}
-            <span className="text-[11px] text-muted-foreground">
-              {date ? formatDistanceToNow(new Date(date), { addSuffix: true }) : ""}
-            </span>
           </div>
         </div>
 
-        <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
-      </button>
-
-      {!isProtected && (
+        {/* Row 2: title + metadata — full width */}
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onRequestDelete(session.id) }}
-          className="w-10 h-10 flex items-center justify-center mr-2 my-auto rounded-xl text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-all [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
-          aria-label="Delete document"
+          onClick={() => onOpen(session)}
+          className="mt-2 block w-full text-left min-w-0"
         >
-          <Trash2 className="w-4 h-4" />
+          <p className="font-semibold text-sm text-foreground leading-tight truncate">{title}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {cfg.label}{date ? ` · ${formatDistanceToNow(new Date(date), { addSuffix: true })}` : ""}
+          </p>
         </button>
-      )}
+      </div>
     </div>
   )
 }

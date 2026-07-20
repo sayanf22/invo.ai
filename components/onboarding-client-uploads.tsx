@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react"
-import { FileText, ImageIcon, Download, Loader2, DownloadCloud } from "lucide-react"
+import { FileText, ImageIcon, Download, Loader2, DownloadCloud, Paperclip } from "lucide-react"
 import { toast } from "sonner"
 import { authFetch } from "@/lib/auth-fetch"
 
@@ -100,8 +100,9 @@ export function OnboardingClientUploads({ sessionId, alwaysShow }: { sessionId?:
   return (
     <div className="border border-border rounded-2xl bg-card shadow-sm p-4">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Client uploads {files.length > 0 && `(${files.length})`}
+        <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <Paperclip className="w-3.5 h-3.5" />
+          Client assets {files.length > 0 && `(${files.length})`}
         </p>
         {files.length > 1 && (
           <button

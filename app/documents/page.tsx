@@ -9,7 +9,7 @@ import {
   RefreshCw, ChevronDown, ChevronUp, CreditCard, Mail,
   BellOff, Repeat2, Bell, PenLine, Trash2, Search, CalendarDays, X,
   FileCheck, FileQuestion, Presentation, ClipboardList, GitMerge,
-  Shield, ClipboardCheck, type LucideIcon,
+  Shield, ClipboardCheck, Paperclip, type LucideIcon,
 } from "lucide-react"
 import { getDocumentTypeConfig, normalizeDocumentType, ALL_DOCUMENT_TYPES } from "@/lib/document-type-registry"
 import { resolvePdfComponent, resolveDocumentReference } from "@/lib/pdf-export-helpers"
@@ -47,14 +47,17 @@ const containerVariants = {
 }
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } }
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { duration: 0.2, ease: "easeOut" } }
 }
 
+// Quick cross-fade only (no horizontal slide / per-item stagger). A sliding,
+// staggered re-entrance replayed every time the page remounts — e.g. returning
+// from the document viewer — which read as the UI "rebuilding step by step".
 const slideVariants = {
-  enter: { opacity: 0, x: 15 },
-  center: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" } },
-  exit: { opacity: 0, x: -15, transition: { duration: 0.2, ease: "easeIn" } }
+  enter: { opacity: 0 },
+  center: { opacity: 1, transition: { duration: 0.18, ease: "easeOut" } },
+  exit: { opacity: 0, transition: { duration: 0.1, ease: "easeIn" } }
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1086,7 +1089,7 @@ function DocCard({
             )
           })()}
 
-          {/* Client uploads pill — onboarding forms only */}
+          {/* Client assets pill — onboarding forms only */}
           {isOnboardingForm && (
             <button onClick={() => setAssetsExpanded(v => !v)}
               className={cn(
@@ -1095,8 +1098,8 @@ function DocCard({
                   ? "bg-muted text-foreground border-border"
                   : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
               )}>
-              <Download size={11} />
-              Client uploads
+              <Paperclip size={11} />
+              Client assets
             </button>
           )}
 
