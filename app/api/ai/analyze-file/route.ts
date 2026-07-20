@@ -4,14 +4,17 @@ import { sanitizeText } from "@/lib/sanitize"
 import { checkCostLimit, trackUsage, getUserTier } from "@/lib/cost-protection"
 import { checkRateLimit } from "@/lib/rate-limiter"
 import { analyzeImagesWithKimiVision, resolveBedrockKey } from "@/lib/bedrock"
+import { getSecret } from "@/lib/secrets"
 
 /**
  * POST /api/ai/analyze-file
  * Analyzes an uploaded file (image or PDF) to extract business/client info.
  *
- * MODEL: Kimi K2.5 vision (via Bedrock Mantle) — no OpenAI/GPT. Kimi cannot read
- * PDFs natively, so the CLIENT rasterizes PDFs to page images (pdf.js) and posts
- * them here as JSON `{ images: string[] }`. See `lib/attachment-analysis.ts`.
+ * MODEL: Kimi K2.5 vision (via Bedrock Mantle) is PRIMARY; OpenAI GPT vision is
+ * a FALLBACK used only when Kimi is unavailable/fails, so analysis stays
+ * resilient. Kimi cannot read PDFs natively, so the CLIENT rasterizes PDFs to
+ * page images (pdf.js) and posts them here as JSON `{ images: string[] }`.
+ * See `lib/attachment-analysis.ts`.
  * Text-only chat always uses DeepSeek (via /api/ai/stream, /onboarding, /profile-update).
  * The structured result is returned to the client, which passes it as HIDDEN
  * reference context to DeepSeek for generation/chat — never dumped into the prompt.
@@ -134,6 +137,47 @@ RULES:
 - Return ONLY valid JSON, no markdown`
 }
 
+/**
+ * FALLBACK: analyze the same pre-rasterized images with OpenAI GPT vision.
+ * Used ONLY when Kimi vision is unavailable/fails, so file analysis stays
+ * resilient. Accepts image data URLs (same payload as the Kimi path).
+ * Returns the model text, or null on any failure.
+ */
+async function analyzeImagesWithGpt(
+    images: string[],
+    instruction: string,
+    apiKey: string,
+    maxTokens: number,
+): Promise<string | null> {
+    try {
+        const content = [
+            { type: "text", text: instruction },
+            ...images.slice(0, 8).map((url) => ({ type: "image_url", image_url: { url, detail: "high" } })),
+        ]
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({
+                model: "gpt-5.4-mini",
+                messages: [{ role: "user", content }],
+                max_completion_tokens: maxTokens,
+                temperature: 0.1,
+            }),
+            signal: AbortSignal.timeout(55_000),
+        })
+        if (!response.ok) {
+            console.error("[analyze-file GPT fallback] HTTP error", response.status)
+            return null
+        }
+        const data = await response.json()
+        const text = data.choices?.[0]?.message?.content
+        return typeof text === "string" && text.trim().length > 0 ? text.trim() : null
+    } catch (error) {
+        console.error("[analyze-file GPT fallback] failed", error instanceof Error ? error.message : error)
+        return null
+    }
+}
+
 /** Recursively strip HTML tags from all string values. */
 function sanitizeParsed(val: unknown): unknown {
     if (typeof val === "string") return val.replace(/<[^>]*>/g, "").trim()
@@ -200,18 +244,26 @@ export async function POST(request: Request) {
             ? sanitizeText(body.businessContext).slice(0, 5_000)
             : null
 
-        const bedrockKey = resolveBedrockKey()
-        if (!bedrockKey) {
-            return NextResponse.json({ error: "Document analysis is temporarily unavailable. Please type your details in the chat instead." }, { status: 503 })
-        }
-
         const instruction = mode === "generate"
             ? buildGeneratePrompt(documentType, userMessage, businessContext)
             : (userMessage ? `${EXTRACTION_PROMPT}\n\nAdditional context from the user: "${userMessage}"` : EXTRACTION_PROMPT)
+        const maxTokens = mode === "generate" ? 2500 : 1800
 
-        const content = await analyzeImagesWithKimiVision(boundedImages, instruction, bedrockKey, mode === "generate" ? 2500 : 1800)
+        // PRIMARY: Kimi K2.5 vision. FALLBACK: OpenAI GPT vision (only if Kimi is
+        // unavailable/fails) so file analysis stays resilient. At least one key
+        // must be configured.
+        const bedrockKey = resolveBedrockKey()
+        let content = bedrockKey
+            ? await analyzeImagesWithKimiVision(boundedImages, instruction, bedrockKey, maxTokens)
+            : null
         if (!content) {
-            return NextResponse.json({ error: "AI service temporarily unavailable. Please try again." }, { status: 502 })
+            const openaiKey = await getSecret("OPENAI_API_KEY")
+            if (openaiKey) {
+                content = await analyzeImagesWithGpt(boundedImages, instruction, openaiKey, maxTokens)
+            }
+        }
+        if (!content) {
+            return NextResponse.json({ error: "Document analysis is temporarily unavailable. Please type your details in the chat instead." }, { status: 503 })
         }
 
         let parsed: Record<string, unknown> | null = null
