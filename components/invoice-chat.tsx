@@ -1972,6 +1972,24 @@ export function InvoiceChat({ data, onChange, selectedSessionId, onSessionTransi
                         delete (docData as any).grandTotal
                     }
 
+                    // ── Price range (estimates / proposals / quotes) ───────────────────
+                    // Coerce the AI's range fields to numbers and keep them ONLY when
+                    // they form a valid min ≤ max pair; otherwise drop them so the doc
+                    // falls back to a normal single total. This is what makes the
+                    // "Estimated Investment: X – Y" headline render.
+                    {
+                        const pmin = Number((docData as any).priceRangeMin)
+                        const pmax = Number((docData as any).priceRangeMax)
+                        const validRange = Number.isFinite(pmin) && Number.isFinite(pmax) && pmin > 0 && pmax > 0 && pmax >= pmin
+                        if (validRange) {
+                            ;(docData as any).priceRangeMin = pmin
+                            ;(docData as any).priceRangeMax = pmax
+                        } else {
+                            delete (docData as any).priceRangeMin
+                            delete (docData as any).priceRangeMax
+                        }
+                    }
+
                     // ── Document type isolation guard ──────────────────────────────────
                     // If the AI generated a different document type than the current session,
                     // block the update and guide the user to start a new session.

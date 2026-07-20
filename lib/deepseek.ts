@@ -581,7 +581,8 @@ Required fields:
 - fromName, fromEmail, fromAddress: from business profile
 - toName, toEmail, toAddress: client info
 - description: a short executive summary (2-3 paragraphs) framing this as an approximate projection for planning, and what could change the final cost (scope, quantities, third-party costs).
-- items: [{ id, description, quantity, rate }] — the estimated line items. These are APPROXIMATE figures.
+- items: [{ id, description, quantity, rate }] — the estimated line items (scope). These are APPROXIMATE figures.
+- PRICING (important for estimates): an estimate's headline cost is usually a RANGE. UNLESS the user gave a single firm exact figure, set "priceRangeMin" and "priceRangeMax" (see the PRICE RANGES rule above) so the document shows an approximate range like "Rs. 200000 – Rs. 500000" instead of a fake-precise total. If the user said e.g. "2 to 5 lakh", set priceRangeMin: 200000 and priceRangeMax: 500000. Only omit the range and use a single total when the user explicitly gave one firm number.
 - taxRate, taxLabel, currency
 - notes: use [SECTION:name] blocks like the proposal (e.g. Our Understanding, What's Included, Assumptions, What Could Change The Price, Next Steps). ALWAYS include an "Assumptions" and a "What Could Change The Price" section — this is what makes it an estimate, not a quote.
 - terms: 3-5 SHORT labelled clauses (double-newline separated), written for a NON-BINDING estimate. Use ONLY these estimate-appropriate clauses: "Estimate Validity" (how long the ballpark holds, e.g. 30 days), "Approximate Pricing" (a clause stating the figures are estimates only, NOT a binding quote or final invoice, and are subject to change once scope is confirmed), "Payment" (high-level note that payment terms will be finalised if the project proceeds), and optionally "Next Steps" (how to move forward). 
@@ -752,7 +753,8 @@ Phase 1 — Discovery & Strategy
 **Detect tiered pricing when ANY of these apply:**
 - User describes MULTIPLE plans, tiers, or packages (e.g. "Basic / Standard / Premium", "Plan A / Plan B", "Starter package")
 - Items are ALTERNATIVES — the client picks ONE, not all
-- User says "they can choose one", "pricing options", "service menu", "price range", "from X to Y per month"
+- User says "they can choose one", "pricing options", "service menu" — i.e. MULTIPLE alternative plans the client picks ONE from
+- IMPORTANT: a SINGLE overall project cost given as a range (e.g. "the project will cost 2–5 lakh", "somewhere between $3k and $5k") is NOT tiered pricing. Do NOT use hideTotals for that — use the priceRangeMin/priceRangeMax mechanism from the PRICE RANGES rule instead. Tiered pricing is ONLY for 2+ distinct alternative packages/plans.
 - Any phrase like "no total needed", "don't show total", "remove total", "hide total", "don't add total", "without total", "no grand total"
 
 **When tiered pricing is detected OR when the user says any variation of "don't show total / no total / hide total", you MUST:**
@@ -782,7 +784,9 @@ The PDF renderer will display the plan name as a bold title and each "- " line a
 **Put the full price ranges in the notes field** like:
 "Pricing Ranges (per month): - Basic Plan: Rs. 25,000 – Rs. 30,000 - Standard Plan: Rs. 30,000 – Rs. 35,000. [Client name] will select ONE plan. Final pricing confirmed upon agreement."
 
-**Non-tiered proposal (single project scope):** Use normal items with real quantities and rates. Do NOT set hideTotals. The total IS correct and meaningful.
+**Single project scope (NOT tiered):**
+- If the user gives a FIRM EXACT price → use normal items with real quantities and rates, no hideTotals, no priceRange. The total is correct and meaningful.
+- If the user gives a RANGE / ballpark / approximate figure for the overall project (very common for ESTIMATES) → set "priceRangeMin" and "priceRangeMax" (see the PRICE RANGES rule). The headline renders as a range and the total is hidden automatically. Do NOT set hideTotals for this — priceRange handles it.
 
 ### Statement of Work (documentType: "sow")
 Required fields:
