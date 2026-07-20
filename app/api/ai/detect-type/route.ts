@@ -16,7 +16,7 @@ import { authenticateRequest, validateBodySize, sanitizeError } from "@/lib/api-
 import { sanitizeText } from "@/lib/sanitize"
 import { detectDocumentType, getDetectionMessage } from "@/lib/server/document-type-detector"
 import { classifyIntentFull, detectMismatch, type DocumentType } from "@/lib/intent-router"
-import { checkCostLimit, resolveEffectiveTier, type UserTier, getUserTier } from "@/lib/cost-protection"
+import { checkCostLimit, getUserTier } from "@/lib/cost-protection"
 import { classifyDocumentTypeWithKimi, resolveBedrockKey } from "@/lib/bedrock"
 
 interface DetectTypeRequest {

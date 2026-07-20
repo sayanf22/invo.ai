@@ -145,11 +145,7 @@ function fmtPriceRange(data: InvoiceData): string {
     return `${fmtWhole(min, data.currency)} \u2013 ${fmtWhole(max, data.currency)}`
 }
 
-// Currency font style â€” no special font needed since we use ASCII-safe symbols.
-// These are empty objects so the spread (...CF / ...CFB) is a no-op and the
-// Text element inherits the template's own font family.
-const CF = {} as const
-const CFB = { fontWeight: 700 as const } as const
+
 
 export function fmtDate(d: string | undefined): string {
     if (!d) return "\u2014"
@@ -335,13 +331,11 @@ function bNone() {
 
 // ─── Shared typographic hierarchy ────────────────────────────────────────────
 // Consistent heading system used across ALL document templates so every PDF has
-// the same clean, modern visual rhythm:
-//   • SectionHeading  (H2) — major section titles: coloured accent bar + 11.5pt
-//                             bold, mixed-case, dark text. Clear + prominent.
-//   • MicroLabel      (H4) — small field labels (From / Bill To / Date): 7.5pt
-//                             uppercase, muted primary, letter-spaced.
-// Body copy stays 9.5–10pt. This gives the H1 (title, 28–36pt in DocHeader) →
-// H2 (section) → H3/body → H4 (labels) ladder the user asked for.
+// the same clean, modern visual rhythm. SectionHeading (H2) renders major
+// section titles as a coloured accent bar + 11.5pt bold mixed-case dark title.
+// Small field labels (From / Bill To / Date) stay 7.5pt uppercase; body copy
+// 9.5–10pt. This gives the H1 (title, 28–36pt in DocHeader) → H2 (section) →
+// body → micro-label ladder for clean, modern hierarchy.
 
 /** H2 — major section heading with a coloured accent bar. */
 function SectionHeading({ title, c, mt = 0 }: { title: string; c: ReturnType<typeof getTheme>; mt?: number }) {
@@ -353,12 +347,7 @@ function SectionHeading({ title, c, mt = 0 }: { title: string; c: ReturnType<typ
     )
 }
 
-/** H4 — small uppercase field label (From / Bill To / Date). */
-function MicroLabel({ children, c, mb = 8, onDark = false }: { children: string; c: ReturnType<typeof getTheme>; mb?: number; onDark?: boolean }) {
-    return (
-        <Text style={{ fontSize: 7.5, color: onDark ? "rgba(255,255,255,0.7)" : c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: mb, fontWeight: 700 }}>{children}</Text>
-    )
-}
+
 
 /**
  * Sanitize terms/notes text to respect the signature toggle.
@@ -441,62 +430,6 @@ function getNextStepsText(data: InvoiceData): string {
         return "To proceed with this proposal, please reply to confirm your acceptance. We look forward to working with you."
     }
     return "To proceed with this proposal, please sign and return this document. We look forward to working with you."
-}
-
-// Helper: render a single item row â€” Amount always shows full price (qty Ã— rate)
-function ItemRow({ item, i, data, c, CF, CFB, tRow, tRowAlt, cD, cQ, cR, cA }: {
-    item: any; i: number; data: InvoiceData; c: any; CF: any; CFB: any;
-    tRow: any; tRowAlt: any; cD: any; cQ: any; cR: any; cA: any;
-}) {
-    const gross = item.quantity * item.rate
-    const hasDisc = item.discount && item.discount > 0
-    const discAmt = hasDisc ? gross * (item.discount / 100) : 0
-    const lineTotal = gross - discAmt
-
-    // Parse description: lines starting with "- " or "• " become bullet points.
-    // Everything before the first bullet is the bold title.
-    const rawDesc: string = item.description || `Item ${i + 1}`
-    const allLines = rawDesc.split("\n").map((l: string) => l.trim()).filter(Boolean)
-    const titleLines: string[] = []
-    const bulletLines: string[] = []
-    let sawBullet = false
-    for (const line of allLines) {
-        if (line.startsWith("- ") || line.startsWith("• ") || line.startsWith("* ")) {
-            sawBullet = true
-            bulletLines.push(line.replace(/^[-•*]\s+/, "").trim())
-        } else if (!sawBullet) {
-            titleLines.push(line)
-        } else {
-            bulletLines.push(line)
-        }
-    }
-    const titleText = titleLines.join(" | ") || rawDesc
-
-    return (
-        <View key={i} style={i % 2 === 1 ? tRowAlt : tRow} wrap={false}>
-            <View style={cD}>
-                <Text style={{ fontSize: 10, color: c.txt, fontWeight: bulletLines.length > 0 ? 700 : 400 }}>{titleText}</Text>
-                {bulletLines.map((b: string, bi: number) => (
-                    <View key={bi} style={{ flexDirection: "row", marginTop: 3, paddingLeft: 4, ...bNone() }}>
-                        <Text style={{ fontSize: 8.5, color: c.pri, marginRight: 5, marginTop: 0.5, fontWeight: 700 }}>•</Text>
-                        <Text style={{ fontSize: 8.5, color: c.mut, flex: 1, lineHeight: 1.4 }}>{b}</Text>
-                    </View>
-                ))}
-            </View>
-            <View style={cQ}><Text style={{ fontSize: 10, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-            <View style={cR}><Text style={{ fontSize: 10, color: c.mut, textAlign: "right", ...CF }}>{fmt(item.rate, data.currency)}</Text></View>
-            <View style={cA}>
-                {hasDisc ? (
-                    <>
-                        <Text style={{ fontSize: 8, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
-                        <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", ...CFB }}>{fmt(lineTotal, data.currency)}</Text>
-                    </>
-                ) : (
-                    <Text style={{ fontSize: 10, color: c.txt, textAlign: "right", ...CFB }}>{fmt(gross, data.currency)}</Text>
-                )}
-            </View>
-        </View>
-    )
 }
 
 /**
@@ -1068,126 +1001,6 @@ function PartyBlocks({ data, tpl, c, config }: PartyBlocksProps) {
                 {data.toAddress ? <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.toAddress}</Text> : null}
                 {data.toEmail ? <Text style={{ fontSize: 9.5, color: c.mut }}>{data.toEmail}</Text> : null}
                 {data.toPhone ? <Text style={{ fontSize: 9.5, color: c.mut }}>{data.toPhone}</Text> : null}
-            </View>
-        </View>
-    )
-}
-
-// â”€â”€â”€ ItemTable (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Renders the line-item table with document-specific column headers and optional section title.
-// Uses config.tableColumns for headers, config.tableSectionTitle for optional title,
-// config.tableHeaderUsesAccent for Proposal accent background, config.skipEmptyItems for filtering.
-
-interface ItemTableProps {
-    data: InvoiceData
-    tpl: Tpl
-    c: ReturnType<typeof getTheme>
-    config: DocumentConfig
-    styles: { tHead: any; tRow: any; tRowAlt: any; cD: any; cQ: any; cR: any; cA: any }
-}
-
-function ItemTable({ data, tpl, c, config, styles }: ItemTableProps) {
-    const docType = config.title
-    const isInvoice = docType === "INVOICE"
-    const hMargin = isInvoice ? (tpl === "bold" ? 48 : 0) : 48
-
-    // Filter items if skipEmptyItems is enabled (Contract, Proposal)
-    const items = config.skipEmptyItems
-        ? data.items.filter(i => i.description.trim().length > 0 || i.rate > 0)
-        : data.items
-
-    // For Contract and Proposal, don't render if no items
-    if (config.skipEmptyItems && items.length === 0) return null
-
-    // Header text color depends on theme and whether accent is used
-    const headerTextColor = (() => {
-        if (tpl === "classic") return c.pri
-        if (config.tableHeaderUsesAccent) return c.pri // Proposal uses accent bg with pri text
-        return "#fff" // Non-classic themes with pri background use white text
-    })()
-
-    return (
-        <View style={{ marginHorizontal: hMargin, marginBottom: 16 }}>
-            {config.tableSectionTitle && (
-                <Text style={{ fontSize: 11, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, ...bold(c) }}>{config.tableSectionTitle}</Text>
-            )}
-            <View style={styles.tHead} wrap={false}>
-                <View style={styles.cD}><Text style={{ fontSize: 8, color: headerTextColor, textTransform: "uppercase", letterSpacing: 0.8, ...bold(c) }}>{config.tableColumns.desc}</Text></View>
-                <View style={styles.cQ}><Text style={{ fontSize: 8, color: headerTextColor, textTransform: "uppercase", letterSpacing: 0.8, textAlign: "center", ...bold(c) }}>{config.tableColumns.qty}</Text></View>
-                <View style={styles.cR}><Text style={{ fontSize: 8, color: headerTextColor, textTransform: "uppercase", letterSpacing: 0.8, textAlign: "right", ...bold(c) }}>{config.tableColumns.rate}</Text></View>
-                <View style={styles.cA}><Text style={{ fontSize: 8, color: headerTextColor, textTransform: "uppercase", letterSpacing: 0.8, textAlign: "right", ...bold(c) }}>{config.tableColumns.amount}</Text></View>
-            </View>
-            {items.map((item, i) => {
-                if (config.skipEmptyItems && !item.description && item.rate === 0) return null
-                return (
-                    <ItemRow key={i} item={item} i={i} data={data} c={c} CF={CF} CFB={CFB}
-                        tRow={styles.tRow} tRowAlt={styles.tRowAlt} cD={styles.cD} cQ={styles.cQ} cR={styles.cR} cA={styles.cA} />
-                )
-            })}
-        </View>
-    )
-}
-
-// â”€â”€â”€ TotalsBox (shared internal component) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Renders the financial summary: Subtotal, Discounts, Tax, Shipping, Grand Total.
-// Grand total label comes from config.grandTotalLabel.
-
-interface TotalsBoxProps {
-    data: InvoiceData
-    c: ReturnType<typeof getTheme>
-    config: DocumentConfig
-    styles: { totBox: any; totRow: any; gRow: any }
-}
-
-function TotalsBox({ data, c, config, styles }: TotalsBoxProps) {
-    const { sub, disc, tax, total } = calc(data)
-
-    // Hide totals when hideTotals is explicitly set, or when type is Contract/Proposal with zero total
-    if ((data as any).hideTotals) return null
-    if ((config.title === "CONTRACT" || config.title === "PROPOSAL") && total <= 0) return null
-
-    return (
-        <View style={{
-            flexDirection: "row",
-            justifyContent: "flex-end",
-            ...(config.title === "INVOICE"
-                ? { marginHorizontal: 0 }
-                : { paddingHorizontal: 48 }),
-            marginBottom: 20,
-        }} wrap={false}>
-            <View style={styles.totBox}>
-                <View style={styles.totRow}>
-                    <Text style={{ fontSize: 10, color: c.mut }}>Subtotal</Text>
-                    <Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(sub, data.currency)}</Text>
-                </View>
-                {getItemDiscountTotal(data) > 0 && (
-                    <View style={styles.totRow}>
-                        <Text style={{ fontSize: 10, color: c.mut }}>Discount</Text>
-                        <Text style={{ fontSize: 10, color: c.txt, ...CFB }}>-{fmt(getItemDiscountTotal(data), data.currency)}</Text>
-                    </View>
-                )}
-                {!!data.discountValue && (
-                    <View style={styles.totRow}>
-                        <Text style={{ fontSize: 10, color: c.mut }}>Discount {data.discountType === "percent" ? `(${data.discountValue}%)` : ""}</Text>
-                        <Text style={{ fontSize: 10, color: c.txt, ...CFB }}>-{fmt(disc, data.currency)}</Text>
-                    </View>
-                )}
-                {!!data.taxRate && (
-                    <View style={styles.totRow}>
-                        <Text style={{ fontSize: 10, color: c.mut }}>{data.taxLabel || "Tax"} ({data.taxRate}%)</Text>
-                        <Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(tax, data.currency)}</Text>
-                    </View>
-                )}
-                {!!data.shippingFee && config.title === "INVOICE" && (
-                    <View style={styles.totRow}>
-                        <Text style={{ fontSize: 10, color: c.mut }}>Shipping</Text>
-                        <Text style={{ fontSize: 10, color: c.txt, ...CFB }}>{fmt(data.shippingFee, data.currency)}</Text>
-                    </View>
-                )}
-                <View style={styles.gRow}>
-                    <Text style={{ fontSize: 12, color: c.pri, ...bold(c) }}>{config.grandTotalLabel}</Text>
-                    <Text style={{ fontSize: 18, color: c.pri, ...CFB }}>{fmt(total, data.currency)}</Text>
-                </View>
             </View>
         </View>
     )

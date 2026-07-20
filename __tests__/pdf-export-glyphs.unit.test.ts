@@ -104,15 +104,15 @@ describe("PDF export glyph correct-sibling preservation (bug condition does NOT 
   /**
    * **Validates: Requirements 3.1**
    *
-   * `ItemRow`'s `bulletLines` renderer (~line 414) uses the correct literal
-   * "•" glyph directly as JSX text content. This is deliberately left
-   * as-is by the fix (Design decision A) and must remain present.
+   * `renderItemDescription`'s `bulletLines` renderer (the live successor to the
+   * removed `ItemRow`) emits the bullet via the safe expression form
+   * `{"\u2022"}` — never a raw mojibake glyph. This must remain present.
    */
-  it("preserves the literal '•' bullet glyph in ItemRow.bulletLines (~line 414)", () => {
+  it("preserves the safe '{\"\\u2022\"}' bullet glyph in renderItemDescription", () => {
     const source = readPdfTemplatesSource()
 
     expect(source).toContain(
-      '<Text style={{ fontSize: 8.5, color: c.pri, marginRight: 5, marginTop: 0.5, fontWeight: 700 }}>\u2022</Text>',
+      '<Text style={{ fontSize: 8.5, color: c.pri, marginRight: 5, marginTop: 0.5, fontWeight: 700 }}>{"\\u2022"}</Text>',
     )
   })
 

@@ -2,16 +2,18 @@
  * Chat Session Promotion API
  *
  * Promotes a chat-only `document_sessions` row (document_type = 'chat') into
- * a real typed session (invoice | contract | quotation | proposal) and
- * consumes 1 document quota slot.
+ * a real typed session (invoice | contract | quote | proposal | estimate | …).
  *
- * This is the ONLY place in the chat-first flow where quota is consumed.
- * Chat conversations are free until the user confirms creation, at which
- * point this endpoint:
+ * Chat conversations are free until the user confirms creation. At that point
+ * this endpoint:
  *   1. Validates the user's tier allows the requested document type.
  *   2. Validates the user hasn't hit their monthly document limit.
- *   3. Updates the session's document_type atomically.
- *   4. Increments user_usage.documents_count.
+ *   3. Updates the session's document_type atomically (guarded to chat-only rows).
+ *   4. Returns a compact Kimi-distilled brief of the chat for generation.
+ *
+ * NOTE: the monthly document slot is RESERVED later by /api/ai/stream when the
+ * promoted session first generates — this endpoint does not itself increment
+ * user_usage.documents_count.
  *
  * Safety: the UPDATE is scoped to rows where document_type = 'chat' so a
  * session cannot be double-promoted and already-typed sessions cannot have
@@ -219,8 +221,14 @@ export async function POST(request: NextRequest) {
 
         // Distill the chat into a compact brief (≤6 lines / ≤700 chars) so the
         // new document is generated with the full conversation context — not the
-        // raw transcript. Best-effort: empty string on failure.
-        const chatBrief = await buildChatBrief(auth.supabase, body.sessionId, auth.user.id, normalizedTargetType)
+        // raw transcript. Best-effort with a hard 9s cap so a slow model never
+        // makes the "Create" click hang; on timeout/failure we return "" and the
+        // client falls back to the CREATE_CARD summary. Promotion is already
+        // committed above, so this only affects the returned brief, never data.
+        const chatBrief = await Promise.race([
+            buildChatBrief(auth.supabase, body.sessionId, auth.user.id, normalizedTargetType),
+            new Promise<string>((resolve) => setTimeout(() => resolve(""), 9000)),
+        ])
 
         return NextResponse.json({
             success: true,

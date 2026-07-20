@@ -3,9 +3,9 @@
  * AI-powered profile update endpoint.
  * 
  * MODEL ROUTING: This endpoint ALWAYS uses DeepSeek V3 Chat.
- * GPT is NEVER called here — GPT is only used in /api/ai/analyze-file when a file is attached.
- * Text-only messages always route to DeepSeek. After a file is processed by GPT,
- * the next text message comes back here to DeepSeek.
+ * Vision is NEVER called here — attached files are analyzed by Kimi vision in
+ * /api/ai/analyze-file. Text-only messages always route to DeepSeek; after a
+ * file is processed, the next text message comes back here to DeepSeek.
  * 
  * Smart context detection: Receives the current profile, analyzes what's
  * already filled vs. missing/outdated, and only asks about gaps or changes.
