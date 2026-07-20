@@ -2102,7 +2102,7 @@ function renderProposalSections(notes: string | undefined, c: ReturnType<typeof 
             return <Text key={li} style={{fontSize:9.5,color:c.txt,lineHeight:1.7,marginBottom:2}}>{t}</Text>
         })
         return (
-            <View key={si} style={{ marginHorizontal: 48, marginBottom: 18, ...bNone() }}>
+            <View key={si} style={{ marginHorizontal: 48, marginBottom: 22, ...bNone() }}>
                 {/* Section heading: a coloured accent bar + larger mixed-case
                     title gives clear visual hierarchy and separation between
                     sections (cleaner + more modern than flat uppercase labels).
@@ -2208,7 +2208,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 {/* Estimate disclaimer — legally important: an estimate is a
                     non-binding projection, not a final bill. */}
                 {isEstimate && (
-                    <View style={{ marginHorizontal: 48, marginBottom: 14, padding: 10, backgroundColor: c.bg, ...r(6), ...bNone() }} wrap={false}>
+                    <View style={{ marginHorizontal: 48, marginTop: 6, marginBottom: 4, padding: 11, backgroundColor: c.bg, ...r(6), ...bNone() }} wrap={false}>
                         <Text style={{ fontSize: 8.5, color: c.mut, lineHeight: 1.5 }}>
                             This is an estimate provided for planning purposes only. Costs are approximate and may change once the scope is finalized. It is not a final invoice or a binding quote.
                         </Text>
@@ -2216,7 +2216,7 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 )}
 
                 {/* â”€â”€ PREPARED BY / FOR â”€â”€ */}
-                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingTop: 20, marginBottom: 20, ...bNone() }} wrap={false}>
+                <View style={{ flexDirection: "row", paddingHorizontal: 48, paddingTop: 22, marginBottom: 26, ...bNone() }} wrap={false}>
                     <View style={{ flex: 1, marginRight: 24, ...bNone() }}>
                         <Text style={{ fontSize: 7.5, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Prepared By</Text>
                         <Text style={{ fontSize: 12, color: c.txt, fontWeight: 700, marginBottom: 3 }}>{data.fromName || "Your Business"}</Text>
@@ -2234,14 +2234,16 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                 </View>
 
                 {/* â”€â”€ EXECUTIVE SUMMARY â”€â”€ */}
+                {/* Clean subtle card (no heavy left border — the heading already
+                    carries the accent bar, so a second bar looked cluttered). */}
                 {data.description && (
-                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, ...bNone() }}>
+                    <View style={{ marginHorizontal: 48, marginBottom: 26, ...bNone() }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, ...bNone() }}>
                             <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
                             <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>Executive Summary</Text>
                         </View>
-                        <View style={{ padding: 16, backgroundColor: c.bg, ...r(8), ...bNone(), borderLeftWidth: 4, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }}>
-                            <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.7 }}>{data.description}</Text>
+                        <View style={{ paddingVertical: 16, paddingHorizontal: 18, backgroundColor: c.bg, ...r(10), ...bNone() }}>
+                            <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.8 }}>{data.description}</Text>
                         </View>
                     </View>
                 )}
@@ -2355,8 +2357,8 @@ export function ProposalPDF({ data, logoUrl }: Props) {
 
 
                 {/* â”€â”€ NEXT STEPS CTA â”€â”€ */}
-                <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 18, backgroundColor: c.acc, ...r(8), ...bNone(), borderLeftWidth: 5, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }} wrap={false}>
-                    <Text style={{ fontSize: 11, color: c.pri, fontWeight: 700, marginBottom: 6 }}>Next Steps</Text>
+                <View style={{ marginHorizontal: 48, marginTop: 4, marginBottom: 26, padding: 18, backgroundColor: c.acc, ...r(8), ...bNone(), borderLeftWidth: 4, borderLeftColor: c.pri, borderLeftStyle: "solid" as any, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopColor: "transparent", borderRightColor: "transparent", borderBottomColor: "transparent", borderTopStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any }} wrap={false}>
+                    <Text style={{ fontSize: 11, color: c.pri, fontWeight: 700, marginBottom: 7 }}>Next Steps</Text>
                     <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.5 }}>{getNextStepsText(data)}</Text>
                 </View>
 
