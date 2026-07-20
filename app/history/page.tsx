@@ -468,9 +468,17 @@ function ChainGroup({ group, onOpen, onRequestDelete }: {
                           </span>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">{rowTitle}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                              {cfg.label} · {session.created_at ? format(new Date(session.created_at), "MMM d, h:mm a") : ""}
-                            </p>
+                            {/* Label truncates if tight, but the created date is
+                                pinned (shrink-0) so it's always visible/trackable. */}
+                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5 min-w-0">
+                              <span className="truncate">{cfg.label}</span>
+                              {session.created_at && (
+                                <>
+                                  <span className="text-muted-foreground/40 shrink-0">·</span>
+                                  <span className="shrink-0">{format(new Date(session.created_at), "MMM d, yyyy")}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
                           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
                         </button>
