@@ -1329,7 +1329,7 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", ...bNone() }}>
                         <View style={{ ...bNone() }}>
                             <PdfLogo url={logoUrl} show={data.showLogo} shape={data.logoShape} size={data.logoSize} />
-                            <Text style={{ fontSize: 10, color: c.mut, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>{title}</Text>
+                            <Text style={{ fontSize: 11, color: c.pri, letterSpacing: 1, textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>{title}</Text>
                             <Text style={{ fontSize: 9, color: c.mut }}>{refNum}</Text>
                         </View>
                         <View style={{ alignItems: "flex-end", maxWidth: 200, flexShrink: 1, ...bNone() }}>{rightContent}</View>
