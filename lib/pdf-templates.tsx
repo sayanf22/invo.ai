@@ -2146,7 +2146,7 @@ export const QuotePDF = QuotationPDF
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 // ─── Proposal section renderer: parses [SECTION:name] markers from notes field ───
-function renderProposalSections(notes: string | undefined, c: ReturnType<typeof getTheme>) {
+function renderProposalSections(notes: string | undefined, c: ReturnType<typeof getTheme>, startNumber = 0) {
     if (!notes) return null
     const raw = fixEncoding(notes)
     if (!/\[SECTION:[^\]]+\]/.test(raw)) return null
@@ -2160,8 +2160,10 @@ function renderProposalSections(notes: string | undefined, c: ReturnType<typeof 
         parts.push({ name, body: raw.slice(bodyStart, next ? next.index : raw.length).trim() })
         if (next) reg.lastIndex = next.index; else break
     }
+    let renderedIndex = 0
     const sectionViews = parts.map((sec, si) => {
         if (!sec.body || /^pricing\s*note$/i.test(sec.name)) return null
+        renderedIndex++
         const bodyLines = sec.body.split("\n").filter(l => l.trim())
         const lineViews = bodyLines.map((ln, li) => {
             const t = ln.trim()
@@ -2182,22 +2184,30 @@ function renderProposalSections(notes: string | undefined, c: ReturnType<typeof 
         })
         return (
             <View key={si} style={{ marginHorizontal: 48, marginBottom: 22, ...bNone() }}>
-                {/* Section heading: a coloured accent bar + larger mixed-case
-                    title gives clear visual hierarchy and separation between
-                    sections (cleaner + more modern than flat uppercase labels).
-                    minPresenceAhead keeps the heading from stranding at a page
-                    bottom while its content flows to the next page. */}
-                {sec.name ? (
-                    <View minPresenceAhead={30} style={{ flexDirection: "row", alignItems: "center", marginBottom: 8, ...bNone() }}>
-                        <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
-                        <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>{sec.name}</Text>
-                    </View>
-                ) : null}
+                {sec.name ? <SectionHeading title={sec.name} c={c} number={startNumber + renderedIndex} /> : null}
                 {lineViews}
             </View>
         )
     })
     return <View style={{ ...bNone() }}>{sectionViews}</View>
+}
+
+/** Count how many [SECTION:...] blocks in `notes` will actually render (have a non-empty body and aren't the internal "pricing note" section) — used to compute the next sequential section number after `renderProposalSections`. */
+function countRenderedProposalSections(notes: string | undefined): number {
+    if (!notes) return 0
+    const raw = fixEncoding(notes)
+    if (!/\[SECTION:[^\]]+\]/.test(raw)) return 0
+    const reg = /\[SECTION:([^\]]+)\]/g
+    const parts: Array<{ name: string; body: string }> = []
+    let m: RegExpExecArray | null
+    while ((m = reg.exec(raw)) !== null) {
+        const name = m[1].trim()
+        const bodyStart = m.index + m[0].length
+        const next = reg.exec(raw)
+        parts.push({ name, body: raw.slice(bodyStart, next ? next.index : raw.length).trim() })
+        if (next) reg.lastIndex = next.index; else break
+    }
+    return parts.filter(sec => sec.body && !/^pricing\s*note$/i.test(sec.name)).length
 }
 
 /**
@@ -2238,10 +2248,6 @@ function renderTermsBlock(terms: string | undefined, showSig: boolean | undefine
     )
 }
 
-/** Legacy alias — kept so the existing ProposalPDF call site needs no change. */
-function renderProposalTerms(terms: string | undefined, showSig: boolean | undefined, c: ReturnType<typeof getTheme>, number = 1) {
-    return renderTermsBlock(terms, showSig, c, number)
-}
 
 export function ProposalPDF({ data, logoUrl }: Props) {
     const tpl = getTpl(data)
@@ -2256,6 +2262,10 @@ export function ProposalPDF({ data, logoUrl }: Props) {
     const isEstimate = (data.documentType || "").toLowerCase() === "estimate"
     const docTitle = isEstimate ? "ESTIMATE" : "PROPOSAL"
     const refDefault = isEstimate ? "EST-0000" : "PROP-0000"
+    // Sequential numbered-section counter for this render (local, not shared
+    // across concurrent PDF renders). Incremented at each SectionHeading call
+    // site in top-to-bottom document order.
+    let sectionNum = 0
 
     // Right-side content: prepared for + dates
     const headerRight = (
@@ -2314,82 +2324,124 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     carries the accent bar, so a second bar looked cluttered). */}
                 {data.description && (
                     <View style={{ marginHorizontal: 48, marginBottom: 26, ...bNone() }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, ...bNone() }}>
-                            <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
-                            <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>Executive Summary</Text>
-                        </View>
-                        <View style={{ paddingVertical: 16, paddingHorizontal: 18, backgroundColor: c.bg, ...r(10), ...bNone() }}>
-                            <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.8 }}>{data.description}</Text>
-                        </View>
+                        <SectionHeading title={isEstimate ? "Overview" : "Executive Summary"} c={c} number={++sectionNum} />
+                        <Text style={{ fontSize: 10, color: c.txt, lineHeight: 1.8 }}>{data.description}</Text>
                     </View>
                 )}
 
 
-                {/* BUDGET BREAKDOWN TABLE */}
-                {hasItems && (
-                    <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <View wrap={false}>
-                            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8, ...bNone() }}>
-                                <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
-                                <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>{isRange ? "Scope & Deliverables" : "Budget Breakdown"}</Text>
-                            </View>
-                            <View style={{ flexDirection: "row", backgroundColor: c.acc, borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, paddingVertical: 9, paddingHorizontal: 14, ...bNone(), borderBottomWidth: 2, borderBottomColor: c.pri, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }}>
-                                <View style={{ flex: 1, paddingRight: 8, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Service / Deliverable</Text></View>
-                                <View style={{ width: 30, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" }}>Qty</Text></View>
-                                <View style={{ width: 92, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Rate</Text></View>
-                                {!(data as any).hideTotals && !isRange && (
-                                    <View style={{ width: 96, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Amount</Text></View>
-                                )}
-                            </View>
-                        </View>
-                        <View style={{ ...bNone(), borderBottomLeftRadius: 6, borderBottomRightRadius: 6, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderTopWidth: 0, borderLeftColor: c.bdr, borderRightColor: c.bdr, borderBottomColor: c.bdr, borderTopColor: "transparent", borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any, borderTopStyle: "solid" as any }}>
-                        {data.items.filter(i => i.description.trim().length > 0 || i.rate > 0).map((item, i, fa) => {
-                            const gross = item.quantity * item.rate
-                            const hasDisc = item.discount && item.discount > 0
-                            const discAmt = hasDisc ? gross * (item.discount! / 100) : 0
-                            const lineTotal = gross - discAmt
-                            const dRaw: string = item.description || ("Item " + String(i + 1))
-                            const dLines = dRaw.split("\n").map((l: string) => l.trim()).filter(Boolean)
-                            const tLns: string[] = [], bLns: string[] = []
-                            let sbL = false
-                            for (const dl of dLines) {
-                                if (dl.startsWith("- ") || dl.startsWith("\u2022 ") || dl.startsWith("* ")) { sbL = true; bLns.push(dl.replace(/^[-\u2022*]\s+/, "").trim()) }
-                                else if (!sbL) tLns.push(dl)
-                                else bLns.push(dl)
-                            }
-                            const tStr = tLns.join(" \u2014 ") || dRaw
-                            const isLast = i === fa.length - 1
-                            return (
-                                <View key={i} style={{ flexDirection: "row", paddingVertical: 11, paddingHorizontal: 14, ...bNone(), ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}), ...(!isLast ? { borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any } : {}) }} wrap={false}>
-                                    <View style={{ flex: 1, ...bNone() }}>
-                                        <Text style={{ fontSize: 10, color: c.txt, fontWeight: bLns.length > 0 ? 700 : 400, marginBottom: bLns.length > 0 ? 4 : 0, lineHeight: 1.4 }}>{tStr}</Text>
-                                        {bLns.map((b: string, bi: number) => (
-                                            <View key={bi} style={{ flexDirection: "row", marginTop: 3, paddingLeft: 2, ...bNone() }}>
-                                                <Text style={{ fontSize: 9, color: c.pri, marginRight: 6, fontWeight: 700, lineHeight: 1.5 }}>{"\u2022"}</Text>
-                                                <Text style={{ fontSize: 9, color: c.mut, flex: 1, lineHeight: 1.5 }}>{b}</Text>
+                {/* SCOPE / BUDGET BREAKDOWN */}
+                {/* Estimates get a SIMPLIFIED scope list — no Rate/Amount columns.
+                    A range estimate's price is already communicated by the
+                    headline range below; a per-item Rate/Amount table implies
+                    false precision the estimate is explicitly NOT making.
+                    Proposals (firm pricing) keep the full priced table.
+                    The whole block is kept atomic (wrap={false}) when the item
+                    count is small enough to safely fit any single page, so a
+                    short scope section is never split — it moves entirely to
+                    the next page if it doesn't fit on the current one. */}
+                {hasItems && (() => {
+                    const visibleItems = data.items.filter(i => i.description.trim().length > 0 || i.rate > 0)
+                    const keepTogether = visibleItems.length <= 6
+                    const simplifiedScope = isEstimate
+                    const heading = simplifiedScope ? "Scope of Work" : (isRange ? "Scope & Deliverables" : "Budget Breakdown")
+
+                    return (
+                        <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={!keepTogether}>
+                            <SectionHeading title={heading} c={c} number={++sectionNum} />
+
+                            {simplifiedScope ? (
+                                // Clean scope list — title + bullets per item, no columns.
+                                <View style={{ ...bNone() }}>
+                                    {visibleItems.map((item, i, fa) => {
+                                        const dRaw: string = item.description || ("Item " + String(i + 1))
+                                        const dLines = dRaw.split("\n").map((l: string) => l.trim()).filter(Boolean)
+                                        const tLns: string[] = [], bLns: string[] = []
+                                        let sbL = false
+                                        for (const dl of dLines) {
+                                            if (dl.startsWith("- ") || dl.startsWith("\u2022 ") || dl.startsWith("* ")) { sbL = true; bLns.push(dl.replace(/^[-\u2022*]\s+/, "").trim()) }
+                                            else if (!sbL) tLns.push(dl)
+                                            else bLns.push(dl)
+                                        }
+                                        const tStr = tLns.join(" \u2014 ") || dRaw
+                                        const isLast = i === fa.length - 1
+                                        return (
+                                            <View key={i} style={{ paddingVertical: 10, ...bNone(), ...(!isLast ? bBottom(TOKENS.rule, c.bdr) : {}) }} wrap={false}>
+                                                <Text style={{ fontSize: TOKENS.type.bodyLg, color: c.txt, fontWeight: 700, lineHeight: 1.4 }}>{tStr}</Text>
+                                                {bLns.map((b: string, bi: number) => (
+                                                    <View key={bi} style={{ flexDirection: "row", marginTop: 4, paddingLeft: 2, ...bNone() }}>
+                                                        <Text style={{ fontSize: TOKENS.type.body, color: c.pri, marginRight: 6, fontWeight: 700, lineHeight: 1.5 }}>{"\u2022"}</Text>
+                                                        <Text style={{ fontSize: TOKENS.type.body, color: c.mut, flex: 1, lineHeight: 1.5 }}>{b}</Text>
+                                                    </View>
+                                                ))}
                                             </View>
-                                        ))}
-                                    </View>
-                                    <View style={{ width: 30, ...bNone() }}><Text style={{ fontSize: 9.5, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
-                                    <View style={{ width: 92, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 9, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
-                                    {!(data as any).hideTotals && !isRange && (
-                                        <View style={{ width: 96, paddingLeft: 8, ...bNone() }}>
-                                            {hasDisc ? (
-                                                <>
-                                                    <Text style={{ fontSize: 7.5, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
-                                                    <Text style={{ fontSize: 9, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
-                                                </>
-                                            ) : (
-                                                <Text style={{ fontSize: 9, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(gross, data.currency)}</Text>
+                                        )
+                                    })}
+                                </View>
+                            ) : (
+                                // Full priced table (Proposal — firm pricing).
+                                <>
+                                    <View wrap={false}>
+                                        <View style={{ flexDirection: "row", backgroundColor: c.acc, borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, paddingVertical: 9, paddingHorizontal: 14, ...bNone(), borderBottomWidth: 2, borderBottomColor: c.pri, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }}>
+                                            <View style={{ flex: 1, paddingRight: 8, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Service / Deliverable</Text></View>
+                                            <View style={{ width: 30, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" }}>Qty</Text></View>
+                                            <View style={{ width: 92, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Rate</Text></View>
+                                            {!(data as any).hideTotals && !isRange && (
+                                                <View style={{ width: 96, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 8, color: c.pri, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "right" }}>Amount</Text></View>
                                             )}
                                         </View>
-                                    )}
-                                </View>
-                            )
-                        })}
+                                    </View>
+                                    <View style={{ ...bNone(), borderBottomLeftRadius: 6, borderBottomRightRadius: 6, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderTopWidth: 0, borderLeftColor: c.bdr, borderRightColor: c.bdr, borderBottomColor: c.bdr, borderTopColor: "transparent", borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any, borderBottomStyle: "solid" as any, borderTopStyle: "solid" as any }}>
+                                    {visibleItems.map((item, i, fa) => {
+                                        const gross = item.quantity * item.rate
+                                        const hasDisc = item.discount && item.discount > 0
+                                        const discAmt = hasDisc ? gross * (item.discount! / 100) : 0
+                                        const lineTotal = gross - discAmt
+                                        const dRaw: string = item.description || ("Item " + String(i + 1))
+                                        const dLines = dRaw.split("\n").map((l: string) => l.trim()).filter(Boolean)
+                                        const tLns: string[] = [], bLns: string[] = []
+                                        let sbL = false
+                                        for (const dl of dLines) {
+                                            if (dl.startsWith("- ") || dl.startsWith("\u2022 ") || dl.startsWith("* ")) { sbL = true; bLns.push(dl.replace(/^[-\u2022*]\s+/, "").trim()) }
+                                            else if (!sbL) tLns.push(dl)
+                                            else bLns.push(dl)
+                                        }
+                                        const tStr = tLns.join(" \u2014 ") || dRaw
+                                        const isLast = i === fa.length - 1
+                                        return (
+                                            <View key={i} style={{ flexDirection: "row", paddingVertical: 11, paddingHorizontal: 14, ...bNone(), ...(i % 2 === 1 ? { backgroundColor: c.bg } : {}), ...(!isLast ? { borderBottomWidth: 1, borderBottomColor: c.bdr, borderBottomStyle: "solid" as any, borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderTopColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderTopStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any } : {}) }} wrap={false}>
+                                                <View style={{ flex: 1, ...bNone() }}>
+                                                    <Text style={{ fontSize: 10, color: c.txt, fontWeight: bLns.length > 0 ? 700 : 400, marginBottom: bLns.length > 0 ? 4 : 0, lineHeight: 1.4 }}>{tStr}</Text>
+                                                    {bLns.map((b: string, bi: number) => (
+                                                        <View key={bi} style={{ flexDirection: "row", marginTop: 3, paddingLeft: 2, ...bNone() }}>
+                                                            <Text style={{ fontSize: 9, color: c.pri, marginRight: 6, fontWeight: 700, lineHeight: 1.5 }}>{"\u2022"}</Text>
+                                                            <Text style={{ fontSize: 9, color: c.mut, flex: 1, lineHeight: 1.5 }}>{b}</Text>
+                                                        </View>
+                                                    ))}
+                                                </View>
+                                                <View style={{ width: 30, ...bNone() }}><Text style={{ fontSize: 9.5, color: c.mut, textAlign: "center" }}>{item.quantity}</Text></View>
+                                                <View style={{ width: 92, paddingLeft: 8, ...bNone() }}><Text style={{ fontSize: 9, color: c.mut, textAlign: "right" }}>{fmt(item.rate, data.currency)}</Text></View>
+                                                {!(data as any).hideTotals && !isRange && (
+                                                    <View style={{ width: 96, paddingLeft: 8, ...bNone() }}>
+                                                        {hasDisc ? (
+                                                            <>
+                                                                <Text style={{ fontSize: 7.5, color: c.mut, textAlign: "right", textDecoration: "line-through" }}>{fmt(gross, data.currency)}</Text>
+                                                                <Text style={{ fontSize: 9, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(lineTotal, data.currency)}</Text>
+                                                            </>
+                                                        ) : (
+                                                            <Text style={{ fontSize: 9, color: c.txt, textAlign: "right", fontWeight: 700 }}>{fmt(gross, data.currency)}</Text>
+                                                        )}
+                                                    </View>
+                                                )}
+                                            </View>
+                                        )
+                                    })}
+                                    </View>
+                                </>
+                            )}
                         </View>
-                    </View>
-                )}
+                    )
+                })()}
 
                 {/* ESTIMATED RANGE — headline range instead of a fake precise total */}
                 {isRange && (
@@ -2467,8 +2519,8 @@ export function ProposalPDF({ data, logoUrl }: Props) {
                     </View>
                 )}
 
-                {renderProposalSections(data.notes, c)}
-                {renderProposalTerms(data.terms, isEstimate ? false : data.showSignatureFields, c)}
+                {renderProposalSections(data.notes, c, sectionNum)}
+                {renderTermsBlock(data.terms, isEstimate ? false : data.showSignatureFields, c, sectionNum + countRenderedProposalSections(data.notes) + 1)}
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
                     <Text style={{ fontSize: 8, color: c.mut }}>Generated by Clorefy</Text>
