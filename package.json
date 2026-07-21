@@ -22,6 +22,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1029.0",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/lora": "^5.2.8",
+    "@fontsource/manrope": "5.2.8",
     "@fontsource/roboto-mono": "^5.2.8",
     "@hookform/resolvers": "^3.9.1",
     "@opennextjs/cloudflare": "^1.19.2",

@@ -84,6 +84,20 @@ Font.register({
     ],
 })
 
+// Manrope â€” modern geometric grotesk used for the editorial numbered-section
+// heading system (design-system refresh). Body copy keeps the user's chosen
+// font; this is used ONLY for section headings/labels to give the doc a clean
+// heading/body type pairing, matching the reference design language.
+Font.register({
+    family: "Manrope",
+    fonts: [
+        { src: "/fonts/manrope-400.woff", fontWeight: 400 },
+        { src: "/fonts/manrope-700.woff", fontWeight: 700 },
+        { src: "/fonts/manrope-400.woff", fontWeight: 400, fontStyle: "italic" },
+        { src: "/fonts/manrope-700.woff", fontWeight: 700, fontStyle: "italic" },
+    ],
+})
+
 // â”€â”€â”€ Font mapping â”€â”€â”€
 function getFontFamily(data: InvoiceData): { font: string; fontB: string } {
     const f = data.design?.font || "Inter"
@@ -284,7 +298,11 @@ export function getTheme(tpl: Tpl, data: InvoiceData) {
     const customColor = data.design?.headerColor
     const pri = customColor && customColor.length > 0 && customColor !== b.pri ? customColor : b.pri
     const priDk = customColor && customColor.length > 0 && customColor !== b.pri ? customColor : b.priDk
-    return { ...b, pri, priDk, font, fontB }
+    // fontHead: dedicated heading/label font (Manrope) for the numbered-section
+    // design system — gives every document a clean heading/body type pairing
+    // regardless of which body font the user picked. Body copy always keeps
+    // the user's own font/fontB unchanged.
+    return { ...b, pri, priDk, font, fontB, fontHead: "Manrope" }
 }
 
 // Helper: bold text style
@@ -329,20 +347,62 @@ function bNone() {
     return { ...bw(0, 0, 0, 0), ...bc("transparent", "transparent", "transparent", "transparent"), ...bs("solid", "solid", "solid", "solid") }
 }
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+// Centralized spacing/type scale for the editorial numbered-section design
+// system, so every template pulls from the same rhythm instead of ad-hoc magic
+// numbers. Values are in PDF points (1pt = 1/72in), matching react-pdf units.
+const TOKENS = {
+    space: { xs: 4, sm: 8, md: 14, lg: 22, xl: 32, xxl: 44 },
+    type: {
+        micro: 7.5,   // field micro-labels (uppercase, letter-spaced)
+        small: 8.5,   // table headers, meta text
+        body: 9.5,    // body copy
+        bodyLg: 10.5, // emphasized body copy
+        section: 12,  // section heading
+        title: 14,    // sub-titles within a section
+    },
+    rule: 0.75, // thin hairline rule weight used between numbered sections
+} as const
+
 // ─── Shared typographic hierarchy ────────────────────────────────────────────
 // Consistent heading system used across ALL document templates so every PDF has
-// the same clean, modern visual rhythm. SectionHeading (H2) renders major
-// section titles as a coloured accent bar + 11.5pt bold mixed-case dark title.
-// Small field labels (From / Bill To / Date) stay 7.5pt uppercase; body copy
-// 9.5–10pt. This gives the H1 (title, 28–36pt in DocHeader) → H2 (section) →
-// body → micro-label ladder for clean, modern hierarchy.
+// the same clean, modern editorial rhythm: a small numbered badge ("01", "02")
+// in Manrope, a bold section title, and a thin hairline rule underneath —
+// matching the reference design language (numbered sections + generous
+// whitespace + small-caps labels). Body copy stays on the template's own font;
+// only headings/labels use the dedicated heading font (Manrope).
 
-/** H2 — major section heading with a coloured accent bar. */
-function SectionHeading({ title, c, mt = 0 }: { title: string; c: ReturnType<typeof getTheme>; mt?: number }) {
+/**
+ * H2 — numbered section heading: "01  Section Title" + thin rule beneath.
+ * `number` is an explicit 1-based section index for THIS document (not a
+ * shared/module-level counter — react-pdf renders can interleave across
+ * concurrent requests in the same process, so mutable module state would be
+ * unsafe). Callers pass the index directly; defaults to "01" if omitted.
+ */
+function SectionHeading({ title, c, mt = 0, number = 1, subtitle }: {
+    title: string
+    c: ReturnType<typeof getTheme>
+    mt?: number
+    /** 1-based section index for this document, rendered as "01", "02", etc. */
+    number?: number
+    /** Optional muted description line under the title. */
+    subtitle?: string
+}) {
+    const displayNumber = String(number).padStart(2, "0")
     return (
-        <View minPresenceAhead={30} style={{ flexDirection: "row", alignItems: "center", marginTop: mt, marginBottom: 9, ...bNone() }}>
-            <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
-            <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>{title}</Text>
+        <View minPresenceAhead={40} style={{ marginTop: mt, marginBottom: TOKENS.space.sm, ...bNone() }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: TOKENS.space.xs, ...bNone() }}>
+                <Text style={{ fontSize: TOKENS.type.title, fontFamily: "Manrope", color: c.bdr === "#e5e5e5" ? c.mut : c.pri, fontWeight: 700, marginRight: TOKENS.space.sm, opacity: 0.55 }}>
+                    {displayNumber}
+                </Text>
+                <View style={{ flex: 1, ...bNone() }}>
+                    <Text style={{ fontSize: TOKENS.type.section, fontFamily: "Manrope", color: c.txt, fontWeight: 700, letterSpacing: 0.1 }}>{title}</Text>
+                    {subtitle ? (
+                        <Text style={{ fontSize: TOKENS.type.body, color: c.mut, marginTop: 2, lineHeight: 1.4 }}>{subtitle}</Text>
+                    ) : null}
+                </View>
+            </View>
+            <View style={{ height: TOKENS.rule, backgroundColor: c.bdr, ...bNone() }} />
         </View>
     )
 }
@@ -1471,6 +1531,11 @@ function DocHeader({ tpl, c, title, refNum, logoUrl, data, rightContent, belowHe
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
+    // Sequential numbered-section counter for this render (local, not shared
+    // across concurrent PDF renders). Incremented at each SectionHeading call
+    // site in top-to-bottom document order.
+    let sectionNum = 0
+
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
@@ -1609,7 +1674,7 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
                 {/* â”€â”€ PAYMENT INFO â”€â”€ */}
                 {(data.paymentInstructions || data.paymentMethod) && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: c.bg, ...r(8), ...bNone() }} wrap={false}>
-                        <SectionHeading title="Payment Information" c={c} />
+                        <SectionHeading title="Payment Information" c={c} number={++sectionNum} />
                         {data.paymentMethod ? <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>Method: {data.paymentMethod}</Text> : null}
                         {data.paymentInstructions ? <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{data.paymentInstructions}</Text> : null}
                     </View>
@@ -1622,10 +1687,10 @@ export function InvoicePDF({ data, logoUrl, paymentQrCode }: Props) {
 
                 {/* â”€â”€ NOTES & TERMS â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                    <SectionHeading title="Notes" c={c} number={++sectionNum} />
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View> : null}
-                {renderTermsBlock(data.terms, data.showSignatureFields, c)}
+                {renderTermsBlock(data.terms, data.showSignatureFields, c, ++sectionNum)}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bTop(1, c.bdr), ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
@@ -1705,6 +1770,11 @@ export function parseContractBody(raw: string): ContractBlock[] {
 }
 
 export function ContractPDF({ data, logoUrl }: Props) {
+    // Sequential numbered-section counter for this render (local, not shared
+    // across concurrent PDF renders). Incremented at each SectionHeading call
+    // site in top-to-bottom document order.
+    let sectionNum = 0
+
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
@@ -1755,7 +1825,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                     if (blocks.length === 0) return null
                     return (
                         <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                            <SectionHeading title="Scope & Terms" c={c} />
+                            <SectionHeading title="Scope & Terms" c={c} number={++sectionNum} />
                             {blocks.map((block, idx) => {
                                 if (block.kind === "heading") {
                                     // H3 sub-heading within the contract body — a
@@ -1811,7 +1881,7 @@ export function ContractPDF({ data, logoUrl }: Props) {
                 {/* â”€â”€ DELIVERABLES TABLE â”€â”€ */}
                 {hasItems && (
                     <View style={{ marginHorizontal: 48, marginBottom: 8, ...bNone() }}>
-                        <SectionHeading title="Deliverables & Pricing" c={c} />
+                        <SectionHeading title="Deliverables & Pricing" c={c} number={++sectionNum} />
                         <View style={{ flexDirection: "row", backgroundColor: c.pri, ...r(6), paddingVertical: 10, paddingHorizontal: 12, ...bNone() }} wrap={false}>
                             <View style={{ flex: 1, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Deliverable</Text></View>
                             <View style={{ width: 44, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Qty</Text></View>
@@ -1860,10 +1930,10 @@ export function ContractPDF({ data, logoUrl }: Props) {
 
                 {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                    <SectionHeading title="Notes" c={c} number={++sectionNum} />
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View> : null}
-                {renderTermsBlock(data.terms, data.showSignatureFields, c)}
+                {renderTermsBlock(data.terms, data.showSignatureFields, c, ++sectionNum)}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
@@ -1883,6 +1953,11 @@ export function ContractPDF({ data, logoUrl }: Props) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function QuotationPDF({ data, logoUrl }: Props) {
+    // Sequential numbered-section counter for this render (local, not shared
+    // across concurrent PDF renders). Incremented at each SectionHeading call
+    // site in top-to-bottom document order.
+    let sectionNum = 0
+
     const tpl = getTpl(data)
     const c = getTheme(tpl, data)
     const { sub, disc, tax, total } = calc(data)
@@ -2046,10 +2121,10 @@ export function QuotationPDF({ data, logoUrl }: Props) {
 
                 {/* â”€â”€ NOTES â”€â”€ */}
                 {data.notes ? <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                    <Text style={{ fontSize: 8, color: c.pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                    <SectionHeading title="Notes" c={c} number={++sectionNum} />
                     <Text style={{ fontSize: 9.5, color: c.mut, lineHeight: 1.6 }}>{fixEncoding(data.notes ?? "")}</Text>
                 </View> : null}
-                {renderTermsBlock(data.terms, data.showSignatureFields, c)}
+                {renderTermsBlock(data.terms, data.showSignatureFields, c, ++sectionNum)}
 
                 {/* â”€â”€ FOOTER â”€â”€ */}
                 <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, backgroundColor: c.bg, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 48, ...bNone(), borderTopWidth: 1, borderTopColor: c.bdr, borderTopStyle: "solid" as any, borderBottomWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomStyle: "solid" as any, borderLeftStyle: "solid" as any, borderRightStyle: "solid" as any }} fixed>
@@ -2137,7 +2212,7 @@ function renderProposalSections(notes: string | undefined, c: ReturnType<typeof 
  * formatted its terms. Extracted here so all 9 document types get the same
  * professional, scannable terms section instead of only Proposal having it.
  */
-function renderTermsBlock(terms: string | undefined, showSig: boolean | undefined, c: { pri: string; txt: string; mut: string }) {
+function renderTermsBlock(terms: string | undefined, showSig: boolean | undefined, c: ReturnType<typeof getTheme>, number = 1) {
     if (!terms) return null
     const raw = sanitizeTermsForDisplay(fixEncoding(terms), showSig !== false)
     if (!raw.trim()) return null
@@ -2157,18 +2232,15 @@ function renderTermsBlock(terms: string | undefined, showSig: boolean | undefine
     })
     return (
         <View style={{ marginHorizontal: 48, marginBottom: 14, ...bNone() }}>
-            <View minPresenceAhead={30} style={{ flexDirection: "row", alignItems: "center", marginBottom: 9, ...bNone() }}>
-                <View style={{ width: 3, height: 13, backgroundColor: c.pri, borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginRight: 8, ...bNone() }} />
-                <Text style={{ fontSize: 11.5, color: c.txt, fontWeight: 700, letterSpacing: 0.2 }}>Terms {"&"} Conditions</Text>
-            </View>
+            <SectionHeading title="Terms & Conditions" c={c} number={number} />
             {clauseViews}
         </View>
     )
 }
 
 /** Legacy alias — kept so the existing ProposalPDF call site needs no change. */
-function renderProposalTerms(terms: string | undefined, showSig: boolean | undefined, c: ReturnType<typeof getTheme>) {
-    return renderTermsBlock(terms, showSig, c)
+function renderProposalTerms(terms: string | undefined, showSig: boolean | undefined, c: ReturnType<typeof getTheme>, number = 1) {
+    return renderTermsBlock(terms, showSig, c, number)
 }
 
 export function ProposalPDF({ data, logoUrl }: Props) {
@@ -2913,6 +2985,11 @@ export function PaymentReceiptPDF({ receiptData }: { receiptData: PaymentReceipt
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | null }) {
+    // Sequential numbered-section counter for this render (local, not shared
+    // across concurrent PDF renders). Incremented at each SectionHeading call
+    // site in top-to-bottom document order.
+    let sectionNum = 0
+
     // Template-aware theming — driven by user's design picker (templateId).
     // Falls back to corporate-cyan if no template selected.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2991,7 +3068,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ PROJECT OVERVIEW â”€â”€ */}
                 {data.projectOverview && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <SectionHeading title="Project Overview" c={c} />
+                        <SectionHeading title="Project Overview" c={c} number={++sectionNum} />
                         <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.projectOverview}</Text>
                     </View>
                 )}
@@ -2999,7 +3076,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ SCOPE OF WORK â”€â”€ */}
                 {(data.scopeItems || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <SectionHeading title="Scope of Work" c={c} />
+                        <SectionHeading title="Scope of Work" c={c} number={++sectionNum} />
 
                         {includedItems.length > 0 && (
                             <View style={{ marginBottom: 12, ...bNone() }}>
@@ -3039,7 +3116,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ DELIVERABLES â”€â”€ */}
                 {(data.deliverables || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <SectionHeading title="Deliverables" c={c} />
+                        <SectionHeading title="Deliverables" c={c} number={++sectionNum} />
                         <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                             <View style={{ flex: 3, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Description</Text></View>
                             <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Due Date</Text></View>
@@ -3058,7 +3135,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ MILESTONES â”€â”€ */}
                 {(data.milestones || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <SectionHeading title="Milestones" c={c} />
+                        <SectionHeading title="Milestones" c={c} number={++sectionNum} />
                         <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                             <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Milestone</Text></View>
                             <View style={{ width: 80, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center" }}>Date</Text></View>
@@ -3077,7 +3154,7 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ ASSUMPTIONS â”€â”€ */}
                 {(data.assumptions || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <SectionHeading title="Assumptions" c={c} />
+                        <SectionHeading title="Assumptions" c={c} number={++sectionNum} />
                         {(data.assumptions || []).map((a, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>{"\u2022"}</Text>
@@ -3090,13 +3167,13 @@ export function SOWPDF({ data, logoUrl }: { data: SOWData; logoUrl?: string | nu
                 {/* â”€â”€ NOTES / TERMS â”€â”€ */}
                 {data.notes ? (
                     <View style={{ marginHorizontal: 48, marginBottom: 12, ...bNone() }}>
-                        <Text style={{ fontSize: 8, color: pri, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontWeight: 700 }}>Notes</Text>
+                        <SectionHeading title="Notes" c={c} number={++sectionNum} />
                         <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.6 }}>{data.notes}</Text>
                     </View>
                 ) : null}
                 {/* SOWData has no showSignatureFields toggle — SOW always renders its
                     signature block, so terms are never sanitized for a hidden-signature case. */}
-                {renderTermsBlock(data.terms, true, c)}
+                {renderTermsBlock(data.terms, true, c, ++sectionNum)}
 
                 {/* â”€â”€ CHANGE CONTROL â”€â”€ */}
                 {/* Standard SOW clause: tells the client up front how scope changes are
@@ -3135,6 +3212,11 @@ export function changeOrderIdSuffix(parentDocumentId?: string): string {
 }
 
 export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoUrl?: string | null }) {
+    // Sequential numbered-section counter for this render (local, not shared
+    // across concurrent PDF renders). Incremented at each SectionHeading call
+    // site in top-to-bottom document order.
+    let sectionNum = 0
+
     // Template-aware theming — driven by user's design picker.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tpl = getTpl(data as any)
@@ -3215,7 +3297,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
 
                 {/* â”€â”€ DESCRIPTION â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                    <SectionHeading title="Description of Change" c={c} />
+                    <SectionHeading title="Description of Change" c={c} number={++sectionNum} />
                     <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.description}</Text>
                 </View>
 
@@ -3256,7 +3338,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                 {/* â”€â”€ MODIFICATIONS â”€â”€ */}
                 {(data.modifications || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
-                        <SectionHeading title="Modifications" c={c} />
+                        <SectionHeading title="Modifications" c={c} number={++sectionNum} />
                         <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                             <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Original</Text></View>
                             <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Revised</Text></View>
@@ -3278,7 +3360,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                 {data.costImpact && (
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 48, marginBottom: 20, ...bNone() }} wrap={false}>
                         <View style={{ width: 260, ...bNone() }}>
-                            <SectionHeading title="Cost Impact Summary" c={c} />
+                            <SectionHeading title="Cost Impact Summary" c={c} number={++sectionNum} />
                             <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, ...bNone() }}>
                                 <Text style={{ fontSize: 10, color: mut }}>Original Total</Text>
                                 <Text style={{ fontSize: 10, color: txt, fontWeight: 700 }}>{fmt(data.costImpact.originalTotal, currency)}</Text>
@@ -3313,7 +3395,7 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
                     </View>
                 ) : null}
                 {/* ChangeOrderData has no showSignatureFields toggle — always signed. */}
-                {renderTermsBlock(data.terms, true, c)}
+                {renderTermsBlock(data.terms, true, c, ++sectionNum)}
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 {renderSignatureBlock("change_order", data as unknown as InvoiceData, c)}
@@ -3335,6 +3417,11 @@ export function ChangeOrderPDF({ data, logoUrl }: { data: ChangeOrderData; logoU
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | null }) {
+    // Sequential numbered-section counter for this render (local, not shared
+    // across concurrent PDF renders). Incremented at each SectionHeading call
+    // site in top-to-bottom document order.
+    let sectionNum = 0
+
     // Template-aware theming — driven by user's design picker.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tpl = getTpl(data as any)
@@ -3371,7 +3458,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 
                 {/* ── PARTIES TABLE ── */}
                 <View style={{ marginHorizontal: 48, marginTop: 14, marginBottom: 20, ...bNone() }}>
-                    <SectionHeading title="Parties" c={c} />
+                    <SectionHeading title="Parties" c={c} number={++sectionNum} />
                     <View style={{ flexDirection: "row", backgroundColor: pri, ...r(6), paddingVertical: 8, paddingHorizontal: 10, ...bNone() }} wrap={false}>
                         <View style={{ flex: 2, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Name</Text></View>
                         <View style={{ width: 90, ...bNone() }}><Text style={{ fontSize: 8, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>Role</Text></View>
@@ -3397,14 +3484,14 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 
                 {/* â”€â”€ CONFIDENTIAL INFORMATION DEFINITION â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                    <SectionHeading title="Definition of Confidential Information" c={c} />
+                    <SectionHeading title="Definition of Confidential Information" c={c} number={++sectionNum} />
                     <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.confidentialInfoDefinition}</Text>
                 </View>
 
                 {/* â”€â”€ OBLIGATIONS â”€â”€ */}
                 {(data.obligations || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <SectionHeading title="Obligations" c={c} />
+                        <SectionHeading title="Obligations" c={c} number={++sectionNum} />
                         {(data.obligations || []).map((o, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 5, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7, fontWeight: 700 }}>{i + 1}.</Text>
@@ -3417,7 +3504,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                 {/* â”€â”€ EXCLUSIONS â”€â”€ */}
                 {(data.exclusions || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <SectionHeading title="Exclusions" c={c} />
+                        <SectionHeading title="Exclusions" c={c} number={++sectionNum} />
                         {(data.exclusions || []).map((e, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 4, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7 }}>{"\u2022"}</Text>
@@ -3429,7 +3516,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 
                 {/* â”€â”€ TERM & DURATION â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 16, padding: 14, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
-                    <SectionHeading title="Term & Duration" c={c} />
+                    <SectionHeading title="Term & Duration" c={c} number={++sectionNum} />
                     <View style={{ flexDirection: "row", ...bNone() }}>
                         <View style={{ flex: 1, ...bNone() }}>
                             <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Start Date</Text>
@@ -3449,7 +3536,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                 {/* â”€â”€ REMEDIES â”€â”€ */}
                 {data.remedies && (
                     <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
-                        <SectionHeading title="Remedies" c={c} />
+                        <SectionHeading title="Remedies" c={c} number={++sectionNum} />
                         <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.remedies}</Text>
                     </View>
                 )}
@@ -3462,7 +3549,7 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
                     </View>
                 ) : null}
                 {/* NDAData has no showSignatureFields toggle — always signed. */}
-                {renderTermsBlock(data.terms, true, c)}
+                {renderTermsBlock(data.terms, true, c, ++sectionNum)}
 
                 {/* â”€â”€ SIGNATURE BLOCKS â”€â”€ */}
                 {renderSignatureBlock("nda", data as unknown as InvoiceData, c)}
@@ -3484,6 +3571,11 @@ export function NDAPDF({ data, logoUrl }: { data: NDAData; logoUrl?: string | nu
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboardingFormData; logoUrl?: string | null }) {
+    // Sequential numbered-section counter for this render (local, not shared
+    // across concurrent PDF renders). Incremented at each SectionHeading call
+    // site in top-to-bottom document order.
+    let sectionNum = 0
+
     // Template-aware theming — driven by user's design picker.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tpl = getTpl(data as any)
@@ -3513,7 +3605,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
 
                 {/* â”€â”€ CLIENT DETAILS â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginTop: 20, marginBottom: 16, padding: 16, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
-                    <SectionHeading title="Client Details" c={c} />
+                    <SectionHeading title="Client Details" c={c} number={++sectionNum} />
                     <View style={{ flexDirection: "row", flexWrap: "wrap", ...bNone() }}>
                         {[
                             { label: "Name", value: data.clientName },
@@ -3531,7 +3623,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
 
                 {/* â”€â”€ PROJECT DETAILS â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginBottom: 16, ...bNone() }}>
-                    <SectionHeading title="Project Details" c={c} />
+                    <SectionHeading title="Project Details" c={c} number={++sectionNum} />
                     <View style={{ marginBottom: 10, ...bNone() }}>
                         <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4, fontWeight: 700 }}>Project Name</Text>
                         <Text style={{ fontSize: 11, color: txt, fontWeight: 700 }}>{data.projectName}</Text>
@@ -3561,7 +3653,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                 {/* â”€â”€ REQUIREMENTS â”€â”€ */}
                 {(data.requirements || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <SectionHeading title="Requirements" c={c} />
+                        <SectionHeading title="Requirements" c={c} number={++sectionNum} />
                         {(data.requirements || []).map((req, i) => (
                             <View key={i} style={{ flexDirection: "row", marginBottom: 5, ...bNone() }} wrap={false}>
                                 <Text style={{ fontSize: 10, color: pri, width: 16, lineHeight: 1.7, fontWeight: 700 }}>{i + 1}.</Text>
@@ -3574,7 +3666,7 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
                 {/* â”€â”€ CUSTOM Q&A â”€â”€ */}
                 {(data.customQuestions || []).length > 0 && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, ...bNone() }}>
-                        <SectionHeading title="Additional Information" c={c} />
+                        <SectionHeading title="Additional Information" c={c} number={++sectionNum} />
                         {(data.customQuestions || []).map((qa, i) => {
                             const hasAnswer = qa.answer && qa.answer.trim().length > 0
                             return (
@@ -3637,6 +3729,11 @@ export function ClientOnboardingFormPDF({ data, logoUrl }: { data: ClientOnboard
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupData; logoUrl?: string | null }) {
+    // Sequential numbered-section counter for this render (local, not shared
+    // across concurrent PDF renders). Incremented at each SectionHeading call
+    // site in top-to-bottom document order.
+    let sectionNum = 0
+
     // Template-aware theming: if the user selected a template via the design
     // picker, use it. Otherwise fall back to tone-based colors (polite/firm/urgent)
     // so the document still has visual urgency cues by default.
@@ -3709,7 +3806,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
 
                 {/* â”€â”€ INVOICE REFERENCE â”€â”€ */}
                 <View style={{ marginHorizontal: 48, marginTop: 16, marginBottom: 16, padding: 14, backgroundColor: bg, ...r(8), ...bNone() }} wrap={false}>
-                    <SectionHeading title="Invoice Reference" c={c} />
+                    <SectionHeading title="Invoice Reference" c={c} number={++sectionNum} />
                     <View style={{ flexDirection: "row", ...bNone() }}>
                         <View style={{ flex: 1, ...bNone() }}>
                             <Text style={{ fontSize: 7.5, color: mut, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3, fontWeight: 700 }}>Invoice Number</Text>
@@ -3745,7 +3842,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                 {/* â”€â”€ MESSAGE â”€â”€ */}
                 {data.customMessage && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 16, backgroundColor: bg, ...r(8), ...bNone() }}>
-                        <SectionHeading title="Message" c={c} />
+                        <SectionHeading title="Message" c={c} number={++sectionNum} />
                         <Text style={{ fontSize: 10, color: txt, lineHeight: 1.7 }}>{data.customMessage}</Text>
                     </View>
                 )}
@@ -3753,7 +3850,7 @@ export function PaymentFollowupPDF({ data, logoUrl }: { data: PaymentFollowupDat
                 {/* â”€â”€ PAYMENT LINK â”€â”€ */}
                 {data.paymentLinkUrl && (
                     <View style={{ marginHorizontal: 48, marginBottom: 20, padding: 14, backgroundColor: acc, ...r(8), ...bNone() }} wrap={false}>
-                        <SectionHeading title="Pay Online" c={c} />
+                        <SectionHeading title="Pay Online" c={c} number={++sectionNum} />
                         <Text style={{ fontSize: 9.5, color: mut, lineHeight: 1.4, marginBottom: 8 }}>
                             Click the link below to pay securely online.
                         </Text>

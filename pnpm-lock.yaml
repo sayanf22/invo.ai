@@ -20,6 +20,9 @@ importers:
       '@fontsource/lora':
         specifier: ^5.2.8
         version: 5.2.8
+      '@fontsource/manrope':
+        specifier: 5.2.8
+        version: 5.2.8
       '@fontsource/roboto-mono':
         specifier: ^5.2.8
         version: 5.2.8
@@ -1105,6 +1108,9 @@ packages:
 
   '@fontsource/lora@5.2.8':
     resolution: {integrity: sha512-AQlfsHw4TP1x/eb2IZ6VjQ70ctKa39m9JN9A4zlvDOeKYLrCs+GaYIEQ86Y6YfSPGHn01bErXkRcyktOW0LOPQ==}
+
+  '@fontsource/manrope@5.2.8':
+    resolution: {integrity: sha512-gJHJmcuUk7qWcNCfcAri/DJQtXtBYqi9yKratr4jXhSo0I3xUtNNKI+igQIcw5c+m95g0vounk8ZnX/kb8o0TA==}
 
   '@fontsource/roboto-mono@5.2.8':
     resolution: {integrity: sha512-M0XPRcvkOKiTPooXwX7yJSNpuad3CPcQwsADBfnopz3apBs+VKI47pc42mlvAxJjNTRauu5rndSxHc8F52bR7Q==}
@@ -7280,6 +7286,8 @@ snapshots:
   '@fontsource/inter@5.2.8': {}
 
   '@fontsource/lora@5.2.8': {}
+
+  '@fontsource/manrope@5.2.8': {}
 
   '@fontsource/roboto-mono@5.2.8': {}
 
